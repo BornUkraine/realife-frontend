@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // OAuth identities
+  twitterId    String? @unique
+  twitterName  String?
+  twitterUser  String? @unique
+  twitterImage String?
+
+  discordId    String? @unique
+  discordName  String?
+  discordUser  String? @unique
+  discordImage String?
+
+  // points
+  points     Int       @default(0)
+  lastDailyAt DateTime?
+
+  events     PointEvent[]
+}
+
+model PointEvent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type   String // "CONNECT_X" | "CONNECT_DISCORD" | "MINT" | "DAILY" ...
+  points Int
+  meta   Json?
+
+  @@index([userId])
+  @@index([type])
+}
