@@ -26,17 +26,28 @@ function pickDiscordProfile(profile: any) {
 
 export const authOptions = {
   session: { strategy: "jwt" },
+
   providers: [
     TwitterProvider({
       clientId: process.env.TWITTER_CLIENT_ID!,
       clientSecret: process.env.TWITTER_CLIENT_SECRET!,
-      version: "2", // важно для X
+      version: "2",
+
+      // Force OAuth2 (non-legacy) authorize endpoint + scopes
+      authorization: {
+        url: "https://twitter.com/i/oauth2/authorize",
+        params: {
+          scope: "users.read tweet.read offline.access",
+        },
+      },
     }),
+
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID!,
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
     }),
   ],
+
   callbacks: {
     async jwt({ token, account, profile }: any) {
       // create/find user by provider id
@@ -140,11 +151,13 @@ export const authOptions = {
 
       return token;
     },
+
     async session({ session, token }: any) {
       session.userId = token.uid;
       return session;
     },
   },
+
   secret: process.env.NEXTAUTH_SECRET,
 };
 
