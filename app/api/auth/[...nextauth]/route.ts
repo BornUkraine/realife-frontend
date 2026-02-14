@@ -33,11 +33,12 @@ export const authOptions = {
       clientSecret: process.env.TWITTER_CLIENT_SECRET!,
       version: "2",
 
-      // Force OAuth2 (non-legacy) authorize endpoint + scopes
+      // Force OAuth2 (non-legacy) authorize endpoint + MINIMAL scope
+      // This avoids "You weren’t able to give access to the App" errors
       authorization: {
         url: "https://twitter.com/i/oauth2/authorize",
         params: {
-          scope: "users.read tweet.read offline.access",
+          scope: "users.read",
         },
       },
     }),
