@@ -1,10 +1,11 @@
-import NextAuth from "next-auth";
+import NextAuth, { type NextAuthOptions } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 import TwitterProvider from "next-auth/providers/twitter";
+import type { JWT } from "next-auth/jwt";
+import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 
 function pickTwitterProfile(profile: any) {
-  // next-auth twitter profile shape can vary by version
   const username = profile?.data?.username ?? profile?.username ?? null;
   const name = profile?.data?.name ?? profile?.name ?? null;
   const image =
@@ -12,7 +13,6 @@ function pickTwitterProfile(profile: any) {
     profile?.profile_image_url ??
     profile?.picture ??
     null;
-
   return { username, name, image };
 }
 
@@ -24,34 +24,36 @@ function pickDiscordProfile(profile: any) {
   return { username, name, image };
 }
 
-export const authOptions = {
+export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
   providers: [
     TwitterProvider({
-      clientId: process.env.TWITTER_CLIENT_ID!,
-      clientSecret: process.env.TWITTER_CLIENT_SECRET!,
+      clientId: process.env.TWITTER_CLIENT_ID ?? "",
+      clientSecret: process.env.TWITTER_CLIENT_SECRET ?? "",
       version: "2",
-
-      // Force OAuth2 (non-legacy) authorize endpoint + MINIMAL scope
-      // This avoids "You weren’t able to give access to the App" errors
       authorization: {
         url: "https://twitter.com/i/oauth2/authorize",
-        params: {
-          scope: "users.read",
-        },
+        params: { scope: "users.read" },
       },
     }),
 
     DiscordProvider({
-      clientId: process.env.DISCORD_CLIENT_ID!,
-      clientSecret: process.env.DISCORD_CLIENT_SECRET!,
+      clientId: process.env.DISCORD_CLIENT_ID ?? "",
+      clientSecret: process.env.DISCORD_CLIENT_SECRET ?? "",
     }),
   ],
 
   callbacks: {
-    async jwt({ token, account, profile }: any) {
-      // create/find user by provider id
+    async jwt({
+      token,
+      account,
+      profile,
+    }: {
+      token: JWT;
+      account?: any;
+      profile?: any;
+    }) {
       if (account?.provider === "twitter") {
         const t = pickTwitterProfile(profile);
         const twitterId = account.providerAccountId;
@@ -71,10 +73,10 @@ export const authOptions = {
           },
         });
 
-        // one-time points for connect X
         const already = await prisma.pointEvent.findFirst({
           where: { userId: user.id, type: "CONNECT_X" },
         });
+
         if (!already) {
           await prisma.user.update({
             where: { id: user.id },
@@ -92,8 +94,7 @@ export const authOptions = {
         const d = pickDiscordProfile(profile);
         const discordId = account.providerAccountId;
 
-        // если уже есть uid (юзер заходил через X) — прилинкуем discord к нему
-        if (token?.uid) {
+        if (token.uid) {
           const user = await prisma.user.update({
             where: { id: token.uid },
             data: {
@@ -107,6 +108,7 @@ export const authOptions = {
           const already = await prisma.pointEvent.findFirst({
             where: { userId: user.id, type: "CONNECT_DISCORD" },
           });
+
           if (!already) {
             await prisma.user.update({
               where: { id: user.id },
@@ -117,7 +119,6 @@ export const authOptions = {
             });
           }
         } else {
-          // если вошёл первым Discord — создаём user
           const user = await prisma.user.upsert({
             where: { discordId },
             create: {
@@ -136,6 +137,7 @@ export const authOptions = {
           const already = await prisma.pointEvent.findFirst({
             where: { userId: user.id, type: "CONNECT_DISCORD" },
           });
+
           if (!already) {
             await prisma.user.update({
               where: { id: user.id },
@@ -153,7 +155,7 @@ export const authOptions = {
       return token;
     },
 
-    async session({ session, token }: any) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       session.userId = token.uid;
       return session;
     },
@@ -162,5 +164,5 @@ export const authOptions = {
   secret: process.env.NEXTAUTH_SECRET,
 };
 
-const handler = NextAuth(authOptions as any);
+const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
