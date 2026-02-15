@@ -104,26 +104,6 @@ export default function ProfilePage() {
   const [dailyBusy, setDailyBusy] = useState(false);
   const [connectBusy, setConnectBusy] = useState<"" | "twitter" | "discord">("");
 
-  async function loadMe() {
-    if (!authed) {
-      setMe(null);
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch("/api/me", { cache: "no-store" });
-      const json: { user?: MeUser | null } = await res.json();
-      setMe(json?.user ?? null);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed]);
-
   const twitterConnected = Boolean(me?.twitterId || me?.twitterUser || me?.twitterName);
   const discordConnected = Boolean(me?.discordId || me?.discordUser || me?.discordName);
 
@@ -136,6 +116,28 @@ export default function ProfilePage() {
       "Realife user"
     );
   }, [me]);
+
+  async function loadMe() {
+    if (!authed) {
+      setMe(null);
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/me", { cache: "no-store" });
+      const json = await res.json().catch(() => ({}));
+      setMe(json?.user ?? null);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ✅ перезагружаем /api/me при любом изменении статуса
+  useEffect(() => {
+    if (status === "authenticated") loadMe();
+    else setMe(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   async function claimDaily() {
     if (!authed) return;
@@ -152,13 +154,20 @@ export default function ProfilePage() {
 
   async function connect(provider: "twitter" | "discord") {
     setConnectBusy(provider);
-    try {
-      // after login, come back to /app/profile
-      await signIn(provider, { callbackUrl: "/app/profile" });
-    } finally {
-      setConnectBusy("");
-    }
+
+    const callbackUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/app/profile`
+        : "/app/profile";
+
+    // ⚠️ не сбрасываем connectBusy в finally:
+    // NextAuth почти всегда редиректит и страница перезагрузится сама,
+    // а иногда finally не успевает/даёт лишний "мигание" UI.
+    await signIn(provider, { callbackUrl });
   }
+
+  const connectDisabled = connectBusy !== "";
+  const connectAllowed = authed && !connectDisabled;
 
   return (
     <AppShell title="REALIFE" subtitle="Profile • Identity • Points">
@@ -205,7 +214,10 @@ export default function ProfilePage() {
 
               <div className="w-full md:w-[360px] space-y-3">
                 {!authed ? (
-                  <GoldBtn onClick={() => connect("twitter")} disabled={connectBusy !== ""}>
+                  <GoldBtn
+                    onClick={() => connect("twitter")}
+                    disabled={connectBusy !== ""}
+                  >
                     {connectBusy === "twitter" ? "Opening X…" : "Login with X"}
                   </GoldBtn>
                 ) : (
@@ -243,7 +255,7 @@ export default function ProfilePage() {
 
               <div className="mt-5">
                 <GoldBtn
-                  disabled={connectBusy !== "" || status === "loading"}
+                  disabled={!connectAllowed}
                   onClick={() => connect("twitter")}
                 >
                   {connectBusy === "twitter"
@@ -252,6 +264,7 @@ export default function ProfilePage() {
                     ? "Re-connect X"
                     : "Connect X (+100)"}
                 </GoldBtn>
+
                 {!authed ? (
                   <div className="mt-2 text-[11px] text-white/45">
                     You need to login first. This will also create your profile.
@@ -280,7 +293,7 @@ export default function ProfilePage() {
 
               <div className="mt-5">
                 <GoldBtn
-                  disabled={connectBusy !== "" || status === "loading"}
+                  disabled={!connectAllowed}
                   onClick={() => connect("discord")}
                 >
                   {connectBusy === "discord"
@@ -289,6 +302,7 @@ export default function ProfilePage() {
                     ? "Re-connect Discord"
                     : "Connect Discord (+100)"}
                 </GoldBtn>
+
                 {!authed ? (
                   <div className="mt-2 text-[11px] text-white/45">
                     You need to login first (with X). Then you can link Discord.
