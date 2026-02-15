@@ -21,7 +21,11 @@ function pickDiscordProfile(profile: any) {
   const username = profile?.username ?? null;
   const globalName = profile?.global_name ?? null;
   const name = globalName || username;
-  const image = profile?.image_url ?? null;
+  const image =
+    profile?.image_url ??
+    profile?.avatar_url ??
+    profile?.avatar ??
+    null;
 
   return { username, name, image };
 }
@@ -31,21 +35,18 @@ export const authOptions: NextAuthOptions = {
 
   providers: [
     TwitterProvider({
-      // В UI будет "Twitter", не Legacy (если реально этот конфиг подхватился)
       name: "Twitter",
       clientId: process.env.TWITTER_CLIENT_ID ?? "",
       clientSecret: process.env.TWITTER_CLIENT_SECRET ?? "",
       version: "2",
 
-      // Важно: OAuth2 authorize endpoint (X может редиректить, но стартуем правильно)
+      // НЕ задаём url (x.com/twitter.com редиректы ломают state/PKCE)
       authorization: {
-        url: "https://x.com/i/oauth2/authorize",
         params: {
           scope: "users.read tweet.read offline.access",
         },
       },
 
-      // Для X обычно безопаснее так:
       checks: ["pkce", "state"],
       idToken: false,
     }),
@@ -62,7 +63,7 @@ export const authOptions: NextAuthOptions = {
       account,
       profile,
     }: {
-      token: JWT;
+      token: JWT & { uid?: string };
       account?: any;
       profile?: any;
     }) {
@@ -167,16 +168,13 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
 
-    async session({ session, token }: { session: Session & any; token: JWT }) {
+    async session({ session, token }: { session: Session & any; token: JWT & any }) {
       session.userId = token.uid;
       return session;
     },
   },
 
   secret: process.env.NEXTAUTH_SECRET,
-
-  // (опционально) если хочешь чтобы прод-домены строго совпадали
-  // trustHost: true,
 };
 
 const handler = NextAuth(authOptions);
