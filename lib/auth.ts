@@ -46,7 +46,7 @@ const TwitterOAuthProvider: any = {
   userinfo: {
     url: "https://api.twitter.com/2/users/me",
     params: {
-      "user.fields": "profile_image_url",
+      "user.fields": "id,name,username,profile_image_url",
     },
   },
 
