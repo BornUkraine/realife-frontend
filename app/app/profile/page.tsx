@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { signIn, signOut, useSession } from "next-auth/react";
 
@@ -96,8 +97,11 @@ function Avatar({ src, fallback }: { src?: string | null; fallback: string }) {
 }
 
 export default function ProfilePage() {
-  const { status } = useSession();
-  const authed = status === "authenticated";
+  const { data: session, status } = useSession();
+  const authed = status === "authenticated" && !!session?.userId;
+
+  const searchParams = useSearchParams();
+  const refresh = searchParams.get("refresh");
 
   const [me, setMe] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(false);
@@ -132,20 +136,26 @@ export default function ProfilePage() {
     }
   }
 
-  // ✅ перезагружаем /api/me при любом изменении статуса
+  // ✅ reload me when auth status changes OR after redirect (?refresh=1)
   useEffect(() => {
-    if (status === "authenticated") loadMe();
+    if (authed) loadMe();
     else setMe(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [authed]);
+
+  useEffect(() => {
+    if (authed && refresh) {
+      loadMe();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refresh]);
 
   async function claimDaily() {
     if (!authed) return;
     setDailyBusy(true);
     try {
-      await fetch("/api/points/daily", { method: "POST" }).then((r) =>
-        r.json().catch(() => ({}))
-      );
+      await fetch("/api/points/daily", { method: "POST" })
+        .then((r) => r.json().catch(() => ({})));
       await loadMe();
     } finally {
       setDailyBusy(false);
@@ -157,16 +167,14 @@ export default function ProfilePage() {
 
     const callbackUrl =
       typeof window !== "undefined"
-        ? `${window.location.origin}/app/profile`
-        : "/app/profile";
+        ? `${window.location.origin}/app/profile?refresh=1`
+        : "/app/profile?refresh=1";
 
-    // ⚠️ не сбрасываем connectBusy в finally:
-    // NextAuth почти всегда редиректит и страница перезагрузится сама,
-    // а иногда finally не успевает/даёт лишний "мигание" UI.
+    // важно: тут обычно редирект → страница перезагрузится
     await signIn(provider, { callbackUrl });
   }
 
-  const connectDisabled = connectBusy !== "";
+  const connectDisabled = connectBusy !== "" || status !== "authenticated";
   const connectAllowed = authed && !connectDisabled;
 
   return (
@@ -188,7 +196,6 @@ export default function ProfilePage() {
         </div>
 
         <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
-          {/* TOP: Identity + points */}
           <Card>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div className="min-w-0">
@@ -214,10 +221,7 @@ export default function ProfilePage() {
 
               <div className="w-full md:w-[360px] space-y-3">
                 {!authed ? (
-                  <GoldBtn
-                    onClick={() => connect("twitter")}
-                    disabled={connectBusy !== ""}
-                  >
+                  <GoldBtn onClick={() => connect("twitter")} disabled={connectBusy !== ""}>
                     {connectBusy === "twitter" ? "Opening X…" : "Login with X"}
                   </GoldBtn>
                 ) : (
@@ -233,7 +237,6 @@ export default function ProfilePage() {
             </div>
           </Card>
 
-          {/* CONNECT CARDS */}
           <div className="grid md:grid-cols-2 gap-6">
             {/* X */}
             <Card>
@@ -267,7 +270,7 @@ export default function ProfilePage() {
 
                 {!authed ? (
                   <div className="mt-2 text-[11px] text-white/45">
-                    You need to login first. This will also create your profile.
+                    Login with X first. Then you can link Discord too.
                   </div>
                 ) : null}
               </div>
