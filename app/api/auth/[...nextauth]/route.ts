@@ -33,6 +33,10 @@ function pickDiscordProfile(profile: any) {
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
+  // Если хочешь — включай через env:
+  // NEXTAUTH_DEBUG=true
+  // debug: process.env.NEXTAUTH_DEBUG === "true",
+
   providers: [
     TwitterProvider({
       name: "Twitter",
@@ -40,7 +44,7 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.TWITTER_CLIENT_SECRET ?? "",
       version: "2",
 
-      // НЕ задаём url (x.com/twitter.com редиректы ломают state/PKCE)
+      // ВАЖНО: НЕ задаём url (x.com/twitter.com редиректы ломают state/PKCE)
       authorization: {
         params: {
           scope: "users.read tweet.read offline.access",
