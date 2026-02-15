@@ -1,21 +1,13 @@
 import NextAuth, { type NextAuthOptions } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
-import TwitterProvider from "next-auth/providers/twitter";
+import type { OAuthConfig } from "next-auth/providers/oauth";
 import type { JWT } from "next-auth/jwt";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 
-function pickTwitterProfile(profile: any) {
-  const username = profile?.data?.username ?? profile?.username ?? null;
-  const name = profile?.data?.name ?? profile?.name ?? null;
-  const image =
-    profile?.data?.profile_image_url ??
-    profile?.profile_image_url ??
-    profile?.picture ??
-    null;
-
-  return { username, name, image };
-}
+/* -------------------------------------------------------------------------- */
+/*                                   HELPERS                                  */
+/* -------------------------------------------------------------------------- */
 
 function pickDiscordProfile(profile: any) {
   const username = profile?.username ?? null;
@@ -30,34 +22,56 @@ function pickDiscordProfile(profile: any) {
   return { username, name, image };
 }
 
+/* -------------------------------------------------------------------------- */
+/*                        X (TWITTER) OAUTH2 PROVIDER                          */
+/* -------------------------------------------------------------------------- */
+
+const TwitterOAuthProvider: OAuthConfig<any> = {
+  id: "twitter",
+  name: "Twitter",
+  type: "oauth",
+  version: "2.0",
+
+  authorization: {
+    url: "https://twitter.com/i/oauth2/authorize",
+    params: {
+      scope: "users.read tweet.read offline.access",
+    },
+  },
+
+  token: "https://api.twitter.com/2/oauth2/token",
+  userinfo: "https://api.twitter.com/2/users/me",
+
+  clientId: process.env.TWITTER_CLIENT_ID!,
+  clientSecret: process.env.TWITTER_CLIENT_SECRET!,
+
+  checks: ["pkce", "state"],
+
+  profile(profile) {
+    return {
+      id: profile.data.id,
+      name: profile.data.name,
+      username: profile.data.username,
+      image: profile.data.profile_image_url,
+    };
+  },
+};
+
+/* -------------------------------------------------------------------------- */
+/*                               AUTH OPTIONS                                 */
+/* -------------------------------------------------------------------------- */
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
 
-  // Если хочешь — включай через env:
-  // NEXTAUTH_DEBUG=true
-  // debug: process.env.NEXTAUTH_DEBUG === "true",
+  debug: process.env.NEXTAUTH_DEBUG === "true",
 
   providers: [
-    TwitterProvider({
-      name: "Twitter",
-      clientId: process.env.TWITTER_CLIENT_ID ?? "",
-      clientSecret: process.env.TWITTER_CLIENT_SECRET ?? "",
-      version: "2",
-
-      // ВАЖНО: НЕ задаём url (x.com/twitter.com редиректы ломают state/PKCE)
-      authorization: {
-        params: {
-          scope: "users.read tweet.read offline.access",
-        },
-      },
-
-      checks: ["pkce", "state"],
-      idToken: false,
-    }),
+    TwitterOAuthProvider,
 
     DiscordProvider({
-      clientId: process.env.DISCORD_CLIENT_ID ?? "",
-      clientSecret: process.env.DISCORD_CLIENT_SECRET ?? "",
+      clientId: process.env.DISCORD_CLIENT_ID!,
+      clientSecret: process.env.DISCORD_CLIENT_SECRET!,
     }),
   ],
 
@@ -71,108 +85,71 @@ export const authOptions: NextAuthOptions = {
       account?: any;
       profile?: any;
     }) {
+      /* ----------------------------- X (Twitter) ---------------------------- */
       if (account?.provider === "twitter") {
-        const t = pickTwitterProfile(profile);
-        const twitterId = account.providerAccountId;
+        const twitterId = profile.id;
 
         const user = await prisma.user.upsert({
           where: { twitterId },
           create: {
             twitterId,
-            twitterUser: t.username,
-            twitterName: t.name,
-            twitterImage: t.image,
+            twitterUser: profile.username,
+            twitterName: profile.name,
+            twitterImage: profile.image,
           },
           update: {
-            twitterUser: t.username,
-            twitterName: t.name,
-            twitterImage: t.image,
+            twitterUser: profile.username,
+            twitterName: profile.name,
+            twitterImage: profile.image,
           },
         });
-
-        const already = await prisma.pointEvent.findFirst({
-          where: { userId: user.id, type: "CONNECT_X" },
-        });
-
-        if (!already) {
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { points: { increment: 100 } },
-          });
-          await prisma.pointEvent.create({
-            data: { userId: user.id, type: "CONNECT_X", points: 100 },
-          });
-        }
 
         token.uid = user.id;
       }
 
+      /* ------------------------------ Discord -------------------------------- */
       if (account?.provider === "discord") {
         const d = pickDiscordProfile(profile);
         const discordId = account.providerAccountId;
 
-        if (token.uid) {
-          const user = await prisma.user.update({
-            where: { id: token.uid as string },
-            data: {
-              discordId,
-              discordUser: d.username,
-              discordName: d.name,
-              discordImage: d.image,
-            },
-          });
-
-          const already = await prisma.pointEvent.findFirst({
-            where: { userId: user.id, type: "CONNECT_DISCORD" },
-          });
-
-          if (!already) {
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { points: { increment: 100 } },
+        const user = token.uid
+          ? await prisma.user.update({
+              where: { id: token.uid },
+              data: {
+                discordId,
+                discordUser: d.username,
+                discordName: d.name,
+                discordImage: d.image,
+              },
+            })
+          : await prisma.user.upsert({
+              where: { discordId },
+              create: {
+                discordId,
+                discordUser: d.username,
+                discordName: d.name,
+                discordImage: d.image,
+              },
+              update: {
+                discordUser: d.username,
+                discordName: d.name,
+                discordImage: d.image,
+              },
             });
-            await prisma.pointEvent.create({
-              data: { userId: user.id, type: "CONNECT_DISCORD", points: 100 },
-            });
-          }
-        } else {
-          const user = await prisma.user.upsert({
-            where: { discordId },
-            create: {
-              discordId,
-              discordUser: d.username,
-              discordName: d.name,
-              discordImage: d.image,
-            },
-            update: {
-              discordUser: d.username,
-              discordName: d.name,
-              discordImage: d.image,
-            },
-          });
 
-          const already = await prisma.pointEvent.findFirst({
-            where: { userId: user.id, type: "CONNECT_DISCORD" },
-          });
-
-          if (!already) {
-            await prisma.user.update({
-              where: { id: user.id },
-              data: { points: { increment: 100 } },
-            });
-            await prisma.pointEvent.create({
-              data: { userId: user.id, type: "CONNECT_DISCORD", points: 100 },
-            });
-          }
-
-          token.uid = user.id;
-        }
+        token.uid = user.id;
       }
 
       return token;
     },
 
-    async session({ session, token }: { session: Session & any; token: JWT & any }) {
+    async session({
+      session,
+      token,
+    }: {
+      session: Session & { userId?: string };
+      token: JWT & { uid?: string };
+    }) {
       session.userId = token.uid;
       return session;
     },
@@ -180,6 +157,10 @@ export const authOptions: NextAuthOptions = {
 
   secret: process.env.NEXTAUTH_SECRET,
 };
+
+/* -------------------------------------------------------------------------- */
+/*                                   HANDLER                                  */
+/* -------------------------------------------------------------------------- */
 
 const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
