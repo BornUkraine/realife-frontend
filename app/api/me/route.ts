@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
+import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET() {
   const session: any = await getServerSession(authOptions);
@@ -17,7 +18,6 @@ export async function GET() {
       id: true,
       points: true,
 
-      // ✅ добавили ID — UI сразу понимает “connected”
       twitterId: true,
       twitterUser: true,
       twitterName: true,

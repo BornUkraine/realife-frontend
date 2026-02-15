@@ -24,9 +24,7 @@ export async function POST() {
         select: { id: true, lastDailyAt: true },
       });
 
-      if (!user) {
-        return { status: 404 as const, body: { ok: false } };
-      }
+      if (!user) return { status: 404 as const, body: { ok: false } };
 
       const last = user.lastDailyAt ? new Date(user.lastDailyAt).getTime() : 0;
       const canClaim = !user.lastDailyAt || now.getTime() - last > DAY_MS;
@@ -40,10 +38,7 @@ export async function POST() {
 
       await tx.user.update({
         where: { id: user.id },
-        data: {
-          points: { increment: 10 },
-          lastDailyAt: now,
-        },
+        data: { points: { increment: 10 }, lastDailyAt: now },
       });
 
       await tx.pointEvent.create({

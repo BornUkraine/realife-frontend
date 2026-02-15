@@ -13,12 +13,38 @@ function pickDiscordProfile(profile: any) {
   const globalName = profile?.global_name ?? null;
   const name = globalName || username;
   const image =
-    profile?.image_url ??
-    profile?.avatar_url ??
-    profile?.avatar ??
-    null;
+    profile?.image_url ?? profile?.avatar_url ?? profile?.avatar ?? null;
 
   return { username, name, image };
+}
+
+/**
+ * Award points only once per event type.
+ * Works inside or outside transaction (accepts prisma or tx).
+ */
+async function awardOnce(
+  db: typeof prisma,
+  userId: string,
+  type: "CONNECT_X" | "CONNECT_DISCORD" | "DAILY",
+  points: number
+) {
+  const already = await db.pointEvent.findFirst({
+    where: { userId, type },
+    select: { id: true },
+  });
+
+  if (already) return false;
+
+  await db.user.update({
+    where: { id: userId },
+    data: { points: { increment: points } },
+  });
+
+  await db.pointEvent.create({
+    data: { userId, type, points },
+  });
+
+  return true;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -42,27 +68,26 @@ const TwitterOAuthProvider: any = {
 
   token: "https://api.twitter.com/2/oauth2/token",
 
-  // КЛЮЧЕВОЕ: просим profile_image_url через user.fields
-  userinfo: {
-    url: "https://api.twitter.com/2/users/me",
-    params: {
-      "user.fields": "id,name,username,profile_image_url",
-    },
-  },
+  // ✅ Самый надёжный способ: user.fields прямо в URL
+  // (иначе часто приходят null name/username/image)
+  userinfo:
+    "https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url",
 
   clientId: process.env.TWITTER_CLIENT_ID!,
   clientSecret: process.env.TWITTER_CLIENT_SECRET!,
 
   checks: ["pkce", "state"],
 
-  profile(profile: any) {
+  profile(raw: any) {
     // X v2 users/me -> { data: {...} }
-    const d = profile?.data ?? {};
+    const d = raw?.data ?? {};
     return {
       id: d?.id,
       name: d?.name ?? null,
       username: d?.username ?? null,
       image: d?.profile_image_url ?? null,
+      // сохраним сырой ответ для отладки, если нужно
+      __raw: raw,
     };
   },
 };
@@ -95,6 +120,22 @@ export const authOptions: NextAuthOptions = {
     }) {
       /* ----------------------------- X (Twitter) ---------------------------- */
       if (account?.provider === "twitter") {
+        // 🔎 логируем сырой ответ X (только в debug)
+        if (process.env.NEXTAUTH_DEBUG === "true") {
+          try {
+            // profile может быть тем, что вернул profile() выше
+            console.log("X_PROFILE_MAPPED", {
+              id: profile?.id,
+              username: profile?.username,
+              name: profile?.name,
+              image: profile?.image,
+            });
+            console.log("X_PROFILE_RAW", (profile as any)?.__raw ?? profile);
+          } catch (e) {
+            console.log("X_LOG_ERROR", e);
+          }
+        }
+
         const twitterId = profile?.id ?? account?.providerAccountId;
         const twitterUser = profile?.username ?? null;
         const twitterName = profile?.name ?? null;
@@ -102,52 +143,47 @@ export const authOptions: NextAuthOptions = {
 
         if (!twitterId) return token;
 
-        let user;
+        const user = await prisma.$transaction(async (tx) => {
+          let u;
 
-        // ✅ если уже есть uid (например залогинен Discord) — ПРИВЯЗЫВАЕМ X к этому юзеру
-        if (token.uid) {
-          user = await prisma.user.update({
-            where: { id: token.uid },
-            data: { twitterId, twitterUser, twitterName, twitterImage },
-          });
-        } else {
-          // иначе логин только через X — создаём/обновляем по twitterId
-          user = await prisma.user.upsert({
-            where: { twitterId },
-            create: { twitterId, twitterUser, twitterName, twitterImage },
-            update: { twitterUser, twitterName, twitterImage },
-          });
-        }
+          // ✅ Если уже есть uid (например залогинен Discord) — привязываем X к текущему юзеру
+          if (token.uid) {
+            u = await tx.user.update({
+              where: { id: token.uid },
+              data: { twitterId, twitterUser, twitterName, twitterImage },
+            });
+          } else {
+            // иначе логин только через X — создаём/обновляем по twitterId
+            u = await tx.user.upsert({
+              where: { twitterId },
+              create: { twitterId, twitterUser, twitterName, twitterImage },
+              update: { twitterUser, twitterName, twitterImage },
+            });
+          }
 
-        // +100 только один раз
-        const already = await prisma.pointEvent.findFirst({
-          where: { userId: user.id, type: "CONNECT_X" },
+          // ✅ +100 только один раз
+          await awardOnce(tx as any, u.id, "CONNECT_X", 100);
+          return u;
         });
-
-        if (!already) {
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { points: { increment: 100 } },
-          });
-          await prisma.pointEvent.create({
-            data: { userId: user.id, type: "CONNECT_X", points: 100 },
-          });
-        }
 
         token.uid = user.id;
       }
 
       /* ------------------------------ Discord -------------------------------- */
       if (account?.provider === "discord") {
+        // ✅ ВАЖНО: Discord делаем ТОЛЬКО как linking к уже существующей X-сессии.
+        // Это гарантирует, что "Discord не снесёт X" и не создаст другого юзера.
+        if (!token.uid) {
+          console.error("DISCORD_LINK_BLOCKED: no token.uid (session not found)");
+          throw new Error("DISCORD_LINK_REQUIRES_X_LOGIN");
+        }
+
         const d = pickDiscordProfile(profile);
         const discordId = account.providerAccountId;
 
-        let user;
-
-        // ✅ если уже есть uid (например залогинен X) — привязываем Discord к этому юзеру
-        if (token.uid) {
-          user = await prisma.user.update({
-            where: { id: token.uid },
+        const user = await prisma.$transaction(async (tx) => {
+          const u = await tx.user.update({
+            where: { id: token.uid! },
             data: {
               discordId,
               discordUser: d.username,
@@ -155,37 +191,11 @@ export const authOptions: NextAuthOptions = {
               discordImage: d.image,
             },
           });
-        } else {
-          // иначе логин только через Discord — upsert по discordId
-          user = await prisma.user.upsert({
-            where: { discordId },
-            create: {
-              discordId,
-              discordUser: d.username,
-              discordName: d.name,
-              discordImage: d.image,
-            },
-            update: {
-              discordUser: d.username,
-              discordName: d.name,
-              discordImage: d.image,
-            },
-          });
-        }
 
-        const already = await prisma.pointEvent.findFirst({
-          where: { userId: user.id, type: "CONNECT_DISCORD" },
+          // ✅ +100 только один раз
+          await awardOnce(tx as any, u.id, "CONNECT_DISCORD", 100);
+          return u;
         });
-
-        if (!already) {
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { points: { increment: 100 } },
-          });
-          await prisma.pointEvent.create({
-            data: { userId: user.id, type: "CONNECT_DISCORD", points: 100 },
-          });
-        }
 
         token.uid = user.id;
       }
