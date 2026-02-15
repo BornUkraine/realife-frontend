@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { signIn, signOut, useSession } from "next-auth/react";
 
@@ -97,11 +96,8 @@ function Avatar({ src, fallback }: { src?: string | null; fallback: string }) {
 }
 
 export default function ProfilePage() {
-  const { data: session, status } = useSession();
-  const authed = status === "authenticated" && !!session?.userId;
-
-  const searchParams = useSearchParams();
-  const refresh = searchParams.get("refresh");
+  const { status } = useSession();
+  const authed = status === "authenticated";
 
   const [me, setMe] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(false);
@@ -136,26 +132,34 @@ export default function ProfilePage() {
     }
   }
 
-  // ✅ reload me when auth status changes OR after redirect (?refresh=1)
+  // ✅ reload on status changes
   useEffect(() => {
-    if (authed) loadMe();
+    if (status === "authenticated") loadMe();
     else setMe(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed]);
+  }, [status]);
 
+  // ✅ супер-важно после OAuth: когда страница вернулась и окно получило фокус
+  // иногда статус уже authed, но /api/me ещё не обновлён с первой попытки
   useEffect(() => {
-    if (authed && refresh) {
+    if (!authed) return;
+
+    const onFocus = () => {
       loadMe();
-    }
+    };
+
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [refresh]);
+  }, [authed]);
 
   async function claimDaily() {
     if (!authed) return;
     setDailyBusy(true);
     try {
-      await fetch("/api/points/daily", { method: "POST" })
-        .then((r) => r.json().catch(() => ({})));
+      await fetch("/api/points/daily", { method: "POST" }).then((r) =>
+        r.json().catch(() => ({}))
+      );
       await loadMe();
     } finally {
       setDailyBusy(false);
@@ -163,19 +167,24 @@ export default function ProfilePage() {
   }
 
   async function connect(provider: "twitter" | "discord") {
+    // ✅ linking-правило: Discord разрешаем только после X
+    if (provider === "discord" && !twitterConnected) return;
+
     setConnectBusy(provider);
 
     const callbackUrl =
       typeof window !== "undefined"
-        ? `${window.location.origin}/app/profile?refresh=1`
-        : "/app/profile?refresh=1";
+        ? `${window.location.origin}/app/profile`
+        : "/app/profile";
 
-    // важно: тут обычно редирект → страница перезагрузится
     await signIn(provider, { callbackUrl });
   }
 
   const connectDisabled = connectBusy !== "" || status !== "authenticated";
   const connectAllowed = authed && !connectDisabled;
+
+  // ✅ Discord можно только если уже есть X
+  const canConnectDiscord = connectAllowed && twitterConnected;
 
   return (
     <AppShell title="REALIFE" subtitle="Profile • Identity • Points">
@@ -257,10 +266,7 @@ export default function ProfilePage() {
               </div>
 
               <div className="mt-5">
-                <GoldBtn
-                  disabled={!connectAllowed}
-                  onClick={() => connect("twitter")}
-                >
+                <GoldBtn disabled={!connectAllowed} onClick={() => connect("twitter")}>
                   {connectBusy === "twitter"
                     ? "Opening X…"
                     : twitterConnected
@@ -270,7 +276,7 @@ export default function ProfilePage() {
 
                 {!authed ? (
                   <div className="mt-2 text-[11px] text-white/45">
-                    Login with X first. Then you can link Discord too.
+                    You need to login first. This will also create your profile.
                   </div>
                 ) : null}
               </div>
@@ -295,10 +301,7 @@ export default function ProfilePage() {
               </div>
 
               <div className="mt-5">
-                <GoldBtn
-                  disabled={!connectAllowed}
-                  onClick={() => connect("discord")}
-                >
+                <GoldBtn disabled={!canConnectDiscord} onClick={() => connect("discord")}>
                   {connectBusy === "discord"
                     ? "Opening Discord…"
                     : discordConnected
@@ -309,6 +312,10 @@ export default function ProfilePage() {
                 {!authed ? (
                   <div className="mt-2 text-[11px] text-white/45">
                     You need to login first (with X). Then you can link Discord.
+                  </div>
+                ) : !twitterConnected ? (
+                  <div className="mt-2 text-[11px] text-white/45">
+                    Connect X first, then you can link Discord to the same profile.
                   </div>
                 ) : null}
               </div>
