@@ -1,6 +1,5 @@
 import NextAuth, { type NextAuthOptions } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
-import type { OAuthConfig } from "next-auth/providers/oauth";
 import type { JWT } from "next-auth/jwt";
 import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
@@ -26,7 +25,7 @@ function pickDiscordProfile(profile: any) {
 /*                        X (TWITTER) OAUTH2 PROVIDER                          */
 /* -------------------------------------------------------------------------- */
 
-const TwitterOAuthProvider: OAuthConfig<any> = {
+const TwitterOAuthProvider = {
   id: "twitter",
   name: "Twitter",
   type: "oauth",
@@ -47,7 +46,7 @@ const TwitterOAuthProvider: OAuthConfig<any> = {
 
   checks: ["pkce", "state"],
 
-  profile(profile) {
+  profile(profile: any) {
     return {
       id: profile.data.id,
       name: profile.data.name,
@@ -67,7 +66,7 @@ export const authOptions: NextAuthOptions = {
   debug: process.env.NEXTAUTH_DEBUG === "true",
 
   providers: [
-    TwitterOAuthProvider,
+    TwitterOAuthProvider as any,
 
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID!,
@@ -87,7 +86,7 @@ export const authOptions: NextAuthOptions = {
     }) {
       /* ----------------------------- X (Twitter) ---------------------------- */
       if (account?.provider === "twitter") {
-        const twitterId = profile.id;
+        const twitterId = account.providerAccountId;
 
         const user = await prisma.user.upsert({
           where: { twitterId },
