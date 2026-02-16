@@ -74,11 +74,16 @@ function Pill({
     tone === "ok"
       ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
       : tone === "warn"
-      ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
-      : "border-white/10 bg-white/[0.06] text-white/70";
+        ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
+        : "border-white/10 bg-white/[0.06] text-white/70";
 
   return (
-    <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>
+    <div
+      className={cx(
+        "text-[11px] font-semibold px-3 py-1.5 rounded-full border",
+        cls
+      )}
+    >
       {children}
     </div>
   );
@@ -146,7 +151,12 @@ function Avatar({
 }) {
   const s = size === "lg" ? "h-16 w-16" : "h-14 w-14";
   return (
-    <div className={cx(s, "rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center")}>
+    <div
+      className={cx(
+        s,
+        "rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center"
+      )}
+    >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -189,46 +199,44 @@ export default function ProfilePage() {
   const [copied, setCopied] = useState(false);
   const busyGuardRef = useRef(false);
 
-  const twitterConnected = Boolean(me?.twitterId);
-  const discordConnected = Boolean(me?.discordId);
+  // session.user расширенный (как any)
+  const sUser: any = (session as any)?.user ?? null;
 
-  // Premium: быстрый display из session.user (если есть), иначе из /me
+  // ✅ derived: берём сначала me, потом session.user
+  const xId = me?.twitterId ?? sUser?.twitterId ?? null;
+  const xName = me?.twitterName ?? sUser?.twitterName ?? sUser?.name ?? null;
+  const xUser = me?.twitterUser ?? sUser?.twitterUser ?? null;
+  const xImage = me?.twitterImage ?? sUser?.twitterImage ?? sUser?.image ?? null;
+
+  const dId = me?.discordId ?? sUser?.discordId ?? null;
+  const dName = me?.discordName ?? sUser?.discordName ?? null;
+  const dUser = me?.discordUser ?? sUser?.discordUser ?? null;
+  const dImage = me?.discordImage ?? sUser?.discordImage ?? null;
+
+  const twitterConnected = Boolean(xId);
+  const discordConnected = Boolean(dId);
+
   const displayName = useMemo(() => {
-    const sName =
-      (session?.user as any)?.twitterName ||
-      (session?.user as any)?.twitterUser ||
-      (session?.user as any)?.discordName ||
-      (session?.user as any)?.discordUser ||
-      session?.user?.name ||
-      null;
+    return xName || (xUser ? `@${xUser}` : null) || dName || dUser || "Realife user";
+  }, [xName, xUser, dName, dUser]);
 
-    return (
-      sName ||
-      me?.twitterName ||
-      me?.twitterUser ||
-      me?.discordName ||
-      me?.discordUser ||
-      "Realife user"
-    );
-  }, [session, me]);
+  // ✅ main avatar: X first
+  const heroAvatar = useMemo(() => xImage || dImage || null, [xImage, dImage]);
 
-  const heroAvatar = useMemo(() => {
-    const sImg =
-      (session?.user as any)?.twitterImage ||
-      (session?.user as any)?.discordImage ||
-      session?.user?.image ||
-      null;
-
-    return sImg || me?.twitterImage || me?.discordImage || null;
-  }, [session, me]);
+  // ✅ guard against tmp
+  const safePublicId = useMemo(() => {
+    const pid = me?.publicId ?? null;
+    if (!pid || pid === "tmp") return null;
+    return pid;
+  }, [me?.publicId]);
 
   const publicUrl = useMemo(() => {
     if (!me) return null;
-    return (
-      me.publicUrl ||
-      (me.handle ? `/u/${me.handle}` : me.publicId ? `/u/${me.publicId}` : null)
-    );
-  }, [me]);
+    if (me.publicUrl) return me.publicUrl;
+    if (me.handle) return `/u/${me.handle}`;
+    if (safePublicId) return `/u/${safePublicId}`;
+    return null;
+  }, [me, safePublicId]);
 
   const publicFullUrl = useMemo(() => {
     if (!publicUrl || typeof window === "undefined") return null;
@@ -247,19 +255,22 @@ export default function ProfilePage() {
       const res = await fetch("/api/me", { cache: "no-store" });
       const json = (await res.json().catch(() => ({}))) as MeResponse;
 
-      setMe(json?.user ?? null);
-      setLinkError(json?.linkError ?? null);
+      if (json?.ok) setMe(json?.user ?? null);
+      else setMe(null);
 
-      // вернулись с OAuth — сбросим busy
-      setConnectBusy("");
-      busyGuardRef.current = false;
+      setLinkError(json?.linkError ?? null);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
+      setConnectBusy("");
+      busyGuardRef.current = false;
     }
   }
 
+  // status -> reload
   useEffect(() => {
-    if (status === "authenticated") loadMe();
+    if (status === "authenticated") void loadMe();
     else {
       setMe(null);
       setLinkError(null);
@@ -269,16 +280,26 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  // ✅ после OAuth возврата: focus + visibilitychange (мобилки)
   useEffect(() => {
     if (!authed) return;
 
-    const onFocus = () => loadMe();
+    const onFocus = () => void loadMe();
+    const onVis = () => {
+      if (document.visibilityState === "visible") void loadMe();
+    };
+
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
 
-    setConnectBusy("");
-    busyGuardRef.current = false;
+    // мягкий доп. рефреш через 800мс (часто помогает после OAuth возврата)
+    const t = window.setTimeout(() => void loadMe(), 800);
 
-    return () => window.removeEventListener("focus", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+      window.clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
@@ -299,6 +320,7 @@ export default function ProfilePage() {
   async function connect(provider: "twitter" | "discord") {
     if (busyGuardRef.current) return;
 
+    // Discord только к существующему профилю (через X)
     if (!authed && provider === "discord") {
       setLinkError("DISCORD_LINK_REQUIRES_X_LOGIN");
       return;
@@ -350,8 +372,8 @@ export default function ProfilePage() {
     linkError === "DISCORD_LINK_REQUIRES_X_LOGIN"
       ? "Connect X first, then link Discord to the same profile."
       : linkError
-      ? "Something went wrong while linking. Try again."
-      : null;
+        ? "Something went wrong while linking. Try again."
+        : null;
 
   return (
     <AppShell title="REALIFE" subtitle="Profile • Identity • Points">
@@ -373,9 +395,7 @@ export default function ProfilePage() {
         </div>
 
         <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
-          {errorText ? (
-            <Alert title="Linking error" text={errorText} />
-          ) : null}
+          {errorText ? <Alert title="Linking error" text={errorText} /> : null}
 
           {/* HERO */}
           <Card>
@@ -406,38 +426,30 @@ export default function ProfilePage() {
 
                 <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">
-                      Points
-                    </div>
+                    <div className="text-[11px] text-white/55 font-semibold">Points</div>
                     <div className="mt-1 text-2xl font-black text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
-                      {authed ? me?.points ?? 0 : 0}
+                      {authed ? me?.points ?? sUser?.points ?? 0 : 0}
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">
-                      Handle
-                    </div>
+                    <div className="text-[11px] text-white/55 font-semibold">Handle</div>
                     <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
                       {authed ? (me?.handle ? `@${me.handle}` : "—") : "—"}
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">
-                      Public ID
-                    </div>
+                    <div className="text-[11px] text-white/55 font-semibold">Public ID</div>
                     <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
-                      {authed ? (me?.publicId ?? "—") : "—"}
+                      {authed ? safePublicId ?? "—" : "—"}
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">
-                      Public link
-                    </div>
+                    <div className="text-[11px] text-white/55 font-semibold">Public link</div>
                     <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
-                      {authed ? (publicUrl ?? "—") : "—"}
+                      {authed ? publicUrl ?? "—" : "—"}
                     </div>
                   </div>
                 </div>
@@ -477,18 +489,11 @@ export default function ProfilePage() {
               {/* Actions */}
               <div className="w-full md:w-[360px] space-y-3">
                 {!authed ? (
-                  <Btn
-                    variant="gold"
-                    onClick={() => connect("twitter")}
-                    disabled={connectBusy !== ""}
-                  >
+                  <Btn variant="gold" onClick={() => connect("twitter")} disabled={connectBusy !== ""}>
                     {connectBusy === "twitter" ? "Opening X…" : "Login with X"}
                   </Btn>
                 ) : (
-                  <Btn
-                    variant="ghost"
-                    onClick={() => signOut({ callbackUrl: "/app/profile" })}
-                  >
+                  <Btn variant="ghost" onClick={() => signOut({ callbackUrl: "/app/profile" })}>
                     Logout
                   </Btn>
                 )}
@@ -497,10 +502,8 @@ export default function ProfilePage() {
                   {dailyBusy ? "Claiming…" : "Daily check-in (+10)"}
                 </Btn>
 
-                {/* Micro note */}
                 <div className="text-[11px] text-white/45 leading-relaxed">
-                  Your identity is linked to this Realife profile. Connect X first, then link
-                  Discord to the same profile.
+                  One profile. Connect X first, then link Discord to the same profile.
                 </div>
               </div>
             </div>
@@ -513,9 +516,7 @@ export default function ProfilePage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-extrabold">X account</div>
-                  <div className="text-xs text-white/60 mt-1">
-                    Name • @username • avatar
-                  </div>
+                  <div className="text-xs text-white/60 mt-1">Name • @username • avatar</div>
                 </div>
                 <Pill tone={twitterConnected ? "ok" : "muted"}>
                   {twitterConnected ? "Connected" : "Not connected"}
@@ -526,30 +527,38 @@ export default function ProfilePage() {
                 {loading && !me ? (
                   <Skeleton className="h-14 w-14 rounded-2xl" />
                 ) : (
-                  <Avatar src={me?.twitterImage} fallback="X" />
+                  <Avatar src={xImage} fallback="X" />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-extrabold truncate">
-                    {authed ? (me?.twitterName || "—") : "—"}
+                    {authed ? xName || "—" : "—"}
                   </div>
                   <div className="text-xs text-white/60 truncate">
-                    @{authed ? (me?.twitterUser || "—") : "—"}
+                    {authed ? (xUser ? `@${xUser}` : "—") : "—"}
                   </div>
                 </div>
               </div>
 
               <div className="mt-5">
-                <Btn variant="gold" disabled={!connectAllowed} onClick={() => connect("twitter")}>
-                  {connectBusy === "twitter"
-                    ? "Opening X…"
-                    : twitterConnected
-                    ? "Re-connect X"
-                    : "Connect X (+100)"}
-                </Btn>
-              </div>
-
-              <div className="mt-3 text-[11px] text-white/45">
-                Tip: if avatar doesn’t refresh instantly — press “Refresh” in the header.
+                {!twitterConnected ? (
+                  <Btn variant="gold" disabled={!connectAllowed} onClick={() => connect("twitter")}>
+                    {connectBusy === "twitter" ? "Opening X…" : "Connect X (+100)"}
+                  </Btn>
+                ) : (
+                  <div className="space-y-2">
+                    <Btn variant="gold" disabled>
+                      Connected
+                    </Btn>
+                    <Btn
+                      variant="tiny"
+                      onClick={() => connect("twitter")}
+                      disabled={!connectAllowed}
+                      className="w-full"
+                    >
+                      Re-link X (optional)
+                    </Btn>
+                  </div>
+                )}
               </div>
             </Card>
 
@@ -558,9 +567,7 @@ export default function ProfilePage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-extrabold">Discord account</div>
-                  <div className="text-xs text-white/60 mt-1">
-                    Display • username • avatar
-                  </div>
+                  <div className="text-xs text-white/60 mt-1">Display • username • avatar</div>
                 </div>
                 <Pill tone={discordConnected ? "ok" : "muted"}>
                   {discordConnected ? "Connected" : "Not connected"}
@@ -571,30 +578,42 @@ export default function ProfilePage() {
                 {loading && !me ? (
                   <Skeleton className="h-14 w-14 rounded-2xl" />
                 ) : (
-                  <Avatar src={me?.discordImage} fallback="DS" />
+                  <Avatar src={dImage} fallback="DS" />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-extrabold truncate">
-                    {authed ? (me?.discordName || "—") : "—"}
+                    {authed ? dName || "—" : "—"}
                   </div>
                   <div className="text-xs text-white/60 truncate">
-                    {authed ? (me?.discordUser || "—") : "—"}
+                    {authed ? dUser || "—" : "—"}
                   </div>
                 </div>
               </div>
 
               <div className="mt-5">
-                <Btn
-                  variant="gold"
-                  disabled={!canConnectDiscord}
-                  onClick={() => connect("discord")}
-                >
-                  {connectBusy === "discord"
-                    ? "Opening Discord…"
-                    : discordConnected
-                    ? "Re-connect Discord"
-                    : "Connect Discord (+100)"}
-                </Btn>
+                {!discordConnected ? (
+                  <Btn
+                    variant="gold"
+                    disabled={!canConnectDiscord}
+                    onClick={() => connect("discord")}
+                  >
+                    {connectBusy === "discord" ? "Opening Discord…" : "Connect Discord (+100)"}
+                  </Btn>
+                ) : (
+                  <div className="space-y-2">
+                    <Btn variant="gold" disabled>
+                      Connected
+                    </Btn>
+                    <Btn
+                      variant="tiny"
+                      onClick={() => connect("discord")}
+                      disabled={!canConnectDiscord}
+                      className="w-full"
+                    >
+                      Re-link Discord (optional)
+                    </Btn>
+                  </div>
+                )}
 
                 {!twitterConnected ? (
                   <div className="mt-2 text-[11px] text-white/45">

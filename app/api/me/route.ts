@@ -6,8 +6,6 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-type SessionExtra = { userId?: string; linkError?: string };
-
 function randomId(len = 6) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
@@ -17,7 +15,7 @@ function randomId(len = 6) {
 
 async function ensurePublicId(userId: string) {
   const u = await prisma.user.findUnique({ where: { id: userId }, select: { publicId: true } });
-  if (u?.publicId) return u.publicId;
+  if (u?.publicId && u.publicId !== "tmp") return u.publicId;
 
   for (let i = 0; i < 10; i++) {
     const pid = `rl_${randomId(6)}`;
@@ -31,13 +29,13 @@ async function ensurePublicId(userId: string) {
 }
 
 export async function GET() {
-  const session = (await getServerSession(authOptions)) as SessionExtra | null;
+  const session: any = await getServerSession(authOptions);
 
   if (!session?.userId) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  // на всякий случай (если миграция сделала publicId nullable)
+  // если в базе был tmp — исправим автоматически
   await ensurePublicId(session.userId);
 
   const user = await prisma.user.findUnique({

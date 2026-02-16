@@ -2,7 +2,6 @@
 import type { NextAuthOptions } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 import type { JWT } from "next-auth/jwt";
-import type { Session } from "next-auth";
 import { prisma } from "@/lib/prisma";
 
 /* -------------------------------------------------------------------------- */
@@ -27,34 +26,54 @@ function randomId(len = 6) {
   return out;
 }
 
+/**
+ * publicId должен быть нормальным (и НЕ "tmp")
+ * генерим rl_XXXXXX и ставим в базу, если пусто или tmp.
+ */
 async function ensurePublicId(db: typeof prisma, userId: string) {
-  const u = await db.user.findUnique({ where: { id: userId }, select: { publicId: true } });
-  if (u?.publicId) return u.publicId;
+  const u = await db.user.findUnique({
+    where: { id: userId },
+    select: { publicId: true },
+  });
+
+  if (u?.publicId && u.publicId !== "tmp") return u.publicId;
 
   for (let i = 0; i < 10; i++) {
     const pid = `rl_${randomId(6)}`;
-    const taken = await db.user.findUnique({ where: { publicId: pid }, select: { id: true } });
+    const taken = await db.user.findUnique({
+      where: { publicId: pid },
+      select: { id: true },
+    });
+
     if (!taken) {
       await db.user.update({ where: { id: userId }, data: { publicId: pid } });
       return pid;
     }
   }
+
   throw new Error("PUBLIC_ID_GENERATION_FAILED");
 }
 
-async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?: string | null) {
+/**
+ * handle закрепляем 1 раз (из X username).
+ */
+async function ensureHandleFromX(
+  db: typeof prisma,
+  userId: string,
+  twitterUser?: string | null
+) {
   if (!twitterUser) return;
 
   const current = await db.user.findUnique({
     where: { id: userId },
     select: { handle: true, publicId: true },
   });
-  if (current?.handle) return; // закрепляем 1 раз
+
+  if (current?.handle) return;
 
   const base = slugifyHandle(twitterUser);
   if (!base) return;
 
-  // пытаемся base, base_2, base_3...
   for (let i = 0; i < 25; i++) {
     const h = i === 0 ? base : `${base}_${i + 1}`;
     const taken = await db.user.findUnique({ where: { handle: h }, select: { id: true } });
@@ -64,7 +83,6 @@ async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?
     }
   }
 
-  // fallback: base + хвост publicId
   const pid = current?.publicId ?? (await ensurePublicId(db, userId));
   await db.user.update({
     where: { id: userId },
@@ -88,8 +106,7 @@ function pickDiscordProfile(profile: any) {
 }
 
 /**
- * Award points only once per event type.
- * Works inside or outside transaction (accepts prisma or tx).
+ * Начисление очков 1 раз на событие.
  */
 async function awardOnce(
   db: typeof prisma,
@@ -137,7 +154,7 @@ function applyUserToToken(token: any, user: any) {
 /*                        X (TWITTER) OAUTH2 PROVIDER                          */
 /* -------------------------------------------------------------------------- */
 
-// Делаем any — чтобы не воевать с типами кастомного провайдера
+// any — чтобы не воевать с типами кастомного провайдера
 const TwitterOAuthProvider: any = {
   id: "twitter",
   name: "Twitter",
@@ -147,6 +164,7 @@ const TwitterOAuthProvider: any = {
   authorization: {
     url: "https://twitter.com/i/oauth2/authorize",
     params: {
+      // scope — пробелами
       scope: "users.read tweet.read offline.access",
     },
   },
@@ -158,15 +176,21 @@ const TwitterOAuthProvider: any = {
 
   clientId: process.env.TWITTER_CLIENT_ID!,
   clientSecret: process.env.TWITTER_CLIENT_SECRET!,
+
   checks: ["pkce", "state"],
 
   profile(raw: any) {
     const d = raw?.data ?? {};
+    const img = d?.profile_image_url ?? null;
+
+    // X часто отдаёт *_normal — заменяем на более крупный
+    const bigger = typeof img === "string" ? img.replace("_normal", "") : img;
+
     return {
       id: d?.id,
       name: d?.name ?? null,
       username: d?.username ?? null,
-      image: d?.profile_image_url ?? null,
+      image: bigger ?? null,
       __raw: raw,
     };
   },
@@ -194,7 +218,7 @@ export const authOptions: NextAuthOptions = {
       account,
       profile,
     }: {
-      token: JWT & { uid?: string; linkError?: string } & Record<string, any>;
+      token: JWT & Record<string, any>;
       account?: any;
       profile?: any;
     }) {
@@ -210,23 +234,18 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.$transaction(async (tx) => {
           let u;
 
-          // Если уже есть uid — привязываем X к текущему юзеру
           if (token.uid) {
+            // ✅ ЛИНК X к текущему Realife-профилю
             u = await tx.user.update({
               where: { id: token.uid },
               data: { twitterId, twitterUser, twitterName, twitterImage },
             });
           } else {
-            // иначе логин через X — создаём/обновляем по twitterId
+            // ✅ ЛОГИН через X: upsert по twitterId
+            // ❗️ВАЖНО: НЕ ставим publicId: "tmp"
             u = await tx.user.upsert({
               where: { twitterId },
-              create: {
-                twitterId,
-                twitterUser,
-                twitterName,
-                twitterImage,
-                // publicId НЕ задаём (иначе уникальный "tmp" ломает создание)
-              },
+              create: { twitterId, twitterUser, twitterName, twitterImage },
               update: { twitterUser, twitterName, twitterImage },
             });
           }
@@ -235,7 +254,6 @@ export const authOptions: NextAuthOptions = {
           await ensureHandleFromX(tx as any, u.id, twitterUser);
           await awardOnce(tx as any, u.id, "CONNECT_X", 100);
 
-          // вернём свежий юзер после возможных апдейтов
           const fresh = await tx.user.findUnique({
             where: { id: u.id },
             select: {
@@ -262,7 +280,7 @@ export const authOptions: NextAuthOptions = {
 
       /* ------------------------------ Discord -------------------------------- */
       if (account?.provider === "discord") {
-        // Discord — только linking к существующему профилю
+        // ✅ Discord — только линковка к существующему профилю (через X login)
         if (!token.uid) {
           token.linkError = "DISCORD_LINK_REQUIRES_X_LOGIN";
           return token;
@@ -273,7 +291,7 @@ export const authOptions: NextAuthOptions = {
 
         const user = await prisma.$transaction(async (tx) => {
           const u = await tx.user.update({
-            where: { id: token.uid! },
+            where: { id: token.uid },
             data: {
               discordId,
               discordUser: d.username,
@@ -333,13 +351,7 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
 
-    async session({
-      session,
-      token,
-    }: {
-      session: Session & { userId?: string; linkError?: string } & Record<string, any>;
-      token: JWT & { uid?: string; linkError?: string } & Record<string, any>;
-    }) {
+    async session({ session, token }: { session: any; token: any }) {
       session.userId = token.uid;
       session.linkError = token.linkError;
 

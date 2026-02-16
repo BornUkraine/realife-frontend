@@ -1,12 +1,11 @@
-import { DefaultSession } from "next-auth";
 import "next-auth";
 import "next-auth/jwt";
+import type { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
-  interface Session extends DefaultSession {
+  interface Session {
     userId?: string;
     linkError?: string;
-
     user: DefaultSession["user"] & {
       id?: string;
       points?: number;
