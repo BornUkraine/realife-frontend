@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -24,15 +24,20 @@ const userSelect = {
   createdAt: true,
 } as const;
 
-export async function GET(_: Request, { params }: { params: { id: string } }) {
-  const key = params.id;
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id: key } = await params;
 
   const user = await prisma.user.findFirst({
     where: { OR: [{ handle: key }, { publicId: key }] },
     select: userSelect,
   });
 
-  if (!user) return NextResponse.json({ ok: false }, { status: 404 });
+  if (!user) {
+    return NextResponse.json({ ok: false }, { status: 404 });
+  }
 
   const twitterConnected = Boolean(user.twitterId);
   const discordConnected = Boolean(user.discordId);
