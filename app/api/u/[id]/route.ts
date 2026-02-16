@@ -5,6 +5,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+// ВАЖНО: если у тебя публичные профили будут внутри /app/u/...
+const PUBLIC_PREFIX = "/app/u";
+
 const userSelect = {
   id: true,
   handle: true,
@@ -22,16 +25,45 @@ const userSelect = {
   discordImage: true,
 
   createdAt: true,
+
+  // Если хочешь поддержку поиска по кошельку — раскомментируй и добавь поле в схему
+  // wallet: true, // или walletAddress: true
 } as const;
+
+function pickPublicKey(user: {
+  handle: string | null;
+  twitterUser: string | null;
+  publicId: string | null;
+}) {
+  // приоритет: ручной handle > X username > publicId
+  return user.handle || user.twitterUser || user.publicId || "";
+}
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: key } = await params;
+  const { id: keyRaw } = await params;
+  const key = decodeURIComponent(keyRaw || "").trim();
+
+  if (!key) {
+    return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
+  }
 
   const user = await prisma.user.findFirst({
-    where: { OR: [{ handle: key }, { publicId: key }] },
+    where: {
+      OR: [
+        { handle: key },
+        { publicId: key },
+        // Если хочешь искать по X username напрямую:
+        { twitterUser: key },
+        // Если хочешь искать по discordUser:
+        { discordUser: key },
+
+        // Если хочешь искать по кошельку:
+        // { wallet: key },
+      ],
+    },
     select: userSelect,
   });
 
@@ -42,15 +74,24 @@ export async function GET(
   const twitterConnected = Boolean(user.twitterId);
   const discordConnected = Boolean(user.discordId);
 
-  const name =
+  // display name — как в соцсетях
+  const displayName =
     user.twitterName ||
-    user.twitterUser ||
     user.discordName ||
+    user.twitterUser ||
     user.discordUser ||
     "Realife user";
 
-  const avatar = user.twitterImage || user.discordImage || null;
-  const publicUrl = user.handle ? `/u/${user.handle}` : `/u/${user.publicId}`;
+  const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
+
+  // Главная аватарка: X приоритет, иначе Discord
+  const mainAvatar = user.twitterImage || user.discordImage || null;
+
+  // Публичный ключ для ссылки: handle > twitterUser > publicId
+  const publicKey = pickPublicKey(user);
+
+  // Ссылка (важно: у тебя сайт живёт в /app/*)
+  const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
   return NextResponse.json({
     ok: true,
@@ -58,8 +99,12 @@ export async function GET(
       ...user,
       twitterConnected,
       discordConnected,
-      name,
-      avatar,
+
+      // удобные computed-поля для UI
+      displayName,
+      xHandle,
+      mainAvatar,
+      publicKey,
       publicUrl,
     },
   });

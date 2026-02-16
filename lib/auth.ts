@@ -1,4 +1,3 @@
-// lib/auth.ts
 import type { NextAuthOptions } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 import type { JWT } from "next-auth/jwt";
@@ -28,9 +27,12 @@ function randomId(len = 6) {
 
 /**
  * publicId должен быть нормальным (и НЕ "tmp")
- * генерим rl_XXXXXX и ставим в базу, если пусто или tmp.
+ * генерим rl_XXXXXXXX (8 символов) и ставим в базу, если пусто или tmp.
+ * Защита от гонок: ловим P2002 (unique) и пробуем снова.
+ *
+ * ВАЖНО для TS: Promise<string> (не nullable)
  */
-async function ensurePublicId(db: typeof prisma, userId: string) {
+async function ensurePublicId(db: typeof prisma, userId: string): Promise<string> {
   const u = await db.user.findUnique({
     where: { id: userId },
     select: { publicId: true },
@@ -38,16 +40,24 @@ async function ensurePublicId(db: typeof prisma, userId: string) {
 
   if (u?.publicId && u.publicId !== "tmp") return u.publicId;
 
-  for (let i = 0; i < 10; i++) {
-    const pid = `rl_${randomId(6)}`;
-    const taken = await db.user.findUnique({
-      where: { publicId: pid },
-      select: { id: true },
-    });
+  for (let i = 0; i < 25; i++) {
+    const pid = `rl_${randomId(8)}`;
 
-    if (!taken) {
-      await db.user.update({ where: { id: userId }, data: { publicId: pid } });
-      return pid;
+    try {
+      const updated = await db.user.update({
+        where: { id: userId },
+        data: { publicId: pid },
+        select: { publicId: true },
+      });
+
+      // Prisma schema обычно string | null, но после update это точно строка
+      if (updated.publicId) return updated.publicId;
+
+      // на всякий случай, если схема вдруг nullable и вернула null
+      continue;
+    } catch (e: any) {
+      if (e?.code === "P2002") continue; // collision -> retry
+      throw e;
     }
   }
 
@@ -83,7 +93,14 @@ async function ensureHandleFromX(
     }
   }
 
+  // если не смогли — доклеим суффикс от publicId (теперь 8 символов)
   const pid = current?.publicId ?? (await ensurePublicId(db, userId));
+
+  // ✅ null-guard (решает твою ошибку)
+  if (typeof pid !== "string" || pid.length === 0) {
+    throw new Error("publicId is missing");
+  }
+
   await db.user.update({
     where: { id: userId },
     data: { handle: `${base}_${pid.slice(-4).toLowerCase()}` },
@@ -133,9 +150,30 @@ async function awardOnce(
   return true;
 }
 
+const tokenSelect = {
+  id: true,
+  points: true,
+  handle: true,
+  publicId: true,
+
+  twitterId: true,
+  twitterUser: true,
+  twitterName: true,
+  twitterImage: true,
+
+  discordId: true,
+  discordUser: true,
+  discordName: true,
+  discordImage: true,
+} as const;
+
 function applyUserToToken(token: any, user: any) {
   token.uid = user.id;
   token.points = user.points ?? 0;
+
+  // ✅ для ссылок /app/u/...
+  token.handle = user.handle ?? null;
+  token.publicId = user.publicId ?? null;
 
   token.twitterId = user.twitterId ?? null;
   token.twitterUser = user.twitterUser ?? null;
@@ -164,14 +202,11 @@ const TwitterOAuthProvider: any = {
   authorization: {
     url: "https://twitter.com/i/oauth2/authorize",
     params: {
-      // scope — пробелами
       scope: "users.read tweet.read offline.access",
     },
   },
 
   token: "https://api.twitter.com/2/oauth2/token",
-
-  // user.fields в URL — самый надёжный вариант
   userinfo: "https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url",
 
   clientId: process.env.TWITTER_CLIENT_ID!,
@@ -182,8 +217,6 @@ const TwitterOAuthProvider: any = {
   profile(raw: any) {
     const d = raw?.data ?? {};
     const img = d?.profile_image_url ?? null;
-
-    // X часто отдаёт *_normal — заменяем на более крупный
     const bigger = typeof img === "string" ? img.replace("_normal", "") : img;
 
     return {
@@ -232,23 +265,16 @@ export const authOptions: NextAuthOptions = {
         if (!twitterId) return token;
 
         const user = await prisma.$transaction(async (tx) => {
-          let u;
-
-          if (token.uid) {
-            // ✅ ЛИНК X к текущему Realife-профилю
-            u = await tx.user.update({
-              where: { id: token.uid },
-              data: { twitterId, twitterUser, twitterName, twitterImage },
-            });
-          } else {
-            // ✅ ЛОГИН через X: upsert по twitterId
-            // ❗️ВАЖНО: НЕ ставим publicId: "tmp"
-            u = await tx.user.upsert({
-              where: { twitterId },
-              create: { twitterId, twitterUser, twitterName, twitterImage },
-              update: { twitterUser, twitterName, twitterImage },
-            });
-          }
+          const u = token.uid
+            ? await tx.user.update({
+                where: { id: token.uid },
+                data: { twitterId, twitterUser, twitterName, twitterImage },
+              })
+            : await tx.user.upsert({
+                where: { twitterId },
+                create: { twitterId, twitterUser, twitterName, twitterImage },
+                update: { twitterUser, twitterName, twitterImage },
+              });
 
           await ensurePublicId(tx as any, u.id);
           await ensureHandleFromX(tx as any, u.id, twitterUser);
@@ -256,18 +282,7 @@ export const authOptions: NextAuthOptions = {
 
           const fresh = await tx.user.findUnique({
             where: { id: u.id },
-            select: {
-              id: true,
-              points: true,
-              twitterId: true,
-              twitterUser: true,
-              twitterName: true,
-              twitterImage: true,
-              discordId: true,
-              discordUser: true,
-              discordName: true,
-              discordImage: true,
-            },
+            select: tokenSelect,
           });
 
           return fresh ?? u;
@@ -280,7 +295,6 @@ export const authOptions: NextAuthOptions = {
 
       /* ------------------------------ Discord -------------------------------- */
       if (account?.provider === "discord") {
-        // ✅ Discord — только линковка к существующему профилю (через X login)
         if (!token.uid) {
           token.linkError = "DISCORD_LINK_REQUIRES_X_LOGIN";
           return token;
@@ -305,18 +319,7 @@ export const authOptions: NextAuthOptions = {
 
           const fresh = await tx.user.findUnique({
             where: { id: u.id },
-            select: {
-              id: true,
-              points: true,
-              twitterId: true,
-              twitterUser: true,
-              twitterName: true,
-              twitterImage: true,
-              discordId: true,
-              discordUser: true,
-              discordName: true,
-              discordImage: true,
-            },
+            select: tokenSelect,
           });
 
           return fresh ?? u;
@@ -331,18 +334,7 @@ export const authOptions: NextAuthOptions = {
       if (!account && token.uid) {
         const u = await prisma.user.findUnique({
           where: { id: token.uid },
-          select: {
-            id: true,
-            points: true,
-            twitterId: true,
-            twitterUser: true,
-            twitterName: true,
-            twitterImage: true,
-            discordId: true,
-            discordUser: true,
-            discordName: true,
-            discordImage: true,
-          },
+          select: tokenSelect,
         });
 
         if (u) applyUserToToken(token, u);
@@ -359,6 +351,9 @@ export const authOptions: NextAuthOptions = {
         ...(session.user ?? {}),
         id: token.uid,
         points: token.points ?? 0,
+
+        handle: token.handle ?? null,
+        publicId: token.publicId ?? null,
 
         twitterId: token.twitterId ?? null,
         twitterUser: token.twitterUser ?? null,

@@ -6,7 +6,13 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
+// UTC "today" boundaries (стабильно для сервера)
+function startOfTodayUTC(d: Date) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
+}
+function startOfTomorrowUTC(d: Date) {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0, 0));
+}
 
 export async function POST() {
   const session: any = await getServerSession(authOptions);
@@ -16,36 +22,54 @@ export async function POST() {
   }
 
   const now = new Date();
+  const todayStart = startOfTodayUTC(now);
+  const tomorrowStart = startOfTomorrowUTC(now);
 
   try {
     const result = await prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: session.userId },
-        select: { id: true, lastDailyAt: true },
+        select: { id: true, points: true, lastDailyAt: true },
       });
 
-      if (!user) return { status: 404 as const, body: { ok: false } };
+      if (!user) {
+        return { status: 404 as const, body: { ok: false } };
+      }
 
-      const last = user.lastDailyAt ? new Date(user.lastDailyAt).getTime() : 0;
-      const canClaim = !user.lastDailyAt || now.getTime() - last > DAY_MS;
+      // ✅ самый надёжный анти-дабл: проверяем pointEvent за сегодня
+      const already = await tx.pointEvent.findFirst({
+        where: {
+          userId: user.id,
+          type: "DAILY",
+          createdAt: {
+            gte: todayStart,
+            lt: tomorrowStart,
+          },
+        },
+        select: { id: true },
+      });
 
-      if (!canClaim) {
+      if (already) {
         return {
           status: 400 as const,
-          body: { ok: false, message: "Already claimed" },
+          body: { ok: false, message: "Already claimed", points: user.points ?? 0 },
         };
       }
 
-      await tx.user.update({
+      const updated = await tx.user.update({
         where: { id: user.id },
         data: { points: { increment: 10 }, lastDailyAt: now },
+        select: { points: true },
       });
 
       await tx.pointEvent.create({
         data: { userId: user.id, type: "DAILY", points: 10 },
       });
 
-      return { status: 200 as const, body: { ok: true, add: 10 } };
+      return {
+        status: 200 as const,
+        body: { ok: true, add: 10, points: updated.points ?? 0 },
+      };
     });
 
     return NextResponse.json(result.body, { status: result.status });

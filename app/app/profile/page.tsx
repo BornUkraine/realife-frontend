@@ -202,11 +202,16 @@ export default function ProfilePage() {
   // session.user расширенный (как any)
   const sUser: any = (session as any)?.user ?? null;
 
-  // ✅ derived: берём сначала me, потом session.user
+  /**
+   * ВАЖНО (фикс):
+   * - НЕЛЬЗЯ использовать sUser.name / sUser.image как фолбэк для X блока,
+   *   потому что после Discord они становятся дискордовскими.
+   * - Для X берём только twitter-поля, для Discord — только discord-поля.
+   */
   const xId = me?.twitterId ?? sUser?.twitterId ?? null;
-  const xName = me?.twitterName ?? sUser?.twitterName ?? sUser?.name ?? null;
+  const xName = me?.twitterName ?? sUser?.twitterName ?? null;
   const xUser = me?.twitterUser ?? sUser?.twitterUser ?? null;
-  const xImage = me?.twitterImage ?? sUser?.twitterImage ?? sUser?.image ?? null;
+  const xImage = me?.twitterImage ?? sUser?.twitterImage ?? null;
 
   const dId = me?.discordId ?? sUser?.discordId ?? null;
   const dName = me?.discordName ?? sUser?.discordName ?? null;
@@ -217,7 +222,13 @@ export default function ProfilePage() {
   const discordConnected = Boolean(dId);
 
   const displayName = useMemo(() => {
-    return xName || (xUser ? `@${xUser}` : null) || dName || dUser || "Realife user";
+    return (
+      xName ||
+      (xUser ? `@${xUser}` : null) ||
+      dName ||
+      dUser ||
+      "Realife user"
+    );
   }, [xName, xUser, dName, dUser]);
 
   // ✅ main avatar: X first
@@ -230,11 +241,15 @@ export default function ProfilePage() {
     return pid;
   }, [me?.publicId]);
 
+  /**
+   * FIX: у тебя публичные профили живут в /app/u/...
+   * (потому что страница лежит в app/app/u/[id]/page.tsx)
+   */
   const publicUrl = useMemo(() => {
     if (!me) return null;
-    if (me.publicUrl) return me.publicUrl;
-    if (me.handle) return `/u/${me.handle}`;
-    if (safePublicId) return `/u/${safePublicId}`;
+    if (me.publicUrl) return me.publicUrl; // если уже отдаёт API
+    if (me.handle) return `/app/u/${me.handle}`;
+    if (safePublicId) return `/app/u/${safePublicId}`;
     return null;
   }, [me, safePublicId]);
 
@@ -417,7 +432,9 @@ export default function ProfilePage() {
                         {twitterConnected ? "X connected" : "X not connected"}
                       </Pill>
                       <Pill tone={discordConnected ? "ok" : "muted"}>
-                        {discordConnected ? "Discord connected" : "Discord not connected"}
+                        {discordConnected
+                          ? "Discord connected"
+                          : "Discord not connected"}
                       </Pill>
                       {loading ? <Pill>syncing…</Pill> : null}
                     </div>
@@ -426,28 +443,36 @@ export default function ProfilePage() {
 
                 <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">Points</div>
+                    <div className="text-[11px] text-white/55 font-semibold">
+                      Points
+                    </div>
                     <div className="mt-1 text-2xl font-black text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
                       {authed ? me?.points ?? sUser?.points ?? 0 : 0}
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">Handle</div>
+                    <div className="text-[11px] text-white/55 font-semibold">
+                      Handle
+                    </div>
                     <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
                       {authed ? (me?.handle ? `@${me.handle}` : "—") : "—"}
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">Public ID</div>
+                    <div className="text-[11px] text-white/55 font-semibold">
+                      Public ID
+                    </div>
                     <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
                       {authed ? safePublicId ?? "—" : "—"}
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">Public link</div>
+                    <div className="text-[11px] text-white/55 font-semibold">
+                      Public link
+                    </div>
                     <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
                       {authed ? publicUrl ?? "—" : "—"}
                     </div>
@@ -458,7 +483,11 @@ export default function ProfilePage() {
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     {publicUrl ? (
                       <>
-                        <Btn variant="tiny" onClick={copyPublicLink} disabled={!publicFullUrl}>
+                        <Btn
+                          variant="tiny"
+                          onClick={copyPublicLink}
+                          disabled={!publicFullUrl}
+                        >
                           {copied ? "Copied" : "Copy link"}
                         </Btn>
                         <a
@@ -489,21 +518,33 @@ export default function ProfilePage() {
               {/* Actions */}
               <div className="w-full md:w-[360px] space-y-3">
                 {!authed ? (
-                  <Btn variant="gold" onClick={() => connect("twitter")} disabled={connectBusy !== ""}>
+                  <Btn
+                    variant="gold"
+                    onClick={() => connect("twitter")}
+                    disabled={connectBusy !== ""}
+                  >
                     {connectBusy === "twitter" ? "Opening X…" : "Login with X"}
                   </Btn>
                 ) : (
-                  <Btn variant="ghost" onClick={() => signOut({ callbackUrl: "/app/profile" })}>
+                  <Btn
+                    variant="ghost"
+                    onClick={() => signOut({ callbackUrl: "/app/profile" })}
+                  >
                     Logout
                   </Btn>
                 )}
 
-                <Btn variant="ghost" disabled={!authed || dailyBusy} onClick={claimDaily}>
+                <Btn
+                  variant="ghost"
+                  disabled={!authed || dailyBusy}
+                  onClick={claimDaily}
+                >
                   {dailyBusy ? "Claiming…" : "Daily check-in (+10)"}
                 </Btn>
 
                 <div className="text-[11px] text-white/45 leading-relaxed">
-                  One profile. Connect X first, then link Discord to the same profile.
+                  One profile. Connect X first, then link Discord to the same
+                  profile.
                 </div>
               </div>
             </div>
@@ -516,7 +557,9 @@ export default function ProfilePage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-extrabold">X account</div>
-                  <div className="text-xs text-white/60 mt-1">Name • @username • avatar</div>
+                  <div className="text-xs text-white/60 mt-1">
+                    Name • @username • avatar
+                  </div>
                 </div>
                 <Pill tone={twitterConnected ? "ok" : "muted"}>
                   {twitterConnected ? "Connected" : "Not connected"}
@@ -541,7 +584,11 @@ export default function ProfilePage() {
 
               <div className="mt-5">
                 {!twitterConnected ? (
-                  <Btn variant="gold" disabled={!connectAllowed} onClick={() => connect("twitter")}>
+                  <Btn
+                    variant="gold"
+                    disabled={!connectAllowed}
+                    onClick={() => connect("twitter")}
+                  >
                     {connectBusy === "twitter" ? "Opening X…" : "Connect X (+100)"}
                   </Btn>
                 ) : (
@@ -567,7 +614,9 @@ export default function ProfilePage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-extrabold">Discord account</div>
-                  <div className="text-xs text-white/60 mt-1">Display • username • avatar</div>
+                  <div className="text-xs text-white/60 mt-1">
+                    Display • username • avatar
+                  </div>
                 </div>
                 <Pill tone={discordConnected ? "ok" : "muted"}>
                   {discordConnected ? "Connected" : "Not connected"}
@@ -597,7 +646,9 @@ export default function ProfilePage() {
                     disabled={!canConnectDiscord}
                     onClick={() => connect("discord")}
                   >
-                    {connectBusy === "discord" ? "Opening Discord…" : "Connect Discord (+100)"}
+                    {connectBusy === "discord"
+                      ? "Opening Discord…"
+                      : "Connect Discord (+100)"}
                   </Btn>
                 ) : (
                   <div className="space-y-2">
@@ -617,7 +668,8 @@ export default function ProfilePage() {
 
                 {!twitterConnected ? (
                   <div className="mt-2 text-[11px] text-white/45">
-                    Connect X first, then you can link Discord to the same profile.
+                    Connect X first, then you can link Discord to the same
+                    profile.
                   </div>
                 ) : null}
               </div>

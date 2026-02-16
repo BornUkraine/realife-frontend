@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+const PUBLIC_PREFIX = "/app/u";
+
 function randomId(len = 6) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
@@ -13,18 +15,40 @@ function randomId(len = 6) {
   return out;
 }
 
-async function ensurePublicId(userId: string) {
-  const u = await prisma.user.findUnique({ where: { id: userId }, select: { publicId: true } });
+function pickPublicKey(user: {
+  handle: string | null;
+  twitterUser: string | null;
+  publicId: string | null;
+}) {
+  return user.handle || user.twitterUser || user.publicId || null;
+}
+
+async function ensurePublicIdTx(tx: typeof prisma, userId: string) {
+  const u = await tx.user.findUnique({
+    where: { id: userId },
+    select: { publicId: true },
+  });
+
   if (u?.publicId && u.publicId !== "tmp") return u.publicId;
 
-  for (let i = 0; i < 10; i++) {
-    const pid = `rl_${randomId(6)}`;
-    const taken = await prisma.user.findUnique({ where: { publicId: pid }, select: { id: true } });
-    if (!taken) {
-      await prisma.user.update({ where: { id: userId }, data: { publicId: pid } });
-      return pid;
+  for (let i = 0; i < 25; i++) {
+    // ✅ 8 символов вместо 6
+    const pid = `rl_${randomId(8)}`;
+
+    try {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: { publicId: pid },
+        select: { publicId: true },
+      });
+
+      return updated.publicId;
+    } catch (e: any) {
+      if (e?.code === "P2002") continue;
+      throw e;
     }
   }
+
   throw new Error("PUBLIC_ID_GENERATION_FAILED");
 }
 
@@ -35,43 +59,72 @@ export async function GET() {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
-  // если в базе был tmp — исправим автоматически
-  await ensurePublicId(session.userId);
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      const publicId = await ensurePublicIdTx(tx as any, session.userId);
 
-  const user = await prisma.user.findUnique({
-    where: { id: session.userId },
-    select: {
-      id: true,
-      handle: true,
-      publicId: true,
-      points: true,
+      const user = await tx.user.findUnique({
+        where: { id: session.userId },
+        select: {
+          id: true,
+          handle: true,
+          publicId: true,
+          points: true,
 
-      twitterId: true,
-      twitterUser: true,
-      twitterName: true,
-      twitterImage: true,
+          twitterId: true,
+          twitterUser: true,
+          twitterName: true,
+          twitterImage: true,
 
-      discordId: true,
-      discordUser: true,
-      discordName: true,
-      discordImage: true,
+          discordId: true,
+          discordUser: true,
+          discordName: true,
+          discordImage: true,
 
-      lastDailyAt: true,
-      createdAt: true,
-    },
-  });
+          lastDailyAt: true,
+          createdAt: true,
+        },
+      });
 
-  if (!user) return NextResponse.json({ ok: false }, { status: 404 });
+      if (!user) return { status: 404 as const, body: { ok: false } };
 
-  const publicUrl = user.handle
-    ? `/u/${user.handle}`
-    : user.publicId
-    ? `/u/${user.publicId}`
-    : null;
+      const finalUser = { ...user, publicId: user.publicId ?? publicId };
 
-  return NextResponse.json({
-    ok: true,
-    user: { ...user, publicUrl },
-    linkError: session.linkError ?? null,
-  });
+      const publicKey = pickPublicKey({
+        handle: finalUser.handle ?? null,
+        twitterUser: finalUser.twitterUser ?? null,
+        publicId: finalUser.publicId ?? null,
+      });
+
+      const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
+
+      const displayName =
+        finalUser.twitterName ||
+        finalUser.discordName ||
+        (finalUser.twitterUser ? `@${finalUser.twitterUser}` : null) ||
+        finalUser.discordUser ||
+        "Realife user";
+
+      const mainAvatar = finalUser.twitterImage || finalUser.discordImage || null;
+
+      return {
+        status: 200 as const,
+        body: {
+          ok: true,
+          user: {
+            ...finalUser,
+            publicUrl,
+            displayName,
+            mainAvatar,
+          },
+          linkError: session.linkError ?? null,
+        },
+      };
+    });
+
+    return NextResponse.json(result.body, { status: result.status });
+  } catch (e) {
+    console.error("ME_ERROR", e);
+    return NextResponse.json({ ok: false }, { status: 500 });
+  }
 }

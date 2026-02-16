@@ -6,9 +6,13 @@ declare module "next-auth" {
   interface Session {
     userId?: string;
     linkError?: string;
-    user: DefaultSession["user"] & {
+
+    user?: DefaultSession["user"] & {
       id?: string;
       points?: number;
+
+      handle?: string | null;
+      publicId?: string | null;
 
       twitterId?: string | null;
       twitterUser?: string | null;
@@ -28,6 +32,9 @@ declare module "next-auth/jwt" {
     uid?: string;
     points?: number;
     linkError?: string;
+
+    handle?: string | null;
+    publicId?: string | null;
 
     twitterId?: string | null;
     twitterUser?: string | null;

@@ -7,6 +7,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+// Публичные профили у тебя живут внутри /app/*
+const PUBLIC_PREFIX = "/app/u";
+
 function Card({ children }: { children: ReactNode }) {
   return (
     <div className="relative overflow-hidden rounded-[28px] p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
@@ -81,15 +84,32 @@ const userSelect = {
   createdAt: true,
 } as const;
 
+function pickPublicKey(user: {
+  handle: string | null;
+  twitterUser: string | null;
+  publicId: string | null;
+}) {
+  // приоритет: ручной handle > X username > publicId
+  return user.handle || user.twitterUser || user.publicId || "";
+}
+
 export default async function PublicProfilePage({
   params,
 }: {
   params: { id: string };
 }) {
-  const key = params.id;
+  const key = decodeURIComponent(params.id || "").trim();
 
   const user = await prisma.user.findFirst({
-    where: { OR: [{ handle: key }, { publicId: key }] },
+    where: {
+      OR: [
+        { handle: key },
+        { publicId: key },
+        // важно: чтобы /app/u/born_voyage открывалось тоже
+        { twitterUser: key },
+        { discordUser: key },
+      ],
+    },
     select: userSelect,
   });
 
@@ -98,15 +118,22 @@ export default async function PublicProfilePage({
   const twitterConnected = Boolean(user.twitterId);
   const discordConnected = Boolean(user.discordId);
 
+  // Главный "человеческий" нейм — приоритет X
   const displayName =
     user.twitterName ||
-    user.twitterUser ||
     user.discordName ||
+    user.twitterUser ||
     user.discordUser ||
     "Realife user";
 
+  // Главная ава — приоритет X
   const avatar = user.twitterImage || user.discordImage || null;
-  const publicUrl = user.handle ? `/u/${user.handle}` : `/u/${user.publicId}`;
+
+  const publicKey = pickPublicKey(user);
+  const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
+
+  // красивый X handle
+  const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
 
   return (
     <AppShell title="REALIFE" subtitle="Public profile">
@@ -141,8 +168,14 @@ export default async function PublicProfilePage({
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Chip>{user.handle ? `@${user.handle}` : "no handle"}</Chip>
+                  {/* показываем X handle если есть */}
+                  {xHandle ? <Chip>{xHandle}</Chip> : null}
+
+                  {/* если у тебя есть ручной handle — покажем его */}
+                  {user.handle ? <Chip>{`@${user.handle}`}</Chip> : null}
+
                   <Chip>{user.publicId ?? "no publicId"}</Chip>
+
                   <StatusPill
                     ok={twitterConnected}
                     text={twitterConnected ? "X connected" : "X not connected"}
@@ -165,7 +198,10 @@ export default async function PublicProfilePage({
                 </div>
 
                 <div className="mt-3 text-[12px] text-white/50">
-                  Link: <span className="text-white/70">{publicUrl}</span>
+                  Link:{" "}
+                  <span className="text-white/70">
+                    {publicUrl ?? "(no public url)"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -177,7 +213,7 @@ export default async function PublicProfilePage({
                 <div>
                   <div className="text-sm font-extrabold">X</div>
                   <div className="text-xs text-white/60 mt-1">
-                    Name + username + avatar
+                    Name + @username + avatar
                   </div>
                 </div>
                 <StatusPill
@@ -193,7 +229,7 @@ export default async function PublicProfilePage({
                     {user.twitterName || "—"}
                   </div>
                   <div className="text-xs text-white/60 truncate">
-                    @{user.twitterUser || "—"}
+                    {user.twitterUser ? `@${user.twitterUser}` : "—"}
                   </div>
                 </div>
               </div>
