@@ -1,12 +1,13 @@
 import AppShell from "@/components/AppShell";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function Card({ children }: { children: React.ReactNode }) {
+function Card({ children }: { children: ReactNode }) {
   return (
     <div className="relative overflow-hidden rounded-[28px] p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
       <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl ring-1 ring-black/10">
@@ -35,7 +36,7 @@ function StatusPill({ ok, text }: { ok: boolean; text: string }) {
   );
 }
 
-function Chip({ children }: { children: React.ReactNode }) {
+function Chip({ children }: { children: ReactNode }) {
   return (
     <div className="text-[11px] font-semibold px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-white/70">
       {children}
@@ -149,7 +150,9 @@ export default async function PublicProfilePage({
                   <StatusPill
                     ok={discordConnected}
                     text={
-                      discordConnected ? "Discord connected" : "Discord not connected"
+                      discordConnected
+                        ? "Discord connected"
+                        : "Discord not connected"
                     }
                   />
                 </div>
