@@ -8,26 +8,30 @@ datasource db {
 }
 
 model User {
-  id         String   @id @default(cuid())
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Public profile (shareable)
+  handle   String? @unique
+  publicId String? @unique
 
   // OAuth identities
   twitterId    String? @unique
   twitterName  String?
-  twitterUser  String? @unique
+  twitterUser  String? // НЕ unique: username может меняться/совпадать
   twitterImage String?
 
   discordId    String? @unique
   discordName  String?
-  discordUser  String? @unique
+  discordUser  String? // НЕ unique
   discordImage String?
 
   // points
-  points     Int       @default(0)
+  points      Int       @default(0)
   lastDailyAt DateTime?
 
-  events     PointEvent[]
+  events PointEvent[]
 }
 
 model PointEvent {
@@ -35,7 +39,7 @@ model PointEvent {
   createdAt DateTime @default(now())
 
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   type   String // "CONNECT_X" | "CONNECT_DISCORD" | "MINT" | "DAILY" ...
   points Int

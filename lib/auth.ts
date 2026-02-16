@@ -8,13 +8,78 @@ import { prisma } from "@/lib/prisma";
 /*                                   HELPERS                                  */
 /* -------------------------------------------------------------------------- */
 
+function slugifyHandle(input: string) {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, "")
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 24);
+}
+
+function randomId(len = 6) {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // без 0/O/I/1
+  let out = "";
+  for (let i = 0; i < len; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return out;
+}
+
+async function ensurePublicId(db: typeof prisma, userId: string) {
+  const u = await db.user.findUnique({ where: { id: userId }, select: { publicId: true } });
+  if (u?.publicId) return u.publicId;
+
+  for (let i = 0; i < 10; i++) {
+    const pid = `rl_${randomId(6)}`;
+    const taken = await db.user.findUnique({ where: { publicId: pid }, select: { id: true } });
+    if (!taken) {
+      await db.user.update({ where: { id: userId }, data: { publicId: pid } });
+      return pid;
+    }
+  }
+  throw new Error("PUBLIC_ID_GENERATION_FAILED");
+}
+
+async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?: string | null) {
+  if (!twitterUser) return;
+
+  const current = await db.user.findUnique({ where: { id: userId }, select: { handle: true, publicId: true } });
+  if (current?.handle) return; // закрепляем 1 раз
+
+  const base = slugifyHandle(twitterUser);
+  if (!base) return;
+
+  // пытаемся base, base_2, base_3...
+  for (let i = 0; i < 25; i++) {
+    const h = i === 0 ? base : `${base}_${i + 1}`;
+    const taken = await db.user.findUnique({ where: { handle: h }, select: { id: true } });
+    if (!taken) {
+      await db.user.update({ where: { id: userId }, data: { handle: h } });
+      return;
+    }
+  }
+
+  // fallback: base + хвост publicId
+  const pid = current?.publicId ?? (await ensurePublicId(db, userId));
+  await db.user.update({
+    where: { id: userId },
+    data: { handle: `${base}_${pid.slice(-4).toLowerCase()}` },
+  });
+}
+
+function discordAvatarUrl(profile: any) {
+  const id = profile?.id;
+  const avatar = profile?.avatar;
+  if (id && avatar) return `https://cdn.discordapp.com/avatars/${id}/${avatar}.png?size=256`;
+  return null;
+}
+
 function pickDiscordProfile(profile: any) {
   const username = profile?.username ?? null;
   const globalName = profile?.global_name ?? null;
   const name = globalName || username;
-  const image =
-    profile?.image_url ?? profile?.avatar_url ?? profile?.avatar ?? null;
-
+  const image = discordAvatarUrl(profile) ?? profile?.image_url ?? profile?.avatar_url ?? null;
   return { username, name, image };
 }
 
@@ -69,9 +134,7 @@ const TwitterOAuthProvider: any = {
   token: "https://api.twitter.com/2/oauth2/token",
 
   // ✅ Самый надёжный способ: user.fields прямо в URL
-  // (иначе часто приходят null name/username/image)
-  userinfo:
-    "https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url",
+  userinfo: "https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url",
 
   clientId: process.env.TWITTER_CLIENT_ID!,
   clientSecret: process.env.TWITTER_CLIENT_SECRET!,
@@ -86,7 +149,6 @@ const TwitterOAuthProvider: any = {
       name: d?.name ?? null,
       username: d?.username ?? null,
       image: d?.profile_image_url ?? null,
-      // сохраним сырой ответ для отладки, если нужно
       __raw: raw,
     };
   },
@@ -114,16 +176,14 @@ export const authOptions: NextAuthOptions = {
       account,
       profile,
     }: {
-      token: JWT & { uid?: string };
+      token: JWT & { uid?: string; linkError?: string };
       account?: any;
       profile?: any;
     }) {
       /* ----------------------------- X (Twitter) ---------------------------- */
       if (account?.provider === "twitter") {
-        // 🔎 логируем сырой ответ X (только в debug)
         if (process.env.NEXTAUTH_DEBUG === "true") {
           try {
-            // profile может быть тем, что вернул profile() выше
             console.log("X_PROFILE_MAPPED", {
               id: profile?.id,
               username: profile?.username,
@@ -146,7 +206,7 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.$transaction(async (tx) => {
           let u;
 
-          // ✅ Если уже есть uid (например залогинен Discord) — привязываем X к текущему юзеру
+          // ✅ Если уже есть uid — привязываем X к текущему юзеру
           if (token.uid) {
             u = await tx.user.update({
               where: { id: token.uid },
@@ -156,10 +216,30 @@ export const authOptions: NextAuthOptions = {
             // иначе логин только через X — создаём/обновляем по twitterId
             u = await tx.user.upsert({
               where: { twitterId },
-              create: { twitterId, twitterUser, twitterName, twitterImage },
+              create: {
+                twitterId,
+                twitterUser,
+                twitterName,
+                twitterImage,
+                // publicId создадим ниже (ensurePublicId)
+                publicId: "tmp", // временно, заменим сразу
+              },
               update: { twitterUser, twitterName, twitterImage },
             });
+
+            // если это был create с "tmp" — надо заменить на нормальный publicId
+            // (если upsert попал в update, publicId уже есть/останется)
+            if (u.publicId === "tmp") {
+              const pid = await ensurePublicId(tx as any, u.id);
+              u = await tx.user.update({ where: { id: u.id }, data: { publicId: pid } });
+            }
           }
+
+          // гарантируем publicId (на всякий случай)
+          await ensurePublicId(tx as any, u.id);
+
+          // ✅ auto-handle из X (ставим один раз)
+          await ensureHandleFromX(tx as any, u.id, twitterUser);
 
           // ✅ +100 только один раз
           await awardOnce(tx as any, u.id, "CONNECT_X", 100);
@@ -167,15 +247,16 @@ export const authOptions: NextAuthOptions = {
         });
 
         token.uid = user.id;
+        token.linkError = undefined; // очистим ошибки linking
       }
 
       /* ------------------------------ Discord -------------------------------- */
       if (account?.provider === "discord") {
-        // ✅ ВАЖНО: Discord делаем ТОЛЬКО как linking к уже существующей X-сессии.
-        // Это гарантирует, что "Discord не снесёт X" и не создаст другого юзера.
+        // ✅ Discord — только linking к существующему профилю
         if (!token.uid) {
-          console.error("DISCORD_LINK_BLOCKED: no token.uid (session not found)");
-          throw new Error("DISCORD_LINK_REQUIRES_X_LOGIN");
+          // НЕ бросаем ошибку (иначе будет error=Callback)
+          token.linkError = "DISCORD_LINK_REQUIRES_X_LOGIN";
+          return token;
         }
 
         const d = pickDiscordProfile(profile);
@@ -192,6 +273,8 @@ export const authOptions: NextAuthOptions = {
             },
           });
 
+          await ensurePublicId(tx as any, u.id);
+
           // ✅ +100 только один раз
           await awardOnce(tx as any, u.id, "CONNECT_DISCORD", 100);
           return u;
@@ -207,10 +290,11 @@ export const authOptions: NextAuthOptions = {
       session,
       token,
     }: {
-      session: Session & { userId?: string };
-      token: JWT & { uid?: string };
+      session: Session & { userId?: string; linkError?: string };
+      token: JWT & { uid?: string; linkError?: string };
     }) {
       session.userId = token.uid;
+      session.linkError = token.linkError;
       return session;
     },
   },
