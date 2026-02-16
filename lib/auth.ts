@@ -1,3 +1,4 @@
+// lib/auth.ts
 import type { NextAuthOptions } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 import type { JWT } from "next-auth/jwt";
@@ -44,7 +45,10 @@ async function ensurePublicId(db: typeof prisma, userId: string) {
 async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?: string | null) {
   if (!twitterUser) return;
 
-  const current = await db.user.findUnique({ where: { id: userId }, select: { handle: true, publicId: true } });
+  const current = await db.user.findUnique({
+    where: { id: userId },
+    select: { handle: true, publicId: true },
+  });
   if (current?.handle) return; // закрепляем 1 раз
 
   const base = slugifyHandle(twitterUser);
@@ -112,11 +116,28 @@ async function awardOnce(
   return true;
 }
 
+function applyUserToToken(token: any, user: any) {
+  token.uid = user.id;
+  token.points = user.points ?? 0;
+
+  token.twitterId = user.twitterId ?? null;
+  token.twitterUser = user.twitterUser ?? null;
+  token.twitterName = user.twitterName ?? null;
+  token.twitterImage = user.twitterImage ?? null;
+
+  token.discordId = user.discordId ?? null;
+  token.discordUser = user.discordUser ?? null;
+  token.discordName = user.discordName ?? null;
+  token.discordImage = user.discordImage ?? null;
+
+  return token;
+}
+
 /* -------------------------------------------------------------------------- */
 /*                        X (TWITTER) OAUTH2 PROVIDER                          */
 /* -------------------------------------------------------------------------- */
 
-// Делаем any — чтобы не воевать с типами кастомного провайдера в v4
+// Делаем any — чтобы не воевать с типами кастомного провайдера
 const TwitterOAuthProvider: any = {
   id: "twitter",
   name: "Twitter",
@@ -126,23 +147,20 @@ const TwitterOAuthProvider: any = {
   authorization: {
     url: "https://twitter.com/i/oauth2/authorize",
     params: {
-      // важно: scope разделяется пробелами
       scope: "users.read tweet.read offline.access",
     },
   },
 
   token: "https://api.twitter.com/2/oauth2/token",
 
-  // ✅ Самый надёжный способ: user.fields прямо в URL
+  // user.fields в URL — самый надёжный вариант
   userinfo: "https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url",
 
   clientId: process.env.TWITTER_CLIENT_ID!,
   clientSecret: process.env.TWITTER_CLIENT_SECRET!,
-
   checks: ["pkce", "state"],
 
   profile(raw: any) {
-    // X v2 users/me -> { data: {...} }
     const d = raw?.data ?? {};
     return {
       id: d?.id,
@@ -176,26 +194,12 @@ export const authOptions: NextAuthOptions = {
       account,
       profile,
     }: {
-      token: JWT & { uid?: string; linkError?: string };
+      token: JWT & { uid?: string; linkError?: string } & Record<string, any>;
       account?: any;
       profile?: any;
     }) {
       /* ----------------------------- X (Twitter) ---------------------------- */
       if (account?.provider === "twitter") {
-        if (process.env.NEXTAUTH_DEBUG === "true") {
-          try {
-            console.log("X_PROFILE_MAPPED", {
-              id: profile?.id,
-              username: profile?.username,
-              name: profile?.name,
-              image: profile?.image,
-            });
-            console.log("X_PROFILE_RAW", (profile as any)?.__raw ?? profile);
-          } catch (e) {
-            console.log("X_LOG_ERROR", e);
-          }
-        }
-
         const twitterId = profile?.id ?? account?.providerAccountId;
         const twitterUser = profile?.username ?? null;
         const twitterName = profile?.name ?? null;
@@ -206,14 +210,14 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.$transaction(async (tx) => {
           let u;
 
-          // ✅ Если уже есть uid — привязываем X к текущему юзеру
+          // Если уже есть uid — привязываем X к текущему юзеру
           if (token.uid) {
             u = await tx.user.update({
               where: { id: token.uid },
               data: { twitterId, twitterUser, twitterName, twitterImage },
             });
           } else {
-            // иначе логин только через X — создаём/обновляем по twitterId
+            // иначе логин через X — создаём/обновляем по twitterId
             u = await tx.user.upsert({
               where: { twitterId },
               create: {
@@ -221,40 +225,45 @@ export const authOptions: NextAuthOptions = {
                 twitterUser,
                 twitterName,
                 twitterImage,
-                // publicId создадим ниже (ensurePublicId)
-                publicId: "tmp", // временно, заменим сразу
+                // publicId НЕ задаём (иначе уникальный "tmp" ломает создание)
               },
               update: { twitterUser, twitterName, twitterImage },
             });
-
-            // если это был create с "tmp" — надо заменить на нормальный publicId
-            // (если upsert попал в update, publicId уже есть/останется)
-            if (u.publicId === "tmp") {
-              const pid = await ensurePublicId(tx as any, u.id);
-              u = await tx.user.update({ where: { id: u.id }, data: { publicId: pid } });
-            }
           }
 
-          // гарантируем publicId (на всякий случай)
           await ensurePublicId(tx as any, u.id);
-
-          // ✅ auto-handle из X (ставим один раз)
           await ensureHandleFromX(tx as any, u.id, twitterUser);
-
-          // ✅ +100 только один раз
           await awardOnce(tx as any, u.id, "CONNECT_X", 100);
-          return u;
+
+          // вернём свежий юзер после возможных апдейтов
+          const fresh = await tx.user.findUnique({
+            where: { id: u.id },
+            select: {
+              id: true,
+              points: true,
+              twitterId: true,
+              twitterUser: true,
+              twitterName: true,
+              twitterImage: true,
+              discordId: true,
+              discordUser: true,
+              discordName: true,
+              discordImage: true,
+            },
+          });
+
+          return fresh ?? u;
         });
 
-        token.uid = user.id;
-        token.linkError = undefined; // очистим ошибки linking
+        token.linkError = undefined;
+        applyUserToToken(token, user);
+        return token;
       }
 
       /* ------------------------------ Discord -------------------------------- */
       if (account?.provider === "discord") {
-        // ✅ Discord — только linking к существующему профилю
+        // Discord — только linking к существующему профилю
         if (!token.uid) {
-          // НЕ бросаем ошибку (иначе будет error=Callback)
           token.linkError = "DISCORD_LINK_REQUIRES_X_LOGIN";
           return token;
         }
@@ -274,13 +283,51 @@ export const authOptions: NextAuthOptions = {
           });
 
           await ensurePublicId(tx as any, u.id);
-
-          // ✅ +100 только один раз
           await awardOnce(tx as any, u.id, "CONNECT_DISCORD", 100);
-          return u;
+
+          const fresh = await tx.user.findUnique({
+            where: { id: u.id },
+            select: {
+              id: true,
+              points: true,
+              twitterId: true,
+              twitterUser: true,
+              twitterName: true,
+              twitterImage: true,
+              discordId: true,
+              discordUser: true,
+              discordName: true,
+              discordImage: true,
+            },
+          });
+
+          return fresh ?? u;
         });
 
-        token.uid = user.id;
+        token.linkError = undefined;
+        applyUserToToken(token, user);
+        return token;
+      }
+
+      /* ----------------------- Refresh token from DB ------------------------ */
+      if (!account && token.uid) {
+        const u = await prisma.user.findUnique({
+          where: { id: token.uid },
+          select: {
+            id: true,
+            points: true,
+            twitterId: true,
+            twitterUser: true,
+            twitterName: true,
+            twitterImage: true,
+            discordId: true,
+            discordUser: true,
+            discordName: true,
+            discordImage: true,
+          },
+        });
+
+        if (u) applyUserToToken(token, u);
       }
 
       return token;
@@ -290,11 +337,28 @@ export const authOptions: NextAuthOptions = {
       session,
       token,
     }: {
-      session: Session & { userId?: string; linkError?: string };
-      token: JWT & { uid?: string; linkError?: string };
+      session: Session & { userId?: string; linkError?: string } & Record<string, any>;
+      token: JWT & { uid?: string; linkError?: string } & Record<string, any>;
     }) {
       session.userId = token.uid;
       session.linkError = token.linkError;
+
+      session.user = {
+        ...(session.user ?? {}),
+        id: token.uid,
+        points: token.points ?? 0,
+
+        twitterId: token.twitterId ?? null,
+        twitterUser: token.twitterUser ?? null,
+        twitterName: token.twitterName ?? null,
+        twitterImage: token.twitterImage ?? null,
+
+        discordId: token.discordId ?? null,
+        discordUser: token.discordUser ?? null,
+        discordName: token.discordName ?? null,
+        discordImage: token.discordImage ?? null,
+      };
+
       return session;
     },
   },

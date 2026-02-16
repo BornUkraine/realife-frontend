@@ -29,108 +29,154 @@ type MeResponse = {
   linkError?: string | null;
 };
 
-function Card({ children }: { children: React.ReactNode }) {
+function cx(...a: Array<string | false | null | undefined>) {
+  return a.filter(Boolean).join(" ");
+}
+
+/* --------------------------------- UI Kit -------------------------------- */
+
+function Card({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="relative overflow-hidden rounded-[28px] p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
-      <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl ring-1 ring-black/10">
+    <div
+      className={cx(
+        "relative overflow-hidden rounded-[30px] p-px",
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.11),rgba(184,135,10,0.10))]",
+        "shadow-[0_26px_100px_rgba(0,0,0,0.60)]",
+        className
+      )}
+    >
+      <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl ring-1 ring-black/10">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
+          <div className="absolute inset-0 opacity-[0.06] [mask-image:radial-gradient(circle_at_40%_30%,black,transparent_70%)] bg-[linear-gradient(to_right,rgba(255,255,255,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.22)_1px,transparent_1px)] bg-[length:64px_64px]" />
         </div>
-        <div className="relative z-10 p-6">{children}</div>
+        <div className="relative z-10 p-6 md:p-7">{children}</div>
       </div>
     </div>
   );
 }
 
-function GoldBtn(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      {...props}
-      className={[
-        "inline-flex items-center justify-center gap-2",
-        "w-full px-6 py-3 rounded-2xl font-extrabold text-black",
-        "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-        "shadow-[0_22px_70px_rgba(212,175,55,0.18)] ring-1 ring-black/15",
-        "transition hover:brightness-110 hover:-translate-y-px active:translate-y-0",
-        "disabled:opacity-60 disabled:cursor-not-allowed",
-        props.className || "",
-      ].join(" ")}
-    />
-  );
-}
+function Pill({
+  children,
+  tone = "muted",
+}: {
+  children: React.ReactNode;
+  tone?: "muted" | "ok" | "warn";
+}) {
+  const cls =
+    tone === "ok"
+      ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+      : tone === "warn"
+      ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
+      : "border-white/10 bg-white/[0.06] text-white/70";
 
-function GhostBtn(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button
-      {...props}
-      className={[
-        "inline-flex items-center justify-center gap-2",
-        "w-full px-6 py-3 rounded-2xl font-extrabold text-white",
-        "border border-white/15 bg-white/[0.06] backdrop-blur-2xl",
-        "shadow-[0_18px_70px_rgba(0,0,0,0.28)]",
-        "transition hover:bg-white/10 hover:-translate-y-px active:translate-y-0",
-        "disabled:opacity-60 disabled:cursor-not-allowed",
-        props.className || "",
-      ].join(" ")}
-    />
-  );
-}
-
-function TinyBtn(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
-  return (
-    <button
-      {...props}
-      className={[
-        "inline-flex items-center justify-center gap-2",
-        "px-3 py-2 rounded-xl text-[12px] font-extrabold text-white",
-        "border border-white/15 bg-white/[0.06] backdrop-blur-2xl",
-        "transition hover:bg-white/10 active:translate-y-[1px]",
-        "disabled:opacity-60 disabled:cursor-not-allowed",
-        props.className || "",
-      ].join(" ")}
-    />
-  );
-}
-
-function StatusPill({ ok, text }: { ok: boolean; text: string }) {
-  return (
-    <div
-      className={[
-        "text-[11px] font-semibold px-3 py-1.5 rounded-full border",
-        ok
-          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-          : "border-white/10 bg-white/[0.06] text-white/60",
-      ].join(" ")}
-    >
-      {text}
+    <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>
+      {children}
     </div>
   );
 }
 
-function Alert({ text }: { text: string }) {
+function Alert({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-      {text}
+    <div className="rounded-[22px] border border-rose-500/25 bg-rose-500/10 px-4 py-3">
+      <div className="text-sm font-extrabold text-rose-50">{title}</div>
+      <div className="mt-1 text-sm text-rose-100/90">{text}</div>
     </div>
   );
 }
 
-function Avatar({ src, fallback }: { src?: string | null; fallback: string }) {
+function Btn({
+  variant = "gold",
+  className = "",
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "gold" | "ghost" | "tiny";
+}) {
+  const base =
+    "inline-flex items-center justify-center gap-2 font-extrabold transition disabled:opacity-60 disabled:cursor-not-allowed";
+
+  const gold = cx(
+    "w-full px-6 py-3 rounded-2xl text-black",
+    "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
+    "shadow-[0_22px_70px_rgba(212,175,55,0.18)] ring-1 ring-black/15",
+    "hover:brightness-110 hover:-translate-y-px active:translate-y-0"
+  );
+
+  const ghost = cx(
+    "w-full px-6 py-3 rounded-2xl text-white",
+    "border border-white/15 bg-white/[0.06] backdrop-blur-2xl",
+    "shadow-[0_18px_70px_rgba(0,0,0,0.28)]",
+    "hover:bg-white/10 hover:-translate-y-px active:translate-y-0"
+  );
+
+  const tiny = cx(
+    "px-3 py-2 rounded-xl text-[12px] text-white",
+    "border border-white/15 bg-white/[0.06] backdrop-blur-2xl",
+    "hover:bg-white/10 active:translate-y-[1px]"
+  );
+
   return (
-    <div className="h-14 w-14 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center">
+    <button
+      {...props}
+      className={cx(
+        base,
+        variant === "gold" ? gold : variant === "ghost" ? ghost : tiny,
+        className
+      )}
+    />
+  );
+}
+
+function Avatar({
+  src,
+  fallback,
+  size = "md",
+}: {
+  src?: string | null;
+  fallback: string;
+  size?: "md" | "lg";
+}) {
+  const s = size === "lg" ? "h-16 w-16" : "h-14 w-14";
+  return (
+    <div className={cx(s, "rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center")}>
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={fallback} className="h-full w-full object-cover" />
+        <img
+          src={src}
+          alt={fallback}
+          className="h-full w-full object-cover"
+          referrerPolicy="no-referrer"
+        />
       ) : (
-        <span className="text-white/40 text-xs font-bold">{fallback}</span>
+        <span className="text-white/40 text-xs font-black">{fallback}</span>
       )}
     </div>
   );
 }
 
+function Skeleton({ className }: { className: string }) {
+  return (
+    <div
+      className={cx(
+        "animate-pulse rounded-xl bg-white/[0.06] border border-white/10",
+        className
+      )}
+    />
+  );
+}
+
+/* --------------------------------- Page ---------------------------------- */
+
 export default function ProfilePage() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const authed = status === "authenticated";
 
   const [me, setMe] = useState<MeUser | null>(null);
@@ -146,15 +192,35 @@ export default function ProfilePage() {
   const twitterConnected = Boolean(me?.twitterId);
   const discordConnected = Boolean(me?.discordId);
 
+  // Premium: быстрый display из session.user (если есть), иначе из /me
   const displayName = useMemo(() => {
+    const sName =
+      (session?.user as any)?.twitterName ||
+      (session?.user as any)?.twitterUser ||
+      (session?.user as any)?.discordName ||
+      (session?.user as any)?.discordUser ||
+      session?.user?.name ||
+      null;
+
     return (
+      sName ||
       me?.twitterName ||
       me?.twitterUser ||
       me?.discordName ||
       me?.discordUser ||
       "Realife user"
     );
-  }, [me]);
+  }, [session, me]);
+
+  const heroAvatar = useMemo(() => {
+    const sImg =
+      (session?.user as any)?.twitterImage ||
+      (session?.user as any)?.discordImage ||
+      session?.user?.image ||
+      null;
+
+    return sImg || me?.twitterImage || me?.discordImage || null;
+  }, [session, me]);
 
   const publicUrl = useMemo(() => {
     if (!me) return null;
@@ -184,17 +250,14 @@ export default function ProfilePage() {
       setMe(json?.user ?? null);
       setLinkError(json?.linkError ?? null);
 
-      // если вернулись с OAuth — сбросим busy
+      // вернулись с OAuth — сбросим busy
       setConnectBusy("");
       busyGuardRef.current = false;
-    } catch {
-      // не падаем
     } finally {
       setLoading(false);
     }
   }
 
-  // status -> reload
   useEffect(() => {
     if (status === "authenticated") loadMe();
     else {
@@ -206,15 +269,12 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // после OAuth возврата: когда вкладка снова активна/в фокусе
   useEffect(() => {
     if (!authed) return;
 
     const onFocus = () => loadMe();
     window.addEventListener("focus", onFocus);
 
-    // иногда next-auth возвращает на ту же страницу без полного обновления
-    // поэтому сразу сбрасываем busy на монтировании
     setConnectBusy("");
     busyGuardRef.current = false;
 
@@ -237,14 +297,12 @@ export default function ProfilePage() {
   }
 
   async function connect(provider: "twitter" | "discord") {
-    // анти-спам: 1 клик = 1 действие
     if (busyGuardRef.current) return;
+
     if (!authed && provider === "discord") {
-      // Discord только линк, логин идёт через X
       setLinkError("DISCORD_LINK_REQUIRES_X_LOGIN");
       return;
     }
-
     if (provider === "discord" && !twitterConnected) {
       setLinkError("DISCORD_LINK_REQUIRES_X_LOGIN");
       return;
@@ -258,8 +316,6 @@ export default function ProfilePage() {
         ? `${window.location.origin}/app/profile`
         : "/app/profile";
 
-    // signIn обычно редиректит и не возвращается
-    // но если вдруг вернулось — отпустим guard через таймер
     void signIn(provider, { callbackUrl }).finally(() => {
       setTimeout(() => {
         busyGuardRef.current = false;
@@ -294,14 +350,15 @@ export default function ProfilePage() {
     linkError === "DISCORD_LINK_REQUIRES_X_LOGIN"
       ? "Connect X first, then link Discord to the same profile."
       : linkError
-        ? "Something went wrong while linking. Try again."
-        : null;
+      ? "Something went wrong while linking. Try again."
+      : null;
 
   return (
     <AppShell title="REALIFE" subtitle="Profile • Identity • Points">
       <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
+        {/* Ambient */}
         <div className="pointer-events-none fixed inset-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.12),transparent_55%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
           <div className="absolute -top-80 -left-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/14 blur-3xl animate-pulse" />
           <div className="absolute -bottom-80 -right-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/10 blur-3xl animate-pulse" />
@@ -316,175 +373,228 @@ export default function ProfilePage() {
         </div>
 
         <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
-          {errorText ? <Alert text={errorText} /> : null}
+          {errorText ? (
+            <Alert title="Linking error" text={errorText} />
+          ) : null}
 
+          {/* HERO */}
           <Card>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-white/60">Profile</div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-4">
+                  <Avatar src={heroAvatar} fallback="RL" size="lg" />
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-white/60">
+                      Realife profile
+                    </div>
 
-                <div className="mt-2 text-3xl md:text-4xl font-black tracking-tight truncate">
-                  {authed ? displayName : "Not logged in"}
+                    <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
+                      {authed ? displayName : "Not logged in"}
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Pill tone={twitterConnected ? "ok" : "muted"}>
+                        {twitterConnected ? "X connected" : "X not connected"}
+                      </Pill>
+                      <Pill tone={discordConnected ? "ok" : "muted"}>
+                        {discordConnected ? "Discord connected" : "Discord not connected"}
+                      </Pill>
+                      {loading ? <Pill>syncing…</Pill> : null}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="mt-2 text-sm text-white/65">
-                  Points:{" "}
-                  <span className="font-extrabold text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
-                    {authed ? me?.points ?? 0 : 0}
-                  </span>
-                  {loading ? (
-                    <span className="ml-2 text-white/45">loading…</span>
-                  ) : null}
-                </div>
+                <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[11px] text-white/55 font-semibold">
+                      Points
+                    </div>
+                    <div className="mt-1 text-2xl font-black text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
+                      {authed ? me?.points ?? 0 : 0}
+                    </div>
+                  </div>
 
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <StatusPill
-                    ok={twitterConnected}
-                    text={twitterConnected ? "X connected" : "X not connected"}
-                  />
-                  <StatusPill
-                    ok={discordConnected}
-                    text={discordConnected ? "Discord connected" : "Discord not connected"}
-                  />
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[11px] text-white/55 font-semibold">
+                      Handle
+                    </div>
+                    <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
+                      {authed ? (me?.handle ? `@${me.handle}` : "—") : "—"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[11px] text-white/55 font-semibold">
+                      Public ID
+                    </div>
+                    <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
+                      {authed ? (me?.publicId ?? "—") : "—"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[11px] text-white/55 font-semibold">
+                      Public link
+                    </div>
+                    <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
+                      {authed ? (publicUrl ?? "—") : "—"}
+                    </div>
+                  </div>
                 </div>
 
                 {authed ? (
                   <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <div className="text-[12px] font-semibold px-3 py-2 rounded-xl border border-white/10 bg-white/[0.06] text-white/70">
-                      {me?.handle ? `@${me.handle}` : "no handle"}
-                    </div>
-
-                    <div className="text-[12px] font-semibold px-3 py-2 rounded-xl border border-white/10 bg-white/[0.06] text-white/70">
-                      {me?.publicId ? me.publicId : "no publicId"}
-                    </div>
-
                     {publicUrl ? (
-                      <div className="flex items-center gap-2">
-                        <TinyBtn onClick={copyPublicLink} disabled={!publicFullUrl}>
+                      <>
+                        <Btn variant="tiny" onClick={copyPublicLink} disabled={!publicFullUrl}>
                           {copied ? "Copied" : "Copy link"}
-                        </TinyBtn>
+                        </Btn>
                         <a
                           href={publicUrl}
                           className="text-[12px] font-extrabold px-3 py-2 rounded-xl border border-white/15 bg-white/[0.06] hover:bg-white/10"
                         >
-                          Open
+                          Open public
                         </a>
-                      </div>
+                      </>
                     ) : (
                       <div className="text-[11px] text-white/45">
                         Public link will appear after publicId is set.
                       </div>
                     )}
+
+                    <Btn
+                      variant="tiny"
+                      onClick={loadMe}
+                      disabled={!authed || loading}
+                      className="ml-auto"
+                    >
+                      {loading ? "Refreshing…" : "Refresh"}
+                    </Btn>
                   </div>
                 ) : null}
               </div>
 
+              {/* Actions */}
               <div className="w-full md:w-[360px] space-y-3">
                 {!authed ? (
-                  <GoldBtn
+                  <Btn
+                    variant="gold"
                     onClick={() => connect("twitter")}
                     disabled={connectBusy !== ""}
                   >
                     {connectBusy === "twitter" ? "Opening X…" : "Login with X"}
-                  </GoldBtn>
+                  </Btn>
                 ) : (
-                  <GhostBtn onClick={() => signOut({ callbackUrl: "/app/profile" })}>
+                  <Btn
+                    variant="ghost"
+                    onClick={() => signOut({ callbackUrl: "/app/profile" })}
+                  >
                     Logout
-                  </GhostBtn>
+                  </Btn>
                 )}
 
-                <GhostBtn disabled={!authed || dailyBusy} onClick={claimDaily}>
+                <Btn variant="ghost" disabled={!authed || dailyBusy} onClick={claimDaily}>
                   {dailyBusy ? "Claiming…" : "Daily check-in (+10)"}
-                </GhostBtn>
+                </Btn>
 
-                <TinyBtn
-                  onClick={loadMe}
-                  disabled={!authed || loading}
-                  className="w-full"
-                >
-                  {loading ? "Refreshing…" : "Refresh profile"}
-                </TinyBtn>
+                {/* Micro note */}
+                <div className="text-[11px] text-white/45 leading-relaxed">
+                  Your identity is linked to this Realife profile. Connect X first, then link
+                  Discord to the same profile.
+                </div>
               </div>
             </div>
           </Card>
 
+          {/* Providers */}
           <div className="grid md:grid-cols-2 gap-6">
             {/* X */}
             <Card>
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-extrabold">X account</div>
                   <div className="text-xs text-white/60 mt-1">
-                    Name + username + avatar.
+                    Name • @username • avatar
                   </div>
                 </div>
-                <StatusPill
-                  ok={twitterConnected}
-                  text={twitterConnected ? "Connected" : "Not connected"}
-                />
+                <Pill tone={twitterConnected ? "ok" : "muted"}>
+                  {twitterConnected ? "Connected" : "Not connected"}
+                </Pill>
               </div>
 
-              <div className="mt-4 flex items-center gap-4">
-                <Avatar src={me?.twitterImage} fallback="X" />
-                <div className="min-w-0">
+              <div className="mt-5 flex items-center gap-4">
+                {loading && !me ? (
+                  <Skeleton className="h-14 w-14 rounded-2xl" />
+                ) : (
+                  <Avatar src={me?.twitterImage} fallback="X" />
+                )}
+                <div className="min-w-0 flex-1">
                   <div className="text-sm font-extrabold truncate">
-                    {me?.twitterName || "—"}
+                    {authed ? (me?.twitterName || "—") : "—"}
                   </div>
                   <div className="text-xs text-white/60 truncate">
-                    @{me?.twitterUser || "—"}
+                    @{authed ? (me?.twitterUser || "—") : "—"}
                   </div>
                 </div>
               </div>
 
               <div className="mt-5">
-                <GoldBtn disabled={!connectAllowed} onClick={() => connect("twitter")}>
+                <Btn variant="gold" disabled={!connectAllowed} onClick={() => connect("twitter")}>
                   {connectBusy === "twitter"
                     ? "Opening X…"
                     : twitterConnected
-                      ? "Re-connect X"
-                      : "Connect X (+100)"}
-                </GoldBtn>
+                    ? "Re-connect X"
+                    : "Connect X (+100)"}
+                </Btn>
+              </div>
+
+              <div className="mt-3 text-[11px] text-white/45">
+                Tip: if avatar doesn’t refresh instantly — press “Refresh” in the header.
               </div>
             </Card>
 
             {/* Discord */}
             <Card>
-              <div className="flex items-center justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-extrabold">Discord account</div>
                   <div className="text-xs text-white/60 mt-1">
-                    Links to the same profile.
+                    Display • username • avatar
                   </div>
                 </div>
-                <StatusPill
-                  ok={discordConnected}
-                  text={discordConnected ? "Connected" : "Not connected"}
-                />
+                <Pill tone={discordConnected ? "ok" : "muted"}>
+                  {discordConnected ? "Connected" : "Not connected"}
+                </Pill>
               </div>
 
-              <div className="mt-4 flex items-center gap-4">
-                <Avatar src={me?.discordImage} fallback="DS" />
-                <div className="min-w-0">
+              <div className="mt-5 flex items-center gap-4">
+                {loading && !me ? (
+                  <Skeleton className="h-14 w-14 rounded-2xl" />
+                ) : (
+                  <Avatar src={me?.discordImage} fallback="DS" />
+                )}
+                <div className="min-w-0 flex-1">
                   <div className="text-sm font-extrabold truncate">
-                    {me?.discordName || "—"}
+                    {authed ? (me?.discordName || "—") : "—"}
                   </div>
                   <div className="text-xs text-white/60 truncate">
-                    {me?.discordUser || "—"}
+                    {authed ? (me?.discordUser || "—") : "—"}
                   </div>
                 </div>
               </div>
 
               <div className="mt-5">
-                <GoldBtn
+                <Btn
+                  variant="gold"
                   disabled={!canConnectDiscord}
                   onClick={() => connect("discord")}
                 >
                   {connectBusy === "discord"
                     ? "Opening Discord…"
                     : discordConnected
-                      ? "Re-connect Discord"
-                      : "Connect Discord (+100)"}
-                </GoldBtn>
+                    ? "Re-connect Discord"
+                    : "Connect Discord (+100)"}
+                </Btn>
 
                 {!twitterConnected ? (
                   <div className="mt-2 text-[11px] text-white/45">
