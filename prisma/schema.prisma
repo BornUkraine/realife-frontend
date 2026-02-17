@@ -26,6 +26,10 @@ model User {
   discordName  String?
   discordUser  String? // НЕ unique
   discordImage String?
+  
+  // Wallet identity (EVM)
+  walletAddress String? @unique
+  walletChainId Int?
 
   // points
   points      Int       @default(0)

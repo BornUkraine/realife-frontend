@@ -40,14 +40,12 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
 
   for (let i = 0; i < 25; i++) {
     const pid = `rl_${randomId(8)}`;
-
     try {
       const updated = await db.user.update({
         where: { id: userId },
         data: { publicId: pid },
         select: { publicId: true },
       });
-
       if (updated.publicId) return updated.publicId;
     } catch (e: any) {
       if (e?.code === "P2002") continue; // collision -> retry
@@ -89,7 +87,7 @@ async function ensureHandleFromX(
 
   // если не смогли — доклеим суффикс от publicId (8 символов)
   const pid = current?.publicId ?? (await ensurePublicId(db, userId));
-  if (typeof pid !== "string" || pid.length === 0) throw new Error("publicId is missing");
+  if (!pid) throw new Error("publicId is missing");
 
   await db.user.update({
     where: { id: userId },
@@ -140,6 +138,9 @@ async function awardOnce(
   return true;
 }
 
+/**
+ * 🔥 ВАЖНО: берём все поля, которые должны жить в токене/сессии
+ */
 const tokenSelect = {
   id: true,
   points: true,
@@ -155,13 +156,27 @@ const tokenSelect = {
   discordUser: true,
   discordName: true,
   discordImage: true,
+
+  walletAddress: true,
+  walletChainId: true,
 } as const;
 
+/**
+ * 🔥 железный ownerId:
+ * - NextAuth стандартно держит user id в token.sub
+ * - мы также держим token.uid как удобный алиас
+ */
+function tokenUserId(token: any): string | null {
+  return (token?.uid as string) || (token?.sub as string) || null;
+}
+
 function applyUserToToken(token: any, user: any) {
+  // главный идентификатор
+  token.sub = user.id;
   token.uid = user.id;
+
   token.points = user.points ?? 0;
 
-  // ✅ для ссылок /app/u/...
   token.handle = user.handle ?? null;
   token.publicId = user.publicId ?? null;
 
@@ -174,6 +189,9 @@ function applyUserToToken(token: any, user: any) {
   token.discordUser = user.discordUser ?? null;
   token.discordName = user.discordName ?? null;
   token.discordImage = user.discordImage ?? null;
+
+  token.walletAddress = user.walletAddress ?? null;
+  token.walletChainId = user.walletChainId ?? null;
 
   return token;
 }
@@ -191,9 +209,7 @@ const TwitterOAuthProvider: any = {
 
   authorization: {
     url: "https://twitter.com/i/oauth2/authorize",
-    params: {
-      scope: "users.read tweet.read offline.access",
-    },
+    params: { scope: "users.read tweet.read offline.access" },
   },
 
   token: "https://api.twitter.com/2/oauth2/token",
@@ -225,9 +241,7 @@ const TwitterOAuthProvider: any = {
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
-  debug:
-  process.env.NODE_ENV !== "production" &&
-  process.env.NEXTAUTH_DEBUG === "true",
+  debug: process.env.NODE_ENV !== "production" && process.env.NEXTAUTH_DEBUG === "true",
 
   providers: [
     TwitterOAuthProvider,
@@ -257,9 +271,11 @@ export const authOptions: NextAuthOptions = {
         if (!twitterId) return token;
 
         const user = await prisma.$transaction(async (tx) => {
-          const u = token.uid
+          const existingUid = tokenUserId(token);
+
+          const u = existingUid
             ? await tx.user.update({
-                where: { id: token.uid },
+                where: { id: existingUid },
                 data: { twitterId, twitterUser, twitterName, twitterImage },
               })
             : await tx.user.upsert({
@@ -289,9 +305,10 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider === "discord") {
         const discordId = account.providerAccountId;
 
-        // ✅ fallback: если uid пропал, восстановим по twitterId из token
-        let uid: string | null = token.uid ?? null;
+        // owner uid: uid || sub
+        let uid = tokenUserId(token);
 
+        // fallback: если токен почему-то пуст — восстановимся по twitterId
         if (!uid && token.twitterId) {
           const byX = await prisma.user.findUnique({
             where: { twitterId: token.twitterId },
@@ -300,6 +317,7 @@ export const authOptions: NextAuthOptions = {
           uid = byX?.id ?? null;
         }
 
+        // если и тут нет — реально нет X-сессии
         if (!uid) {
           token.linkError = "DISCORD_LINK_REQUIRES_X_LOGIN";
           return token;
@@ -310,7 +328,7 @@ export const authOptions: NextAuthOptions = {
         try {
           const user = await prisma.$transaction(async (tx) => {
             const u = await tx.user.update({
-              where: { id: uid },
+              where: { id: uid! },
               data: {
                 discordId,
                 discordUser: d.username,
@@ -331,10 +349,11 @@ export const authOptions: NextAuthOptions = {
           });
 
           token.linkError = undefined;
+
+          // 🔥 ключ: после Discord мы сохраняем ownerId в sub/uid
           applyUserToToken(token, user);
           return token;
         } catch (e: any) {
-          // если discordId unique и уже привязан к другому юзеру
           if (e?.code === "P2002") {
             token.linkError = "DISCORD_ALREADY_LINKED";
             return token;
@@ -344,25 +363,29 @@ export const authOptions: NextAuthOptions = {
       }
 
       /* ----------------------- Refresh token from DB ------------------------ */
-      if (!account && token.uid) {
-        const u = await prisma.user.findUnique({
-          where: { id: token.uid },
-          select: tokenSelect,
-        });
-
-        if (u) applyUserToToken(token, u);
+      if (!account) {
+        const uid = tokenUserId(token);
+        if (uid) {
+          const u = await prisma.user.findUnique({
+            where: { id: uid },
+            select: tokenSelect,
+          });
+          if (u) applyUserToToken(token, u);
+        }
       }
 
       return token;
     },
 
     async session({ session, token }: { session: any; token: any }) {
-      session.userId = token.uid;
+      const uid = tokenUserId(token);
+
+      session.userId = uid ?? undefined;
       session.linkError = token.linkError;
 
       session.user = {
         ...(session.user ?? {}),
-        id: token.uid,
+        id: uid ?? undefined,
         points: token.points ?? 0,
 
         handle: token.handle ?? null,
@@ -377,6 +400,9 @@ export const authOptions: NextAuthOptions = {
         discordUser: token.discordUser ?? null,
         discordName: token.discordName ?? null,
         discordImage: token.discordImage ?? null,
+
+        walletAddress: token.walletAddress ?? null,
+        walletChainId: token.walletChainId ?? null,
       };
 
       return session;

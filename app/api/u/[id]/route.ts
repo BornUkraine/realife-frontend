@@ -23,6 +23,9 @@ const userSelect = {
   discordName: true,
   discordImage: true,
 
+  walletAddress: true,
+  walletChainId: true,
+
   createdAt: true,
 } as const;
 
@@ -31,7 +34,6 @@ function pickPublicKey(user: {
   twitterUser: string | null;
   publicId: string | null;
 }) {
-  // приоритет: ручной handle > X username > publicId
   return user.handle || user.twitterUser || user.publicId || null;
 }
 
@@ -64,6 +66,7 @@ export async function GET(
 
   const twitterConnected = Boolean(user.twitterId);
   const discordConnected = Boolean(user.discordId);
+  const walletConnected = Boolean(user.walletAddress);
 
   const displayName =
     user.twitterName ||
@@ -89,6 +92,7 @@ export async function GET(
       ...user,
       twitterConnected,
       discordConnected,
+      walletConnected,
       displayName,
       xHandle,
       mainAvatar,

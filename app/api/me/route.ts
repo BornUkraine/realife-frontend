@@ -20,7 +20,7 @@ function pickPublicKey(user: {
   twitterUser: string | null;
   publicId: string | null;
 }) {
-  // приоритет: handle (если закрепили из X) -> twitter username -> publicId
+  // приоритет: handle -> twitter username -> publicId
   return user.handle || user.twitterUser || user.publicId || null;
 }
 
@@ -81,6 +81,9 @@ export async function GET() {
           discordUser: true,
           discordName: true,
           discordImage: true,
+
+          walletAddress: true,
+          walletChainId: true,
 
           lastDailyAt: true,
           createdAt: true,

@@ -21,6 +21,9 @@ type MeUser = {
   discordUser?: string | null;
   discordName?: string | null;
   discordImage?: string | null;
+
+  walletAddress?: string | null;
+  walletChainId?: number | null;
 };
 
 type MeResponse = {
@@ -36,20 +39,18 @@ function cx(...a: Array<string | false | null | undefined>) {
 function normalizePublicUrl(raw: string | null | undefined) {
   if (!raw) return null;
 
-  // guard: tmp
   if (raw.includes("tmp")) return null;
 
-  // backend might return "/u/xxx" but your route is "/app/u/xxx"
   if (raw.startsWith("/u/")) return `/app${raw}`;
-
-  // already correct
   if (raw.startsWith("/app/u/")) return raw;
-
-  // if backend returns just "xxx"
   if (!raw.startsWith("/")) return `/app/u/${raw}`;
-
-  // fallback
   return raw;
+}
+
+function shortAddr(addr?: string | null) {
+  if (!addr) return "—";
+  if (addr.length <= 12) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
 /* --------------------------------- UI Kit -------------------------------- */
@@ -163,17 +164,31 @@ function Avatar({
   src,
   fallback,
   size = "md",
+  ring = true,
 }: {
   src?: string | null;
   fallback: string;
-  size?: "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
+  ring?: boolean;
 }) {
-  const s = size === "lg" ? "h-16 w-16" : "h-14 w-14";
+  const s =
+    size === "xl"
+      ? "h-20 w-20 md:h-24 md:w-24"
+      : size === "lg"
+        ? "h-16 w-16"
+        : size === "sm"
+          ? "h-12 w-12"
+          : "h-14 w-14";
+
   return (
     <div
       className={cx(
         s,
-        "rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center"
+        "rounded-2xl overflow-hidden flex items-center justify-center",
+        "bg-white/[0.06] border border-white/10",
+        ring
+          ? "shadow-[0_18px_60px_rgba(212,175,55,0.10)] ring-1 ring-black/15"
+          : ""
       )}
     >
       {src ? (
@@ -202,6 +217,30 @@ function Skeleton({ className }: { className: string }) {
   );
 }
 
+function Field({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <div className="text-[11px] text-white/55 font-semibold">{label}</div>
+      <div
+        className={cx(
+          "mt-1 text-sm font-extrabold text-white/85 truncate",
+          mono ? "font-mono text-[13px]" : ""
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
 /* --------------------------------- Page ---------------------------------- */
 
 export default function ProfilePage() {
@@ -212,58 +251,51 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false);
 
   const [dailyBusy, setDailyBusy] = useState(false);
-  const [connectBusy, setConnectBusy] = useState<"" | "twitter" | "discord">("");
+  const [connectBusy, setConnectBusy] = useState<"" | "twitter" | "discord" | "wallet">("");
   const [linkError, setLinkError] = useState<string | null>(null);
 
   const [copied, setCopied] = useState(false);
+  const [walletCopied, setWalletCopied] = useState(false);
   const busyGuardRef = useRef(false);
 
-  // session.user расширенный (как any)
   const sUser: any = (session as any)?.user ?? null;
 
-  /**
-   * ВАЖНО (фикс):
-   * - НЕЛЬЗЯ использовать sUser.name / sUser.image как фолбэк для X блока,
-   *   потому что после Discord они становятся дискордовскими.
-   * - Для X берём только twitter-поля, для Discord — только discord-поля.
-   */
+  // X fields (ONLY X)
   const xId = me?.twitterId ?? sUser?.twitterId ?? null;
   const xName = me?.twitterName ?? sUser?.twitterName ?? null;
   const xUser = me?.twitterUser ?? sUser?.twitterUser ?? null;
   const xImage = me?.twitterImage ?? sUser?.twitterImage ?? null;
 
+  // Discord fields (ONLY Discord)
   const dId = me?.discordId ?? sUser?.discordId ?? null;
   const dName = me?.discordName ?? sUser?.discordName ?? null;
   const dUser = me?.discordUser ?? sUser?.discordUser ?? null;
   const dImage = me?.discordImage ?? sUser?.discordImage ?? null;
 
+  const walletAddress = me?.walletAddress ?? (sUser?.walletAddress ?? null);
+  const walletChainId = me?.walletChainId ?? (sUser?.walletChainId ?? null);
+
   const twitterConnected = Boolean(xId);
   const discordConnected = Boolean(dId);
+  const walletConnected = Boolean(walletAddress);
 
-  const displayName = useMemo(() => {
+  // Top name MUST be from X
+  const topDisplayName = useMemo(() => {
     return (
       xName ||
       (xUser ? `@${xUser}` : null) ||
-      dName ||
-      dUser ||
-      "Realife user"
+      "Not linked to X"
     );
-  }, [xName, xUser, dName, dUser]);
+  }, [xName, xUser]);
 
-  // ✅ main avatar: X first
-  const heroAvatar = useMemo(() => xImage || dImage || null, [xImage, dImage]);
+  const heroAvatar = useMemo(() => xImage || null, [xImage]); // 🔥 only X at top
 
-  // ✅ guard against tmp
   const safePublicId = useMemo(() => {
     const pid = me?.publicId ?? null;
     if (!pid || pid === "tmp") return null;
     return pid;
   }, [me?.publicId]);
 
-  /**
-   * FIX: у тебя публичные профили живут в /app/u/...
-   * (потому что страница лежит в app/app/u/[id]/page.tsx)
-   */
   const publicUrl = useMemo(() => {
     if (!me) return null;
 
@@ -305,7 +337,6 @@ export default function ProfilePage() {
     }
   }
 
-  // status -> reload
   useEffect(() => {
     if (status === "authenticated") void loadMe();
     else {
@@ -317,7 +348,6 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  // ✅ после OAuth возврата: focus + visibilitychange (мобилки)
   useEffect(() => {
     if (!authed) return;
 
@@ -329,7 +359,6 @@ export default function ProfilePage() {
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVis);
 
-    // мягкий доп. рефреш через 800мс (часто помогает после OAuth возврата)
     const t = window.setTimeout(() => void loadMe(), 800);
 
     return () => {
@@ -357,7 +386,6 @@ export default function ProfilePage() {
   async function connect(provider: "twitter" | "discord") {
     if (busyGuardRef.current) return;
 
-    // Discord только к существующему профилю (через X)
     if (!authed && provider === "discord") {
       setLinkError("DISCORD_LINK_REQUIRES_X_LOGIN");
       return;
@@ -383,22 +411,105 @@ export default function ProfilePage() {
     });
   }
 
+  async function copyText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      try {
+        const el = document.createElement("textarea");
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  }
+
   async function copyPublicLink() {
     if (!publicFullUrl) return;
-
-    try {
-      await navigator.clipboard.writeText(publicFullUrl);
-    } catch {
-      const el = document.createElement("textarea");
-      el.value = publicFullUrl;
-      document.body.appendChild(el);
-      el.select();
-      document.execCommand("copy");
-      document.body.removeChild(el);
-    }
-
+    const ok = await copyText(publicFullUrl);
+    if (!ok) return;
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
+  }
+
+  async function copyWallet() {
+    if (!walletAddress) return;
+    const ok = await copyText(walletAddress);
+    if (!ok) return;
+    setWalletCopied(true);
+    setTimeout(() => setWalletCopied(false), 1200);
+  }
+
+  async function linkWallet() {
+    if (!authed || connectBusy !== "") return;
+
+    setLinkError(null);
+    setConnectBusy("wallet");
+
+    try {
+      const n = await fetch("/api/wallet/nonce", { cache: "no-store" })
+        .then((r) => r.json())
+        .catch(() => null);
+
+      if (!n?.ok || !n?.nonce) {
+        setLinkError("WALLET_NONCE_FAILED");
+        return;
+      }
+
+      const eth = (window as any).ethereum;
+      if (!eth) {
+        setLinkError("WALLET_NO_PROVIDER");
+        return;
+      }
+
+      const accounts = await eth.request({ method: "eth_requestAccounts" });
+      const address = accounts?.[0] as string | undefined;
+      if (!address) {
+        setLinkError("WALLET_NO_ACCOUNT");
+        return;
+      }
+
+      const chainIdHex = await eth.request({ method: "eth_chainId" });
+      const chainId = parseInt(chainIdHex, 16);
+
+      const origin = window.location.origin;
+      const userId = (session as any)?.userId ?? (session as any)?.user?.id ?? "";
+
+      const message =
+        `REALIFE — Link wallet\n\n` +
+        `Site: ${origin}\n` +
+        `User: ${userId}\n` +
+        `Wallet: ${address}\n` +
+        `ChainId: ${chainId}\n` +
+        `Nonce: ${n.nonce}`;
+
+      const signature = await eth.request({
+        method: "personal_sign",
+        params: [message, address],
+      });
+
+      const res = await fetch("/api/wallet/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address, chainId, message, signature }),
+      }).then((r) => r.json().catch(() => ({})));
+
+      if (res?.ok) {
+        await loadMe();
+      } else {
+        setLinkError(res?.error ?? "WALLET_LINK_FAILED");
+      }
+    } catch {
+      setLinkError("WALLET_LINK_FAILED");
+    } finally {
+      setConnectBusy("");
+    }
   }
 
   const connectDisabled = connectBusy !== "" || status !== "authenticated";
@@ -408,12 +519,22 @@ export default function ProfilePage() {
   const errorText =
     linkError === "DISCORD_LINK_REQUIRES_X_LOGIN"
       ? "Connect X first, then link Discord to the same profile."
-      : linkError
-        ? "Something went wrong while linking. Try again."
-        : null;
+      : linkError === "DISCORD_ALREADY_LINKED"
+        ? "This Discord is already linked to another profile."
+        : linkError === "wallet_already_linked"
+          ? "This wallet is already linked to another profile."
+          : linkError === "WALLET_NO_PROVIDER"
+            ? "No wallet provider found. Install MetaMask / Rabby."
+            : linkError === "WALLET_NONCE_FAILED"
+              ? "Failed to create nonce. Try again."
+              : linkError === "WALLET_NO_ACCOUNT"
+                ? "No wallet account selected."
+                : linkError
+                  ? "Something went wrong. Try again."
+                  : null;
 
   return (
-    <AppShell title="REALIFE" subtitle="Profile • Identity • Points">
+    <AppShell title="REALIFE" subtitle="Profile • Identity • Wallet">
       <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
         {/* Ambient */}
         <div className="pointer-events-none fixed inset-0">
@@ -434,19 +555,19 @@ export default function ProfilePage() {
         <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
           {errorText ? <Alert title="Linking error" text={errorText} /> : null}
 
-          {/* HERO */}
+          {/* HERO (X главный) */}
           <Card>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-4">
-                  <Avatar src={heroAvatar} fallback="RL" size="lg" />
+                <div className="flex items-center gap-5">
+                  <Avatar src={heroAvatar} fallback="X" size="xl" />
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-white/60">
-                      Realife profile
+                      Main identity (X)
                     </div>
 
                     <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
-                      {authed ? displayName : "Not logged in"}
+                      {authed ? topDisplayName : "Not logged in"}
                     </div>
 
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -454,49 +575,63 @@ export default function ProfilePage() {
                         {twitterConnected ? "X connected" : "X not connected"}
                       </Pill>
                       <Pill tone={discordConnected ? "ok" : "muted"}>
-                        {discordConnected
-                          ? "Discord connected"
-                          : "Discord not connected"}
+                        {discordConnected ? "Discord connected" : "Discord not connected"}
+                      </Pill>
+                      <Pill tone={walletConnected ? "ok" : "muted"}>
+                        {walletConnected ? "Wallet connected" : "Wallet not connected"}
                       </Pill>
                       {loading ? <Pill>syncing…</Pill> : null}
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">
-                      Points
-                    </div>
-                    <div className="mt-1 text-2xl font-black text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
-                      {authed ? me?.points ?? sUser?.points ?? 0 : 0}
-                    </div>
-                  </div>
+                <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <Field
+                    label="Points"
+                    value={authed ? me?.points ?? sUser?.points ?? 0 : 0}
+                  />
+                  <Field
+                    label="Handle"
+                    value={authed ? (me?.handle ? `@${me.handle}` : "—") : "—"}
+                  />
+                  <Field label="Public ID" value={authed ? safePublicId ?? "—" : "—"} />
+                  <Field label="Public link" value={authed ? publicUrl ?? "—" : "—"} />
+                </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">
-                      Handle
+                {/* Wallet strip */}
+                <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[11px] text-white/55 font-semibold">
+                        EVM wallet
+                      </div>
+                      <div className="mt-1 font-mono text-[13px] font-extrabold text-white/85 truncate">
+                        {walletAddress ?? "—"}
+                      </div>
+                      <div className="mt-1 text-[11px] text-white/45">
+                        Chain: <span className="text-white/70 font-semibold">{walletChainId ?? "—"}</span>
+                      </div>
                     </div>
-                    <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
-                      {authed ? (me?.handle ? `@${me.handle}` : "—") : "—"}
-                    </div>
-                  </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">
-                      Public ID
-                    </div>
-                    <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
-                      {authed ? safePublicId ?? "—" : "—"}
-                    </div>
-                  </div>
+                    <div className="flex flex-wrap gap-2 md:justify-end">
+                      {walletAddress ? (
+                        <Btn variant="tiny" onClick={copyWallet} disabled={!walletAddress}>
+                          {walletCopied ? "Copied" : "Copy address"}
+                        </Btn>
+                      ) : null}
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold">
-                      Public link
-                    </div>
-                    <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
-                      {authed ? publicUrl ?? "—" : "—"}
+                      <Btn
+                        variant={walletConnected ? "ghost" : "gold"}
+                        onClick={linkWallet}
+                        disabled={!authed || connectBusy !== ""}
+                        className="md:w-auto"
+                      >
+                        {connectBusy === "wallet"
+                          ? "Signing…"
+                          : walletConnected
+                            ? "Wallet linked"
+                            : "Link wallet (sign message)"}
+                      </Btn>
                     </div>
                   </div>
                 </div>
@@ -505,11 +640,7 @@ export default function ProfilePage() {
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     {publicUrl ? (
                       <>
-                        <Btn
-                          variant="tiny"
-                          onClick={copyPublicLink}
-                          disabled={!publicFullUrl}
-                        >
+                        <Btn variant="tiny" onClick={copyPublicLink} disabled={!publicFullUrl}>
                           {copied ? "Copied" : "Copy link"}
                         </Btn>
                         <a
@@ -556,23 +687,18 @@ export default function ProfilePage() {
                   </Btn>
                 )}
 
-                <Btn
-                  variant="ghost"
-                  disabled={!authed || dailyBusy}
-                  onClick={claimDaily}
-                >
+                <Btn variant="ghost" disabled={!authed || dailyBusy} onClick={claimDaily}>
                   {dailyBusy ? "Claiming…" : "Daily check-in (+10)"}
                 </Btn>
 
                 <div className="text-[11px] text-white/45 leading-relaxed">
-                  One profile. Connect X first, then link Discord to the same
-                  profile.
+                  One profile. X is the main identity. Discord and Wallet are add-ons.
                 </div>
               </div>
             </div>
           </Card>
 
-          {/* Providers */}
+          {/* Bottom: left X, right Discord (как ты просил) */}
           <div className="grid md:grid-cols-2 gap-6">
             {/* X */}
             <Card>
@@ -592,7 +718,7 @@ export default function ProfilePage() {
                 {loading && !me ? (
                   <Skeleton className="h-14 w-14 rounded-2xl" />
                 ) : (
-                  <Avatar src={xImage} fallback="X" />
+                  <Avatar src={xImage} fallback="X" size="lg" />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-extrabold truncate">
@@ -606,11 +732,7 @@ export default function ProfilePage() {
 
               <div className="mt-5">
                 {!twitterConnected ? (
-                  <Btn
-                    variant="gold"
-                    disabled={!connectAllowed}
-                    onClick={() => connect("twitter")}
-                  >
+                  <Btn variant="gold" disabled={!connectAllowed} onClick={() => connect("twitter")}>
                     {connectBusy === "twitter" ? "Opening X…" : "Connect X (+100)"}
                   </Btn>
                 ) : (
@@ -639,7 +761,7 @@ export default function ProfilePage() {
                 {loading && !me ? (
                   <Skeleton className="h-14 w-14 rounded-2xl" />
                 ) : (
-                  <Avatar src={dImage} fallback="DS" />
+                  <Avatar src={dImage} fallback="DS" size="lg" />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-extrabold truncate">
@@ -653,14 +775,8 @@ export default function ProfilePage() {
 
               <div className="mt-5">
                 {!discordConnected ? (
-                  <Btn
-                    variant="gold"
-                    disabled={!canConnectDiscord}
-                    onClick={() => connect("discord")}
-                  >
-                    {connectBusy === "discord"
-                      ? "Opening Discord…"
-                      : "Connect Discord (+100)"}
+                  <Btn variant="gold" disabled={!canConnectDiscord} onClick={() => connect("discord")}>
+                    {connectBusy === "discord" ? "Opening Discord…" : "Connect Discord (+100)"}
                   </Btn>
                 ) : (
                   <Btn variant="ghost" disabled className="w-full">
@@ -670,12 +786,16 @@ export default function ProfilePage() {
 
                 {!twitterConnected ? (
                   <div className="mt-2 text-[11px] text-white/45">
-                    Connect X first, then you can link Discord to the same
-                    profile.
+                    Connect X first, then you can link Discord to the same profile.
                   </div>
                 ) : null}
               </div>
             </Card>
+          </div>
+
+          {/* Footer mini info */}
+          <div className="text-[11px] text-white/40 text-center">
+            Tip: If avatars don’t обновились после OAuth — нажми Refresh (или перезайди на страницу).
           </div>
         </div>
       </main>

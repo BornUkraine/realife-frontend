@@ -10,15 +10,41 @@ export const revalidate = 0;
 // Публичные профили у тебя живут внутри /app/*
 const PUBLIC_PREFIX = "/app/u";
 
-function Card({ children }: { children: ReactNode }) {
+/* --------------------------------- UI Kit -------------------------------- */
+
+function cx(...a: Array<string | false | null | undefined>) {
+  return a.filter(Boolean).join(" ");
+}
+
+function shortAddr(addr?: string | null) {
+  if (!addr) return "—";
+  if (addr.length <= 12) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+function Card({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="relative overflow-hidden rounded-[28px] p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
-      <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl ring-1 ring-black/10">
+    <div
+      className={cx(
+        "relative overflow-hidden rounded-[30px] p-px",
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
+        "shadow-[0_24px_90px_rgba(0,0,0,0.55)]",
+        className
+      )}
+    >
+      <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl ring-1 ring-black/10">
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_0%,rgba(212,175,55,0.11),transparent_45%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
+          <div className="absolute inset-0 opacity-[0.06] [mask-image:radial-gradient(circle_at_40%_30%,black,transparent_70%)] bg-[linear-gradient(to_right,rgba(255,255,255,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.22)_1px,transparent_1px)] bg-[length:64px_64px]" />
         </div>
-        <div className="relative z-10 p-6">{children}</div>
+        <div className="relative z-10 p-6 md:p-7">{children}</div>
       </div>
     </div>
   );
@@ -27,29 +53,55 @@ function Card({ children }: { children: ReactNode }) {
 function StatusPill({ ok, text }: { ok: boolean; text: string }) {
   return (
     <div
-      className={[
+      className={cx(
         "text-[11px] font-semibold px-3 py-1.5 rounded-full border",
         ok
           ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
-          : "border-white/10 bg-white/[0.06] text-white/60",
-      ].join(" ")}
+          : "border-white/10 bg-white/[0.06] text-white/60"
+      )}
     >
       {text}
     </div>
   );
 }
 
-function Chip({ children }: { children: ReactNode }) {
+function Chip({
+  children,
+  tone = "muted",
+}: {
+  children: ReactNode;
+  tone?: "muted" | "gold";
+}) {
+  const cls =
+    tone === "gold"
+      ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
+      : "border-white/10 bg-white/[0.06] text-white/70";
+
   return (
-    <div className="text-[11px] font-semibold px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-white/70">
+    <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>
       {children}
     </div>
   );
 }
 
-function Avatar({ src, fallback }: { src?: string | null; fallback: string }) {
+function Avatar({
+  src,
+  fallback,
+  size = "md",
+}: {
+  src?: string | null;
+  fallback: string;
+  size?: "sm" | "md" | "lg";
+}) {
+  const s = size === "lg" ? "h-16 w-16" : size === "sm" ? "h-12 w-12" : "h-14 w-14";
   return (
-    <div className="h-16 w-16 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center">
+    <div
+      className={cx(
+        s,
+        "rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center",
+        "shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15"
+      )}
+    >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -59,11 +111,37 @@ function Avatar({ src, fallback }: { src?: string | null; fallback: string }) {
           referrerPolicy="no-referrer"
         />
       ) : (
-        <span className="text-white/40 text-xs font-bold">{fallback}</span>
+        <span className="text-white/40 text-xs font-black">{fallback}</span>
       )}
     </div>
   );
 }
+
+function KeyValue({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <div className="text-[11px] text-white/55 font-semibold">{label}</div>
+      <div
+        className={cx(
+          "mt-1 text-sm font-extrabold text-white/85 truncate",
+          mono ? "font-mono text-[13px]" : ""
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+/* --------------------------------- Data ---------------------------------- */
 
 const userSelect = {
   id: true,
@@ -81,6 +159,9 @@ const userSelect = {
   discordName: true,
   discordImage: true,
 
+  walletAddress: true,
+  walletChainId: true,
+
   createdAt: true,
 } as const;
 
@@ -93,6 +174,8 @@ function pickPublicKey(user: {
   return user.handle || user.twitterUser || user.publicId || null;
 }
 
+/* --------------------------------- Page ---------------------------------- */
+
 export default async function PublicProfilePage({
   params,
 }: {
@@ -102,12 +185,7 @@ export default async function PublicProfilePage({
 
   const user = await prisma.user.findFirst({
     where: {
-      OR: [
-        { handle: key },
-        { publicId: key },
-        { twitterUser: key },
-        { discordUser: key },
-      ],
+      OR: [{ handle: key }, { publicId: key }, { twitterUser: key }, { discordUser: key }],
     },
     select: userSelect,
   });
@@ -116,17 +194,18 @@ export default async function PublicProfilePage({
 
   const twitterConnected = Boolean(user.twitterId);
   const discordConnected = Boolean(user.discordId);
+  const walletConnected = Boolean(user.walletAddress);
 
-  // Главный "человеческий" нейм — приоритет X
+  // 🔥 Верхний нейм — приоритет X (если нет X, тогда Discord)
   const displayName =
     user.twitterName ||
-    user.discordName ||
     (user.twitterUser ? `@${user.twitterUser}` : null) ||
+    user.discordName ||
     user.discordUser ||
     "Realife user";
 
-  // Главная ава — приоритет X
-  const avatar = user.twitterImage || user.discordImage || null;
+  // 🔥 Верхняя ава — только X если есть, иначе Discord
+  const heroAvatar = user.twitterImage || user.discordImage || null;
 
   const publicKey = pickPublicKey({
     handle: user.handle ?? null,
@@ -136,16 +215,13 @@ export default async function PublicProfilePage({
 
   const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
-  // красивый X handle
   const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
-
-  // не дублировать @handle если он совпадает с twitterUser
-  const showHandleChip =
-    Boolean(user.handle) && user.handle !== user.twitterUser;
+  const showHandleChip = Boolean(user.handle) && user.handle !== user.twitterUser;
 
   return (
     <AppShell title="REALIFE" subtitle="Public profile">
       <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
+        {/* Ambient */}
         <div className="pointer-events-none fixed inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
@@ -161,77 +237,78 @@ export default async function PublicProfilePage({
           />
         </div>
 
-        <div className="relative mx-auto max-w-4xl px-6 py-10 space-y-6">
+        <div className="relative mx-auto max-w-5xl px-6 py-10 space-y-6">
+          {/* HERO */}
           <Card>
-            <div className="flex items-center gap-5">
-              <Avatar src={avatar} fallback="RL" />
-
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold text-white/60">
-                  Public profile
+                <div className="flex items-center gap-5">
+                  <Avatar src={heroAvatar} fallback="RL" size="lg" />
+
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-white/60">Public profile</div>
+
+                    <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
+                      {displayName}
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {xHandle ? <Chip tone="gold">{xHandle}</Chip> : null}
+                      {showHandleChip ? <Chip>{`@${user.handle}`}</Chip> : null}
+                      <Chip>{user.publicId ?? "no publicId"}</Chip>
+
+                      <StatusPill ok={twitterConnected} text={twitterConnected ? "X connected" : "X not connected"} />
+                      <StatusPill ok={discordConnected} text={discordConnected ? "Discord connected" : "Discord not connected"} />
+                      <StatusPill ok={walletConnected} text={walletConnected ? "Wallet connected" : "Wallet not connected"} />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
-                  {displayName}
-                </div>
-
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {xHandle ? <Chip>{xHandle}</Chip> : null}
-                  {showHandleChip ? <Chip>{`@${user.handle}`}</Chip> : null}
-                  <Chip>{user.publicId ?? "no publicId"}</Chip>
-
-                  <StatusPill
-                    ok={twitterConnected}
-                    text={twitterConnected ? "X connected" : "X not connected"}
+                <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <KeyValue label="Points" value={user.points ?? 0} />
+                  <KeyValue label="Handle" value={user.handle ? `@${user.handle}` : "—"} />
+                  <KeyValue label="Public link" value={publicUrl ?? "—"} mono />
+                  <KeyValue
+                    label="EVM wallet"
+                    value={user.walletAddress ? shortAddr(user.walletAddress) : "—"}
+                    mono
                   />
-                  <StatusPill
-                    ok={discordConnected}
-                    text={
-                      discordConnected
-                        ? "Discord connected"
-                        : "Discord not connected"
-                    }
-                  />
                 </div>
 
-                <div className="mt-3 text-sm text-white/70">
-                  Points:{" "}
-                  <span className="font-extrabold text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
-                    {user.points ?? 0}
-                  </span>
-                </div>
-
-                <div className="mt-3 text-[12px] text-white/50">
-                  Link:{" "}
-                  <span className="text-white/70">
-                    {publicUrl ?? "(no public url)"}
-                  </span>
+                <div className="mt-3 text-[12px] text-white/45">
+                  Full wallet:{" "}
+                  <span className="text-white/70 font-mono">
+                    {user.walletAddress ?? "—"}
+                  </span>{" "}
+                  {user.walletChainId ? (
+                    <>
+                      • Chain:{" "}
+                      <span className="text-white/70 font-semibold">{user.walletChainId}</span>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </div>
           </Card>
 
+          {/* Bottom: left X, right Discord */}
           <div className="grid md:grid-cols-2 gap-6">
+            {/* X */}
             <Card>
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-extrabold">X</div>
                   <div className="text-xs text-white/60 mt-1">
-                    Name + @username + avatar
+                    Name • @username • avatar
                   </div>
                 </div>
-                <StatusPill
-                  ok={twitterConnected}
-                  text={twitterConnected ? "Connected" : "Not connected"}
-                />
+                <StatusPill ok={twitterConnected} text={twitterConnected ? "Connected" : "Not connected"} />
               </div>
 
-              <div className="mt-4 flex items-center gap-4">
-                <Avatar src={user.twitterImage} fallback="X" />
-                <div className="min-w-0">
-                  <div className="text-sm font-extrabold truncate">
-                    {user.twitterName || "—"}
-                  </div>
+              <div className="mt-5 flex items-center gap-4">
+                <Avatar src={user.twitterImage} fallback="X" size="lg" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-extrabold truncate">{user.twitterName || "—"}</div>
                   <div className="text-xs text-white/60 truncate">
                     {user.twitterUser ? `@${user.twitterUser}` : "—"}
                   </div>
@@ -239,32 +316,30 @@ export default async function PublicProfilePage({
               </div>
             </Card>
 
+            {/* Discord */}
             <Card>
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-extrabold">Discord</div>
                   <div className="text-xs text-white/60 mt-1">
-                    Display + username + avatar
+                    Display • username • avatar
                   </div>
                 </div>
-                <StatusPill
-                  ok={discordConnected}
-                  text={discordConnected ? "Connected" : "Not connected"}
-                />
+                <StatusPill ok={discordConnected} text={discordConnected ? "Connected" : "Not connected"} />
               </div>
 
-              <div className="mt-4 flex items-center gap-4">
-                <Avatar src={user.discordImage} fallback="DS" />
-                <div className="min-w-0">
-                  <div className="text-sm font-extrabold truncate">
-                    {user.discordName || "—"}
-                  </div>
-                  <div className="text-xs text-white/60 truncate">
-                    {user.discordUser || "—"}
-                  </div>
+              <div className="mt-5 flex items-center gap-4">
+                <Avatar src={user.discordImage} fallback="DS" size="lg" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-extrabold truncate">{user.discordName || "—"}</div>
+                  <div className="text-xs text-white/60 truncate">{user.discordUser || "—"}</div>
                 </div>
               </div>
             </Card>
+          </div>
+
+          <div className="text-[11px] text-white/40 text-center">
+            Share: <span className="font-mono text-white/60">{publicUrl ?? "—"}</span>
           </div>
         </div>
       </main>
