@@ -5,7 +5,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// публичные профили: /app/u/<key>
 const PUBLIC_PREFIX = "/app/u";
 
 const userSelect = {
@@ -38,9 +37,9 @@ function pickPublicKey(user: {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const keyRaw = params.id;
+  const { id: keyRaw } = await params;
   const key = decodeURIComponent(keyRaw || "").trim();
 
   if (!key) {
@@ -74,8 +73,6 @@ export async function GET(
     "Realife user";
 
   const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
-
-  // Главная аватарка: X приоритет, иначе Discord
   const mainAvatar = user.twitterImage || user.discordImage || null;
 
   const publicKey = pickPublicKey({
@@ -92,7 +89,6 @@ export async function GET(
       ...user,
       twitterConnected,
       discordConnected,
-
       displayName,
       xHandle,
       mainAvatar,
