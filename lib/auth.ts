@@ -225,7 +225,9 @@ const TwitterOAuthProvider: any = {
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
-  debug: process.env.NEXTAUTH_DEBUG === "true",
+  debug:
+  process.env.NODE_ENV !== "production" &&
+  process.env.NEXTAUTH_DEBUG === "true",
 
   providers: [
     TwitterOAuthProvider,
