@@ -5,7 +5,7 @@ echo "Running prisma migrate deploy..."
 npx prisma migrate deploy
 
 echo "Starting Next.js..."
-next start -p "${PORT:-3000}" &
+npx next start -p "${PORT:-3000}" &
 PID=$!
 
 term_handler() {
