@@ -90,7 +90,7 @@ function pickPublicKey(user: {
   publicId: string | null;
 }) {
   // приоритет: ручной handle > X username > publicId
-  return user.handle || user.twitterUser || user.publicId || "";
+  return user.handle || user.twitterUser || user.publicId || null;
 }
 
 export default async function PublicProfilePage({
@@ -105,7 +105,6 @@ export default async function PublicProfilePage({
       OR: [
         { handle: key },
         { publicId: key },
-        // важно: чтобы /app/u/born_voyage открывалось тоже
         { twitterUser: key },
         { discordUser: key },
       ],
@@ -122,18 +121,27 @@ export default async function PublicProfilePage({
   const displayName =
     user.twitterName ||
     user.discordName ||
-    user.twitterUser ||
+    (user.twitterUser ? `@${user.twitterUser}` : null) ||
     user.discordUser ||
     "Realife user";
 
   // Главная ава — приоритет X
   const avatar = user.twitterImage || user.discordImage || null;
 
-  const publicKey = pickPublicKey(user);
+  const publicKey = pickPublicKey({
+    handle: user.handle ?? null,
+    twitterUser: user.twitterUser ?? null,
+    publicId: user.publicId ?? null,
+  });
+
   const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
   // красивый X handle
   const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
+
+  // не дублировать @handle если он совпадает с twitterUser
+  const showHandleChip =
+    Boolean(user.handle) && user.handle !== user.twitterUser;
 
   return (
     <AppShell title="REALIFE" subtitle="Public profile">
@@ -168,12 +176,8 @@ export default async function PublicProfilePage({
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {/* показываем X handle если есть */}
                   {xHandle ? <Chip>{xHandle}</Chip> : null}
-
-                  {/* если у тебя есть ручной handle — покажем его */}
-                  {user.handle ? <Chip>{`@${user.handle}`}</Chip> : null}
-
+                  {showHandleChip ? <Chip>{`@${user.handle}`}</Chip> : null}
                   <Chip>{user.publicId ?? "no publicId"}</Chip>
 
                   <StatusPill

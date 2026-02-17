@@ -20,6 +20,7 @@ function pickPublicKey(user: {
   twitterUser: string | null;
   publicId: string | null;
 }) {
+  // приоритет: handle (если закрепили из X) -> twitter username -> publicId
   return user.handle || user.twitterUser || user.publicId || null;
 }
 
@@ -32,7 +33,6 @@ async function ensurePublicIdTx(tx: typeof prisma, userId: string) {
   if (u?.publicId && u.publicId !== "tmp") return u.publicId;
 
   for (let i = 0; i < 25; i++) {
-    // ✅ 8 символов вместо 6
     const pid = `rl_${randomId(8)}`;
 
     try {
@@ -44,7 +44,7 @@ async function ensurePublicIdTx(tx: typeof prisma, userId: string) {
 
       return updated.publicId;
     } catch (e: any) {
-      if (e?.code === "P2002") continue;
+      if (e?.code === "P2002") continue; // unique collision
       throw e;
     }
   }
@@ -61,7 +61,8 @@ export async function GET() {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const publicId = await ensurePublicIdTx(tx as any, session.userId);
+      // гарантируем publicId ещё до чтения finalUser
+      const ensuredPublicId = await ensurePublicIdTx(tx as any, session.userId);
 
       const user = await tx.user.findUnique({
         where: { id: session.userId },
@@ -88,7 +89,7 @@ export async function GET() {
 
       if (!user) return { status: 404 as const, body: { ok: false } };
 
-      const finalUser = { ...user, publicId: user.publicId ?? publicId };
+      const finalUser = { ...user, publicId: user.publicId ?? ensuredPublicId };
 
       const publicKey = pickPublicKey({
         handle: finalUser.handle ?? null,

@@ -29,8 +29,6 @@ function randomId(len = 6) {
  * publicId должен быть нормальным (и НЕ "tmp")
  * генерим rl_XXXXXXXX (8 символов) и ставим в базу, если пусто или tmp.
  * Защита от гонок: ловим P2002 (unique) и пробуем снова.
- *
- * ВАЖНО для TS: Promise<string> (не nullable)
  */
 async function ensurePublicId(db: typeof prisma, userId: string): Promise<string> {
   const u = await db.user.findUnique({
@@ -50,11 +48,7 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
         select: { publicId: true },
       });
 
-      // Prisma schema обычно string | null, но после update это точно строка
       if (updated.publicId) return updated.publicId;
-
-      // на всякий случай, если схема вдруг nullable и вернула null
-      continue;
     } catch (e: any) {
       if (e?.code === "P2002") continue; // collision -> retry
       throw e;
@@ -93,13 +87,9 @@ async function ensureHandleFromX(
     }
   }
 
-  // если не смогли — доклеим суффикс от publicId (теперь 8 символов)
+  // если не смогли — доклеим суффикс от publicId (8 символов)
   const pid = current?.publicId ?? (await ensurePublicId(db, userId));
-
-  // ✅ null-guard (решает твою ошибку)
-  if (typeof pid !== "string" || pid.length === 0) {
-    throw new Error("publicId is missing");
-  }
+  if (typeof pid !== "string" || pid.length === 0) throw new Error("publicId is missing");
 
   await db.user.update({
     where: { id: userId },
@@ -295,39 +285,60 @@ export const authOptions: NextAuthOptions = {
 
       /* ------------------------------ Discord -------------------------------- */
       if (account?.provider === "discord") {
-        if (!token.uid) {
+        const discordId = account.providerAccountId;
+
+        // ✅ fallback: если uid пропал, восстановим по twitterId из token
+        let uid: string | null = token.uid ?? null;
+
+        if (!uid && token.twitterId) {
+          const byX = await prisma.user.findUnique({
+            where: { twitterId: token.twitterId },
+            select: { id: true },
+          });
+          uid = byX?.id ?? null;
+        }
+
+        if (!uid) {
           token.linkError = "DISCORD_LINK_REQUIRES_X_LOGIN";
           return token;
         }
 
         const d = pickDiscordProfile(profile);
-        const discordId = account.providerAccountId;
 
-        const user = await prisma.$transaction(async (tx) => {
-          const u = await tx.user.update({
-            where: { id: token.uid },
-            data: {
-              discordId,
-              discordUser: d.username,
-              discordName: d.name,
-              discordImage: d.image,
-            },
+        try {
+          const user = await prisma.$transaction(async (tx) => {
+            const u = await tx.user.update({
+              where: { id: uid },
+              data: {
+                discordId,
+                discordUser: d.username,
+                discordName: d.name,
+                discordImage: d.image,
+              },
+            });
+
+            await ensurePublicId(tx as any, u.id);
+            await awardOnce(tx as any, u.id, "CONNECT_DISCORD", 100);
+
+            const fresh = await tx.user.findUnique({
+              where: { id: u.id },
+              select: tokenSelect,
+            });
+
+            return fresh ?? u;
           });
 
-          await ensurePublicId(tx as any, u.id);
-          await awardOnce(tx as any, u.id, "CONNECT_DISCORD", 100);
-
-          const fresh = await tx.user.findUnique({
-            where: { id: u.id },
-            select: tokenSelect,
-          });
-
-          return fresh ?? u;
-        });
-
-        token.linkError = undefined;
-        applyUserToToken(token, user);
-        return token;
+          token.linkError = undefined;
+          applyUserToToken(token, user);
+          return token;
+        } catch (e: any) {
+          // если discordId unique и уже привязан к другому юзеру
+          if (e?.code === "P2002") {
+            token.linkError = "DISCORD_ALREADY_LINKED";
+            return token;
+          }
+          throw e;
+        }
       }
 
       /* ----------------------- Refresh token from DB ------------------------ */

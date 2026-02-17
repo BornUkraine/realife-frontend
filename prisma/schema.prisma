@@ -32,6 +32,10 @@ model User {
   lastDailyAt DateTime?
 
   events PointEvent[]
+
+  // ✅ Индексы (ускоряют поиск, если ты ищешь по username)
+  @@index([twitterUser])
+  @@index([discordUser])
 }
 
 model PointEvent {

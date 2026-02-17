@@ -33,6 +33,25 @@ function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
 
+function normalizePublicUrl(raw: string | null | undefined) {
+  if (!raw) return null;
+
+  // guard: tmp
+  if (raw.includes("tmp")) return null;
+
+  // backend might return "/u/xxx" but your route is "/app/u/xxx"
+  if (raw.startsWith("/u/")) return `/app${raw}`;
+
+  // already correct
+  if (raw.startsWith("/app/u/")) return raw;
+
+  // if backend returns just "xxx"
+  if (!raw.startsWith("/")) return `/app/u/${raw}`;
+
+  // fallback
+  return raw;
+}
+
 /* --------------------------------- UI Kit -------------------------------- */
 
 function Card({
@@ -247,7 +266,10 @@ export default function ProfilePage() {
    */
   const publicUrl = useMemo(() => {
     if (!me) return null;
-    if (me.publicUrl) return me.publicUrl; // если уже отдаёт API
+
+    const normalized = normalizePublicUrl(me.publicUrl);
+    if (normalized) return normalized;
+
     if (me.handle) return `/app/u/${me.handle}`;
     if (safePublicId) return `/app/u/${safePublicId}`;
     return null;
@@ -592,19 +614,9 @@ export default function ProfilePage() {
                     {connectBusy === "twitter" ? "Opening X…" : "Connect X (+100)"}
                   </Btn>
                 ) : (
-                  <div className="space-y-2">
-                    <Btn variant="gold" disabled>
-                      Connected
-                    </Btn>
-                    <Btn
-                      variant="tiny"
-                      onClick={() => connect("twitter")}
-                      disabled={!connectAllowed}
-                      className="w-full"
-                    >
-                      Re-link X (optional)
-                    </Btn>
-                  </div>
+                  <Btn variant="ghost" disabled className="w-full">
+                    Connected
+                  </Btn>
                 )}
               </div>
             </Card>
@@ -651,19 +663,9 @@ export default function ProfilePage() {
                       : "Connect Discord (+100)"}
                   </Btn>
                 ) : (
-                  <div className="space-y-2">
-                    <Btn variant="gold" disabled>
-                      Connected
-                    </Btn>
-                    <Btn
-                      variant="tiny"
-                      onClick={() => connect("discord")}
-                      disabled={!canConnectDiscord}
-                      className="w-full"
-                    >
-                      Re-link Discord (optional)
-                    </Btn>
-                  </div>
+                  <Btn variant="ghost" disabled className="w-full">
+                    Connected
+                  </Btn>
                 )}
 
                 {!twitterConnected ? (
