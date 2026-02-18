@@ -15,13 +15,13 @@ function randomId(len = 6) {
   return out;
 }
 
-function pickPublicKey(user: {
-  handle: string | null;
-  twitterUser: string | null;
-  publicId: string | null;
-}) {
-  // приоритет: handle -> twitter username -> publicId
-  return user.handle || user.twitterUser || user.publicId || null;
+/**
+ * ✅ SAFE: public link key только handle/publicId
+ * handle = закреплённый X username (stable URL)
+ * publicId = запасной уникальный ключ
+ */
+function pickPublicKey(user: { handle: string | null; publicId: string | null }) {
+  return user.handle || user.publicId || null;
 }
 
 async function ensurePublicIdTx(tx: typeof prisma, userId: string) {
@@ -44,7 +44,7 @@ async function ensurePublicIdTx(tx: typeof prisma, userId: string) {
 
       return updated.publicId;
     } catch (e: any) {
-      if (e?.code === "P2002") continue; // unique collision
+      if (e?.code === "P2002") continue;
       throw e;
     }
   }
@@ -61,7 +61,6 @@ export async function GET() {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // гарантируем publicId ещё до чтения finalUser
       const ensuredPublicId = await ensurePublicIdTx(tx as any, session.userId);
 
       const user = await tx.user.findUnique({
@@ -96,16 +95,16 @@ export async function GET() {
 
       const publicKey = pickPublicKey({
         handle: finalUser.handle ?? null,
-        twitterUser: finalUser.twitterUser ?? null,
         publicId: finalUser.publicId ?? null,
       });
 
       const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
+      // ✅ Top name/avatar priority: X -> Discord
       const displayName =
         finalUser.twitterName ||
-        finalUser.discordName ||
         (finalUser.twitterUser ? `@${finalUser.twitterUser}` : null) ||
+        finalUser.discordName ||
         finalUser.discordUser ||
         "Realife user";
 

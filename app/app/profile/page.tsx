@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { signIn, signOut, useSession } from "next-auth/react";
+import { useAccount, useChainId } from "wagmi";
 
 type MeUser = {
   id?: string;
@@ -22,6 +23,7 @@ type MeUser = {
   discordName?: string | null;
   discordImage?: string | null;
 
+  // Saved (optional) wallet in DB
   walletAddress?: string | null;
   walletChainId?: number | null;
 };
@@ -38,7 +40,6 @@ function cx(...a: Array<string | false | null | undefined>) {
 
 function normalizePublicUrl(raw: string | null | undefined) {
   if (!raw) return null;
-
   if (raw.includes("tmp")) return null;
 
   if (raw.startsWith("/u/")) return `/app${raw}`;
@@ -88,14 +89,16 @@ function Pill({
   tone = "muted",
 }: {
   children: React.ReactNode;
-  tone?: "muted" | "ok" | "warn";
+  tone?: "muted" | "ok" | "warn" | "gold";
 }) {
   const cls =
     tone === "ok"
       ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
       : tone === "warn"
         ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
-        : "border-white/10 bg-white/[0.06] text-white/70";
+        : tone === "gold"
+          ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
+          : "border-white/10 bg-white/[0.06] text-white/70";
 
   return (
     <div
@@ -168,17 +171,19 @@ function Avatar({
 }: {
   src?: string | null;
   fallback: string;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "hero";
   ring?: boolean;
 }) {
   const s =
-    size === "xl"
-      ? "h-20 w-20 md:h-24 md:w-24"
-      : size === "lg"
-        ? "h-16 w-16"
-        : size === "sm"
-          ? "h-12 w-12"
-          : "h-14 w-14";
+    size === "hero"
+      ? "h-24 w-24 md:h-28 md:w-28"
+      : size === "xl"
+        ? "h-20 w-20 md:h-24 md:w-24"
+        : size === "lg"
+          ? "h-16 w-16"
+          : size === "sm"
+            ? "h-12 w-12"
+            : "h-14 w-14";
 
   return (
     <div
@@ -247,11 +252,15 @@ export default function ProfilePage() {
   const { data: session, status } = useSession();
   const authed = status === "authenticated";
 
+  // ✅ Live wallet from RainbowKit/wagmi (connected in header)
+  const { address: liveAddress, isConnected: walletIsConnected } = useAccount();
+  const liveChainId = useChainId();
+
   const [me, setMe] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(false);
 
   const [dailyBusy, setDailyBusy] = useState(false);
-  const [connectBusy, setConnectBusy] = useState<"" | "twitter" | "discord" | "wallet">("");
+  const [connectBusy, setConnectBusy] = useState<"" | "twitter" | "discord">("");
   const [linkError, setLinkError] = useState<string | null>(null);
 
   const [copied, setCopied] = useState(false);
@@ -272,23 +281,29 @@ export default function ProfilePage() {
   const dUser = me?.discordUser ?? sUser?.discordUser ?? null;
   const dImage = me?.discordImage ?? sUser?.discordImage ?? null;
 
-  const walletAddress = me?.walletAddress ?? (sUser?.walletAddress ?? null);
-  const walletChainId = me?.walletChainId ?? (sUser?.walletChainId ?? null);
+  // Saved wallet in DB (optional)
+  const savedWalletAddress = me?.walletAddress ?? (sUser?.walletAddress ?? null);
+  const savedWalletChainId = me?.walletChainId ?? (sUser?.walletChainId ?? null);
+
+  // ✅ What we DISPLAY in profile: live wallet has priority
+  const displayWalletAddress = liveAddress ?? savedWalletAddress ?? null;
+  const displayWalletChainId =
+    walletIsConnected && liveAddress ? liveChainId : savedWalletChainId ?? null;
 
   const twitterConnected = Boolean(xId);
   const discordConnected = Boolean(dId);
-  const walletConnected = Boolean(walletAddress);
+  const walletVisible = Boolean(displayWalletAddress);
 
-  // Top name MUST be from X
+  // Top name MUST be from X (как ты просил)
   const topDisplayName = useMemo(() => {
-    return (
-      xName ||
-      (xUser ? `@${xUser}` : null) ||
-      "Not linked to X"
-    );
+    return xName || (xUser ? `@${xUser}` : null) || "Not linked to X";
   }, [xName, xUser]);
 
-  const heroAvatar = useMemo(() => xImage || null, [xImage]); // 🔥 only X at top
+  // 🔥 HERO AVATAR: ONLY X (самая большая вверху)
+  const heroAvatar = useMemo(() => xImage || null, [xImage]);
+
+  // for bottom X card, always show X avatar even if hero exists
+  const bottomXAvatar = xImage || null;
 
   const safePublicId = useMemo(() => {
     const pid = me?.publicId ?? null;
@@ -348,6 +363,7 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  // ✅ after OAuth return: refresh on focus/visibility
   useEffect(() => {
     if (!authed) return;
 
@@ -386,6 +402,7 @@ export default function ProfilePage() {
   async function connect(provider: "twitter" | "discord") {
     if (busyGuardRef.current) return;
 
+    // Discord только к существующему профилю (через X)
     if (!authed && provider === "discord") {
       setLinkError("DISCORD_LINK_REQUIRES_X_LOGIN");
       return;
@@ -439,77 +456,11 @@ export default function ProfilePage() {
   }
 
   async function copyWallet() {
-    if (!walletAddress) return;
-    const ok = await copyText(walletAddress);
+    if (!displayWalletAddress) return;
+    const ok = await copyText(displayWalletAddress);
     if (!ok) return;
     setWalletCopied(true);
     setTimeout(() => setWalletCopied(false), 1200);
-  }
-
-  async function linkWallet() {
-    if (!authed || connectBusy !== "") return;
-
-    setLinkError(null);
-    setConnectBusy("wallet");
-
-    try {
-      const n = await fetch("/api/wallet/nonce", { cache: "no-store" })
-        .then((r) => r.json())
-        .catch(() => null);
-
-      if (!n?.ok || !n?.nonce) {
-        setLinkError("WALLET_NONCE_FAILED");
-        return;
-      }
-
-      const eth = (window as any).ethereum;
-      if (!eth) {
-        setLinkError("WALLET_NO_PROVIDER");
-        return;
-      }
-
-      const accounts = await eth.request({ method: "eth_requestAccounts" });
-      const address = accounts?.[0] as string | undefined;
-      if (!address) {
-        setLinkError("WALLET_NO_ACCOUNT");
-        return;
-      }
-
-      const chainIdHex = await eth.request({ method: "eth_chainId" });
-      const chainId = parseInt(chainIdHex, 16);
-
-      const origin = window.location.origin;
-      const userId = (session as any)?.userId ?? (session as any)?.user?.id ?? "";
-
-      const message =
-        `REALIFE — Link wallet\n\n` +
-        `Site: ${origin}\n` +
-        `User: ${userId}\n` +
-        `Wallet: ${address}\n` +
-        `ChainId: ${chainId}\n` +
-        `Nonce: ${n.nonce}`;
-
-      const signature = await eth.request({
-        method: "personal_sign",
-        params: [message, address],
-      });
-
-      const res = await fetch("/api/wallet/link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, chainId, message, signature }),
-      }).then((r) => r.json().catch(() => ({})));
-
-      if (res?.ok) {
-        await loadMe();
-      } else {
-        setLinkError(res?.error ?? "WALLET_LINK_FAILED");
-      }
-    } catch {
-      setLinkError("WALLET_LINK_FAILED");
-    } finally {
-      setConnectBusy("");
-    }
   }
 
   const connectDisabled = connectBusy !== "" || status !== "authenticated";
@@ -521,17 +472,16 @@ export default function ProfilePage() {
       ? "Connect X first, then link Discord to the same profile."
       : linkError === "DISCORD_ALREADY_LINKED"
         ? "This Discord is already linked to another profile."
-        : linkError === "wallet_already_linked"
-          ? "This wallet is already linked to another profile."
-          : linkError === "WALLET_NO_PROVIDER"
-            ? "No wallet provider found. Install MetaMask / Rabby."
-            : linkError === "WALLET_NONCE_FAILED"
-              ? "Failed to create nonce. Try again."
-              : linkError === "WALLET_NO_ACCOUNT"
-                ? "No wallet account selected."
-                : linkError
-                  ? "Something went wrong. Try again."
-                  : null;
+        : linkError
+          ? "Something went wrong. Try again."
+          : null;
+
+  // ✅ Wallet status text: we don't force linking in profile
+  const walletPillText = walletIsConnected
+    ? "Wallet connected (session)"
+    : savedWalletAddress
+      ? "Wallet saved (profile)"
+      : "Wallet not connected";
 
   return (
     <AppShell title="REALIFE" subtitle="Profile • Identity • Wallet">
@@ -555,12 +505,12 @@ export default function ProfilePage() {
         <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
           {errorText ? <Alert title="Linking error" text={errorText} /> : null}
 
-          {/* HERO (X главный) */}
+          {/* HERO (самая большая ава = X, главный ник/имя = X) */}
           <Card>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-5">
-                  <Avatar src={heroAvatar} fallback="X" size="xl" />
+                  <Avatar src={heroAvatar} fallback="X" size="hero" />
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-white/60">
                       Main identity (X)
@@ -577,70 +527,90 @@ export default function ProfilePage() {
                       <Pill tone={discordConnected ? "ok" : "muted"}>
                         {discordConnected ? "Discord connected" : "Discord not connected"}
                       </Pill>
-                      <Pill tone={walletConnected ? "ok" : "muted"}>
-                        {walletConnected ? "Wallet connected" : "Wallet not connected"}
-                      </Pill>
+                      <Pill tone={walletVisible ? "ok" : "muted"}>{walletPillText}</Pill>
                       {loading ? <Pill>syncing…</Pill> : null}
+                    </div>
+
+                    {/* Top secondary line: @xUser */}
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {xUser ? <Pill tone="gold">@{xUser}</Pill> : <Pill tone="warn">Connect X to set handle</Pill>}
+                      {authed && me?.handle ? <Pill>@{me.handle}</Pill> : null}
                     </div>
                   </div>
                 </div>
 
+                {/* Stats */}
                 <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Field
-                    label="Points"
-                    value={authed ? me?.points ?? sUser?.points ?? 0 : 0}
-                  />
+                  <Field label="Points" value={authed ? me?.points ?? sUser?.points ?? 0 : 0} />
                   <Field
                     label="Handle"
                     value={authed ? (me?.handle ? `@${me.handle}` : "—") : "—"}
                   />
                   <Field label="Public ID" value={authed ? safePublicId ?? "—" : "—"} />
-                  <Field label="Public link" value={authed ? publicUrl ?? "—" : "—"} />
+                  <Field label="Public link" value={authed ? publicUrl ?? "—" : "—"} mono />
                 </div>
 
-                {/* Wallet strip */}
+                {/* Wallet strip (DISPLAY live wallet first) */}
                 <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-[11px] text-white/55 font-semibold">
                         EVM wallet
                       </div>
-                      <div className="mt-1 font-mono text-[13px] font-extrabold text-white/85 truncate">
-                        {walletAddress ?? "—"}
+
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className="font-mono text-[13px] font-extrabold text-white/85 truncate">
+                          {displayWalletAddress ?? "—"}
+                        </span>
+
+                        {displayWalletAddress ? (
+                          <Pill tone={walletIsConnected ? "ok" : "muted"}>
+                            {walletIsConnected ? "Live" : "Saved"}
+                          </Pill>
+                        ) : null}
                       </div>
+
                       <div className="mt-1 text-[11px] text-white/45">
-                        Chain: <span className="text-white/70 font-semibold">{walletChainId ?? "—"}</span>
+                        Chain:{" "}
+                        <span className="text-white/70 font-semibold">
+                          {displayWalletChainId ?? "—"}
+                        </span>
+                        {displayWalletAddress ? (
+                          <>
+                            {" "}
+                            • Short:{" "}
+                            <span className="text-white/70 font-mono">
+                              {shortAddr(displayWalletAddress)}
+                            </span>
+                          </>
+                        ) : null}
                       </div>
                     </div>
 
                     <div className="flex flex-wrap gap-2 md:justify-end">
-                      {walletAddress ? (
-                        <Btn variant="tiny" onClick={copyWallet} disabled={!walletAddress}>
+                      {displayWalletAddress ? (
+                        <Btn variant="tiny" onClick={copyWallet}>
                           {walletCopied ? "Copied" : "Copy address"}
                         </Btn>
-                      ) : null}
-
-                      <Btn
-                        variant={walletConnected ? "ghost" : "gold"}
-                        onClick={linkWallet}
-                        disabled={!authed || connectBusy !== ""}
-                        className="md:w-auto"
-                      >
-                        {connectBusy === "wallet"
-                          ? "Signing…"
-                          : walletConnected
-                            ? "Wallet linked"
-                            : "Link wallet (sign message)"}
-                      </Btn>
+                      ) : (
+                        <div className="text-[11px] text-white/45 md:text-right">
+                          Connect wallet in the top bar (RainbowKit).
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
 
+                {/* Public link actions */}
                 {authed ? (
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     {publicUrl ? (
                       <>
-                        <Btn variant="tiny" onClick={copyPublicLink} disabled={!publicFullUrl}>
+                        <Btn
+                          variant="tiny"
+                          onClick={copyPublicLink}
+                          disabled={!publicFullUrl}
+                        >
                           {copied ? "Copied" : "Copy link"}
                         </Btn>
                         <a
@@ -687,20 +657,24 @@ export default function ProfilePage() {
                   </Btn>
                 )}
 
-                <Btn variant="ghost" disabled={!authed || dailyBusy} onClick={claimDaily}>
+                <Btn
+                  variant="ghost"
+                  disabled={!authed || dailyBusy}
+                  onClick={claimDaily}
+                >
                   {dailyBusy ? "Claiming…" : "Daily check-in (+10)"}
                 </Btn>
 
                 <div className="text-[11px] text-white/45 leading-relaxed">
-                  One profile. X is the main identity. Discord and Wallet are add-ons.
+                  One profile. X is the main identity. Discord is an add-on. Wallet is shown from RainbowKit (top bar).
                 </div>
               </div>
             </div>
           </Card>
 
-          {/* Bottom: left X, right Discord (как ты просил) */}
+          {/* Bottom row: LEFT X, RIGHT Discord (2 cards), + EXACTLY 3 AVATARS total */}
           <div className="grid md:grid-cols-2 gap-6">
-            {/* X */}
+            {/* X bottom */}
             <Card>
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -716,9 +690,9 @@ export default function ProfilePage() {
 
               <div className="mt-5 flex items-center gap-4">
                 {loading && !me ? (
-                  <Skeleton className="h-14 w-14 rounded-2xl" />
+                  <Skeleton className="h-16 w-16 rounded-2xl" />
                 ) : (
-                  <Avatar src={xImage} fallback="X" size="lg" />
+                  <Avatar src={bottomXAvatar} fallback="X" size="lg" />
                 )}
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-extrabold truncate">
@@ -732,7 +706,11 @@ export default function ProfilePage() {
 
               <div className="mt-5">
                 {!twitterConnected ? (
-                  <Btn variant="gold" disabled={!connectAllowed} onClick={() => connect("twitter")}>
+                  <Btn
+                    variant="gold"
+                    disabled={!connectAllowed}
+                    onClick={() => connect("twitter")}
+                  >
                     {connectBusy === "twitter" ? "Opening X…" : "Connect X (+100)"}
                   </Btn>
                 ) : (
@@ -743,7 +721,7 @@ export default function ProfilePage() {
               </div>
             </Card>
 
-            {/* Discord */}
+            {/* Discord bottom */}
             <Card>
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -759,7 +737,7 @@ export default function ProfilePage() {
 
               <div className="mt-5 flex items-center gap-4">
                 {loading && !me ? (
-                  <Skeleton className="h-14 w-14 rounded-2xl" />
+                  <Skeleton className="h-16 w-16 rounded-2xl" />
                 ) : (
                   <Avatar src={dImage} fallback="DS" size="lg" />
                 )}
@@ -775,8 +753,14 @@ export default function ProfilePage() {
 
               <div className="mt-5">
                 {!discordConnected ? (
-                  <Btn variant="gold" disabled={!canConnectDiscord} onClick={() => connect("discord")}>
-                    {connectBusy === "discord" ? "Opening Discord…" : "Connect Discord (+100)"}
+                  <Btn
+                    variant="gold"
+                    disabled={!canConnectDiscord}
+                    onClick={() => connect("discord")}
+                  >
+                    {connectBusy === "discord"
+                      ? "Opening Discord…"
+                      : "Connect Discord (+100)"}
                   </Btn>
                 ) : (
                   <Btn variant="ghost" disabled className="w-full">
@@ -793,9 +777,8 @@ export default function ProfilePage() {
             </Card>
           </div>
 
-          {/* Footer mini info */}
           <div className="text-[11px] text-white/40 text-center">
-            Tip: If avatars don’t обновились после OAuth — нажми Refresh (или перезайди на страницу).
+            Tip: If avatars don’t update after OAuth — press Refresh (or re-open the page).
           </div>
         </div>
       </main>

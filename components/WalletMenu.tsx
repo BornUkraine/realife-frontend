@@ -2,10 +2,18 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAccount, useBalance, useChainId, useDisconnect, useSwitchChain } from "wagmi";
+import {
+  useAccount,
+  useBalance,
+  useChainId,
+  useDisconnect,
+  useSignMessage,
+  useSwitchChain,
+} from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { formatUnits } from "viem";
+import { signIn } from "next-auth/react";
 import { cn } from "@/lib/utils";
 
 function shortAddr(a?: `0x${string}` | string) {
@@ -19,7 +27,6 @@ function fmtEth(value?: string) {
   if (!Number.isFinite(n)) return value;
   if (n === 0) return "0";
   if (n < 0.0001) return "<0.0001";
-  // pill — чуть короче, чтобы не шумело
   return n.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
 }
 
@@ -63,6 +70,8 @@ export default function WalletMenu() {
   const chainId = useChainId();
   const { disconnect } = useDisconnect();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
+
+  const { signMessageAsync } = useSignMessage();
 
   // keep stable first paint
   const connected = mounted ? isConnected : false;
@@ -118,6 +127,73 @@ export default function WalletMenu() {
     "hover:bg-white/[0.06] hover:text-white " +
     "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/25";
 
+  /* ---------------------------------------------------------------------- */
+  /*                         WALLET-FIRST AUTO VERIFY                         */
+  /* ---------------------------------------------------------------------- */
+
+  const triedVerifyRef = useRef(false);
+  const [verifying, setVerifying] = useState(false);
+
+  async function serverMeHasWallet(): Promise<boolean> {
+    try {
+      const r = await fetch("/api/me", { cache: "no-store" });
+      if (!r.ok) return false;
+      const j = await r.json();
+      return Boolean(j?.user?.walletAddress);
+    } catch {
+      return false;
+    }
+  }
+
+  useEffect(() => {
+    if (!mounted) return;
+    if (!connected || !address) return;
+    if (triedVerifyRef.current) return;
+    if (verifying) return;
+
+    (async () => {
+      // 1) если уже есть server-session с wallet — ничего не делаем
+      const okAlready = await serverMeHasWallet();
+      if (okAlready) {
+        triedVerifyRef.current = true;
+        return;
+      }
+
+      triedVerifyRef.current = true;
+      setVerifying(true);
+
+      try {
+        // 2) nonce
+        const nr = await fetch(`/api/auth/wallet/nonce?address=${address}`, {
+          cache: "no-store",
+        });
+        const nj = await nr.json();
+        if (!nr.ok || !nj?.message) throw new Error("nonce_failed");
+
+        // 3) signature
+        const signature = await signMessageAsync({ message: nj.message });
+
+        // 4) server login (создаст/найдёт user и поставит session cookie)
+        const res = await signIn("wallet", {
+          redirect: false,
+          address,
+          signature,
+          chainId: String(chainId ?? ""),
+        });
+
+        if (res?.error) throw new Error(res.error);
+
+        // 5) теперь /api/me должен отдавать walletAddress + publicUrl
+        await serverMeHasWallet();
+      } catch {
+        // если юзер отменил подпись — разрешим повтор
+        triedVerifyRef.current = false;
+      } finally {
+        setVerifying(false);
+      }
+    })();
+  }, [mounted, connected, address, chainId, signMessageAsync, verifying]);
+
   return (
     <div ref={wrapRef} className="relative">
       {/* PILL — matches TopBar status block + shows mini balance */}
@@ -148,7 +224,6 @@ export default function WalletMenu() {
 
           <div className="relative z-10 flex items-center gap-2">
             <div className="w-7 h-7 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-xs font-black text-white shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
-              {/* IMPORTANT: prevent hydration mismatch */}
               {connected && address ? address.slice(2, 3).toUpperCase() : "?"}
             </div>
 
@@ -157,7 +232,6 @@ export default function WalletMenu() {
                 {connected ? shortAddr(address) : "Connect"}
               </div>
 
-              {/* mini balance (desktop-ish). Only after mount to avoid hydration mismatch */}
               {mounted && connected ? (
                 <span className="hidden sm:inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[11px] font-semibold text-white/70">
                   {pillBalance}
@@ -165,7 +239,11 @@ export default function WalletMenu() {
               ) : null}
             </div>
 
-            <div className="text-xs text-white/70 ml-1">▾</div>
+            {verifying ? (
+              <span className="text-[11px] text-white/60 ml-1">verifying…</span>
+            ) : (
+              <div className="text-xs text-white/70 ml-1">▾</div>
+            )}
           </div>
         </div>
       </button>
@@ -203,6 +281,11 @@ export default function WalletMenu() {
                       Balance:{" "}
                       <span className="text-white/85 font-semibold">{balLabel}</span>
                     </div>
+                    {verifying ? (
+                      <div className="text-[11px] text-white/55 mt-1">
+                        Creating your profile…
+                      </div>
+                    ) : null}
                   </div>
 
                   {needsBaseSepolia ? (
@@ -261,6 +344,7 @@ export default function WalletMenu() {
                   type="button"
                   onClick={() => {
                     disconnect();
+                    triedVerifyRef.current = false; // allow re-verify after reconnect
                     close();
                   }}
                   className={cn(

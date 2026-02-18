@@ -19,14 +19,14 @@ model User {
   // OAuth identities
   twitterId    String? @unique
   twitterName  String?
-  twitterUser  String? // НЕ unique: username может меняться/совпадать
+  twitterUser  String?
   twitterImage String?
 
   discordId    String? @unique
   discordName  String?
-  discordUser  String? // НЕ unique
+  discordUser  String?
   discordImage String?
-  
+
   // Wallet identity (EVM)
   walletAddress String? @unique
   walletChainId Int?
@@ -37,9 +37,18 @@ model User {
 
   events PointEvent[]
 
-  // ✅ Индексы (ускоряют поиск, если ты ищешь по username)
   @@index([twitterUser])
   @@index([discordUser])
+}
+
+model WalletNonce {
+  address   String   @id  // lowercased
+  nonce     String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
 }
 
 model PointEvent {
@@ -49,7 +58,7 @@ model PointEvent {
   userId String
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type   String // "CONNECT_X" | "CONNECT_DISCORD" | "MINT" | "DAILY" ...
+  type   String
   points Int
   meta   Json?
 

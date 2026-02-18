@@ -7,7 +7,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-// Публичные профили у тебя живут внутри /app/*
 const PUBLIC_PREFIX = "/app/u";
 
 /* --------------------------------- UI Kit -------------------------------- */
@@ -94,6 +93,7 @@ function Avatar({
   size?: "sm" | "md" | "lg";
 }) {
   const s = size === "lg" ? "h-16 w-16" : size === "sm" ? "h-12 w-12" : "h-14 w-14";
+
   return (
     <div
       className={cx(
@@ -165,16 +165,9 @@ const userSelect = {
   createdAt: true,
 } as const;
 
-function pickPublicKey(user: {
-  handle: string | null;
-  twitterUser: string | null;
-  publicId: string | null;
-}) {
-  // приоритет: ручной handle > X username > publicId
-  return user.handle || user.twitterUser || user.publicId || null;
+function pickPublicKey(user: { handle: string | null; publicId: string | null }) {
+  return user.handle || user.publicId || null;
 }
-
-/* --------------------------------- Page ---------------------------------- */
 
 export default async function PublicProfilePage({
   params,
@@ -184,9 +177,7 @@ export default async function PublicProfilePage({
   const key = decodeURIComponent(params.id || "").trim();
 
   const user = await prisma.user.findFirst({
-    where: {
-      OR: [{ handle: key }, { publicId: key }, { twitterUser: key }, { discordUser: key }],
-    },
+    where: { OR: [{ handle: key }, { publicId: key }] },
     select: userSelect,
   });
 
@@ -196,7 +187,6 @@ export default async function PublicProfilePage({
   const discordConnected = Boolean(user.discordId);
   const walletConnected = Boolean(user.walletAddress);
 
-  // 🔥 Верхний нейм — приоритет X (если нет X, тогда Discord)
   const displayName =
     user.twitterName ||
     (user.twitterUser ? `@${user.twitterUser}` : null) ||
@@ -204,16 +194,15 @@ export default async function PublicProfilePage({
     user.discordUser ||
     "Realife user";
 
-  // 🔥 Верхняя ава — только X если есть, иначе Discord
   const heroAvatar = user.twitterImage || user.discordImage || null;
 
   const publicKey = pickPublicKey({
     handle: user.handle ?? null,
-    twitterUser: user.twitterUser ?? null,
     publicId: user.publicId ?? null,
   });
 
-  const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
+  const publicUrl =
+    publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
   const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
   const showHandleChip = Boolean(user.handle) && user.handle !== user.twitterUser;
@@ -240,34 +229,44 @@ export default async function PublicProfilePage({
         <div className="relative mx-auto max-w-5xl px-6 py-10 space-y-6">
           {/* HERO */}
           <Card>
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div className="flex items-center gap-5">
+              <Avatar src={heroAvatar} fallback="RL" size="lg" />
+
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-5">
-                  <Avatar src={heroAvatar} fallback="RL" size="lg" />
+                <div className="text-xs font-semibold text-white/60">Public profile</div>
 
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-white/60">Public profile</div>
+                <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
+                  {displayName}
+                </div>
 
-                    <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
-                      {displayName}
-                    </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {xHandle ? <Chip tone="gold">{xHandle}</Chip> : null}
+                  {showHandleChip ? <Chip>{`@${user.handle}`}</Chip> : null}
+                  {user.publicId && user.publicId !== "tmp" ? (
+                    <Chip>{user.publicId}</Chip>
+                  ) : null}
 
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {xHandle ? <Chip tone="gold">{xHandle}</Chip> : null}
-                      {showHandleChip ? <Chip>{`@${user.handle}`}</Chip> : null}
-                      <Chip>{user.publicId ?? "no publicId"}</Chip>
-
-                      <StatusPill ok={twitterConnected} text={twitterConnected ? "X connected" : "X not connected"} />
-                      <StatusPill ok={discordConnected} text={discordConnected ? "Discord connected" : "Discord not connected"} />
-                      <StatusPill ok={walletConnected} text={walletConnected ? "Wallet connected" : "Wallet not connected"} />
-                    </div>
-                  </div>
+                  <StatusPill ok={twitterConnected} text={twitterConnected ? "X connected" : "X not connected"} />
+                  <StatusPill ok={discordConnected} text={discordConnected ? "Discord connected" : "Discord not connected"} />
+                  <StatusPill ok={walletConnected} text={walletConnected ? "Wallet connected" : "Wallet not connected"} />
                 </div>
 
                 <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
                   <KeyValue label="Points" value={user.points ?? 0} />
                   <KeyValue label="Handle" value={user.handle ? `@${user.handle}` : "—"} />
-                  <KeyValue label="Public link" value={publicUrl ?? "—"} mono />
+                  <KeyValue
+                    label="Public link"
+                    value={
+                      publicUrl ? (
+                        <a className="text-white/85 hover:underline" href={publicUrl}>
+                          {publicUrl}
+                        </a>
+                      ) : (
+                        "—"
+                      )
+                    }
+                    mono
+                  />
                   <KeyValue
                     label="EVM wallet"
                     value={user.walletAddress ? shortAddr(user.walletAddress) : "—"}
@@ -277,13 +276,10 @@ export default async function PublicProfilePage({
 
                 <div className="mt-3 text-[12px] text-white/45">
                   Full wallet:{" "}
-                  <span className="text-white/70 font-mono">
-                    {user.walletAddress ?? "—"}
-                  </span>{" "}
+                  <span className="text-white/70 font-mono">{user.walletAddress ?? "—"}</span>{" "}
                   {user.walletChainId ? (
                     <>
-                      • Chain:{" "}
-                      <span className="text-white/70 font-semibold">{user.walletChainId}</span>
+                      • Chain: <span className="text-white/70 font-semibold">{user.walletChainId}</span>
                     </>
                   ) : null}
                 </div>
@@ -293,14 +289,11 @@ export default async function PublicProfilePage({
 
           {/* Bottom: left X, right Discord */}
           <div className="grid md:grid-cols-2 gap-6">
-            {/* X */}
             <Card>
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-extrabold">X</div>
-                  <div className="text-xs text-white/60 mt-1">
-                    Name • @username • avatar
-                  </div>
+                  <div className="text-xs text-white/60 mt-1">Name • @username • avatar</div>
                 </div>
                 <StatusPill ok={twitterConnected} text={twitterConnected ? "Connected" : "Not connected"} />
               </div>
@@ -316,14 +309,11 @@ export default async function PublicProfilePage({
               </div>
             </Card>
 
-            {/* Discord */}
             <Card>
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-extrabold">Discord</div>
-                  <div className="text-xs text-white/60 mt-1">
-                    Display • username • avatar
-                  </div>
+                  <div className="text-xs text-white/60 mt-1">Display • username • avatar</div>
                 </div>
                 <StatusPill ok={discordConnected} text={discordConnected ? "Connected" : "Not connected"} />
               </div>
@@ -339,7 +329,8 @@ export default async function PublicProfilePage({
           </div>
 
           <div className="text-[11px] text-white/40 text-center">
-            Share: <span className="font-mono text-white/60">{publicUrl ?? "—"}</span>
+            Share:{" "}
+            <span className="font-mono text-white/60">{publicUrl ?? "—"}</span>
           </div>
         </div>
       </main>

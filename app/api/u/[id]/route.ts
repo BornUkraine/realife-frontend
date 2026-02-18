@@ -29,12 +29,8 @@ const userSelect = {
   createdAt: true,
 } as const;
 
-function pickPublicKey(user: {
-  handle: string | null;
-  twitterUser: string | null;
-  publicId: string | null;
-}) {
-  return user.handle || user.twitterUser || user.publicId || null;
+function pickPublicKey(user: { handle: string | null; publicId: string | null }) {
+  return user.handle || user.publicId || null;
 }
 
 export async function GET(
@@ -49,14 +45,7 @@ export async function GET(
   }
 
   const user = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { handle: key },
-        { publicId: key },
-        { twitterUser: key },
-        { discordUser: key },
-      ],
-    },
+    where: { OR: [{ handle: key }, { publicId: key }] },
     select: userSelect,
   });
 
@@ -70,8 +59,8 @@ export async function GET(
 
   const displayName =
     user.twitterName ||
-    user.discordName ||
     (user.twitterUser ? `@${user.twitterUser}` : null) ||
+    user.discordName ||
     user.discordUser ||
     "Realife user";
 
@@ -80,11 +69,11 @@ export async function GET(
 
   const publicKey = pickPublicKey({
     handle: user.handle ?? null,
-    twitterUser: user.twitterUser ?? null,
     publicId: user.publicId ?? null,
   });
 
-  const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
+  const publicUrl =
+    publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
   return NextResponse.json({
     ok: true,
