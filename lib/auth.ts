@@ -1,9 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
-import CredentialsProvider from "next-auth/providers/credentials";
 import type { JWT } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
-import { verifyMessage } from "viem";
 
 /* -------------------------------------------------------------------------- */
 /*                                   HELPERS                                  */
@@ -173,6 +171,7 @@ function tokenUserId(token: any): string | null {
 }
 
 function applyUserToToken(token: any, user: any) {
+  // главный идентификатор
   token.sub = user.id;
   token.uid = user.id;
 
@@ -201,6 +200,7 @@ function applyUserToToken(token: any, user: any) {
 /*                        X (TWITTER) OAUTH2 PROVIDER                          */
 /* -------------------------------------------------------------------------- */
 
+// any — чтобы не воевать с типами кастомного провайдера
 const TwitterOAuthProvider: any = {
   id: "twitter",
   name: "Twitter",
@@ -244,75 +244,7 @@ export const authOptions: NextAuthOptions = {
   debug: process.env.NODE_ENV !== "production" && process.env.NEXTAUTH_DEBUG === "true",
 
   providers: [
-    // ✅ Wallet-first login (Credentials)
-    CredentialsProvider({
-      id: "wallet",
-      name: "Wallet",
-      credentials: {
-        address: { label: "Address", type: "text" },
-        signature: { label: "Signature", type: "text" },
-        chainId: { label: "ChainId", type: "text" },
-      },
-      async authorize(credentials) {
-        const address = String(credentials?.address || "").trim().toLowerCase();
-        const signature = String(credentials?.signature || "").trim();
-        const chainId = Number(credentials?.chainId || "0");
-
-        if (!address || !address.startsWith("0x") || signature.length < 20) return null;
-
-        // 1) nonce из БД
-        const row = await prisma.walletNonce.findUnique({ where: { address } });
-        if (!row) return null;
-        if (row.expiresAt.getTime() < Date.now()) return null;
-
-        const message =
-          `Realife wallet verification\n` +
-          `Address: ${address}\n` +
-          `Nonce: ${row.nonce}\n` +
-          `URI: ${process.env.NEXTAUTH_URL ?? ""}`;
-
-        // 2) verify signature
-        const ok = await verifyMessage({
-          address: address as `0x${string}`,
-          message,
-          signature: signature as `0x${string}`,
-        });
-
-        if (!ok) return null;
-
-        // 3) nonce одноразовый
-        await prisma.walletNonce.delete({ where: { address } }).catch(() => {});
-
-        // 4) upsert User(walletAddress)
-        const user = await prisma.$transaction(async (tx) => {
-          const u = await tx.user.upsert({
-            where: { walletAddress: address },
-            create: {
-              walletAddress: address,
-              walletChainId: Number.isFinite(chainId) ? chainId : null,
-            },
-            update: {
-              walletChainId: Number.isFinite(chainId) ? chainId : null,
-            },
-          });
-
-          await ensurePublicId(tx as any, u.id);
-
-          const fresh = await tx.user.findUnique({
-            where: { id: u.id },
-            select: tokenSelect,
-          });
-
-          return fresh ?? u;
-        });
-
-        // NextAuth expects at least { id }
-        return { id: user.id } as any;
-      },
-    }),
-
     TwitterOAuthProvider,
-
     DiscordProvider({
       clientId: process.env.DISCORD_CLIENT_ID!,
       clientSecret: process.env.DISCORD_CLIENT_SECRET!,
@@ -329,11 +261,6 @@ export const authOptions: NextAuthOptions = {
       account?: any;
       profile?: any;
     }) {
-      // ✅ Wallet login: ничего особенного, дальше refresh из БД подтянет поля
-      if (account?.provider === "wallet") {
-        token.linkError = undefined;
-      }
-
       /* ----------------------------- X (Twitter) ---------------------------- */
       if (account?.provider === "twitter") {
         const twitterId = profile?.id ?? account?.providerAccountId;
@@ -374,53 +301,66 @@ export const authOptions: NextAuthOptions = {
         return token;
       }
 
-     /* ------------------------------ Discord -------------------------------- */
-  if (account?.provider === "discord") {
-  const discordId = account.providerAccountId;
+      /* ------------------------------ Discord -------------------------------- */
+      if (account?.provider === "discord") {
+        const discordId = account.providerAccountId;
 
-  const uid = tokenUserId(token);
-  if (!uid) {
-    // просто выходим, без блокировок и ошибок
-    return token;
-  }
+        // owner uid: uid || sub
+        let uid = tokenUserId(token);
 
-  const d = pickDiscordProfile(profile);
+        // fallback: если токен почему-то пуст — восстановимся по twitterId
+        if (!uid && token.twitterId) {
+          const byX = await prisma.user.findUnique({
+            where: { twitterId: token.twitterId },
+            select: { id: true },
+          });
+          uid = byX?.id ?? null;
+        }
 
-  try {
-    const user = await prisma.$transaction(async (tx) => {
-      const u = await tx.user.update({
-        where: { id: uid },
-        data: {
-          discordId,
-          discordUser: d.username,
-          discordName: d.name,
-          discordImage: d.image,
-        },
-      });
+        // если и тут нет — реально нет X-сессии
+        if (!uid) {
+          token.linkError = "DISCORD_LINK_REQUIRES_X_LOGIN";
+          return token;
+        }
 
-      await ensurePublicId(tx as any, u.id);
-      await awardOnce(tx as any, u.id, "CONNECT_DISCORD", 100);
+        const d = pickDiscordProfile(profile);
 
-      const fresh = await tx.user.findUnique({
-        where: { id: u.id },
-        select: tokenSelect,
-      });
+        try {
+          const user = await prisma.$transaction(async (tx) => {
+            const u = await tx.user.update({
+              where: { id: uid! },
+              data: {
+                discordId,
+                discordUser: d.username,
+                discordName: d.name,
+                discordImage: d.image,
+              },
+            });
 
-      return fresh ?? u;
-    });
+            await ensurePublicId(tx as any, u.id);
+            await awardOnce(tx as any, u.id, "CONNECT_DISCORD", 100);
 
-    token.linkError = undefined;
-    applyUserToToken(token, user);
-    return token;
-  } catch (e: any) {
-    if (e?.code === "P2002") {
-      token.linkError = "DISCORD_ALREADY_LINKED";
-      return token;
-    }
-    throw e;
-  }
-}
+            const fresh = await tx.user.findUnique({
+              where: { id: u.id },
+              select: tokenSelect,
+            });
 
+            return fresh ?? u;
+          });
+
+          token.linkError = undefined;
+
+          // 🔥 ключ: после Discord мы сохраняем ownerId в sub/uid
+          applyUserToToken(token, user);
+          return token;
+        } catch (e: any) {
+          if (e?.code === "P2002") {
+            token.linkError = "DISCORD_ALREADY_LINKED";
+            return token;
+          }
+          throw e;
+        }
+      }
 
       /* ----------------------- Refresh token from DB ------------------------ */
       if (!account) {
