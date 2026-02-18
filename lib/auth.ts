@@ -53,11 +53,7 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
   throw new Error("PUBLIC_ID_GENERATION_FAILED");
 }
 
-async function ensureHandleFromX(
-  db: typeof prisma,
-  userId: string,
-  twitterUser?: string | null
-) {
+async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?: string | null) {
   if (!twitterUser) return;
 
   const current = await db.user.findUnique({
@@ -79,13 +75,13 @@ async function ensureHandleFromX(
     }
   }
 
-  // Если не смогли занять handle, пробуем добавить suffix
+  // fallback: suffix with publicId tail
   const pid = current?.publicId ?? (await ensurePublicId(db, userId));
   if (pid) {
-      await db.user.update({
-        where: { id: userId },
-        data: { handle: `${base}_${pid.slice(-4).toLowerCase()}` },
-      });
+    await db.user.update({
+      where: { id: userId },
+      data: { handle: `${base}_${pid.slice(-4).toLowerCase()}` },
+    });
   }
 }
 
@@ -134,14 +130,17 @@ const tokenSelect = {
   points: true,
   handle: true,
   publicId: true,
+
   twitterId: true,
   twitterUser: true,
   twitterName: true,
   twitterImage: true,
+
   discordId: true,
   discordUser: true,
   discordName: true,
   discordImage: true,
+
   walletAddress: true,
   walletChainId: true,
 } as const;
@@ -153,24 +152,29 @@ function tokenUserId(token: any): string | null {
 function applyUserToToken(token: any, user: any) {
   token.sub = user.id;
   token.uid = user.id;
+
   token.points = user.points ?? 0;
   token.handle = user.handle ?? null;
   token.publicId = user.publicId ?? null;
+
   token.twitterId = user.twitterId ?? null;
   token.twitterUser = user.twitterUser ?? null;
   token.twitterName = user.twitterName ?? null;
   token.twitterImage = user.twitterImage ?? null;
+
   token.discordId = user.discordId ?? null;
   token.discordUser = user.discordUser ?? null;
   token.discordName = user.discordName ?? null;
   token.discordImage = user.discordImage ?? null;
+
   token.walletAddress = user.walletAddress ?? null;
   token.walletChainId = user.walletChainId ?? null;
+
   return token;
 }
 
 /* -------------------------------------------------------------------------- */
-/* CONFIGURATION                                                              */
+/* PROVIDERS                                                                  */
 /* -------------------------------------------------------------------------- */
 
 const TwitterOAuthProvider: any = {
@@ -201,20 +205,22 @@ const TwitterOAuthProvider: any = {
   },
 };
 
+/* -------------------------------------------------------------------------- */
+/* AUTH OPTIONS                                                               */
+/* -------------------------------------------------------------------------- */
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
-
-  // ✅ Это решит проблему со сбросом сессии на Railway
   trustHost: true,
 
   cookies: {
     sessionToken: {
-      name: `${process.env.NODE_ENV === 'production' ? '__Secure-' : ''}next-auth.session-token`,
+      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.session-token`,
       options: {
         httpOnly: true,
-        sameSite: 'lax', // Важно для OAuth редиректов
-        path: '/',
-        secure: process.env.NODE_ENV === 'production',
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
       },
     },
   },
@@ -268,7 +274,9 @@ export const authOptions: NextAuthOptions = {
               walletChainId: Number.isFinite(chainId) ? chainId : null,
             },
           });
+
           await ensurePublicId(tx as any, u.id);
+
           const fresh = await tx.user.findUnique({ where: { id: u.id }, select: tokenSelect });
           return fresh ?? u;
         });
@@ -286,26 +294,32 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, account, profile, trigger, session }) {
+    async jwt({ token, user, account, profile, trigger, session }) {
+      // allow manual session.update()
       if (trigger === "update" && session) {
         return { ...token, ...session };
       }
 
-      if (account?.provider === "wallet") {
-        token.linkError = undefined;
-      }
-
       const currentUserId = tokenUserId(token);
-      
-      if (account) {
-        console.log(`[AUTH] Provider: ${account.provider}, CurrentUserID: ${currentUserId}`);
+
+      /* ------------------------------ WALLET LOGIN ------------------------------ */
+      // IMPORTANT: ensure uid/sub is set right after wallet login
+      if (account?.provider === "wallet" && user?.id) {
+        token.linkError = undefined;
+        token.sub = user.id;
+        token.uid = user.id;
+
+        const u = await prisma.user.findUnique({ where: { id: user.id }, select: tokenSelect });
+        if (u) applyUserToToken(token, u);
+
+        return token;
       }
 
-      /* ----------------------------- X (Twitter) ---------------------------- */
+      /* ------------------------------ X (TWITTER) ------------------------------ */
+      // Wallet-first: only link to existing wallet user. No "create user from twitter".
       if (account?.provider === "twitter") {
         const d = profile as any;
         const twitterId = d?.data?.id ?? d?.id ?? account?.providerAccountId;
-        
         const twitterUser = d?.data?.username ?? d?.username ?? null;
         const twitterName = d?.data?.name ?? d?.name ?? null;
         const rawImg = d?.data?.profile_image_url ?? d?.profile_image_url;
@@ -313,85 +327,71 @@ export const authOptions: NextAuthOptions = {
 
         if (!twitterId) return token;
 
+        if (!currentUserId) {
+          // no wallet session -> reject linking
+          token.linkError = "NO_SERVER_SESSION";
+          return token;
+        }
+
         try {
-          const user = await prisma.$transaction(async (tx) => {
-            // А. ПРИВЯЗКА к существующему кошельку
-            if (currentUserId) {
-              const existingLink = await tx.user.findUnique({
-                where: { twitterId },
-                select: { id: true },
-              });
+          const updated = await prisma.$transaction(async (tx) => {
+            const existingLink = await tx.user.findUnique({
+              where: { twitterId },
+              select: { id: true },
+            });
 
-              if (existingLink && existingLink.id !== currentUserId) {
-                throw new Error("TWITTER_ALREADY_LINKED");
-              }
-
-              return await tx.user.update({
-                where: { id: currentUserId },
-                data: { twitterId, twitterUser, twitterName, twitterImage },
-              });
+            if (existingLink && existingLink.id !== currentUserId) {
+              throw new Error("TWITTER_ALREADY_LINKED");
             }
 
-            // Б. ВХОД (если нет сессии кошелька)
-            return await tx.user.upsert({
-              where: { twitterId },
-              create: { twitterId, twitterUser, twitterName, twitterImage },
-              update: { twitterUser, twitterName, twitterImage },
+            return await tx.user.update({
+              where: { id: currentUserId },
+              data: { twitterId, twitterUser, twitterName, twitterImage },
             });
           });
 
-          await ensurePublicId(prisma, user.id);
-          await ensureHandleFromX(prisma, user.id, twitterUser);
-          
-          if (currentUserId) {
-            await awardOnce(prisma, user.id, "CONNECT_X", 100);
-          }
+          await ensurePublicId(prisma, updated.id);
+          await ensureHandleFromX(prisma, updated.id, twitterUser);
+          await awardOnce(prisma, updated.id, "CONNECT_X", 100);
 
           const fresh = await prisma.user.findUnique({
-            where: { id: user.id },
+            where: { id: updated.id },
             select: tokenSelect,
           });
 
           token.linkError = undefined;
-          applyUserToToken(token, fresh ?? user);
-
+          applyUserToToken(token, fresh ?? updated);
         } catch (e: any) {
-          console.error("Twitter Auth Error:", e);
-          token.linkError = e.message === "TWITTER_ALREADY_LINKED" ? "TWITTER_ALREADY_LINKED" : "TWITTER_LINK_FAILED";
+          token.linkError = e?.message === "TWITTER_ALREADY_LINKED" ? "TWITTER_ALREADY_LINKED" : "TWITTER_LINK_FAILED";
         }
+
         return token;
       }
 
-      /* ------------------------------ Discord -------------------------------- */
+      /* ------------------------------ DISCORD ------------------------------ */
+      // Wallet-first: only link to existing wallet user.
       if (account?.provider === "discord") {
-        const discordId = account.providerAccountId;
-        let targetUid = currentUserId;
-
-        if (!targetUid && token.twitterId) {
-             const u = await prisma.user.findUnique({ where: { twitterId: token.twitterId as string }});
-             if (u) targetUid = u.id;
-        }
-
-        if (!targetUid) {
-          token.linkError = "DISCORD_LINK_REQUIRES_LOGIN";
+        if (!currentUserId) {
+          token.linkError = "NO_SERVER_SESSION";
           return token;
         }
 
+        const discordId = account.providerAccountId;
         const d = pickDiscordProfile(profile);
 
         try {
-          const user = await prisma.$transaction(async (tx) => {
+          const updated = await prisma.$transaction(async (tx) => {
             const existingLink = await tx.user.findUnique({
               where: { discordId },
-              select: { id: true }
+              select: { id: true },
             });
 
-            if (existingLink && existingLink.id !== targetUid) {
+            if (existingLink && existingLink.id !== currentUserId) {
               throw new Error("DISCORD_ALREADY_LINKED");
             }
 
             return await tx.user.update({
-              where: { id: targetUid! },
+              where: { id: currentUserId },
               data: {
                 discordId,
                 discordUser: d.username,
@@ -401,25 +401,24 @@ export const authOptions: NextAuthOptions = {
             });
           });
 
-          await ensurePublicId(prisma, user.id);
-          await awardOnce(prisma, user.id, "CONNECT_DISCORD", 100);
+          await ensurePublicId(prisma, updated.id);
+          await awardOnce(prisma, updated.id, "CONNECT_DISCORD", 100);
 
           const fresh = await prisma.user.findUnique({
-            where: { id: user.id },
+            where: { id: updated.id },
             select: tokenSelect,
           });
 
           token.linkError = undefined;
-          applyUserToToken(token, fresh ?? user);
-
+          applyUserToToken(token, fresh ?? updated);
         } catch (e: any) {
-          console.error("Discord Link Error:", e);
-          token.linkError = e.message === "DISCORD_ALREADY_LINKED" ? "DISCORD_ALREADY_LINKED" : "DISCORD_LINK_FAILED";
+          token.linkError = e?.message === "DISCORD_ALREADY_LINKED" ? "DISCORD_ALREADY_LINKED" : "DISCORD_LINK_FAILED";
         }
+
         return token;
       }
 
-      /* ----------------------- Refresh token from DB ------------------------ */
+      /* ----------------------- REFRESH TOKEN FROM DB ----------------------- */
       if (!account && currentUserId) {
         const u = await prisma.user.findUnique({
           where: { id: currentUserId },
@@ -433,26 +432,33 @@ export const authOptions: NextAuthOptions = {
 
     async session({ session, token }) {
       const uid = tokenUserId(token);
+
+      // custom fields used by your API/UI
       session.userId = uid ?? undefined;
       session.linkError = token.linkError;
-      
+
       session.user = {
         ...(session.user ?? {}),
         id: uid ?? undefined,
+
         points: token.points ?? 0,
         handle: token.handle ?? null,
         publicId: token.publicId ?? null,
+
         twitterId: token.twitterId ?? null,
         twitterUser: token.twitterUser ?? null,
         twitterName: token.twitterName ?? null,
         twitterImage: token.twitterImage ?? null,
+
         discordId: token.discordId ?? null,
         discordUser: token.discordUser ?? null,
         discordName: token.discordName ?? null,
         discordImage: token.discordImage ?? null,
+
         walletAddress: token.walletAddress ?? null,
         walletChainId: token.walletChainId ?? null,
       };
+
       return session;
     },
   },

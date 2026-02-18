@@ -5,10 +5,6 @@ import AppShell from "@/components/AppShell";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useAccount, useChainId } from "wagmi";
 
-/* -------------------------------------------------------------------------- */
-/* TYPES                                                                      */
-/* -------------------------------------------------------------------------- */
-
 type MeUser = {
   id?: string;
   handle?: string | null;
@@ -32,6 +28,8 @@ type MeUser = {
 
   displayName?: string | null;
   mainAvatar?: string | null;
+
+  lastDailyAt?: string | null; // ISO string from API
 };
 
 type MeResponse = {
@@ -40,14 +38,15 @@ type MeResponse = {
   linkError?: string | null;
 };
 
-/* -------------------------------------------------------------------------- */
-/* HELPERS                                                                    */
-/* -------------------------------------------------------------------------- */
+type DailyResponse =
+  | { ok: true; add: number; points: number }
+  | { ok: false; message?: string; points?: number };
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
 
+// 👇 links are /u/..., not /app/u/...
 function normalizePublicUrl(raw: string | null | undefined) {
   if (!raw) return null;
   if (raw.includes("tmp")) return null;
@@ -210,12 +209,8 @@ function Avatar({
       )}
     >
       {src ? (
-        <img 
-          src={src} 
-          alt={fallback} 
-          className="h-full w-full object-cover" 
-          referrerPolicy="no-referrer" 
-        />
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={fallback} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
       ) : (
         <span className="text-white/40 text-xs font-black">{fallback}</span>
       )}
@@ -233,13 +228,27 @@ function Field({
   mono?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 h-full relative overflow-hidden group">
-      <div className="text-[11px] text-white/40 font-bold uppercase tracking-wider">{label}</div>
-      <div className={cx("mt-1 text-sm font-extrabold text-white/90 truncate", mono ? "font-mono text-[13px]" : "")}>
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <div className="text-[11px] text-white/55 font-semibold">{label}</div>
+      <div className={cx("mt-1 text-sm font-extrabold text-white/85 truncate", mono ? "font-mono text-[13px]" : "")}>
         {value}
       </div>
     </div>
   );
+}
+
+/* --------------------------------- Daily helpers ---------------------------------- */
+
+// Use UTC to match your server daily boundaries
+function utcKey(d: Date) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+function formatLocal(dtIso?: string | null) {
+  if (!dtIso) return "—";
+  const d = new Date(dtIso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
 }
 
 /* --------------------------------- Page ---------------------------------- */
@@ -248,24 +257,34 @@ export default function ProfilePage() {
   const { status } = useSession();
   const authed = status === "authenticated";
 
-  // live wallet
+  // live wallet (connected via RainbowKit)
   const { address: liveAddress, isConnected: walletIsConnected } = useAccount();
   const liveChainId = useChainId();
 
   const [me, setMe] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(false);
-  const [claiming, setClaiming] = useState(false); // 🔥 Состояние для клейма
+
   const [connectBusy, setConnectBusy] = useState<"" | "twitter" | "discord">("");
   const [linkError, setLinkError] = useState<string | null>(null);
 
   const [copied, setCopied] = useState(false);
   const [walletCopied, setWalletCopied] = useState(false);
+
+  const [dailyBusy, setDailyBusy] = useState(false);
+  const [dailyMsg, setDailyMsg] = useState<string | null>(null);
+
   const busyGuardRef = useRef(false);
 
   const twitterConnected = Boolean(me?.twitterId);
   const discordConnected = Boolean(me?.discordId);
 
+  // server-verified wallet (created by wallet-first signIn)
   const serverWalletAddress = me?.walletAddress ?? null;
+  const serverWalletChainId = me?.walletChainId ?? null;
+
+  // what we show as wallet on page
+  const displayWalletAddress = liveAddress ?? serverWalletAddress ?? null;
+  const displayWalletChainId = walletIsConnected && liveAddress ? liveChainId : serverWalletChainId ?? null;
 
   const safePublicId = useMemo(() => {
     const pid = me?.publicId ?? null;
@@ -275,8 +294,10 @@ export default function ProfilePage() {
 
   const publicUrl = useMemo(() => {
     if (!me) return null;
+
     const normalized = normalizePublicUrl(me.publicUrl);
     if (normalized) return normalized;
+
     if (me.handle) return `/u/${me.handle}`;
     if (safePublicId) return `/u/${safePublicId}`;
     return null;
@@ -287,33 +308,61 @@ export default function ProfilePage() {
     return `${window.location.origin}${publicUrl}`;
   }, [publicUrl]);
 
-  // 🔥 Priority Identity Logic: X > Discord > Wallet
+  // TOP: name + avatar priority: X -> Discord -> fallback
   const topDisplayName = useMemo(() => {
     if (!me) return "Loading…";
     return (
-      me.twitterName || 
-      (me.twitterUser ? `@${me.twitterUser}` : null) || 
-      me.discordName || 
-      me.discordUser || 
+      me.displayName ||
+      me.twitterName ||
+      (me.twitterUser ? `@${me.twitterUser}` : null) ||
+      me.discordName ||
+      me.discordUser ||
       "Realife user"
     );
   }, [me]);
 
   const heroAvatar = useMemo(() => {
     if (!me) return null;
-    return me.twitterImage || me.discordImage || null;
+    return me.mainAvatar || me.twitterImage || me.discordImage || null;
   }, [me]);
 
+  // Daily claim status
+  const dailyStatus = useMemo(() => {
+    const last = me?.lastDailyAt ?? null;
+    if (!last) return { canClaim: true, label: "Daily available" as const };
+
+    const lastDate = new Date(last);
+    if (Number.isNaN(lastDate.getTime())) return { canClaim: true, label: "Daily available" as const };
+
+    const today = utcKey(new Date());
+    const lastKey = utcKey(lastDate);
+
+    const canClaim = today !== lastKey;
+    return {
+      canClaim,
+      label: canClaim ? "Daily available" : "Claimed today",
+    } as const;
+  }, [me?.lastDailyAt]);
+
   async function loadMe() {
-    if (!authed) return;
+    if (!authed) {
+      setMe(null);
+      setLinkError(null);
+      setDailyMsg(null);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch("/api/me", { cache: "no-store" });
-      const json = (await res.json()) as MeResponse;
+      const json = (await res.json().catch(() => ({}))) as MeResponse;
+
       if (json?.ok) setMe(json?.user ?? null);
+      else setMe(null);
+
       setLinkError(json?.linkError ?? null);
-    } catch (e) {
-      console.error("LOAD_ME_ERROR", e);
+    } catch {
+      // ignore
     } finally {
       setLoading(false);
       setConnectBusy("");
@@ -321,57 +370,116 @@ export default function ProfilePage() {
     }
   }
 
-  // 🔥 Daily Claim Logic
-  async function claimDaily() {
-    if (claiming || !authed) return;
-    setClaiming(true);
-    try {
-      const res = await fetch("/api/points/daily", { method: "POST" });
-      const json = await res.json();
-      if (json.ok) {
-        setMe(prev => prev ? { ...prev, points: json.points } : null);
-      } else {
-        alert(json.message || "Already claimed today");
-      }
-    } catch (e) {
-      console.error("CLAIM_ERROR", e);
-    } finally {
-      setClaiming(false);
-    }
-  }
-
   useEffect(() => {
     if (authed) void loadMe();
-    else setMe(null);
+    else {
+      setMe(null);
+      setLinkError(null);
+      setConnectBusy("");
+      setDailyMsg(null);
+      busyGuardRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
-  // Sync data when window is refocused (OAuth return)
+  // refresh after OAuth return
   useEffect(() => {
     if (!authed) return;
-    const handleFocus = () => void loadMe();
-    const handleVisibility = () => {
+
+    const onFocus = () => void loadMe();
+    const onVis = () => {
       if (document.visibilityState === "visible") void loadMe();
     };
-    window.addEventListener("focus", handleFocus);
-    document.addEventListener("visibilitychange", handleVisibility);
+
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVis);
+
+    const t = window.setTimeout(() => void loadMe(), 700);
+
     return () => {
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVis);
+      window.clearTimeout(t);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
   async function connect(provider: "twitter" | "discord") {
-    if (!authed || busyGuardRef.current) return;
+    if (!authed) {
+      setLinkError("NO_SERVER_SESSION");
+      return;
+    }
+    if (busyGuardRef.current) return;
+
     busyGuardRef.current = true;
     setConnectBusy(provider);
     setLinkError(null);
-    const callbackUrl = `${window.location.origin}/app/profile`;
+    setDailyMsg(null);
+
+    const callbackUrl =
+      typeof window !== "undefined" ? `${window.location.origin}/app/profile` : "/app/profile";
+
     void signIn(provider, { callbackUrl }).finally(() => {
       setTimeout(() => {
         busyGuardRef.current = false;
         setConnectBusy("");
-      }, 2000);
+      }, 1200);
     });
+  }
+
+  async function claimDaily() {
+    if (!authed) {
+      setDailyMsg("Connect wallet and sign once, then claim daily.");
+      return;
+    }
+    if (dailyBusy) return;
+
+    setDailyBusy(true);
+    setDailyMsg(null);
+
+    try {
+      const res = await fetch("/api/daily", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+
+      const json = (await res.json().catch(() => ({}))) as DailyResponse;
+
+      if (res.ok && (json as any)?.ok) {
+        const add = (json as any).add ?? 10;
+        const points = (json as any).points ?? me?.points ?? 0;
+
+        // update local state so UI changes instantly
+        setMe((prev) =>
+          prev
+            ? {
+                ...prev,
+                points,
+                lastDailyAt: new Date().toISOString(),
+              }
+            : prev
+        );
+
+        setDailyMsg(`Daily claimed: +${add}. New balance: ${points}.`);
+      } else {
+        // Already claimed or other error
+        const msg = (json as any)?.message || (res.status === 401 ? "Unauthorized" : "Failed");
+        if (msg.toLowerCase().includes("already claimed")) {
+          // ensure state reflects "claimed today"
+          setMe((prev) => (prev ? { ...prev, lastDailyAt: prev.lastDailyAt ?? new Date().toISOString() } : prev));
+          setDailyMsg("Already claimed today.");
+        } else if (res.status === 401) {
+          setDailyMsg("No server session yet. Connect wallet and sign once.");
+        } else {
+          setDailyMsg("Daily claim failed. Try again.");
+        }
+      }
+    } catch {
+      setDailyMsg("Network error. Try again.");
+    } finally {
+      setDailyBusy(false);
+    }
   }
 
   async function copyText(text: string) {
@@ -379,14 +487,48 @@ export default function ProfilePage() {
       await navigator.clipboard.writeText(text);
       return true;
     } catch {
-      return false;
+      try {
+        const el = document.createElement("textarea");
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+        return true;
+      } catch {
+        return false;
+      }
     }
   }
 
-  const errorText = 
-    linkError === "TWITTER_ALREADY_LINKED" ? "This X account is already linked to another profile." :
-    linkError === "DISCORD_ALREADY_LINKED" ? "This Discord is already linked to another profile." :
-    linkError ? "An error occurred. Please try again." : null;
+  async function copyPublicLink() {
+    if (!publicFullUrl) return;
+    const ok = await copyText(publicFullUrl);
+    if (!ok) return;
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1200);
+  }
+
+  async function copyWallet() {
+    if (!displayWalletAddress) return;
+    const ok = await copyText(displayWalletAddress);
+    if (!ok) return;
+    setWalletCopied(true);
+    setTimeout(() => setWalletCopied(false), 1200);
+  }
+
+  const connectDisabled = connectBusy !== "" || !authed;
+
+  const errorText =
+    linkError === "DISCORD_ALREADY_LINKED"
+      ? "This Discord is already linked to another profile."
+      : linkError === "NO_SERVER_SESSION"
+      ? "No server session yet. Connect wallet in the top bar and sign once."
+      : linkError === "TWITTER_ALREADY_LINKED"
+      ? "This X account is already linked to another profile."
+      : linkError
+      ? "Something went wrong. Try again."
+      : null;
 
   const walletPillText = serverWalletAddress
     ? "Wallet verified (server)"
@@ -394,174 +536,243 @@ export default function ProfilePage() {
     ? "Wallet connected (client)"
     : "Wallet not connected";
 
+  const walletMismatch = useMemo(() => {
+    const a = liveAddress?.toLowerCase();
+    const b = serverWalletAddress?.toLowerCase();
+    return Boolean(a && b && a !== b);
+  }, [liveAddress, serverWalletAddress]);
+
   return (
     <AppShell title="REALIFE" subtitle="Profile • Identity • Wallet">
-      <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden relative">
-        
-        {/* BACKGROUND AMBIENT */}
-        <div className="pointer-events-none fixed inset-0 z-0">
+      <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
+        {/* Ambient */}
+        <div className="pointer-events-none fixed inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.12),transparent_55%)]" />
-          <div className="absolute -top-80 -left-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/10 blur-3xl animate-pulse" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
+          <div className="absolute -top-80 -left-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/14 blur-3xl animate-pulse" />
+          <div className="absolute -bottom-80 -right-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/10 blur-3xl animate-pulse" />
           <div
             className="absolute inset-0 opacity-[0.06]"
             style={{
-              backgroundImage: "linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px)",
+              backgroundImage:
+                "linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px)",
               backgroundSize: "56px 56px",
             }}
           />
         </div>
 
-        <div className="relative z-10 mx-auto max-w-6xl px-6 py-10 space-y-6">
-          {errorText && <Alert title="Linking error" text={errorText} tone="error" />}
+        <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
+          {errorText ? <Alert title="Linking error" text={errorText} tone="error" /> : null}
 
-          {!authed && (
+          {dailyMsg ? (
+            <Alert title="Points" text={dailyMsg} tone={dailyMsg.toLowerCase().includes("failed") ? "error" : "warn"} />
+          ) : null}
+
+          {!authed ? (
             <Alert
-              title="No server session"
-              text="Please connect your wallet in the top bar and sign the message to verify your identity."
+              title="No server session yet"
+              text="Connect wallet in the top bar and sign once. After that, this page will show your profile and you can connect X / Discord."
               tone="warn"
             />
-          )}
+          ) : null}
 
-          {/* HERO SECTION */}
+          {walletMismatch ? (
+            <Alert
+              title="Wallet mismatch"
+              text="Your connected wallet address is different from the server-verified wallet in your profile. Re-verify wallet (signature) or reconnect the correct wallet."
+              tone="warn"
+            />
+          ) : null}
+
+          {/* HERO */}
           <Card>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div className="flex items-center gap-6 min-w-0">
+              <div className="flex items-center gap-5 min-w-0">
                 <Avatar src={heroAvatar} fallback="RL" size="hero" />
                 <div className="min-w-0">
-                  <div className="text-[10px] font-black text-amber-500/80 uppercase tracking-[0.2em] mb-1">Unified Profile</div>
-                  <div className="text-3xl md:text-5xl font-black tracking-tighter truncate leading-tight">
+                  <div className="text-xs font-semibold text-white/60">Unified profile</div>
+
+                  <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
                     {authed ? topDisplayName : "—"}
                   </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Pill tone={serverWalletAddress ? "ok" : "muted"}>{walletPillText}</Pill>
-                    {twitterConnected && <Pill tone="gold">@{me?.twitterUser}</Pill>}
-                    {discordConnected && <Pill tone="ok">Discord Linked</Pill>}
+
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Pill tone={serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"}>{walletPillText}</Pill>
+
+                    <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>
+                      {dailyStatus.canClaim ? "Daily available" : "Claimed today"}
+                    </Pill>
+
+                    <Pill tone={twitterConnected ? "ok" : "muted"}>{twitterConnected ? "X connected" : "X not connected"}</Pill>
+                    <Pill tone={discordConnected ? "ok" : "muted"}>{discordConnected ? "Discord connected" : "Discord not connected"}</Pill>
+
+                    {me?.twitterUser ? <Pill tone="gold">@{me.twitterUser}</Pill> : null}
+                    {me?.handle ? <Pill>handle: @{me.handle}</Pill> : null}
+                    {safePublicId ? <Pill>{safePublicId}</Pill> : null}
                   </div>
                 </div>
               </div>
 
-              <div className="w-full md:w-[240px] flex flex-col gap-2">
+              <div className="w-full md:w-[300px] flex flex-col gap-2">
                 <Btn variant="ghost" onClick={loadMe} disabled={!authed || loading}>
-                  {loading ? "Refreshing…" : "Sync Profile"}
+                  {loading ? "Refreshing…" : "Refresh"}
                 </Btn>
-                <Btn variant="ghost" onClick={() => signOut()} disabled={!authed} className="opacity-50 hover:opacity-100 border-white/5 bg-transparent">
-                  Log out
+
+                {/* Daily claim */}
+                <Btn
+                  variant="gold"
+                  onClick={claimDaily}
+                  disabled={!authed || dailyBusy || !dailyStatus.canClaim}
+                  className="w-full"
+                >
+                  {dailyBusy ? "Claiming…" : dailyStatus.canClaim ? "Claim daily +10" : "Daily already claimed"}
+                </Btn>
+
+                <Btn variant="ghost" onClick={() => signOut({ redirect: false })} disabled={!authed}>
+                  Log out (server)
                 </Btn>
               </div>
             </div>
 
-            {/* STATS & INFO GRID */}
-            <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
-              
-              {/* POINTS BLOCK WITH CLAIM BUTTON */}
-              <div className="relative group overflow-visible">
-                <Field label="Points Balance" value={me?.points ?? 0} />
-                {authed && (
-                  <button 
-                    onClick={claimDaily}
-                    disabled={claiming}
-                    className={cx(
-                      "absolute -top-3 -right-2 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all shadow-2xl border",
-                      "bg-amber-400 text-black border-amber-600 hover:scale-110 active:scale-95",
-                      "disabled:opacity-40 disabled:grayscale"
-                    )}
-                  >
-                    {claiming ? "..." : "CLAIM DAILY"}
-                  </button>
-                )}
-              </div>
-
-              <Field label="Server Wallet" value={serverWalletAddress ? shortAddr(serverWalletAddress) : "—"} mono />
-              
+            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Field label="Points" value={me?.points ?? 0} />
               <Field
-                label="Public Identity"
+                label="Daily"
+                value={
+                  <div className="flex items-center gap-2">
+                    <span className="truncate">{dailyStatus.label}</span>
+                    <span className="text-[11px] text-white/55">{me?.lastDailyAt ? `• ${formatLocal(me.lastDailyAt)}` : ""}</span>
+                  </div>
+                }
+              />
+              <Field label="Wallet (connected)" value={walletIsConnected && liveAddress ? shortAddr(liveAddress) : "—"} mono />
+              <Field label="Wallet (server)" value={serverWalletAddress ? shortAddr(serverWalletAddress) : "—"} mono />
+              <Field
+                label="Public link"
                 value={
                   publicUrl ? (
-                    <button
-                      type="button"
-                      onClick={() => { copyText(publicFullUrl || ""); setCopied(true); setTimeout(() => setCopied(false), 1500); }}
-                      className="text-left hover:text-amber-400 transition flex items-center gap-2"
-                    >
-                      <span className="font-mono">{publicUrl}</span>
-                      <span className="text-[10px] opacity-40">{copied ? "COPIED" : "COPY"}</span>
+                    <button type="button" onClick={copyPublicLink} className="text-left hover:underline">
+                      <span className="font-mono">{publicUrl}</span>{" "}
+                      <span className="text-[11px] text-white/60">{copied ? "copied" : "copy"}</span>
                     </button>
-                  ) : "—"
+                  ) : (
+                    "—"
+                  )
                 }
                 mono
               />
+              <Field
+                label="Chain"
+                value={displayWalletChainId ? <span className="font-extrabold">{displayWalletChainId}</span> : "—"}
+              />
+              <Field
+                label="Identity"
+                value={
+                  <span className="truncate">
+                    {me?.twitterId ? "X" : ""}{me?.twitterId && me?.discordId ? " + " : ""}
+                    {me?.discordId ? "Discord" : ""}{(!me?.twitterId && !me?.discordId) ? "Wallet only" : ""}
+                  </span>
+                }
+              />
+              <Field label="User id" value={me?.id ?? "—"} mono />
+            </div>
 
-              <div className="flex items-center justify-center p-2">
-                {publicUrl && (
-                  <a
-                    href={publicUrl}
-                    className="text-[11px] font-black text-amber-500 hover:underline decoration-2 underline-offset-4 tracking-tighter"
-                  >
-                    OPEN PUBLIC PROFILE →
-                  </a>
-                )}
-              </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Btn variant="tiny" onClick={copyWallet} disabled={!displayWalletAddress}>
+                {walletCopied ? "Wallet copied" : "Copy wallet"}
+              </Btn>
+
+              {publicUrl ? (
+                <a
+                  href={publicUrl}
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-xl text-[12px] font-extrabold text-white border border-white/15 bg-white/[0.06] hover:bg-white/10"
+                >
+                  Open public profile →
+                </a>
+              ) : null}
             </div>
           </Card>
 
-          {/* SOCIAL ACCOUNTS GRID */}
+          {/* X + Discord blocks */}
           <div className="grid md:grid-cols-2 gap-6">
-            
-            {/* TWITTER / X */}
-            <Card className={cx(twitterConnected ? "ring-2 ring-amber-500/10" : "")}>
-              <div className="flex items-center justify-between mb-6">
-                <div className="font-black text-xl italic tracking-tighter">X / TWITTER</div>
+            {/* X */}
+            <Card>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-extrabold">X</div>
+                  <div className="text-xs text-white/60 mt-1">Name • @username • avatar</div>
+                </div>
+
                 {twitterConnected ? (
                   <Pill tone="ok">Connected</Pill>
                 ) : (
                   <Btn
                     variant="gold"
                     onClick={() => connect("twitter")}
-                    disabled={connectBusy !== "" || !authed}
-                    className="w-auto px-6 py-2 h-10"
+                    disabled={connectDisabled}
+                    className="w-auto px-5 py-2"
                   >
-                    {connectBusy === "twitter" ? "…" : "Connect"}
+                    {connectBusy === "twitter" ? "Connecting…" : "Connect"}
                   </Btn>
                 )}
               </div>
-              <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5 group transition-colors hover:bg-white/[0.05]">
-                <Avatar src={me?.twitterImage} fallback="X" size="lg" />
+
+              <div className="mt-5 flex items-center gap-4">
+                <Avatar src={me?.twitterImage ?? null} fallback="X" size="lg" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-black truncate text-white/90">{me?.twitterName || "Not Connected"}</div>
-                  <div className="text-xs text-white/40 font-mono">@{me?.twitterUser || "—"}</div>
+                  <div className="text-sm font-extrabold truncate">{me?.twitterName || "—"}</div>
+                  <div className="text-xs text-white/60 truncate">{me?.twitterUser ? `@${me.twitterUser}` : "—"}</div>
                 </div>
               </div>
+
+              {twitterConnected ? (
+                <div className="mt-4 text-[12px] text-white/45">
+                  X id: <span className="font-mono text-white/70">{me?.twitterId}</span>
+                </div>
+              ) : null}
             </Card>
 
-            {/* DISCORD */}
-            <Card className={cx(discordConnected ? "ring-2 ring-emerald-500/10" : "")}>
-              <div className="flex items-center justify-between mb-6">
-                <div className="font-black text-xl italic tracking-tighter">DISCORD</div>
+            {/* Discord */}
+            <Card>
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-extrabold">Discord</div>
+                  <div className="text-xs text-white/60 mt-1">Display • username • avatar</div>
+                </div>
+
                 {discordConnected ? (
                   <Pill tone="ok">Connected</Pill>
                 ) : (
                   <Btn
                     variant="gold"
                     onClick={() => connect("discord")}
-                    disabled={connectBusy !== "" || !authed}
-                    className="w-auto px-6 py-2 h-10"
+                    disabled={connectDisabled}
+                    className="w-auto px-5 py-2"
                   >
-                    {connectBusy === "discord" ? "…" : "Connect"}
+                    {connectBusy === "discord" ? "Connecting…" : "Connect"}
                   </Btn>
                 )}
               </div>
-              <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5 group transition-colors hover:bg-white/[0.05]">
-                <Avatar src={me?.discordImage} fallback="DS" size="lg" />
+
+              <div className="mt-5 flex items-center gap-4">
+                <Avatar src={me?.discordImage ?? null} fallback="DS" size="lg" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-black truncate text-white/90">{me?.discordName || "Not Connected"}</div>
-                  <div className="text-xs text-white/40 font-mono">{me?.discordUser || "—"}</div>
+                  <div className="text-sm font-extrabold truncate">{me?.discordName || "—"}</div>
+                  <div className="text-xs text-white/60 truncate">{me?.discordUser || "—"}</div>
                 </div>
               </div>
-            </Card>
 
+              {discordConnected ? (
+                <div className="mt-4 text-[12px] text-white/45">
+                  Discord id: <span className="font-mono text-white/70">{me?.discordId}</span>
+                </div>
+              ) : null}
+            </Card>
           </div>
 
-          <div className="pt-10 text-center opacity-20">
-            <p className="text-[10px] font-black uppercase tracking-[0.4em]">Realife Identity System • 2026</p>
+          <div className="text-[11px] text-white/40 text-center">
+            Tip: wallet verification happens in the top bar (signature once). This page reads everything from{" "}
+            <span className="font-mono text-white/55">/api/me</span>.
           </div>
         </div>
       </main>

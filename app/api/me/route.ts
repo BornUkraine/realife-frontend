@@ -11,8 +11,7 @@ const PUBLIC_PREFIX = "/u";
 function randomId(len = 6) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
-  for (let i = 0; i < len; i++)
-    out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  for (let i = 0; i < len; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
   return out;
 }
 
@@ -20,7 +19,6 @@ function pickPublicKey(user: { handle: string | null; publicId: string | null })
   return user.handle || user.publicId || null;
 }
 
-// Хелпер для генерации ID (если его нет)
 async function ensurePublicIdTx(tx: any, userId: string) {
   const u = await tx.user.findUnique({
     where: { id: userId },
@@ -49,37 +47,34 @@ async function ensurePublicIdTx(tx: any, userId: string) {
 export async function GET() {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user?.id) {
+  const uid = (session as any)?.userId || session?.user?.id;
+
+  if (!uid) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1. Убеждаемся, что у юзера есть публичный ID
-      const ensuredPublicId = await ensurePublicIdTx(tx, session.user!.id!);
+      const ensuredPublicId = await ensurePublicIdTx(tx, uid);
 
-      // 2. Забираем ВСЕ данные
       const user = await tx.user.findUnique({
-        where: { id: session.user!.id! },
+        where: { id: uid },
         select: {
           id: true,
           handle: true,
           publicId: true,
           points: true,
 
-          // Данные X
           twitterId: true,
           twitterUser: true,
           twitterName: true,
           twitterImage: true,
 
-          // Данные Discord
           discordId: true,
           discordUser: true,
           discordName: true,
           discordImage: true,
 
-          // Данные кошелька
           walletAddress: true,
           walletChainId: true,
 
@@ -99,10 +94,6 @@ export async function GET() {
 
       const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
-      // 🔥 ГЛАВНАЯ ЛОГИКА ПРИОРИТЕТА (HIERARCHY) 🔥
-      // 1. Если есть X — берем имя оттуда.
-      // 2. Если нет X, но есть Discord — берем оттуда.
-      // 3. Иначе — дефолт.
       const displayName =
         finalUser.twitterName ||
         (finalUser.twitterUser ? `@${finalUser.twitterUser}` : null) ||
@@ -110,7 +101,6 @@ export async function GET() {
         finalUser.discordUser ||
         "Realife user";
 
-      // Тот же приоритет для аватарки
       const mainAvatar = finalUser.twitterImage || finalUser.discordImage || null;
 
       return {
@@ -120,10 +110,10 @@ export async function GET() {
           user: {
             ...finalUser,
             publicUrl,
-            displayName, // <-- Это поле пойдет в главный заголовок профиля
-            mainAvatar,  // <-- Это поле пойдет в большую аватарку
+            displayName,
+            mainAvatar,
           },
-          linkError: session.linkError ?? null,
+          linkError: (session as any)?.linkError ?? null,
         },
       };
     });
