@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyMessage } from "viem";
 
 /* -------------------------------------------------------------------------- */
-/* HELPERS                                  */
+/* HELPERS                                                                    */
 /* -------------------------------------------------------------------------- */
 
 function slugifyHandle(input: string) {
@@ -169,7 +169,7 @@ function applyUserToToken(token: any, user: any) {
 }
 
 /* -------------------------------------------------------------------------- */
-/* CONFIG                                     */
+/* CONFIGURATION                                                              */
 /* -------------------------------------------------------------------------- */
 
 const TwitterOAuthProvider: any = {
@@ -202,15 +202,17 @@ const TwitterOAuthProvider: any = {
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
-  
-  // ✅ ВАЖНО: Исправляет потерю сессии на Railway
+
+  // ✅ Это решит проблему со сбросом сессии на Railway
+  // @ts-ignore
   trustHost: true,
+
   cookies: {
     sessionToken: {
       name: `${process.env.NODE_ENV === 'production' ? '__Secure-' : ''}next-auth.session-token`,
       options: {
         httpOnly: true,
-        sameSite: 'lax', // Разрешает куки при редиректе с OAuth
+        sameSite: 'lax', // Lax обязателен для работы редиректов OAuth
         path: '/',
         secure: process.env.NODE_ENV === 'production',
       },
@@ -296,7 +298,7 @@ export const authOptions: NextAuthOptions = {
       // Получаем ID текущего юзера
       const currentUserId = tokenUserId(token);
       
-      // 🛠 DEBUG: Лог для отслеживания сессии в Railway
+      // 🛠 DEBUG LOG: Проверяем сессию при возврате с OAuth
       if (account) {
         console.log(`[AUTH] Provider: ${account.provider}, CurrentUserID: ${currentUserId}`);
       }
