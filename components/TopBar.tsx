@@ -69,6 +69,91 @@ function GoldEdgeWrap({
   );
 }
 
+// 👇 Вынесли общую логику отображения статуса
+function NetworkStatusContent({
+  mounted,
+  connected,
+  wrongNetwork,
+  hasGas,
+  networkTitle,
+  balanceLabel,
+  dotState,
+  isFetching,
+  isSwitching,
+  onRefresh,
+  onSwitch,
+}: any) {
+  const refreshGlyph = !mounted ? "↻" : isFetching ? "…" : "↻";
+
+  return (
+    <div className="relative px-3 py-2">
+      {/* inner shine */}
+      <div className="pointer-events-none absolute inset-0 opacity-80">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]" />
+      </div>
+
+      <div className="relative flex items-center gap-2">
+        <StatusDot state={dotState} />
+        <div className="text-sm font-semibold whitespace-nowrap">
+          {networkTitle}
+        </div>
+
+        {mounted && connected && !wrongNetwork ? (
+          <span
+            className={cn(
+              "ml-1 text-xs font-semibold px-2 py-1 rounded-full border",
+              hasGas
+                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-200"
+                : "bg-rose-500/10 border-rose-500/20 text-rose-200"
+            )}
+          >
+            {hasGas ? "Gas OK" : "No gas"}
+          </span>
+        ) : null}
+
+        <span className="ml-2 text-xs text-white/65 truncate">
+          Balance:{" "}
+          <span className="text-white/90 font-semibold">{balanceLabel}</span>
+        </span>
+
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={!mounted || !connected || isFetching}
+          className={cn(
+            "ml-2 h-9 w-9 rounded-xl",
+            "border border-white/10 bg-white/[0.06] backdrop-blur-2xl",
+            "hover:bg-white/10 transition text-xs font-semibold",
+            "disabled:opacity-40"
+          )}
+          title="Refresh balance"
+        >
+          {refreshGlyph}
+        </button>
+
+        {mounted && wrongNetwork ? (
+          <button
+            type="button"
+            disabled={isSwitching}
+            onClick={onSwitch}
+            className={cn(
+              "h-9 px-3 rounded-xl text-xs font-extrabold",
+              "text-black",
+              "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
+              "shadow-[0_18px_60px_rgba(212,175,55,0.18)]",
+              "ring-1 ring-black/15",
+              "hover:brightness-110 disabled:opacity-60 transition"
+            )}
+          >
+            {isSwitching ? "Switching…" : "Switch"}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function TopBar() {
   const mounted = useMounted();
 
@@ -76,7 +161,12 @@ export default function TopBar() {
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
 
-  const { data: balanceData, isLoading, refetch, isFetching } = useBalance({
+  const {
+    data: balanceData,
+    isLoading,
+    refetch,
+    isFetching,
+  } = useBalance({
     address,
     chainId: baseSepolia.id,
     query: { enabled: Boolean(address), refetchInterval: 12_000 },
@@ -85,7 +175,6 @@ export default function TopBar() {
   // prevent SSR/client mismatch
   const connected = mounted ? isConnected : false;
   const effectiveChainId = mounted ? chainId : undefined;
-
   const wrongNetwork = connected && effectiveChainId !== baseSepolia.id;
 
   const balanceEth = useMemo(() => {
@@ -100,7 +189,8 @@ export default function TopBar() {
   const balanceLabel = useMemo(() => {
     if (!mounted || !connected) return "—";
     if (isLoading) return "loading…";
-    if (!balanceData) return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
+    if (!balanceData)
+      return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
     const s = formatUnits(balanceData.value, balanceData.decimals);
     return `${fmtBalance(s)} ${balanceData.symbol ?? "ETH"}`;
   }, [mounted, connected, isLoading, balanceData]);
@@ -121,10 +211,26 @@ export default function TopBar() {
     ? "warn"
     : "ok";
 
-  const showGetEth = mounted ? (connected ? wrongNetwork || !hasGas : false) : false;
+  const showGetEth = mounted
+    ? connected
+      ? wrongNetwork || !hasGas
+      : false
+    : false;
 
-  // keep stable first paint
-  const refreshGlyph = !mounted ? "↻" : isFetching ? "…" : "↻";
+  // Собираем все пропсы для статуса в один объект
+  const statusProps = {
+    mounted,
+    connected,
+    wrongNetwork,
+    hasGas,
+    networkTitle,
+    balanceLabel,
+    dotState,
+    isFetching,
+    isSwitching,
+    onRefresh: () => refetch(),
+    onSwitch: () => switchChainAsync({ chainId: baseSepolia.id }).catch(() => {}),
+  };
 
   return (
     <header className="w-full">
@@ -146,7 +252,9 @@ export default function TopBar() {
                     "ring-1 ring-black/10"
                   )}
                 >
-                  <span className="text-sm font-extrabold tracking-tight text-white">R</span>
+                  <span className="text-sm font-extrabold tracking-tight text-white">
+                    R
+                  </span>
                 </div>
 
                 <div className="min-w-0 hidden sm:block">
@@ -162,76 +270,7 @@ export default function TopBar() {
               {/* desktop status */}
               <div className="hidden md:flex items-center gap-2 min-w-0">
                 <GoldEdgeWrap>
-                  <div className="relative px-3 py-2">
-                    {/* inner shine */}
-                    <div className="pointer-events-none absolute inset-0 opacity-80">
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]" />
-                    </div>
-
-                    <div className="relative flex items-center gap-2">
-                      <StatusDot state={dotState} />
-                      <div className="text-sm font-semibold whitespace-nowrap">
-                        {networkTitle}
-                      </div>
-
-                      {mounted && connected && !wrongNetwork ? (
-                        <span
-                          className={cn(
-                            "ml-1 text-xs font-semibold px-2 py-1 rounded-full border",
-                            hasGas
-                              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-200"
-                              : "bg-rose-500/10 border-rose-500/20 text-rose-200"
-                          )}
-                        >
-                          {hasGas ? "Gas OK" : "No gas"}
-                        </span>
-                      ) : null}
-
-                      <span className="ml-2 text-xs text-white/65 truncate">
-                        Balance:{" "}
-                        <span className="text-white/90 font-semibold">
-                          {balanceLabel}
-                        </span>
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={() => refetch()}
-                        disabled={!mounted || !connected || isFetching}
-                        className={cn(
-                          "ml-2 h-9 w-9 rounded-xl",
-                          "border border-white/10 bg-white/[0.06] backdrop-blur-2xl",
-                          "hover:bg-white/10 transition text-xs font-semibold",
-                          "disabled:opacity-40"
-                        )}
-                        title="Refresh balance"
-                        aria-label="Refresh balance"
-                      >
-                        {refreshGlyph}
-                      </button>
-
-                      {mounted && wrongNetwork ? (
-                        <button
-                          type="button"
-                          disabled={isSwitching}
-                          onClick={() =>
-                            switchChainAsync({ chainId: baseSepolia.id }).catch(() => {})
-                          }
-                          className={cn(
-                            "h-9 px-3 rounded-xl text-xs font-extrabold",
-                            "text-black",
-                            "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-                            "shadow-[0_18px_60px_rgba(212,175,55,0.18)]",
-                            "ring-1 ring-black/15",
-                            "hover:brightness-110 disabled:opacity-60 transition"
-                          )}
-                        >
-                          {isSwitching ? "Switching…" : "Switch"}
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
+                  <NetworkStatusContent {...statusProps} />
                 </GoldEdgeWrap>
 
                 {showGetEth ? (
@@ -274,70 +313,7 @@ export default function TopBar() {
             {/* mobile status */}
             <div className="md:hidden mt-3">
               <GoldEdgeWrap>
-                <div className="relative px-3 py-2">
-                  <div className="pointer-events-none absolute inset-0 opacity-80">
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
-                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]" />
-                  </div>
-
-                  <div className="relative flex items-center gap-2">
-                    <StatusDot state={dotState} />
-                    <div className="text-sm font-semibold">{networkTitle}</div>
-
-                    {mounted && connected && !wrongNetwork ? (
-                      <span
-                        className={cn(
-                          "text-xs font-semibold px-2 py-1 rounded-full border",
-                          hasGas
-                            ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-200"
-                            : "bg-rose-500/10 border-rose-500/20 text-rose-200"
-                        )}
-                      >
-                        {hasGas ? "Gas OK" : "No gas"}
-                      </span>
-                    ) : null}
-
-                    <div className="ml-auto text-xs text-white/70 truncate">
-                      {balanceLabel}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => refetch()}
-                      disabled={!mounted || !connected || isFetching}
-                      className={cn(
-                        "h-9 w-9 rounded-xl",
-                        "border border-white/10 bg-white/[0.06] backdrop-blur-2xl",
-                        "hover:bg-white/10 transition text-xs font-semibold",
-                        "disabled:opacity-40"
-                      )}
-                      title="Refresh balance"
-                      aria-label="Refresh balance"
-                    >
-                      {refreshGlyph}
-                    </button>
-
-                    {mounted && wrongNetwork ? (
-                      <button
-                        type="button"
-                        disabled={isSwitching}
-                        onClick={() =>
-                          switchChainAsync({ chainId: baseSepolia.id }).catch(() => {})
-                        }
-                        className={cn(
-                          "h-9 px-3 rounded-xl text-xs font-extrabold",
-                          "text-black",
-                          "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-                          "shadow-[0_18px_60px_rgba(212,175,55,0.18)]",
-                          "ring-1 ring-black/15",
-                          "hover:brightness-110 disabled:opacity-60 transition"
-                        )}
-                      >
-                        {isSwitching ? "…" : "Switch"}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
+                <NetworkStatusContent {...statusProps} />
               </GoldEdgeWrap>
             </div>
           </div>

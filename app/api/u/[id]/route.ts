@@ -44,8 +44,14 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
   }
 
+  // 👇 ИСПРАВЛЕНИЕ: Добавили mode: 'insensitive' для надежного поиска
   const user = await prisma.user.findFirst({
-    where: { OR: [{ handle: key }, { publicId: key }] },
+    where: {
+      OR: [
+        { handle: { equals: key, mode: "insensitive" } },
+        { publicId: { equals: key, mode: "insensitive" } },
+      ],
+    },
     select: userSelect,
   });
 

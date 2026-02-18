@@ -15,7 +15,8 @@ function startOfTomorrowUTC(d: Date) {
 }
 
 export async function POST() {
-  const session: any = await getServerSession(authOptions);
+  // Благодаря нашему next-auth.d.ts здесь не нужен :any
+  const session = await getServerSession(authOptions);
 
   if (!session?.userId) {
     return NextResponse.json({ ok: false }, { status: 401 });
@@ -27,8 +28,9 @@ export async function POST() {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      // Ищем юзера и проверяем, существует ли он
       const user = await tx.user.findUnique({
-        where: { id: session.userId },
+        where: { id: session.userId }, // TS знает, что userId — это string
         select: { id: true, points: true, lastDailyAt: true },
       });
 
@@ -36,7 +38,8 @@ export async function POST() {
         return { status: 404 as const, body: { ok: false } };
       }
 
-      // ✅ самый надёжный анти-дабл: проверяем pointEvent за сегодня
+      // ✅ Самый надёжный анти-дабл: проверяем запись в логах за сегодня
+      // Это лучше, чем просто проверять lastDailyAt, так как защищает от сбоев даты
       const already = await tx.pointEvent.findFirst({
         where: {
           userId: user.id,
@@ -52,18 +55,31 @@ export async function POST() {
       if (already) {
         return {
           status: 400 as const,
-          body: { ok: false, message: "Already claimed", points: user.points ?? 0 },
+          body: { 
+            ok: false, 
+            message: "Already claimed today", 
+            points: user.points ?? 0 
+          },
         };
       }
 
+      // Обновляем баланс
       const updated = await tx.user.update({
         where: { id: user.id },
-        data: { points: { increment: 10 }, lastDailyAt: now },
+        data: { 
+          points: { increment: 10 }, 
+          lastDailyAt: now 
+        },
         select: { points: true },
       });
 
+      // Записываем событие в историю
       await tx.pointEvent.create({
-        data: { userId: user.id, type: "DAILY", points: 10 },
+        data: { 
+          userId: user.id, 
+          type: "DAILY", 
+          points: 10 
+        },
       });
 
       return {

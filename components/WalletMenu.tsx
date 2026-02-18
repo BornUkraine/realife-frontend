@@ -120,15 +120,16 @@ export default function WalletMenu() {
     setOpen((v) => !v);
   }, [mounted, connected, openConnectModal]);
 
-  const itemBase =
-    "w-full flex items-center justify-between gap-3 px-3 py-2 rounded-2xl " +
-    "text-sm font-semibold text-white/85 " +
-    "transition duration-200 " +
-    "hover:bg-white/[0.06] hover:text-white " +
-    "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/25";
+  const itemBase = cn(
+    "w-full flex items-center justify-between gap-3 px-3 py-2 rounded-2xl",
+    "text-sm font-semibold text-white/85",
+    "transition duration-200",
+    "hover:bg-white/[0.06] hover:text-white",
+    "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#d4af37]/25"
+  );
 
   /* ---------------------------------------------------------------------- */
-  /*                         WALLET-FIRST AUTO VERIFY                         */
+  /* WALLET-FIRST AUTO VERIFY                      */
   /* ---------------------------------------------------------------------- */
 
   const triedVerifyRef = useRef(false);
@@ -252,7 +253,7 @@ export default function WalletMenu() {
       {open ? (
         <div
           className={cn(
-            "absolute right-0 mt-2 w-[320px]",
+            "absolute right-0 mt-2 w-[320px] z-50", // Added z-50 just in case
             "rounded-3xl p-px overflow-hidden",
             "bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))]",
             "shadow-[0_28px_110px_rgba(0,0,0,0.70)]"

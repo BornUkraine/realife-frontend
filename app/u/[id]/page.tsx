@@ -172,12 +172,18 @@ function pickPublicKey(user: { handle: string | null; publicId: string | null })
 export default async function PublicProfilePage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>; // <--- Fix 1: Params is Promise now
 }) {
-  const key = decodeURIComponent(params.id || "").trim();
+  const { id } = await params; // <--- Fix 2: Await params
+  const key = decodeURIComponent(id || "").trim();
 
   const user = await prisma.user.findFirst({
-    where: { OR: [{ handle: key }, { publicId: key }] },
+    where: {
+      OR: [
+        { handle: { equals: key, mode: "insensitive" } }, // <--- Fix 3: Case insensitive
+        { publicId: { equals: key, mode: "insensitive" } },
+      ],
+    },
     select: userSelect,
   });
 
