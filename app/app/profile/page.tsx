@@ -23,9 +23,11 @@ type MeUser = {
   discordName?: string | null;
   discordImage?: string | null;
 
-  // Saved (optional) wallet in DB
-  walletAddress?: string | null;
+  walletAddress?: string | null; // server verified
   walletChainId?: number | null;
+
+  displayName?: string | null;
+  mainAvatar?: string | null;
 };
 
 type MeResponse = {
@@ -42,6 +44,7 @@ function normalizePublicUrl(raw: string | null | undefined) {
   if (!raw) return null;
   if (raw.includes("tmp")) return null;
 
+  // legacy support
   if (raw.startsWith("/u/")) return `/app${raw}`;
   if (raw.startsWith("/app/u/")) return raw;
   if (!raw.startsWith("/")) return `/app/u/${raw}`;
@@ -95,28 +98,39 @@ function Pill({
     tone === "ok"
       ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
       : tone === "warn"
-        ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
-        : tone === "gold"
-          ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
-          : "border-white/10 bg-white/[0.06] text-white/70";
+      ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
+      : tone === "gold"
+      ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
+      : "border-white/10 bg-white/[0.06] text-white/70";
 
   return (
-    <div
-      className={cx(
-        "text-[11px] font-semibold px-3 py-1.5 rounded-full border",
-        cls
-      )}
-    >
+    <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>
       {children}
     </div>
   );
 }
 
-function Alert({ title, text }: { title: string; text: string }) {
+function Alert({
+  title,
+  text,
+  tone = "warn",
+}: {
+  title: string;
+  text: string;
+  tone?: "warn" | "error";
+}) {
+  const cls =
+    tone === "error"
+      ? "border-rose-500/25 bg-rose-500/10"
+      : "border-amber-500/25 bg-amber-500/10";
+
+  const titleCls = tone === "error" ? "text-rose-50" : "text-amber-50";
+  const textCls = tone === "error" ? "text-rose-100/90" : "text-amber-100/90";
+
   return (
-    <div className="rounded-[22px] border border-rose-500/25 bg-rose-500/10 px-4 py-3">
-      <div className="text-sm font-extrabold text-rose-50">{title}</div>
-      <div className="mt-1 text-sm text-rose-100/90">{text}</div>
+    <div className={cx("rounded-[22px] border px-4 py-3", cls)}>
+      <div className={cx("text-sm font-extrabold", titleCls)}>{title}</div>
+      <div className={cx("mt-1 text-sm", textCls)}>{text}</div>
     </div>
   );
 }
@@ -154,11 +168,7 @@ function Btn({
   return (
     <button
       {...props}
-      className={cx(
-        base,
-        variant === "gold" ? gold : variant === "ghost" ? ghost : tiny,
-        className
-      )}
+      className={cx(base, variant === "gold" ? gold : variant === "ghost" ? ghost : tiny, className)}
     />
   );
 }
@@ -178,12 +188,12 @@ function Avatar({
     size === "hero"
       ? "h-24 w-24 md:h-28 md:w-28"
       : size === "xl"
-        ? "h-20 w-20 md:h-24 md:w-24"
-        : size === "lg"
-          ? "h-16 w-16"
-          : size === "sm"
-            ? "h-12 w-12"
-            : "h-14 w-14";
+      ? "h-20 w-20 md:h-24 md:w-24"
+      : size === "lg"
+      ? "h-16 w-16"
+      : size === "sm"
+      ? "h-12 w-12"
+      : "h-14 w-14";
 
   return (
     <div
@@ -191,34 +201,16 @@ function Avatar({
         s,
         "rounded-2xl overflow-hidden flex items-center justify-center",
         "bg-white/[0.06] border border-white/10",
-        ring
-          ? "shadow-[0_18px_60px_rgba(212,175,55,0.10)] ring-1 ring-black/15"
-          : ""
+        ring ? "shadow-[0_18px_60px_rgba(212,175,55,0.10)] ring-1 ring-black/15" : ""
       )}
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt={fallback}
-          className="h-full w-full object-cover"
-          referrerPolicy="no-referrer"
-        />
+        <img src={src} alt={fallback} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
       ) : (
         <span className="text-white/40 text-xs font-black">{fallback}</span>
       )}
     </div>
-  );
-}
-
-function Skeleton({ className }: { className: string }) {
-  return (
-    <div
-      className={cx(
-        "animate-pulse rounded-xl bg-white/[0.06] border border-white/10",
-        className
-      )}
-    />
   );
 }
 
@@ -234,12 +226,7 @@ function Field({
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <div className="text-[11px] text-white/55 font-semibold">{label}</div>
-      <div
-        className={cx(
-          "mt-1 text-sm font-extrabold text-white/85 truncate",
-          mono ? "font-mono text-[13px]" : ""
-        )}
-      >
+      <div className={cx("mt-1 text-sm font-extrabold text-white/85 truncate", mono ? "font-mono text-[13px]" : "")}>
         {value}
       </div>
     </div>
@@ -249,17 +236,15 @@ function Field({
 /* --------------------------------- Page ---------------------------------- */
 
 export default function ProfilePage() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
   const authed = status === "authenticated";
 
-  // ✅ Live wallet from RainbowKit/wagmi (connected in header)
+  // live wallet (connected via RainbowKit)
   const { address: liveAddress, isConnected: walletIsConnected } = useAccount();
   const liveChainId = useChainId();
 
   const [me, setMe] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const [dailyBusy, setDailyBusy] = useState(false);
   const [connectBusy, setConnectBusy] = useState<"" | "twitter" | "discord">("");
   const [linkError, setLinkError] = useState<string | null>(null);
 
@@ -267,43 +252,17 @@ export default function ProfilePage() {
   const [walletCopied, setWalletCopied] = useState(false);
   const busyGuardRef = useRef(false);
 
-  const sUser: any = (session as any)?.user ?? null;
+  const twitterConnected = Boolean(me?.twitterId);
+  const discordConnected = Boolean(me?.discordId);
 
-  // X fields (ONLY X)
-  const xId = me?.twitterId ?? sUser?.twitterId ?? null;
-  const xName = me?.twitterName ?? sUser?.twitterName ?? null;
-  const xUser = me?.twitterUser ?? sUser?.twitterUser ?? null;
-  const xImage = me?.twitterImage ?? sUser?.twitterImage ?? null;
+  // server-verified wallet (created by wallet-first signIn)
+  const serverWalletAddress = me?.walletAddress ?? null;
+  const serverWalletChainId = me?.walletChainId ?? null;
 
-  // Discord fields (ONLY Discord)
-  const dId = me?.discordId ?? sUser?.discordId ?? null;
-  const dName = me?.discordName ?? sUser?.discordName ?? null;
-  const dUser = me?.discordUser ?? sUser?.discordUser ?? null;
-  const dImage = me?.discordImage ?? sUser?.discordImage ?? null;
-
-  // Saved wallet in DB (optional)
-  const savedWalletAddress = me?.walletAddress ?? (sUser?.walletAddress ?? null);
-  const savedWalletChainId = me?.walletChainId ?? (sUser?.walletChainId ?? null);
-
-  // ✅ What we DISPLAY in profile: live wallet has priority
-  const displayWalletAddress = liveAddress ?? savedWalletAddress ?? null;
+  // what we show as wallet on page
+  const displayWalletAddress = liveAddress ?? serverWalletAddress ?? null;
   const displayWalletChainId =
-    walletIsConnected && liveAddress ? liveChainId : savedWalletChainId ?? null;
-
-  const twitterConnected = Boolean(xId);
-  const discordConnected = Boolean(dId);
-  const walletVisible = Boolean(displayWalletAddress);
-
-  // Top name MUST be from X (как ты просил)
-  const topDisplayName = useMemo(() => {
-    return xName || (xUser ? `@${xUser}` : null) || "Not linked to X";
-  }, [xName, xUser]);
-
-  // 🔥 HERO AVATAR: ONLY X (самая большая вверху)
-  const heroAvatar = useMemo(() => xImage || null, [xImage]);
-
-  // for bottom X card, always show X avatar even if hero exists
-  const bottomXAvatar = xImage || null;
+    walletIsConnected && liveAddress ? liveChainId : serverWalletChainId ?? null;
 
   const safePublicId = useMemo(() => {
     const pid = me?.publicId ?? null;
@@ -326,6 +285,24 @@ export default function ProfilePage() {
     if (!publicUrl || typeof window === "undefined") return null;
     return `${window.location.origin}${publicUrl}`;
   }, [publicUrl]);
+
+  // TOP: name + avatar priority: X -> Discord -> fallback
+  const topDisplayName = useMemo(() => {
+    if (!me) return "Loading…";
+    return (
+      me.displayName ||
+      me.twitterName ||
+      (me.twitterUser ? `@${me.twitterUser}` : null) ||
+      me.discordName ||
+      me.discordUser ||
+      "Realife user"
+    );
+  }, [me]);
+
+  const heroAvatar = useMemo(() => {
+    if (!me) return null;
+    return me.mainAvatar || me.twitterImage || me.discordImage || null;
+  }, [me]);
 
   async function loadMe() {
     if (!authed) {
@@ -353,7 +330,7 @@ export default function ProfilePage() {
   }
 
   useEffect(() => {
-    if (status === "authenticated") void loadMe();
+    if (authed) void loadMe();
     else {
       setMe(null);
       setLinkError(null);
@@ -361,9 +338,9 @@ export default function ProfilePage() {
       busyGuardRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  }, [authed]);
 
-  // ✅ after OAuth return: refresh on focus/visibility
+  // refresh after OAuth return
   useEffect(() => {
     if (!authed) return;
 
@@ -375,7 +352,7 @@ export default function ProfilePage() {
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVis);
 
-    const t = window.setTimeout(() => void loadMe(), 800);
+    const t = window.setTimeout(() => void loadMe(), 700);
 
     return () => {
       window.removeEventListener("focus", onFocus);
@@ -385,46 +362,28 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
-  async function claimDaily() {
-    if (!authed || dailyBusy) return;
-
-    setDailyBusy(true);
-    try {
-      await fetch("/api/points/daily", { method: "POST" }).then((r) =>
-        r.json().catch(() => ({}))
-      );
-      await loadMe();
-    } finally {
-      setDailyBusy(false);
-    }
-  }
-
   async function connect(provider: "twitter" | "discord") {
+    if (!authed) {
+      setLinkError("NO_SERVER_SESSION");
+      return;
+    }
     if (busyGuardRef.current) return;
-
-    // Discord только к существующему профилю (через X)
-    if (!authed && provider === "discord") {
-      setLinkError("DISCORD_LINK_REQUIRES_X_LOGIN");
-      return;
-    }
-    if (provider === "discord" && !twitterConnected) {
-      setLinkError("DISCORD_LINK_REQUIRES_X_LOGIN");
-      return;
-    }
 
     busyGuardRef.current = true;
     setConnectBusy(provider);
+    setLinkError(null);
 
     const callbackUrl =
       typeof window !== "undefined"
         ? `${window.location.origin}/app/profile`
         : "/app/profile";
 
+    // IMPORTANT: do not await (OAuth navigation)
     void signIn(provider, { callbackUrl }).finally(() => {
       setTimeout(() => {
         busyGuardRef.current = false;
         setConnectBusy("");
-      }, 1500);
+      }, 1200);
     });
   }
 
@@ -463,25 +422,31 @@ export default function ProfilePage() {
     setTimeout(() => setWalletCopied(false), 1200);
   }
 
-  const connectDisabled = connectBusy !== "" || status !== "authenticated";
-  const connectAllowed = authed && !connectDisabled;
-  const canConnectDiscord = connectAllowed && twitterConnected;
+  const connectDisabled = connectBusy !== "" || !authed;
 
   const errorText =
-    linkError === "DISCORD_LINK_REQUIRES_X_LOGIN"
-      ? "Connect X first, then link Discord to the same profile."
-      : linkError === "DISCORD_ALREADY_LINKED"
-        ? "This Discord is already linked to another profile."
-        : linkError
-          ? "Something went wrong. Try again."
-          : null;
+    linkError === "DISCORD_ALREADY_LINKED"
+      ? "This Discord is already linked to another profile."
+      : linkError === "DISCORD_LINK_REQUIRES_X_LOGIN"
+      ? "Old rule triggered (should not happen now). Refresh page."
+      : linkError === "NO_SERVER_SESSION"
+      ? "No server session yet. Connect wallet in the top bar and sign once."
+      : linkError
+      ? "Something went wrong. Try again."
+      : null;
 
-  // ✅ Wallet status text: we don't force linking in profile
-  const walletPillText = walletIsConnected
-    ? "Wallet connected (session)"
-    : savedWalletAddress
-      ? "Wallet saved (profile)"
-      : "Wallet not connected";
+  const walletPillText = serverWalletAddress
+    ? "Wallet verified (server)"
+    : walletIsConnected
+    ? "Wallet connected (client)"
+    : "Wallet not connected";
+
+  const walletMismatch = useMemo(() => {
+  const a = liveAddress?.toLowerCase();
+  const b = serverWalletAddress?.toLowerCase();
+   return Boolean(a && b && a !== b);
+  }, [liveAddress, serverWalletAddress]);
+
 
   return (
     <AppShell title="REALIFE" subtitle="Profile • Identity • Wallet">
@@ -503,282 +468,195 @@ export default function ProfilePage() {
         </div>
 
         <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
-          {errorText ? <Alert title="Linking error" text={errorText} /> : null}
+          {errorText ? <Alert title="Linking error" text={errorText} tone="error" /> : null}
 
-          {/* HERO (самая большая ава = X, главный ник/имя = X) */}
+          {!authed ? (
+            <Alert
+              title="No server session yet"
+              text="Connect wallet in the top bar and sign once. After that, this page will show your profile and you can connect X / Discord."
+              tone="warn"
+            />
+          ) : null}
+
+          {walletMismatch ? (
+            <Alert
+              title="Wallet mismatch"
+              text="Your connected wallet address is different from the server-verified wallet in your profile. Re-verify wallet (signature) or reconnect the correct wallet."
+              tone="warn"
+            />
+          ) : null}
+
+          {/* HERO */}
           <Card>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-5">
-                  <Avatar src={heroAvatar} fallback="X" size="hero" />
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-white/60">
-                      Main identity (X)
-                    </div>
+              <div className="flex items-center gap-5 min-w-0">
+                <Avatar src={heroAvatar} fallback="RL" size="hero" />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white/60">Unified profile</div>
 
-                    <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
-                      {authed ? topDisplayName : "Not logged in"}
-                    </div>
+                  <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
+                    {authed ? topDisplayName : "—"}
+                  </div>
 
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <Pill tone={twitterConnected ? "ok" : "muted"}>
-                        {twitterConnected ? "X connected" : "X not connected"}
-                      </Pill>
-                      <Pill tone={discordConnected ? "ok" : "muted"}>
-                        {discordConnected ? "Discord connected" : "Discord not connected"}
-                      </Pill>
-                      <Pill tone={walletVisible ? "ok" : "muted"}>{walletPillText}</Pill>
-                      {loading ? <Pill>syncing…</Pill> : null}
-                    </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Pill tone={serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"}>
+                      {walletPillText}
+                    </Pill>
 
-                    {/* Top secondary line: @xUser */}
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      {xUser ? <Pill tone="gold">@{xUser}</Pill> : <Pill tone="warn">Connect X to set handle</Pill>}
-                      {authed && me?.handle ? <Pill>@{me.handle}</Pill> : null}
-                    </div>
+                    <Pill tone={twitterConnected ? "ok" : "muted"}>
+                      {twitterConnected ? "X connected" : "X not connected"}
+                    </Pill>
+
+                    <Pill tone={discordConnected ? "ok" : "muted"}>
+                      {discordConnected ? "Discord connected" : "Discord not connected"}
+                    </Pill>
+
+                    {me?.twitterUser ? <Pill tone="gold">@{me.twitterUser}</Pill> : null}
+                    {me?.handle ? <Pill>handle: @{me.handle}</Pill> : null}
+                    {safePublicId ? <Pill>{safePublicId}</Pill> : null}
                   </div>
                 </div>
-
-                {/* Stats */}
-                <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <Field label="Points" value={authed ? me?.points ?? sUser?.points ?? 0 : 0} />
-                  <Field
-                    label="Handle"
-                    value={authed ? (me?.handle ? `@${me.handle}` : "—") : "—"}
-                  />
-                  <Field label="Public ID" value={authed ? safePublicId ?? "—" : "—"} />
-                  <Field label="Public link" value={authed ? publicUrl ?? "—" : "—"} mono />
-                </div>
-
-                {/* Wallet strip (DISPLAY live wallet first) */}
-                <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-[11px] text-white/55 font-semibold">
-                        EVM wallet
-                      </div>
-
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-[13px] font-extrabold text-white/85 truncate">
-                          {displayWalletAddress ?? "—"}
-                        </span>
-
-                        {displayWalletAddress ? (
-                          <Pill tone={walletIsConnected ? "ok" : "muted"}>
-                            {walletIsConnected ? "Live" : "Saved"}
-                          </Pill>
-                        ) : null}
-                      </div>
-
-                      <div className="mt-1 text-[11px] text-white/45">
-                        Chain:{" "}
-                        <span className="text-white/70 font-semibold">
-                          {displayWalletChainId ?? "—"}
-                        </span>
-                        {displayWalletAddress ? (
-                          <>
-                            {" "}
-                            • Short:{" "}
-                            <span className="text-white/70 font-mono">
-                              {shortAddr(displayWalletAddress)}
-                            </span>
-                          </>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 md:justify-end">
-                      {displayWalletAddress ? (
-                        <Btn variant="tiny" onClick={copyWallet}>
-                          {walletCopied ? "Copied" : "Copy address"}
-                        </Btn>
-                      ) : (
-                        <div className="text-[11px] text-white/45 md:text-right">
-                          Connect wallet in the top bar (RainbowKit).
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Public link actions */}
-                {authed ? (
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {publicUrl ? (
-                      <>
-                        <Btn
-                          variant="tiny"
-                          onClick={copyPublicLink}
-                          disabled={!publicFullUrl}
-                        >
-                          {copied ? "Copied" : "Copy link"}
-                        </Btn>
-                        <a
-                          href={publicUrl}
-                          className="text-[12px] font-extrabold px-3 py-2 rounded-xl border border-white/15 bg-white/[0.06] hover:bg-white/10"
-                        >
-                          Open public
-                        </a>
-                      </>
-                    ) : (
-                      <div className="text-[11px] text-white/45">
-                        Public link will appear after publicId is set.
-                      </div>
-                    )}
-
-                    <Btn
-                      variant="tiny"
-                      onClick={loadMe}
-                      disabled={!authed || loading}
-                      className="ml-auto"
-                    >
-                      {loading ? "Refreshing…" : "Refresh"}
-                    </Btn>
-                  </div>
-                ) : null}
               </div>
 
-              {/* Actions */}
-              <div className="w-full md:w-[360px] space-y-3">
-                {!authed ? (
-                  <Btn
-                    variant="gold"
-                    onClick={() => connect("twitter")}
-                    disabled={connectBusy !== ""}
-                  >
-                    {connectBusy === "twitter" ? "Opening X…" : "Login with X"}
-                  </Btn>
-                ) : (
-                  <Btn
-                    variant="ghost"
-                    onClick={() => signOut({ callbackUrl: "/app/profile" })}
-                  >
-                    Logout
-                  </Btn>
-                )}
-
+              <div className="w-full md:w-[260px] flex flex-col gap-2">
+                <Btn variant="ghost" onClick={loadMe} disabled={!authed || loading}>
+                  {loading ? "Refreshing…" : "Refresh"}
+                </Btn>
                 <Btn
                   variant="ghost"
-                  disabled={!authed || dailyBusy}
-                  onClick={claimDaily}
+                  onClick={() => signOut({ redirect: false })}
+                  disabled={!authed}
                 >
-                  {dailyBusy ? "Claiming…" : "Daily check-in (+10)"}
+                  Log out (server)
                 </Btn>
-
-                <div className="text-[11px] text-white/45 leading-relaxed">
-                  One profile. X is the main identity. Discord is an add-on. Wallet is shown from RainbowKit (top bar).
-                </div>
               </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Field label="Points" value={me?.points ?? 0} />
+              <Field label="Wallet (connected)" value={walletIsConnected && liveAddress ? shortAddr(liveAddress) : "—"} mono />
+              <Field label="Wallet (server)" value={serverWalletAddress ? shortAddr(serverWalletAddress) : "—"} mono />
+              <Field
+                label="Public link"
+                value={
+                  publicUrl ? (
+                    <button
+                      type="button"
+                      onClick={copyPublicLink}
+                      className="text-left hover:underline"
+                    >
+                      <span className="font-mono">{publicUrl}</span>{" "}
+                      <span className="text-[11px] text-white/60">{copied ? "copied" : "copy"}</span>
+                    </button>
+                  ) : (
+                    "—"
+                  )
+                }
+                mono
+              />
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Btn
+                variant="tiny"
+                onClick={copyWallet}
+                disabled={!displayWalletAddress}
+              >
+                {walletCopied ? "Wallet copied" : "Copy wallet"}
+              </Btn>
+
+              {publicUrl ? (
+                <a
+                  href={publicUrl}
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-xl text-[12px] font-extrabold text-white border border-white/15 bg-white/[0.06] hover:bg-white/10"
+                >
+                  Open public profile →
+                </a>
+              ) : null}
             </div>
           </Card>
 
-          {/* Bottom row: LEFT X, RIGHT Discord (2 cards), + EXACTLY 3 AVATARS total */}
+          {/* X + Discord blocks */}
           <div className="grid md:grid-cols-2 gap-6">
-            {/* X bottom */}
+            {/* X */}
             <Card>
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="text-sm font-extrabold">X account</div>
-                  <div className="text-xs text-white/60 mt-1">
-                    Name • @username • avatar
-                  </div>
+                  <div className="text-sm font-extrabold">X</div>
+                  <div className="text-xs text-white/60 mt-1">Name • @username • avatar</div>
                 </div>
-                <Pill tone={twitterConnected ? "ok" : "muted"}>
-                  {twitterConnected ? "Connected" : "Not connected"}
-                </Pill>
+
+                {twitterConnected ? (
+                  <Pill tone="ok">Connected</Pill>
+                ) : (
+                  <Btn
+                    variant="gold"
+                    onClick={() => connect("twitter")}
+                    disabled={connectDisabled}
+                    className="w-auto px-5 py-2"
+                  >
+                    {connectBusy === "twitter" ? "Connecting…" : "Connect"}
+                  </Btn>
+                )}
               </div>
 
               <div className="mt-5 flex items-center gap-4">
-                {loading && !me ? (
-                  <Skeleton className="h-16 w-16 rounded-2xl" />
-                ) : (
-                  <Avatar src={bottomXAvatar} fallback="X" size="lg" />
-                )}
+                <Avatar src={me?.twitterImage ?? null} fallback="X" size="lg" />
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-extrabold truncate">
-                    {authed ? xName || "—" : "—"}
-                  </div>
+                  <div className="text-sm font-extrabold truncate">{me?.twitterName || "—"}</div>
                   <div className="text-xs text-white/60 truncate">
-                    {authed ? (xUser ? `@${xUser}` : "—") : "—"}
+                    {me?.twitterUser ? `@${me.twitterUser}` : "—"}
                   </div>
                 </div>
               </div>
 
-              <div className="mt-5">
-                {!twitterConnected ? (
-                  <Btn
-                    variant="gold"
-                    disabled={!connectAllowed}
-                    onClick={() => connect("twitter")}
-                  >
-                    {connectBusy === "twitter" ? "Opening X…" : "Connect X (+100)"}
-                  </Btn>
-                ) : (
-                  <Btn variant="ghost" disabled className="w-full">
-                    Connected
-                  </Btn>
-                )}
-              </div>
+              {twitterConnected ? (
+                <div className="mt-4 text-[12px] text-white/45">
+                  X id: <span className="font-mono text-white/70">{me?.twitterId}</span>
+                </div>
+              ) : null}
             </Card>
 
-            {/* Discord bottom */}
+            {/* Discord */}
             <Card>
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <div className="text-sm font-extrabold">Discord account</div>
-                  <div className="text-xs text-white/60 mt-1">
-                    Display • username • avatar
-                  </div>
+                  <div className="text-sm font-extrabold">Discord</div>
+                  <div className="text-xs text-white/60 mt-1">Display • username • avatar</div>
                 </div>
-                <Pill tone={discordConnected ? "ok" : "muted"}>
-                  {discordConnected ? "Connected" : "Not connected"}
-                </Pill>
+
+                {discordConnected ? (
+                  <Pill tone="ok">Connected</Pill>
+                ) : (
+                  <Btn
+                    variant="gold"
+                    onClick={() => connect("discord")}
+                    disabled={connectDisabled}
+                    className="w-auto px-5 py-2"
+                  >
+                    {connectBusy === "discord" ? "Connecting…" : "Connect"}
+                  </Btn>
+                )}
               </div>
 
               <div className="mt-5 flex items-center gap-4">
-                {loading && !me ? (
-                  <Skeleton className="h-16 w-16 rounded-2xl" />
-                ) : (
-                  <Avatar src={dImage} fallback="DS" size="lg" />
-                )}
+                <Avatar src={me?.discordImage ?? null} fallback="DS" size="lg" />
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-extrabold truncate">
-                    {authed ? dName || "—" : "—"}
-                  </div>
-                  <div className="text-xs text-white/60 truncate">
-                    {authed ? dUser || "—" : "—"}
-                  </div>
+                  <div className="text-sm font-extrabold truncate">{me?.discordName || "—"}</div>
+                  <div className="text-xs text-white/60 truncate">{me?.discordUser || "—"}</div>
                 </div>
               </div>
 
-              <div className="mt-5">
-                {!discordConnected ? (
-                  <Btn
-                    variant="gold"
-                    disabled={!canConnectDiscord}
-                    onClick={() => connect("discord")}
-                  >
-                    {connectBusy === "discord"
-                      ? "Opening Discord…"
-                      : "Connect Discord (+100)"}
-                  </Btn>
-                ) : (
-                  <Btn variant="ghost" disabled className="w-full">
-                    Connected
-                  </Btn>
-                )}
-
-                {!twitterConnected ? (
-                  <div className="mt-2 text-[11px] text-white/45">
-                    Connect X first, then you can link Discord to the same profile.
-                  </div>
-                ) : null}
-              </div>
+              {discordConnected ? (
+                <div className="mt-4 text-[12px] text-white/45">
+                  Discord id: <span className="font-mono text-white/70">{me?.discordId}</span>
+                </div>
+              ) : null}
             </Card>
           </div>
 
           <div className="text-[11px] text-white/40 text-center">
-            Tip: If avatars don’t update after OAuth — press Refresh (or re-open the page).
+            Tip: wallet verification happens in the top bar (signature once). This page reads everything from <span className="font-mono text-white/55">/api/me</span>.
           </div>
         </div>
       </main>
