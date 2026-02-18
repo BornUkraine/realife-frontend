@@ -19,13 +19,15 @@ function pickPublicKey(user: { handle: string | null; publicId: string | null })
   return user.handle || user.publicId || null;
 }
 
+// Генерация publicId, НО безопасно: вызывай только когда user точно существует
 async function ensurePublicIdTx(tx: any, userId: string) {
   const u = await tx.user.findUnique({
     where: { id: userId },
     select: { publicId: true },
   });
 
-  if (u?.publicId && u.publicId !== "tmp") return u.publicId;
+  if (!u) return null;
+  if (u.publicId && u.publicId !== "tmp") return u.publicId;
 
   for (let i = 0; i < 25; i++) {
     const pid = `rl_${randomId(8)}`;
@@ -38,6 +40,7 @@ async function ensurePublicIdTx(tx: any, userId: string) {
       return updated.publicId;
     } catch (e: any) {
       if (e?.code === "P2002") continue;
+      if (e?.code === "P2025") return null; // user disappeared
       throw e;
     }
   }
@@ -46,7 +49,6 @@ async function ensurePublicIdTx(tx: any, userId: string) {
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-
   const uid = (session as any)?.userId || session?.user?.id;
 
   if (!uid) {
@@ -55,8 +57,7 @@ export async function GET() {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      const ensuredPublicId = await ensurePublicIdTx(tx, uid);
-
+      // 1) СНАЧАЛА читаем юзера (если его нет — не трогаем update вообще)
       const user = await tx.user.findUnique({
         where: { id: uid },
         select: {
@@ -83,7 +84,15 @@ export async function GET() {
         },
       });
 
-      if (!user) return { status: 404 as const, body: { ok: false } };
+      // Если в JWT остался id удалённого юзера → говорим "не авторизован"
+      if (!user) {
+        return { status: 401 as const, body: { ok: false, reason: "USER_NOT_FOUND" } };
+      }
+
+      // 2) Теперь безопасно обеспечиваем publicId (если надо)
+      const ensuredPublicId = user.publicId && user.publicId !== "tmp"
+        ? user.publicId
+        : await ensurePublicIdTx(tx, uid);
 
       const finalUser = { ...user, publicId: user.publicId ?? ensuredPublicId };
 
