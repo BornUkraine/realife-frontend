@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const PUBLIC_PREFIX = "/app/u";
+const PUBLIC_PREFIX = "/u";
 
 /* --------------------------------- UI Kit -------------------------------- */
 

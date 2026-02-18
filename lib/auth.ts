@@ -374,62 +374,53 @@ export const authOptions: NextAuthOptions = {
         return token;
       }
 
-      /* ------------------------------ Discord -------------------------------- */
-      if (account?.provider === "discord") {
-        const discordId = account.providerAccountId;
+     /* ------------------------------ Discord -------------------------------- */
+  if (account?.provider === "discord") {
+  const discordId = account.providerAccountId;
 
-        let uid = tokenUserId(token);
+  const uid = tokenUserId(token);
+  if (!uid) {
+    // просто выходим, без блокировок и ошибок
+    return token;
+  }
 
-        // fallback: если токен почему-то пуст — восстановимся по twitterId
-        if (!uid && token.twitterId) {
-          const byX = await prisma.user.findUnique({
-            where: { twitterId: token.twitterId },
-            select: { id: true },
-          });
-          uid = byX?.id ?? null;
-        }
+  const d = pickDiscordProfile(profile);
 
-        if (!uid) {
-          token.linkError = "DISCORD_LINK_REQUIRES_X_LOGIN";
-          return token;
-        }
+  try {
+    const user = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.update({
+        where: { id: uid },
+        data: {
+          discordId,
+          discordUser: d.username,
+          discordName: d.name,
+          discordImage: d.image,
+        },
+      });
 
-        const d = pickDiscordProfile(profile);
+      await ensurePublicId(tx as any, u.id);
+      await awardOnce(tx as any, u.id, "CONNECT_DISCORD", 100);
 
-        try {
-          const user = await prisma.$transaction(async (tx) => {
-            const u = await tx.user.update({
-              where: { id: uid! },
-              data: {
-                discordId,
-                discordUser: d.username,
-                discordName: d.name,
-                discordImage: d.image,
-              },
-            });
+      const fresh = await tx.user.findUnique({
+        where: { id: u.id },
+        select: tokenSelect,
+      });
 
-            await ensurePublicId(tx as any, u.id);
-            await awardOnce(tx as any, u.id, "CONNECT_DISCORD", 100);
+      return fresh ?? u;
+    });
 
-            const fresh = await tx.user.findUnique({
-              where: { id: u.id },
-              select: tokenSelect,
-            });
+    token.linkError = undefined;
+    applyUserToToken(token, user);
+    return token;
+  } catch (e: any) {
+    if (e?.code === "P2002") {
+      token.linkError = "DISCORD_ALREADY_LINKED";
+      return token;
+    }
+    throw e;
+  }
+}
 
-            return fresh ?? u;
-          });
-
-          token.linkError = undefined;
-          applyUserToToken(token, user);
-          return token;
-        } catch (e: any) {
-          if (e?.code === "P2002") {
-            token.linkError = "DISCORD_ALREADY_LINKED";
-            return token;
-          }
-          throw e;
-        }
-      }
 
       /* ----------------------- Refresh token from DB ------------------------ */
       if (!account) {
