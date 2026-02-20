@@ -189,9 +189,11 @@ export const authOptions: NextAuthOptions = {
       name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.session-token`,
       options: {
         httpOnly: true,
-        sameSite: "lax", // 🔥 КРИТИЧНО ВАЖНО для сохранения сессии при редиректах X
+        // 🔥 КРИТИЧНО ВАЖНО: Разрешаем отправлять куки при кросс-доменных запросах (с X на твой сайт)
+        sameSite: "none", 
         path: "/",
-        secure: process.env.NODE_ENV === "production",
+        // 🔥 КРИТИЧНО ВАЖНО: При sameSite: "none", secure должно быть true (работает только на https)
+        secure: true,
       },
     },
   },
@@ -282,7 +284,6 @@ export const authOptions: NextAuthOptions = {
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
         // 🔥 ПРАВИЛО 1: НЕТ КОШЕЛЬКА = НЕТ X
-        // Не позволяем создать нового пользователя, отклоняем попытку входа
         if (!currentUserId) {
           token.linkError = "NO_SERVER_SESSION";
           return token;
@@ -293,7 +294,6 @@ export const authOptions: NextAuthOptions = {
         const twitterUser = d?.data?.username ?? d?.username ?? null;
         const twitterName = d?.data?.name ?? d?.name ?? null;
         const rawImg = d?.data?.profile_image_url ?? d?.profile_image_url;
-        // Убираем _normal, чтобы получить качественную аватарку
         const twitterImage = typeof rawImg === "string" ? rawImg.replace("_normal", "") : rawImg;
 
         if (!twitterId) return token;
@@ -306,7 +306,6 @@ export const authOptions: NextAuthOptions = {
               select: { id: true },
             });
 
-            // Если этот Twitter уже привязан к ДРУГОМУ кошельку - кидаем ошибку
             if (existingLink && existingLink.id !== currentUserId) {
               throw new Error("TWITTER_ALREADY_LINKED");
             }
@@ -318,7 +317,6 @@ export const authOptions: NextAuthOptions = {
             });
           });
 
-          // Автоматически формируем handle и выдаем поинты
           await ensureHandleFromX(prisma, updated.id, twitterUser);
           await awardOnce(prisma, updated.id, "CONNECT_X", 100);
 
@@ -352,7 +350,7 @@ export const authOptions: NextAuthOptions = {
       const uid = tokenUserId(token);
 
       session.userId = uid ?? undefined;
-      session.linkError = token.linkError; // Передаем ошибку на фронтенд, если она была
+      session.linkError = token.linkError;
 
       session.user = {
         ...(session.user ?? {}),
@@ -361,7 +359,6 @@ export const authOptions: NextAuthOptions = {
         handle: token.handle ?? null,
         publicId: token.publicId ?? null,
         
-        // Добавляем X в сессию
         twitterId: token.twitterId ?? null,
         twitterUser: token.twitterUser ?? null,
         twitterName: token.twitterName ?? null,
