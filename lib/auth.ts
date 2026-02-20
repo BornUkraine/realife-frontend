@@ -53,13 +53,6 @@ async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?
       return;
     }
   }
-  const pid = current?.publicId ?? (await ensurePublicId(db, userId));
-  if (pid) {
-    await db.user.update({
-      where: { id: userId },
-      data: { handle: `${base}_${pid.slice(-4).toLowerCase()}` },
-    });
-  }
 }
 
 async function awardOnce(db: typeof prisma, userId: string, type: "DAILY" | "CONNECT_X", points: number) {
@@ -113,8 +106,6 @@ export const authOptions: NextAuthOptions = {
     signIn: "/app/profile",
     error: "/app/profile",
   },
-
-  debug: false, 
 
   providers: [
     CredentialsProvider({
@@ -178,25 +169,18 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, profile, trigger, session, req }) {
       if (trigger === "update" && session) return { ...token, ...session };
 
-      // Пытаемся достать ID кошелька из URL, если куки умерли
-      let widFromUrl = null;
-      try {
-        if (req?.url) {
-          const url = new URL(req.url, "http://n");
-          widFromUrl = url.searchParams.get("wid");
-        }
-      } catch (e) { /* ignore */ }
+      // 🔥 ПЛАН "МОСТ": Ищем ID в нашей специальной защищенной куке wid
+      const cookieName = isProd ? "__Secure-next-auth.wid" : "next-auth.wid";
+      const rawCookies = req?.headers?.cookie || "";
+      const match = rawCookies.match(new RegExp(`(^| )${cookieName}=([^;]+)`));
+      const widFromCookie = match ? match[2] : null;
 
-      // 🔥 КРИТИЧЕСКИЙ ФИКС: 
-      // При логине через кошелек (account.provider === "wallet") берем user.id.
-      // При логине через X мы берем ID ТОЛЬКО из токена или из URL (wid).
-      // НИКОГДА не берем user.id, если провайдер — Twitter!
-      
-      const isWalletLogin = account?.provider === "wallet";
-      const dbUserId = isWalletLogin ? user?.id : (token?.uid || widFromUrl);
+      // Приоритет ID: Провайдер Wallet (новый вход) > Токен (кука сессии) > widFromCookie (мост)
+      const isWallet = account?.provider === "wallet";
+      const dbUserId = isWallet ? user?.id : (token?.uid || widFromCookie);
 
       /* ------------------------------ WALLET LOGIN ------------------------------ */
-      if (isWalletLogin && user?.id) {
+      if (isWallet && user?.id) {
         token.uid = user.id;
         const u = await prisma.user.findUnique({ where: { id: user.id }, select: tokenSelect });
         if (u) applyUserToToken(token, u);
@@ -206,19 +190,18 @@ export const authOptions: NextAuthOptions = {
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
         if (!dbUserId) {
-          console.error("❌ OAUTH ERROR: No session or URL ID found!");
+          console.error("❌ OAUTH ERROR: Wallet ID not found in session or bridge cookie!");
           throw new Error("WalletSessionLost");
         }
 
         const twitterId = account.providerAccountId;
-        const twitterUser = (profile as any)?.twitterUser || null;
+        const twitterUser = profile?.twitterUser || null;
         const twitterName = profile?.name || null;
         const twitterImage = profile?.image || null;
 
         try {
-          // Выполняем обновление только если ID найден в нашей базе
           const updated = await prisma.$transaction(async (tx) => {
-            // Проверяем, существует ли пользователь в БД ПЕРЕД обновлением
+            // Проверяем, существует ли пользователь (защита от ID Твиттера)
             const targetUser = await tx.user.findUnique({ where: { id: dbUserId } });
             if (!targetUser) throw new Error("UserNotFoundInDB");
 

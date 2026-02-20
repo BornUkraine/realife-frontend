@@ -66,9 +66,10 @@ function shortAddr(addr?: string | null) {
 
 // UTC to match server daily boundaries
 function utcKey(d: Date) {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(
-    d.getUTCDate()
-  ).padStart(2, "0")}`;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
 function formatLocal(dtIso?: string | null) {
@@ -386,7 +387,7 @@ export default function ProfilePage() {
     }
   }
 
-  // 👇 Логика подключения X (ОБНОВЛЕНО: Передаем wid для Плана Б)
+  // 👇 Логика подключения X (ОБНОВЛЕНО: Используем куку-мост)
   async function connectTwitter() {
     if (!authed || !me?.id) {
       setLinkError("NO_SERVER_SESSION");
@@ -399,12 +400,14 @@ export default function ProfilePage() {
     setLinkError(null);
     setDailyMsg(null);
 
-    // 🔥 ПЛАН Б: Добавляем текущий ID пользователя в callbackUrl. 
-    // Это позволит серверу восстановить сессию кошелька, если куки будут удалены браузером.
-    const callbackUrl =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/app/profile?wid=${me.id}`
-        : "/app/profile";
+    // 🔥 ШАГ 1: Создаем "куку-мост", которая выживет при редиректе.
+    // Мы ставим SameSite=None и Secure, чтобы Chrome её не удалил.
+    const cookieName = process.env.NODE_ENV === "production" ? "__Secure-next-auth.wid" : "next-auth.wid";
+    document.cookie = `${cookieName}=${me.id}; path=/; max-age=300; SameSite=None; Secure`;
+
+    const callbackUrl = typeof window !== "undefined" 
+      ? `${window.location.origin}/app/profile` 
+      : "/app/profile";
 
     void signIn("twitter", { callbackUrl }).finally(() => {
       setTimeout(() => {
@@ -572,7 +575,11 @@ export default function ProfilePage() {
               <Field
                 label="Chain"
                 value={
-                  displayWalletChainId ? <span className="font-extrabold">{displayWalletChainId}</span> : "—"
+                  displayWalletChainId ? (
+                    <span className="font-extrabold">{displayWalletChainId}</span>
+                  ) : (
+                    "—"
+                  )
                 }
               />
               <Field
@@ -611,7 +618,11 @@ export default function ProfilePage() {
           {/* 👇 X (TWITTER) CONNECT BLOCK */}
           {authed && (
             <div className="grid md:grid-cols-2 gap-6">
-              <Card className={cx(twitterConnected ? "ring-1 ring-amber-500/20 bg-amber-500/[0.02]" : "")}>
+              <Card
+                className={cx(
+                  twitterConnected ? "ring-1 ring-amber-500/20 bg-amber-500/[0.02]" : ""
+                )}
+              >
                 <div className="flex items-center justify-between gap-4 mb-6">
                   <div>
                     <div className="text-sm font-extrabold">X (Twitter)</div>
