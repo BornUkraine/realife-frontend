@@ -7,7 +7,7 @@ export const revalidate = 0;
 
 const PUBLIC_PREFIX = "/u";
 
-// Очищенная выборка: только базовые данные и кошелек
+// 👇 Возвращаем социальные поля в выборку
 const userSelect = {
   id: true,
   handle: true,
@@ -16,6 +16,10 @@ const userSelect = {
   walletAddress: true,
   walletChainId: true,
   createdAt: true,
+  twitterId: true,
+  twitterUser: true,
+  twitterName: true,
+  twitterImage: true,
 } as const;
 
 function pickPublicKey(user: { handle: string | null; publicId: string | null }) {
@@ -33,7 +37,6 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
   }
 
-  // Поиск пользователя по handle или publicId (регистронезависимый)
   const user = await prisma.user.findFirst({
     where: {
       OR: [
@@ -48,16 +51,20 @@ export async function GET(
     return NextResponse.json({ ok: false }, { status: 404 });
   }
 
-  // Логика состояния (теперь только кошелек)
   const walletConnected = Boolean(user.walletAddress);
+  const twitterConnected = Boolean(user.twitterId);
 
-  // Имя пользователя: приоритет handle -> сокращенный адрес кошелька
+  const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
+
+  // 👇 Приоритет имени: X -> Handle -> Кошелек
   const displayName =
-    user.handle ? `@${user.handle}` : 
+    user.twitterName ||
+    xHandle ||
+    (user.handle ? `@${user.handle}` : null) || 
     (user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : "Realife user");
 
-  // Аватарка теперь всегда null, так как соцсети отключены
-  const mainAvatar = null;
+  // 👇 Аватарка теперь подтягивается из X
+  const mainAvatar = user.twitterImage || null;
 
   const publicKey = pickPublicKey({
     handle: user.handle ?? null,
@@ -72,14 +79,13 @@ export async function GET(
     user: {
       ...user,
       walletConnected,
+      twitterConnected,
+      discordConnected: false, // Заглушка, Дискорд пока отключен
       displayName,
+      xHandle,
       mainAvatar,
       publicKey,
       publicUrl,
-      // Социальные флаги удалены или установлены в false для совместимости с фронтендом
-      twitterConnected: false,
-      discordConnected: false,
-      xHandle: null,
     },
   });
 }

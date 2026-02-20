@@ -57,7 +57,7 @@ export async function GET() {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1) Читаем только базовые данные и данные кошелька
+      // 1) Читаем данные кошелька и X (Twitter)
       const user = await tx.user.findUnique({
         where: { id: uid },
         select: {
@@ -69,7 +69,11 @@ export async function GET() {
           walletChainId: true,
           lastDailyAt: true,
           createdAt: true,
-          // Социальные поля удалены из запроса
+          // 👇 Возвращаем социальные поля
+          twitterId: true,
+          twitterUser: true,
+          twitterName: true,
+          twitterImage: true,
         },
       });
 
@@ -91,13 +95,15 @@ export async function GET() {
 
       const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
-      // 3) Логика имени теперь опирается только на кошелек или handle
+      // 3) Логика имени: X -> Handle -> Кошелек
       const displayName = 
-        finalUser.handle ? `@${finalUser.handle}` : 
+        finalUser.twitterName || 
+        (finalUser.twitterUser ? `@${finalUser.twitterUser}` : null) ||
+        (finalUser.handle ? `@${finalUser.handle}` : null) || 
         (finalUser.walletAddress ? `${finalUser.walletAddress.slice(0, 6)}...${finalUser.walletAddress.slice(-4)}` : "Realife user");
 
-      // Аватарка по умолчанию (пусто), так как соцсетей нет
-      const mainAvatar = null;
+      // 4) Аватарка теперь подтягивается из X
+      const mainAvatar = finalUser.twitterImage || null;
 
       return {
         status: 200 as const,
@@ -109,8 +115,8 @@ export async function GET() {
             displayName,
             mainAvatar,
           },
-          // Ошибки линковки соцсетей здесь больше не нужны
-          linkError: null,
+          // Передаем ошибку линковки из сессии
+          linkError: (session as any)?.linkError ?? null,
         },
       };
     });

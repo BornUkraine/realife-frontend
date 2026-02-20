@@ -8,6 +8,17 @@ import { verifyMessage } from "viem";
 /* HELPERS                                                                    */
 /* -------------------------------------------------------------------------- */
 
+function slugifyHandle(input: string) {
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, "")
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 24);
+}
+
 function randomId(len = 6) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // без 0/O/I/1
   let out = "";
@@ -40,10 +51,42 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
   throw new Error("PUBLIC_ID_GENERATION_FAILED");
 }
 
+async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?: string | null) {
+  if (!twitterUser) return;
+
+  const current = await db.user.findUnique({
+    where: { id: userId },
+    select: { handle: true, publicId: true },
+  });
+
+  if (current?.handle) return; // У юзера уже есть handle, не трогаем
+
+  const base = slugifyHandle(twitterUser);
+  if (!base) return;
+
+  for (let i = 0; i < 25; i++) {
+    const h = i === 0 ? base : `${base}_${i + 1}`;
+    const taken = await db.user.findUnique({ where: { handle: h }, select: { id: true } });
+    if (!taken) {
+      await db.user.update({ where: { id: userId }, data: { handle: h } });
+      return;
+    }
+  }
+
+  // fallback
+  const pid = current?.publicId ?? (await ensurePublicId(db, userId));
+  if (pid) {
+    await db.user.update({
+      where: { id: userId },
+      data: { handle: `${base}_${pid.slice(-4).toLowerCase()}` },
+    });
+  }
+}
+
 async function awardOnce(
   db: typeof prisma,
   userId: string,
-  type: "DAILY",
+  type: "DAILY" | "CONNECT_X",
   points: number
 ) {
   const already = await db.pointEvent.findFirst({
@@ -70,6 +113,10 @@ const tokenSelect = {
   points: true,
   handle: true,
   publicId: true,
+  twitterId: true,
+  twitterUser: true,
+  twitterName: true,
+  twitterImage: true,
   walletAddress: true,
   walletChainId: true,
 } as const;
@@ -86,11 +133,48 @@ function applyUserToToken(token: any, user: any) {
   token.handle = user.handle ?? null;
   token.publicId = user.publicId ?? null;
 
+  token.twitterId = user.twitterId ?? null;
+  token.twitterUser = user.twitterUser ?? null;
+  token.twitterName = user.twitterName ?? null;
+  token.twitterImage = user.twitterImage ?? null;
+
   token.walletAddress = user.walletAddress ?? null;
   token.walletChainId = user.walletChainId ?? null;
 
   return token;
 }
+
+/* -------------------------------------------------------------------------- */
+/* PROVIDERS                                                                  */
+/* -------------------------------------------------------------------------- */
+
+const TwitterOAuthProvider: any = {
+  id: "twitter",
+  name: "Twitter",
+  type: "oauth",
+  version: "2.0",
+  authorization: {
+    url: "https://twitter.com/i/oauth2/authorize",
+    params: { scope: "users.read tweet.read offline.access" },
+  },
+  token: "https://api.twitter.com/2/oauth2/token",
+  userinfo: "https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url",
+  clientId: process.env.TWITTER_CLIENT_ID!,
+  clientSecret: process.env.TWITTER_CLIENT_SECRET!,
+  checks: ["pkce", "state"],
+  profile(raw: any) {
+    const d = raw?.data ?? {};
+    const img = d?.profile_image_url ?? null;
+    const bigger = typeof img === "string" ? img.replace("_normal", "") : img; // Получаем большую аватарку
+    return {
+      id: d?.id,
+      name: d?.name ?? null,
+      username: d?.username ?? null,
+      image: bigger ?? null,
+      __raw: raw,
+    };
+  },
+};
 
 /* -------------------------------------------------------------------------- */
 /* AUTH OPTIONS                                                               */
@@ -105,7 +189,7 @@ export const authOptions: NextAuthOptions = {
       name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.session-token`,
       options: {
         httpOnly: true,
-        sameSite: "lax",
+        sameSite: "lax", // 🔥 КРИТИЧНО ВАЖНО для сохранения сессии при редиректах X
         path: "/",
         secure: process.env.NODE_ENV === "production",
       },
@@ -171,17 +255,21 @@ export const authOptions: NextAuthOptions = {
         return { id: user.id } as any;
       },
     }),
+
+    TwitterOAuthProvider,
   ],
 
   callbacks: {
-    async jwt({ token, user, account, trigger, session }) {
+    async jwt({ token, user, account, profile, trigger, session }) {
       if (trigger === "update" && session) {
         return { ...token, ...session };
       }
 
       const currentUserId = tokenUserId(token);
 
+      /* ------------------------------ WALLET LOGIN ------------------------------ */
       if (account?.provider === "wallet" && user?.id) {
+        token.linkError = undefined;
         token.sub = user.id;
         token.uid = user.id;
 
@@ -191,6 +279,64 @@ export const authOptions: NextAuthOptions = {
         return token;
       }
 
+      /* ------------------------------ X (TWITTER) ------------------------------ */
+      if (account?.provider === "twitter") {
+        // 🔥 ПРАВИЛО 1: НЕТ КОШЕЛЬКА = НЕТ X
+        // Не позволяем создать нового пользователя, отклоняем попытку входа
+        if (!currentUserId) {
+          token.linkError = "NO_SERVER_SESSION";
+          return token;
+        }
+
+        const d = profile as any;
+        const twitterId = d?.data?.id ?? d?.id ?? account?.providerAccountId;
+        const twitterUser = d?.data?.username ?? d?.username ?? null;
+        const twitterName = d?.data?.name ?? d?.name ?? null;
+        const rawImg = d?.data?.profile_image_url ?? d?.profile_image_url;
+        // Убираем _normal, чтобы получить качественную аватарку
+        const twitterImage = typeof rawImg === "string" ? rawImg.replace("_normal", "") : rawImg;
+
+        if (!twitterId) return token;
+
+        try {
+          const updated = await prisma.$transaction(async (tx) => {
+            // 🔥 ПРАВИЛО 2: ЗАЩИТА ОТ ДУБЛИКАТОВ
+            const existingLink = await tx.user.findUnique({
+              where: { twitterId },
+              select: { id: true },
+            });
+
+            // Если этот Twitter уже привязан к ДРУГОМУ кошельку - кидаем ошибку
+            if (existingLink && existingLink.id !== currentUserId) {
+              throw new Error("TWITTER_ALREADY_LINKED");
+            }
+
+            // 🔥 ПРАВИЛО 3: ТОЛЬКО ОБНОВЛЕНИЕ ТЕКУЩЕГО ПРОФИЛЯ
+            return await tx.user.update({
+              where: { id: currentUserId },
+              data: { twitterId, twitterUser, twitterName, twitterImage },
+            });
+          });
+
+          // Автоматически формируем handle и выдаем поинты
+          await ensureHandleFromX(prisma, updated.id, twitterUser);
+          await awardOnce(prisma, updated.id, "CONNECT_X", 100);
+
+          const fresh = await prisma.user.findUnique({
+            where: { id: updated.id },
+            select: tokenSelect,
+          });
+
+          token.linkError = undefined;
+          applyUserToToken(token, fresh ?? updated);
+        } catch (e: any) {
+          token.linkError = e?.message === "TWITTER_ALREADY_LINKED" ? "TWITTER_ALREADY_LINKED" : "TWITTER_LINK_FAILED";
+        }
+
+        return token;
+      }
+
+      /* ----------------------- REFRESH TOKEN FROM DB ----------------------- */
       if (!account && currentUserId) {
         const u = await prisma.user.findUnique({
           where: { id: currentUserId },
@@ -206,6 +352,7 @@ export const authOptions: NextAuthOptions = {
       const uid = tokenUserId(token);
 
       session.userId = uid ?? undefined;
+      session.linkError = token.linkError; // Передаем ошибку на фронтенд, если она была
 
       session.user = {
         ...(session.user ?? {}),
@@ -213,6 +360,13 @@ export const authOptions: NextAuthOptions = {
         points: token.points ?? 0,
         handle: token.handle ?? null,
         publicId: token.publicId ?? null,
+        
+        // Добавляем X в сессию
+        twitterId: token.twitterId ?? null,
+        twitterUser: token.twitterUser ?? null,
+        twitterName: token.twitterName ?? null,
+        twitterImage: token.twitterImage ?? null,
+
         walletAddress: token.walletAddress ?? null,
         walletChainId: token.walletChainId ?? null,
       };
