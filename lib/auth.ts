@@ -10,14 +10,7 @@ import { verifyMessage } from "viem";
 /* -------------------------------------------------------------------------- */
 
 function slugifyHandle(input: string) {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/^@+/, "")
-    .replace(/[^a-z0-9_]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 24);
+  return input.trim().toLowerCase().replace(/^@+/, "").replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
 }
 
 function randomId(len = 6) {
@@ -28,21 +21,13 @@ function randomId(len = 6) {
 }
 
 async function ensurePublicId(db: typeof prisma, userId: string): Promise<string> {
-  const u = await db.user.findUnique({
-    where: { id: userId },
-    select: { publicId: true },
-  });
-
+  const u = await db.user.findUnique({ where: { id: userId }, select: { publicId: true } });
   if (u?.publicId && u.publicId !== "tmp") return u.publicId;
 
   for (let i = 0; i < 25; i++) {
     const pid = `rl_${randomId(8)}`;
     try {
-      const updated = await db.user.update({
-        where: { id: userId },
-        data: { publicId: pid },
-        select: { publicId: true },
-      });
+      const updated = await db.user.update({ where: { id: userId }, data: { publicId: pid }, select: { publicId: true } });
       if (updated.publicId) return updated.publicId;
     } catch (e: any) {
       if (e?.code === "P2002") continue; 
@@ -54,12 +39,7 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
 
 async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?: string | null) {
   if (!twitterUser) return;
-
-  const current = await db.user.findUnique({
-    where: { id: userId },
-    select: { handle: true, publicId: true },
-  });
-
+  const current = await db.user.findUnique({ where: { id: userId }, select: { handle: true, publicId: true } });
   if (current?.handle) return; 
 
   const base = slugifyHandle(twitterUser);
@@ -83,28 +63,11 @@ async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?
   }
 }
 
-async function awardOnce(
-  db: typeof prisma,
-  userId: string,
-  type: "DAILY" | "CONNECT_X",
-  points: number
-) {
-  const already = await db.pointEvent.findFirst({
-    where: { userId, type },
-    select: { id: true },
-  });
-
+async function awardOnce(db: typeof prisma, userId: string, type: "DAILY" | "CONNECT_X", points: number) {
+  const already = await db.pointEvent.findFirst({ where: { userId, type }, select: { id: true } });
   if (already) return false;
-
-  await db.user.update({
-    where: { id: userId },
-    data: { points: { increment: points } },
-  });
-
-  await db.pointEvent.create({
-    data: { userId, type, points },
-  });
-
+  await db.user.update({ where: { id: userId }, data: { points: { increment: points } } });
+  await db.pointEvent.create({ data: { userId, type, points } });
   return true;
 }
 
@@ -121,27 +84,23 @@ const tokenSelect = {
   walletChainId: true,
 } as const;
 
-// 🔥 ГЛАВНЫЙ ФИКС БЕЗОПАСНОСТИ ДЛЯ БД: Игнорируем sub (ID из Твиттера), берем ТОЛЬКО uid (наш из БД)
-function getDbUserId(token: any): string | null {
-  return (token?.uid as string) || null;
+// 🔥 ИЩЕМ ID ВО ВСЕХ ВОЗМОЖНЫХ МЕСТАХ
+function getDbUserId(token: any, session?: any): string | null {
+  return (token?.uid as string) || (session?.user?.id as string) || (session?.userId as string) || null;
 }
 
 function applyUserToToken(token: any, user: any) {
   token.sub = user.id;
   token.uid = user.id;
-
   token.points = user.points ?? 0;
   token.handle = user.handle ?? null;
   token.publicId = user.publicId ?? null;
-
   token.twitterId = user.twitterId ?? null;
   token.twitterUser = user.twitterUser ?? null;
   token.twitterName = user.twitterName ?? null;
   token.twitterImage = user.twitterImage ?? null;
-
   token.walletAddress = user.walletAddress ?? null;
   token.walletChainId = user.walletChainId ?? null;
-
   return token;
 }
 
@@ -150,40 +109,20 @@ function applyUserToToken(token: any, user: any) {
 /* -------------------------------------------------------------------------- */
 
 const isProd = process.env.NODE_ENV === "production";
-const sec = isProd ? "__Secure-" : "";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   trustHost: true,
 
-  useSecureCookies: isProd,
-
-  // 🔥 МЁРТВАЯ ХВАТКА КУКИ: Делаем sameSite: "none" для ВСЕХ системных кукисов!
-  cookies: {
-    sessionToken: {
-      name: `${sec}next-auth.session-token`,
-      options: { httpOnly: true, sameSite: "none", path: "/", secure: isProd },
-    },
-    callbackUrl: {
-      name: `${sec}next-auth.callback-url`,
-      options: { sameSite: "none", path: "/", secure: isProd },
-    },
-    pkceCodeVerifier: {
-      name: `${sec}next-auth.pkce.code_verifier`,
-      options: { httpOnly: true, sameSite: "none", path: "/", secure: isProd },
-    },
-    state: {
-      name: `${sec}next-auth.state`,
-      options: { httpOnly: true, sameSite: "none", path: "/", secure: isProd },
-    }
-  },
+  // Мы убираем ручные настройки кукисов. NextAuth лучше знает, как их ставить.
+  // Вся магия будет в middleware.
 
   pages: {
     signIn: "/app/profile",
     error: "/app/profile",
   },
 
-  debug: true,
+  debug: false, // Отключаем дебаг, чтобы логи были чище
 
   providers: [
     CredentialsProvider({
@@ -202,21 +141,10 @@ export const authOptions: NextAuthOptions = {
         if (!address || !address.startsWith("0x") || signature.length < 20) return null;
 
         const row = await prisma.walletNonce.findUnique({ where: { address } });
-        if (!row) return null;
-        if (row.expiresAt.getTime() < Date.now()) return null;
+        if (!row || row.expiresAt.getTime() < Date.now()) return null;
 
-        const message =
-          `Realife wallet verification\n` +
-          `Address: ${address}\n` +
-          `Nonce: ${row.nonce}\n` +
-          `URI: ${process.env.NEXTAUTH_URL ?? ""}`;
-
-        const ok = await verifyMessage({
-          address: address as `0x${string}`,
-          message,
-          signature: signature as `0x${string}`,
-        });
-
+        const message = `Realife wallet verification\nAddress: ${address}\nNonce: ${row.nonce}\nURI: ${process.env.NEXTAUTH_URL ?? ""}`;
+        const ok = await verifyMessage({ address: address as `0x${string}`, message, signature: signature as `0x${string}` });
         if (!ok) return null;
 
         await prisma.walletNonce.delete({ where: { address } }).catch(() => {});
@@ -224,17 +152,11 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.$transaction(async (tx) => {
           const u = await tx.user.upsert({
             where: { walletAddress: address },
-            create: {
-              walletAddress: address,
-              walletChainId: Number.isFinite(chainId) ? chainId : null,
-            },
-            update: {
-              walletChainId: Number.isFinite(chainId) ? chainId : null,
-            },
+            create: { walletAddress: address, walletChainId: Number.isFinite(chainId) ? chainId : null },
+            update: { walletChainId: Number.isFinite(chainId) ? chainId : null },
           });
 
           await ensurePublicId(tx as any, u.id);
-
           const fresh = await tx.user.findUnique({ where: { id: u.id }, select: tokenSelect });
           return fresh ?? u;
         });
@@ -247,11 +169,7 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.TWITTER_CLIENT_ID!,
       clientSecret: process.env.TWITTER_CLIENT_SECRET!,
       version: "2.0",
-      authorization: {
-        params: {
-          scope: "users.read tweet.read offline.access",
-        },
-      },
+      authorization: { params: { scope: "users.read tweet.read offline.access" } },
       profile(profile) {
         const d = profile?.data ?? {};
         const img = d?.profile_image_url ?? null;
@@ -269,29 +187,22 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, user, account, profile, trigger, session }) {
-      if (trigger === "update" && session) {
-        return { ...token, ...session };
-      }
+      if (trigger === "update" && session) return { ...token, ...session };
 
-      // Используем безопасную функцию получения ID из БД
-      const dbUserId = getDbUserId(token);
+      const dbUserId = getDbUserId(token, session);
 
       /* ------------------------------ WALLET LOGIN ------------------------------ */
       if (account?.provider === "wallet" && user?.id) {
         token.linkError = undefined;
         token.sub = user.id;
         token.uid = user.id;
-
         const u = await prisma.user.findUnique({ where: { id: user.id }, select: tokenSelect });
         if (u) applyUserToToken(token, u);
-
         return token;
       }
 
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
-        
-        // Если кука кошелька отпала, безопасно прерываем процесс
         if (!dbUserId) {
           throw new Error("WalletSessionLost");
         }
@@ -305,17 +216,10 @@ export const authOptions: NextAuthOptions = {
 
         try {
           const updated = await prisma.$transaction(async (tx) => {
-            const existingLink = await tx.user.findUnique({
-              where: { twitterId },
-              select: { id: true },
-            });
-
-            // Проверяем, не привязан ли этот X к ДРУГОМУ кошельку
+            const existingLink = await tx.user.findUnique({ where: { twitterId }, select: { id: true } });
             if (existingLink && existingLink.id !== dbUserId) {
               throw new Error("TwitterAlreadyLinked");
             }
-
-            // 🔥 Обновляем ИМЕННО по нашему DB ID! Это решает ошибку Prisma.
             return await tx.user.update({
               where: { id: dbUserId },
               data: { twitterId, twitterUser, twitterName, twitterImage },
@@ -325,11 +229,7 @@ export const authOptions: NextAuthOptions = {
           await ensureHandleFromX(prisma, updated.id, twitterUser);
           await awardOnce(prisma, updated.id, "CONNECT_X", 100);
 
-          const fresh = await prisma.user.findUnique({
-            where: { id: updated.id },
-            select: tokenSelect,
-          });
-
+          const fresh = await prisma.user.findUnique({ where: { id: updated.id }, select: tokenSelect });
           applyUserToToken(token, fresh ?? updated);
         } catch (e: any) {
           throw new Error(e.message || "TwitterLinkFailed");
@@ -340,10 +240,7 @@ export const authOptions: NextAuthOptions = {
 
       /* ----------------------- REFRESH TOKEN FROM DB ----------------------- */
       if (!account && dbUserId) {
-        const u = await prisma.user.findUnique({
-          where: { id: dbUserId },
-          select: tokenSelect,
-        });
+        const u = await prisma.user.findUnique({ where: { id: dbUserId }, select: tokenSelect });
         if (u) applyUserToToken(token, u);
       }
 
@@ -351,8 +248,7 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      const dbUserId = getDbUserId(token);
-
+      const dbUserId = getDbUserId(token, session);
       session.userId = dbUserId ?? undefined;
       session.linkError = token.linkError;
 
@@ -362,12 +258,10 @@ export const authOptions: NextAuthOptions = {
         points: token.points ?? 0,
         handle: token.handle ?? null,
         publicId: token.publicId ?? null,
-        
         twitterId: token.twitterId ?? null,
         twitterUser: token.twitterUser ?? null,
         twitterName: token.twitterName ?? null,
         twitterImage: token.twitterImage ?? null,
-
         walletAddress: token.walletAddress ?? null,
         walletChainId: token.walletChainId ?? null,
       };
