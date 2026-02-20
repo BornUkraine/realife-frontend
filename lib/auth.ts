@@ -20,7 +20,7 @@ function slugifyHandle(input: string) {
 }
 
 function randomId(len = 6) {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // без 0/O/I/1
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; 
   let out = "";
   for (let i = 0; i < len; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
   return out;
@@ -44,7 +44,7 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
       });
       if (updated.publicId) return updated.publicId;
     } catch (e: any) {
-      if (e?.code === "P2002") continue; // collision -> retry
+      if (e?.code === "P2002") continue; 
       throw e;
     }
   }
@@ -59,7 +59,7 @@ async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?
     select: { handle: true, publicId: true },
   });
 
-  if (current?.handle) return; // У юзера уже есть handle, не трогаем
+  if (current?.handle) return; 
 
   const base = slugifyHandle(twitterUser);
   if (!base) return;
@@ -73,7 +73,6 @@ async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?
     }
   }
 
-  // fallback
   const pid = current?.publicId ?? (await ensurePublicId(db, userId));
   if (pid) {
     await db.user.update({
@@ -128,19 +127,15 @@ function tokenUserId(token: any): string | null {
 function applyUserToToken(token: any, user: any) {
   token.sub = user.id;
   token.uid = user.id;
-
   token.points = user.points ?? 0;
   token.handle = user.handle ?? null;
   token.publicId = user.publicId ?? null;
-
   token.twitterId = user.twitterId ?? null;
   token.twitterUser = user.twitterUser ?? null;
   token.twitterName = user.twitterName ?? null;
   token.twitterImage = user.twitterImage ?? null;
-
   token.walletAddress = user.walletAddress ?? null;
   token.walletChainId = user.walletChainId ?? null;
-
   return token;
 }
 
@@ -165,7 +160,7 @@ const TwitterOAuthProvider: any = {
   profile(raw: any) {
     const d = raw?.data ?? {};
     const img = d?.profile_image_url ?? null;
-    const bigger = typeof img === "string" ? img.replace("_normal", "") : img; // Получаем большую аватарку
+    const bigger = typeof img === "string" ? img.replace("_normal", "") : img; 
     return {
       id: d?.id,
       name: d?.name ?? null,
@@ -184,18 +179,13 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   trustHost: true,
 
-  cookies: {
-    sessionToken: {
-      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        // 🔥 КРИТИЧНО ВАЖНО: Разрешаем отправлять куки при кросс-доменных запросах (с X на твой сайт)
-        sameSite: "none", 
-        path: "/",
-        // 🔥 КРИТИЧНО ВАЖНО: При sameSite: "none", secure должно быть true (работает только на https)
-        secure: true,
-      },
-    },
+  // 🔥 ПОЛНОСТЬЮ УДАЛЕН БЛОК cookies. 
+  // Доверяем дефолтам NextAuth, они лучше всего работают с OAuth и предотвращают баги редиректов.
+  
+  // 🔥 ДОБАВЛЕН БЛОК pages, чтобы при ошибках кидало обратно на профиль, а не на стандартную страницу NextAuth
+  pages: {
+    signIn: "/app/profile",
+    error: "/app/profile",
   },
 
   debug: process.env.NODE_ENV !== "production" && process.env.NEXTAUTH_DEBUG === "true",
@@ -283,10 +273,13 @@ export const authOptions: NextAuthOptions = {
 
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
-        // 🔥 ПРАВИЛО 1: НЕТ КОШЕЛЬКА = НЕТ X
+        
+        // 🔥 ГЛАВНЫЙ ФИКС ЗАЩИТЫ СЕССИИ:
+        // Если при возврате с Твиттера нет сессии кошелька (кука потерялась),
+        // мы ЖЕСТКО прерываем процесс. 
+        // Это гарантирует, что "пустая" сессия не будет создана!
         if (!currentUserId) {
-          token.linkError = "NO_SERVER_SESSION";
-          return token;
+          throw new Error("WalletSessionLost");
         }
 
         const d = profile as any;
@@ -300,17 +293,15 @@ export const authOptions: NextAuthOptions = {
 
         try {
           const updated = await prisma.$transaction(async (tx) => {
-            // 🔥 ПРАВИЛО 2: ЗАЩИТА ОТ ДУБЛИКАТОВ
             const existingLink = await tx.user.findUnique({
               where: { twitterId },
               select: { id: true },
             });
 
             if (existingLink && existingLink.id !== currentUserId) {
-              throw new Error("TWITTER_ALREADY_LINKED");
+              throw new Error("TwitterAlreadyLinked");
             }
 
-            // 🔥 ПРАВИЛО 3: ТОЛЬКО ОБНОВЛЕНИЕ ТЕКУЩЕГО ПРОФИЛЯ
             return await tx.user.update({
               where: { id: currentUserId },
               data: { twitterId, twitterUser, twitterName, twitterImage },
@@ -325,10 +316,10 @@ export const authOptions: NextAuthOptions = {
             select: tokenSelect,
           });
 
-          token.linkError = undefined;
           applyUserToToken(token, fresh ?? updated);
         } catch (e: any) {
-          token.linkError = e?.message === "TWITTER_ALREADY_LINKED" ? "TWITTER_ALREADY_LINKED" : "TWITTER_LINK_FAILED";
+          // Если аккаунт уже привязан, прерываем с ошибкой, чтобы вывести ее на фронт
+          throw new Error(e.message || "TwitterLinkFailed");
         }
 
         return token;
