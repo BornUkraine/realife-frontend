@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyMessage } from "viem";
 
 /* -------------------------------------------------------------------------- */
-/* HELPERS                                                                    */
+/* HELPERS (Все функции на месте)                                             */
 /* -------------------------------------------------------------------------- */
 
 function slugifyHandle(input: string) {
@@ -84,11 +84,6 @@ const tokenSelect = {
   walletChainId: true,
 } as const;
 
-// 🔥 ГЛАВНЫЙ ФИКС: Ищем ID юзера во всех возможных местах, чтобы Prisma не падала!
-function getDbUserId(token: any, session?: any): string | null {
-  return (token?.uid as string) || (session?.user?.id as string) || (session?.userId as string) || null;
-}
-
 function applyUserToToken(token: any, user: any) {
   token.sub = user.id;
   token.uid = user.id;
@@ -113,16 +108,12 @@ const isProd = process.env.NODE_ENV === "production";
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   trustHost: true,
-
-  // Вся работа с кукисами теперь на стороне middleware.ts
   useSecureCookies: isProd,
 
   pages: {
     signIn: "/app/profile",
     error: "/app/profile",
   },
-
-  debug: false,
 
   providers: [
     CredentialsProvider({
@@ -155,7 +146,6 @@ export const authOptions: NextAuthOptions = {
             create: { walletAddress: address, walletChainId: Number.isFinite(chainId) ? chainId : null },
             update: { walletChainId: Number.isFinite(chainId) ? chainId : null },
           });
-
           await ensurePublicId(tx as any, u.id);
           const fresh = await tx.user.findUnique({ where: { id: u.id }, select: tokenSelect });
           return fresh ?? u;
@@ -173,12 +163,10 @@ export const authOptions: NextAuthOptions = {
       profile(profile) {
         const d = profile?.data ?? {};
         const img = d?.profile_image_url ?? null;
-        const bigger = typeof img === "string" ? img.replace("_normal", "") : img; 
         return {
           id: d?.id,
           name: d?.name ?? null,
-          email: null,
-          image: bigger ?? null,
+          image: typeof img === "string" ? img.replace("_normal", "") : img,
           twitterUser: d?.username ?? null,
         };
       },
@@ -186,15 +174,23 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    async jwt({ token, user, account, profile, trigger, session }) {
+    async jwt({ token, user, account, profile, trigger, session, req }) {
       if (trigger === "update" && session) return { ...token, ...session };
 
-      const dbUserId = getDbUserId(token, session);
+      // 🔥 ПЛАН Б: Достаем ID кошелька из URL (?wid=...), если куки сессии были удалены браузером
+      let widFromUrl = null;
+      try {
+        if (req?.url) {
+          const url = new URL(req.url, "http://n");
+          widFromUrl = url.searchParams.get("wid");
+        }
+      } catch (e) { /* ignore */ }
+
+      // Берем ID либо из токена (куки), либо из URL (wid), либо из объекта user (при логине)
+      const dbUserId = token?.uid || widFromUrl || user?.id;
 
       /* ------------------------------ WALLET LOGIN ------------------------------ */
       if (account?.provider === "wallet" && user?.id) {
-        token.linkError = undefined;
-        token.sub = user.id;
         token.uid = user.id;
         const u = await prisma.user.findUnique({ where: { id: user.id }, select: tokenSelect });
         if (u) applyUserToToken(token, u);
@@ -203,31 +199,26 @@ export const authOptions: NextAuthOptions = {
 
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
-        console.log("----- TWITTER OAUTH START -----");
-        console.log("FOUND DB USER ID:", dbUserId);
-        
+        // Если ID всё равно нет, значит сессия кошелька потеряна окончательно
         if (!dbUserId) {
-          console.error("❌ OAUTH FAILED: No Wallet Session ID found during redirect!");
           throw new Error("WalletSessionLost");
         }
 
-        const twitterId = account?.providerAccountId;
-        const twitterUser = user?.twitterUser ?? null;
-        const twitterName = user?.name ?? null;
-        const twitterImage = user?.image ?? null;
-
-        if (!twitterId) return token;
+        const twitterId = account.providerAccountId;
+        const twitterUser = profile?.twitterUser || null;
+        const twitterName = profile?.name || null;
+        const twitterImage = profile?.image || null;
 
         try {
           const updated = await prisma.$transaction(async (tx) => {
             const existingLink = await tx.user.findUnique({ where: { twitterId }, select: { id: true } });
             
+            // Если этот X уже привязан к другому кошельку — выдаем ошибку
             if (existingLink && existingLink.id !== dbUserId) {
-              console.error("❌ OAUTH FAILED: Twitter already linked to user", existingLink.id);
               throw new Error("TwitterAlreadyLinked");
             }
 
-            console.log("✅ OAUTH SUCCESS: Updating user", dbUserId);
+            // Привязываем X к текущему ID из базы
             return await tx.user.update({
               where: { id: dbUserId },
               data: { twitterId, twitterUser, twitterName, twitterImage },
@@ -237,14 +228,13 @@ export const authOptions: NextAuthOptions = {
           await ensureHandleFromX(prisma, updated.id, twitterUser);
           await awardOnce(prisma, updated.id, "CONNECT_X", 100);
 
-          const fresh = await prisma.user.findUnique({ where: { id: updated.id }, select: tokenSelect });
-          applyUserToToken(token, fresh ?? updated);
+          // 🔥 Принудительно оживляем сессию кошелька в токене
+          token.uid = updated.id;
+          applyUserToToken(token, updated);
+          
         } catch (e: any) {
-          console.error("❌ DB UPDATE FAILED:", e.message);
           throw new Error(e.message || "TwitterLinkFailed");
         }
-
-        console.log("----- TWITTER OAUTH END -----");
         return token;
       }
 
@@ -258,24 +248,16 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      const dbUserId = getDbUserId(token, session);
-      session.userId = dbUserId ?? undefined;
-      session.linkError = token.linkError;
-
+      session.userId = token.uid;
       session.user = {
-        ...(session.user ?? {}),
-        id: dbUserId ?? undefined,
-        points: token.points ?? 0,
-        handle: token.handle ?? null,
-        publicId: token.publicId ?? null,
-        twitterId: token.twitterId ?? null,
-        twitterUser: token.twitterUser ?? null,
-        twitterName: token.twitterName ?? null,
-        twitterImage: token.twitterImage ?? null,
-        walletAddress: token.walletAddress ?? null,
-        walletChainId: token.walletChainId ?? null,
+        ...session.user,
+        id: token.uid,
+        points: token.points,
+        handle: token.handle,
+        twitterUser: token.twitterUser,
+        twitterImage: token.twitterImage,
+        walletAddress: token.walletAddress,
       };
-
       return session;
     },
   },

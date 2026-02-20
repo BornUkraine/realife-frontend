@@ -69,7 +69,6 @@ function KeyValue({ label, value, mono = false }: { label: string; value: ReactN
 
 /* --------------------------------- Data ---------------------------------- */
 
-// 👇 Вернули поля X
 const userSelect = {
   id: true,
   handle: true,
@@ -83,10 +82,6 @@ const userSelect = {
   twitterName: true,
   twitterImage: true,
 } as const;
-
-function pickPublicKey(user: { handle: string | null; publicId: string | null }) {
-  return user.handle || user.publicId || null;
-}
 
 export default async function PublicProfilePage({
   params,
@@ -111,27 +106,20 @@ export default async function PublicProfilePage({
   const walletConnected = Boolean(user.walletAddress);
   const twitterConnected = Boolean(user.twitterId);
 
-  const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
-  const showHandleChip = Boolean(user.handle) && user.handle !== user.twitterUser;
-
+  // Приоритет имени: X -> Handle -> Кошелек
   const displayName =
     user.twitterName ||
-    xHandle ||
+    (user.twitterUser ? `@${user.twitterUser}` : null) ||
     (user.handle ? `@${user.handle}` : null) ||
-    (user.walletAddress ? shortAddr(user.walletAddress) : "Realife user");
+    shortAddr(user.walletAddress);
 
   const heroAvatar = user.twitterImage || null;
 
-  const publicKey = pickPublicKey({
-    handle: user.handle ?? null,
-    publicId: user.publicId ?? null,
-  });
-
-  const publicUrl =
-    publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
+  const publicKey = user.handle || user.publicId;
+  const publicUrl = publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
   return (
-    <AppShell title="REALIFE" subtitle="Public profile">
+    <AppShell title="REALIFE" subtitle="Public identity profile">
       <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden relative">
         <div className="pointer-events-none fixed inset-0 z-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
@@ -144,70 +132,69 @@ export default async function PublicProfilePage({
         </div>
 
         <div className="relative z-10 mx-auto max-w-5xl px-6 py-10 space-y-6">
-          {/* HERO */}
           <Card>
-            <div className="flex items-center gap-5">
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
               <Avatar src={heroAvatar} fallback="RL" size="lg" />
 
               <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Public Identity</div>
+                <div className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em]">Verified Profile</div>
 
                 <div className="mt-1 text-3xl md:text-5xl font-black tracking-tighter truncate leading-tight">
                   {displayName}
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {xHandle && <Chip tone="gold">{xHandle}</Chip>}
-                  {showHandleChip && <Chip>@{user.handle}</Chip>}
-                  {user.publicId && user.publicId !== "tmp" && <Chip>{user.publicId}</Chip>}
-                  <StatusPill ok={walletConnected} text={walletConnected ? "Wallet connected" : "Wallet not connected"} />
-                  <StatusPill ok={twitterConnected} text={twitterConnected ? "X connected" : "X not connected"} />
+                  {user.twitterUser && <Chip tone="gold">@{user.twitterUser}</Chip>}
+                  {user.handle && user.handle !== user.twitterUser && <Chip>@{user.handle}</Chip>}
+                  <StatusPill ok={walletConnected} text={walletConnected ? "Wallet Linked" : "No Wallet"} />
+                  <StatusPill ok={twitterConnected} text={twitterConnected ? "X Verified" : "X Unlinked"} />
                 </div>
 
                 <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3">
                   <KeyValue label="Points" value={user.points ?? 0} />
-                  <KeyValue label="Handle" value={user.handle ? `@${user.handle}` : "—"} />
+                  <KeyValue label="ID" value={user.publicId || "—"} mono />
                   <KeyValue
-                    label="Public link"
-                    value={publicUrl ? <a className="text-white/85 hover:text-amber-400 transition" href={publicUrl}>{publicUrl}</a> : "—"}
+                    label="Public Link"
+                    value={publicUrl ? <span className="text-amber-400/90">{publicKey}</span> : "—"}
                     mono
                   />
-                  <KeyValue label="EVM wallet" value={user.walletAddress ? shortAddr(user.walletAddress) : "—"} mono />
-                </div>
-
-                <div className="mt-4 text-[11px] text-white/30 font-medium">
-                  Full wallet: <span className="text-white/50 font-mono">{user.walletAddress ?? "—"}</span>{" "}
-                  {user.walletChainId && <>• Chain: <span className="text-white/50 font-bold">{user.walletChainId}</span></>}
+                  <KeyValue label="EVM Wallet" value={shortAddr(user.walletAddress)} mono />
                 </div>
               </div>
             </div>
           </Card>
 
-          {/* SOCIAL LINKS (Read-only for public view) */}
-          {twitterConnected && (
-            <div className="grid md:grid-cols-2 gap-6">
+          {/* Social connections grid */}
+          <div className="grid md:grid-cols-2 gap-6">
+            {twitterConnected && (
               <Card className="ring-1 ring-white/5">
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <div className="text-sm font-extrabold">X (Twitter)</div>
-                    <div className="text-xs text-white/60 mt-1">Social Connection</div>
+                    <div className="text-xs text-white/60 mt-1">Verified Social Identity</div>
                   </div>
-                  <StatusPill ok={true} text="Linked" />
+                  <StatusPill ok={true} text="Active" />
                 </div>
-
                 <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
-                  <Avatar src={user.twitterImage} fallback="X" size="lg" />
+                  <Avatar src={user.twitterImage} fallback="X" size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-extrabold truncate text-white/90">{user.twitterName || "—"}</div>
-                    <div className="text-xs text-white/40 font-mono truncate">{xHandle || "—"}</div>
+                    <div className="text-xs text-white/40 font-mono truncate">@{user.twitterUser}</div>
                   </div>
                 </div>
               </Card>
+            )}
+
+            <div className="rounded-[30px] border border-white/5 bg-white/[0.02] p-8 flex flex-col items-center justify-center text-center">
+              <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center mb-3">
+                <span className="text-white/20 text-xl">🔒</span>
+              </div>
+              <div className="text-xs font-bold text-white/30 uppercase tracking-widest">More links coming soon</div>
             </div>
-          )}
+          </div>
 
           <div className="text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em] pt-10">
-            Realife Ecosystem • Profile ID: {user.id.slice(0, 8)}
+            Realife Ecosystem • Identity Verified
           </div>
         </div>
       </main>

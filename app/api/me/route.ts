@@ -49,15 +49,17 @@ async function ensurePublicIdTx(tx: any, userId: string) {
 
 export async function GET() {
   const session = await getServerSession(authOptions);
-  const uid = (session as any)?.userId || session?.user?.id;
+  
+  // Мы ищем ID в сессии именно так, как прописали в callbacks.session
+  const uid = (session as any)?.userId || (session as any)?.user?.id;
 
   if (!uid) {
-    return NextResponse.json({ ok: false }, { status: 401 });
+    return NextResponse.json({ ok: false, reason: "UNAUTHORIZED" }, { status: 401 });
   }
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1) Читаем данные кошелька и X (Twitter)
+      // 1) Читаем все данные юзера
       const user = await tx.user.findUnique({
         where: { id: uid },
         select: {
@@ -69,11 +71,16 @@ export async function GET() {
           walletChainId: true,
           lastDailyAt: true,
           createdAt: true,
-          // 👇 Возвращаем социальные поля
+          // Социальные поля X (Twitter)
           twitterId: true,
           twitterUser: true,
           twitterName: true,
           twitterImage: true,
+          // Социальные поля Discord (уже есть в твоей схеме Prisma)
+          discordId: true,
+          discordUser: true,
+          discordName: true,
+          discordImage: true,
         },
       });
 
@@ -81,41 +88,39 @@ export async function GET() {
         return { status: 401 as const, body: { ok: false, reason: "USER_NOT_FOUND" } };
       }
 
-      // 2) Обеспечиваем наличие publicId
-      const ensuredPublicId = user.publicId && user.publicId !== "tmp"
-        ? user.publicId
-        : await ensurePublicIdTx(tx, uid);
+      // 2) Обеспечиваем наличие publicId (если вдруг потерялся)
+      let currentPublicId = user.publicId;
+      if (!currentPublicId || currentPublicId === "tmp") {
+        currentPublicId = await ensurePublicIdTx(tx, uid);
+      }
 
-      const finalUser = { ...user, publicId: user.publicId ?? ensuredPublicId };
-
-      const publicKey = pickPublicKey({
-        handle: finalUser.handle ?? null,
-        publicId: finalUser.publicId ?? null,
-      });
-
+      // 3) Генерация публичной ссылки
+      const publicKey = user.handle || currentPublicId;
       const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
-      // 3) Логика имени: X -> Handle -> Кошелек
+      // 4) Логика Display Name (Приоритет: X -> Discord -> Handle -> Wallet)
       const displayName = 
-        finalUser.twitterName || 
-        (finalUser.twitterUser ? `@${finalUser.twitterUser}` : null) ||
-        (finalUser.handle ? `@${finalUser.handle}` : null) || 
-        (finalUser.walletAddress ? `${finalUser.walletAddress.slice(0, 6)}...${finalUser.walletAddress.slice(-4)}` : "Realife user");
+        user.twitterName || 
+        (user.twitterUser ? `@${user.twitterUser}` : null) ||
+        user.discordName ||
+        (user.handle ? `@${user.handle}` : null) || 
+        (user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : "Realife user");
 
-      // 4) Аватарка теперь подтягивается из X
-      const mainAvatar = finalUser.twitterImage || null;
+      // 5) Главная аватарка (Приоритет: X -> Discord)
+      const mainAvatar = user.twitterImage || user.discordImage || null;
 
       return {
         status: 200 as const,
         body: {
           ok: true,
           user: {
-            ...finalUser,
+            ...user,
+            publicId: currentPublicId,
             publicUrl,
             displayName,
             mainAvatar,
           },
-          // Передаем ошибку линковки из сессии
+          // Передаем ошибку линковки, если она застряла в сессии
           linkError: (session as any)?.linkError ?? null,
         },
       };
@@ -123,7 +128,7 @@ export async function GET() {
 
     return NextResponse.json(result.body, { status: result.status });
   } catch (e) {
-    console.error("ME_ERROR", e);
-    return NextResponse.json({ ok: false }, { status: 500 });
+    console.error("[API_ME_ERROR]", e);
+    return NextResponse.json({ ok: false, error: "Internal Server Error" }, { status: 500 });
   }
 }
