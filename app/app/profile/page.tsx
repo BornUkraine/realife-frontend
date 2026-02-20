@@ -59,7 +59,10 @@ function shortAddr(addr?: string | null) {
 
 // UTC to match server daily boundaries
 function utcKey(d: Date) {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
 function formatLocal(dtIso?: string | null) {
@@ -71,14 +74,22 @@ function formatLocal(dtIso?: string | null) {
 
 /* --------------------------------- UI Kit -------------------------------- */
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Card({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className={cx(
-      "relative overflow-hidden rounded-[30px] p-px",
-      "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.11),rgba(184,135,10,0.10))]",
-      "shadow-[0_26px_100px_rgba(0,0,0,0.60)]",
-      className
-    )}>
+    <div
+      className={cx(
+        "relative overflow-hidden rounded-[30px] p-px",
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.11),rgba(184,135,10,0.10))]",
+        "shadow-[0_26px_100px_rgba(0,0,0,0.60)]",
+        className
+      )}
+    >
       <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl ring-1 ring-black/10">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
@@ -91,49 +102,162 @@ function Card({ children, className = "" }: { children: React.ReactNode; classNa
   );
 }
 
-function Pill({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "ok" | "warn" | "gold" }) {
+function Pill({
+  children,
+  tone = "muted",
+}: {
+  children: React.ReactNode;
+  tone?: "muted" | "ok" | "warn" | "gold";
+}) {
   const cls =
-    tone === "ok" ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200" :
-    tone === "warn" ? "border-amber-500/25 bg-amber-500/10 text-amber-100" :
-    tone === "gold" ? "border-amber-400/30 bg-amber-400/10 text-amber-100" :
-    "border-white/10 bg-white/[0.06] text-white/70";
+    tone === "ok"
+      ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+      : tone === "warn"
+      ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
+      : tone === "gold"
+      ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
+      : "border-white/10 bg-white/[0.06] text-white/70";
 
-  return <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>{children}</div>;
+  return (
+    <div
+      className={cx(
+        "text-[11px] font-semibold px-3 py-1.5 rounded-full border",
+        cls
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
-function Alert({ title, text, tone = "warn" }: { title: string; text: string; tone?: "warn" | "error" }) {
-  const cls = tone === "error" ? "border-rose-500/25 bg-rose-500/10" : "border-amber-500/25 bg-amber-500/10";
+function Alert({
+  title,
+  text,
+  tone = "warn",
+}: {
+  title: string;
+  text: string;
+  tone?: "warn" | "error";
+}) {
+  const cls =
+    tone === "error"
+      ? "border-rose-500/25 bg-rose-500/10"
+      : "border-amber-500/25 bg-amber-500/10";
   return (
     <div className={cx("rounded-[22px] border px-4 py-3", cls)}>
-      <div className={cx("text-sm font-extrabold", tone === "error" ? "text-rose-50" : "text-amber-50")}>{title}</div>
-      <div className={cx("mt-1 text-sm", tone === "error" ? "text-rose-100/90" : "text-amber-100/90")}>{text}</div>
+      <div
+        className={cx(
+          "text-sm font-extrabold",
+          tone === "error" ? "text-rose-50" : "text-amber-50"
+        )}
+      >
+        {title}
+      </div>
+      <div
+        className={cx(
+          "mt-1 text-sm",
+          tone === "error" ? "text-rose-100/90" : "text-amber-100/90"
+        )}
+      >
+        {text}
+      </div>
     </div>
   );
 }
 
-function Btn({ variant = "gold", className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "gold" | "ghost" | "tiny" }) {
-  const base = "inline-flex items-center justify-center gap-2 font-extrabold transition disabled:opacity-60 disabled:cursor-not-allowed";
-  const gold = "w-full px-6 py-3 rounded-2xl text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_22px_70px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 hover:-translate-y-px active:translate-y-0";
-  const ghost = "w-full px-6 py-3 rounded-2xl text-white border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px active:translate-y-0";
-  const tiny = "px-3 py-2 rounded-xl text-[12px] text-white border border-white/15 bg-white/[0.06] backdrop-blur-2xl hover:bg-white/10 active:translate-y-[1px]";
+function Btn({
+  variant = "gold",
+  className = "",
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "gold" | "ghost" | "tiny";
+}) {
+  const base =
+    "inline-flex items-center justify-center gap-2 font-extrabold transition disabled:opacity-60 disabled:cursor-not-allowed";
+  const gold =
+    "w-full px-6 py-3 rounded-2xl text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_22px_70px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 hover:-translate-y-px active:translate-y-0";
+  const ghost =
+    "w-full px-6 py-3 rounded-2xl text-white border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px active:translate-y-0";
+  const tiny =
+    "px-3 py-2 rounded-xl text-[12px] text-white border border-white/15 bg-white/[0.06] backdrop-blur-2xl hover:bg-white/10 active:translate-y-[1px]";
 
-  return <button {...props} className={cx(base, variant === "gold" ? gold : variant === "ghost" ? ghost : tiny, className)} />;
-}
-
-function Avatar({ src, fallback, size = "md", ring = true }: { src?: string | null; fallback: string; size?: "sm" | "md" | "lg" | "xl" | "hero"; ring?: boolean }) {
-  const s = size === "hero" ? "h-24 w-24 md:h-28 md:w-28" : size === "xl" ? "h-20 w-20 md:h-24 md:w-24" : size === "lg" ? "h-16 w-16" : size === "sm" ? "h-12 w-12" : "h-14 w-14";
   return (
-    <div className={cx(s, "rounded-2xl overflow-hidden flex items-center justify-center bg-white/[0.06] border border-white/10", ring ? "shadow-[0_18px_60px_rgba(212,175,55,0.10)] ring-1 ring-black/15" : "")}>
-      {src ? <img src={src} alt={fallback} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <span className="text-white/40 text-xs font-black">{fallback}</span>}
+    <button
+      {...props}
+      className={cx(
+        base,
+        variant === "gold" ? gold : variant === "ghost" ? ghost : tiny,
+        className
+      )}
+    />
+  );
+}
+
+function Avatar({
+  src,
+  fallback,
+  size = "md",
+  ring = true,
+}: {
+  src?: string | null;
+  fallback: string;
+  size?: "sm" | "md" | "lg" | "xl" | "hero";
+  ring?: boolean;
+}) {
+  const s =
+    size === "hero"
+      ? "h-24 w-24 md:h-28 md:w-28"
+      : size === "xl"
+      ? "h-20 w-20 md:h-24 md:w-24"
+      : size === "lg"
+      ? "h-16 w-16"
+      : size === "sm"
+      ? "h-12 w-12"
+      : "h-14 w-14";
+  return (
+    <div
+      className={cx(
+        s,
+        "rounded-2xl overflow-hidden flex items-center justify-center bg-white/[0.06] border border-white/10",
+        ring
+          ? "shadow-[0_18px_60px_rgba(212,175,55,0.10)] ring-1 ring-black/15"
+          : ""
+      )}
+    >
+      {src ? (
+        <img
+          src={src}
+          alt={fallback}
+          className="h-full w-full object-cover"
+          referrerPolicy="no-referrer"
+        />
+      ) : (
+        <span className="text-white/40 text-xs font-black">{fallback}</span>
+      )}
     </div>
   );
 }
 
-function Field({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
+function Field({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <div className="text-[11px] text-white/55 font-semibold">{label}</div>
-      <div className={cx("mt-1 text-sm font-extrabold text-white/85 truncate", mono ? "font-mono text-[13px]" : "")}>{value}</div>
+      <div
+        className={cx(
+          "mt-1 text-sm font-extrabold text-white/85 truncate",
+          mono ? "font-mono text-[13px]" : ""
+        )}
+      >
+        {value}
+      </div>
     </div>
   );
 }
@@ -160,7 +284,8 @@ export default function ProfilePage() {
   const serverWalletChainId = me?.walletChainId ?? null;
 
   const displayWalletAddress = liveAddress ?? serverWalletAddress ?? null;
-  const displayWalletChainId = walletIsConnected && liveAddress ? liveChainId : serverWalletChainId ?? null;
+  const displayWalletChainId =
+    walletIsConnected && liveAddress ? liveChainId : serverWalletChainId ?? null;
 
   const safePublicId = useMemo(() => {
     const pid = me?.publicId ?? null;
@@ -185,7 +310,14 @@ export default function ProfilePage() {
   // TOP: name fallback to wallet address
   const topDisplayName = useMemo(() => {
     if (!me) return "Loading…";
-    return me.displayName || (me.handle ? `@${me.handle}` : (serverWalletAddress ? shortAddr(serverWalletAddress) : "Realife user"));
+    return (
+      me.displayName ||
+      (me.handle
+        ? `@${me.handle}`
+        : serverWalletAddress
+        ? shortAddr(serverWalletAddress)
+        : "Realife user")
+    );
   }, [me, serverWalletAddress]);
 
   const heroAvatar = useMemo(() => me?.mainAvatar ?? null, [me]);
@@ -195,13 +327,17 @@ export default function ProfilePage() {
     const last = me?.lastDailyAt ?? null;
     if (!last) return { canClaim: true, label: "Daily available" as const };
     const lastDate = new Date(last);
-    if (Number.isNaN(lastDate.getTime())) return { canClaim: true, label: "Daily available" as const };
+    if (Number.isNaN(lastDate.getTime()))
+      return { canClaim: true, label: "Daily available" as const };
 
     const today = utcKey(new Date());
     const lastKey = utcKey(lastDate);
     const canClaim = today !== lastKey;
 
-    return { canClaim, label: canClaim ? "Daily available" : "Claimed today" } as const;
+    return {
+      canClaim,
+      label: canClaim ? "Daily available" : "Claimed today",
+    } as const;
   }, [me?.lastDailyAt]);
 
   async function loadMe() {
@@ -213,16 +349,22 @@ export default function ProfilePage() {
     setLoading(true);
     try {
       const res = await fetch("/api/me", { cache: "no-store" });
-      const json = await res.json() as MeResponse;
+      const json = (await res.json()) as MeResponse;
       if (json?.ok) setMe(json?.user ?? null);
       else setMe(null);
-    } catch { /* ignore */ } 
-    finally { setLoading(false); }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
     if (authed) void loadMe();
-    else { setMe(null); setDailyMsg(null); }
+    else {
+      setMe(null);
+      setDailyMsg(null);
+    }
   }, [authed]);
 
   async function claimDaily() {
@@ -230,30 +372,52 @@ export default function ProfilePage() {
     setDailyBusy(true);
     setDailyMsg(null);
     try {
-      const res = await fetch("/api/daily", {
+      // ✅ FIX: правильный endpoint
+      const res = await fetch("/api/points/daily", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: "{}",
       });
-      const json = await res.json() as DailyResponse;
+
+      const json = (await res.json()) as DailyResponse;
 
       if (res.ok && json.ok) {
-        setMe((prev) => prev ? { ...prev, points: json.points, lastDailyAt: new Date().toISOString() } : prev);
+        setMe((prev) =>
+          prev
+            ? { ...prev, points: json.points, lastDailyAt: new Date().toISOString() }
+            : prev
+        );
         setDailyMsg(`Daily claimed: +${json.add}. New balance: ${json.points}.`);
       } else {
         const msg = (json as any)?.message || "Failed";
-        setDailyMsg(msg.toLowerCase().includes("already claimed") ? "Already claimed today." : "Daily claim failed.");
+        setDailyMsg(
+          msg.toLowerCase().includes("already claimed")
+            ? "Already claimed today."
+            : "Daily claim failed."
+        );
       }
-    } catch { setDailyMsg("Network error. Try again."); } 
-    finally { setDailyBusy(false); }
+    } catch {
+      setDailyMsg("Network error. Try again.");
+    } finally {
+      setDailyBusy(false);
+    }
   }
 
   async function copyText(text: string) {
-    try { await navigator.clipboard.writeText(text); return true; } 
-    catch { return false; }
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
-  const walletPillText = serverWalletAddress ? "Wallet verified (server)" : (walletIsConnected ? "Wallet connected (client)" : "Wallet not connected");
+  const walletPillText = serverWalletAddress
+    ? "Wallet verified (server)"
+    : walletIsConnected
+    ? "Wallet connected (client)"
+    : "Wallet not connected";
+
   const walletMismatch = useMemo(() => {
     const a = liveAddress?.toLowerCase();
     const b = serverWalletAddress?.toLowerCase();
@@ -267,13 +431,38 @@ export default function ProfilePage() {
         <div className="pointer-events-none fixed inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.12),transparent_55%)]" />
           <div className="absolute -top-80 -left-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/14 blur-3xl animate-pulse" />
-          <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: "linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px)", backgroundSize: "56px 56px" }} />
+          <div
+            className="absolute inset-0 opacity-[0.06]"
+            style={{
+              backgroundImage:
+                "linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px)",
+              backgroundSize: "56px 56px",
+            }}
+          />
         </div>
 
         <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
-          {dailyMsg && <Alert title="Points" text={dailyMsg} tone={dailyMsg.toLowerCase().includes("failed") ? "error" : "warn"} />}
-          {!authed && <Alert title="No server session yet" text="Connect wallet in the top bar and sign once to view your profile." tone="warn" />}
-          {walletMismatch && <Alert title="Wallet mismatch" text="Your connected wallet is different from the server-verified wallet. Please re-verify." tone="warn" />}
+          {dailyMsg && (
+            <Alert
+              title="Points"
+              text={dailyMsg}
+              tone={dailyMsg.toLowerCase().includes("failed") ? "error" : "warn"}
+            />
+          )}
+          {!authed && (
+            <Alert
+              title="No server session yet"
+              text="Connect wallet in the top bar and sign once to view your profile."
+              tone="warn"
+            />
+          )}
+          {walletMismatch && (
+            <Alert
+              title="Wallet mismatch"
+              text="Your connected wallet is different from the server-verified wallet. Please re-verify."
+              tone="warn"
+            />
+          )}
 
           {/* HERO CARD */}
           <Card>
@@ -281,13 +470,23 @@ export default function ProfilePage() {
               <div className="flex items-center gap-5 min-w-0">
                 <Avatar src={heroAvatar} fallback="RL" size="hero" />
                 <div className="min-w-0">
-                  <div className="text-xs font-semibold text-white/60">Unified profile</div>
+                  <div className="text-xs font-semibold text-white/60">
+                    Unified profile
+                  </div>
                   <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
                     {authed ? topDisplayName : "—"}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    <Pill tone={serverWalletAddress ? "ok" : (walletIsConnected ? "warn" : "muted")}>{walletPillText}</Pill>
-                    <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>{dailyStatus.canClaim ? "Daily available" : "Claimed today"}</Pill>
+                    <Pill
+                      tone={
+                        serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"
+                      }
+                    >
+                      {walletPillText}
+                    </Pill>
+                    <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>
+                      {dailyStatus.canClaim ? "Daily available" : "Claimed today"}
+                    </Pill>
                     {me?.handle && <Pill>handle: @{me.handle}</Pill>}
                     {safePublicId && <Pill>{safePublicId}</Pill>}
                   </div>
@@ -295,30 +494,119 @@ export default function ProfilePage() {
               </div>
 
               <div className="w-full md:w-[300px] flex flex-col gap-2">
-                <Btn variant="ghost" onClick={loadMe} disabled={!authed || loading}>{loading ? "Refreshing…" : "Refresh"}</Btn>
-                <Btn variant="gold" onClick={claimDaily} disabled={!authed || dailyBusy || !dailyStatus.canClaim}>{dailyBusy ? "Claiming…" : (dailyStatus.canClaim ? "Claim daily +10" : "Daily claimed")}</Btn>
-                <Btn variant="ghost" onClick={() => signOut({ redirect: false })} disabled={!authed}>Log out (server)</Btn>
+                <Btn
+                  variant="ghost"
+                  onClick={loadMe}
+                  disabled={!authed || loading}
+                >
+                  {loading ? "Refreshing…" : "Refresh"}
+                </Btn>
+                <Btn
+                  variant="gold"
+                  onClick={claimDaily}
+                  disabled={!authed || dailyBusy || !dailyStatus.canClaim}
+                >
+                  {dailyBusy
+                    ? "Claiming…"
+                    : dailyStatus.canClaim
+                    ? "Claim daily +10"
+                    : "Daily claimed"}
+                </Btn>
+                <Btn
+                  variant="ghost"
+                  onClick={() => signOut({ redirect: false })}
+                  disabled={!authed}
+                >
+                  Log out (server)
+                </Btn>
               </div>
             </div>
 
             <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
               <Field label="Points" value={me?.points ?? 0} />
-              <Field label="Daily" value={<div className="flex items-center gap-2"><span className="truncate">{dailyStatus.label}</span><span className="text-[11px] text-white/55">{me?.lastDailyAt ? `• ${formatLocal(me.lastDailyAt)}` : ""}</span></div>} />
-              <Field label="Wallet (connected)" value={walletIsConnected && liveAddress ? shortAddr(liveAddress) : "—"} mono />
-              <Field label="Public link" value={publicUrl ? <button type="button" onClick={() => copyText(publicFullUrl!).then(() => {setCopied(true); setTimeout(()=>setCopied(false), 1200)})} className="text-left hover:underline font-mono">{publicUrl} <span className="text-[11px] text-white/60">{copied ? "copied" : "copy"}</span></button> : "—"} mono />
-              <Field label="Chain" value={displayWalletChainId ? <span className="font-extrabold">{displayWalletChainId}</span> : "—"} />
+              <Field
+                label="Daily"
+                value={
+                  <div className="flex items-center gap-2">
+                    <span className="truncate">{dailyStatus.label}</span>
+                    <span className="text-[11px] text-white/55">
+                      {me?.lastDailyAt ? `• ${formatLocal(me.lastDailyAt)}` : ""}
+                    </span>
+                  </div>
+                }
+              />
+              <Field
+                label="Wallet (connected)"
+                value={walletIsConnected && liveAddress ? shortAddr(liveAddress) : "—"}
+                mono
+              />
+              <Field
+                label="Public link"
+                value={
+                  publicUrl ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyText(publicFullUrl!).then(() => {
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1200);
+                        })
+                      }
+                      className="text-left hover:underline font-mono"
+                    >
+                      {publicUrl}{" "}
+                      <span className="text-[11px] text-white/60">
+                        {copied ? "copied" : "copy"}
+                      </span>
+                    </button>
+                  ) : (
+                    "—"
+                  )
+                }
+                mono
+              />
+              <Field
+                label="Chain"
+                value={
+                  displayWalletChainId ? (
+                    <span className="font-extrabold">{displayWalletChainId}</span>
+                  ) : (
+                    "—"
+                  )
+                }
+              />
               <Field label="Identity" value={<span className="truncate">Wallet only</span>} />
               <Field label="User id" value={me?.id ?? "—"} mono />
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              <Btn variant="tiny" onClick={() => copyText(displayWalletAddress!).then(() => {setWalletCopied(true); setTimeout(()=>setWalletCopied(false), 1200)})} disabled={!displayWalletAddress}>{walletCopied ? "Wallet copied" : "Copy wallet"}</Btn>
-              {publicUrl && <a href={publicUrl} className="inline-flex items-center justify-center px-3 py-2 rounded-xl text-[12px] font-extrabold text-white border border-white/15 bg-white/[0.06] hover:bg-white/10">Open public profile →</a>}
+              <Btn
+                variant="tiny"
+                onClick={() =>
+                  copyText(displayWalletAddress!).then(() => {
+                    setWalletCopied(true);
+                    setTimeout(() => setWalletCopied(false), 1200);
+                  })
+                }
+                disabled={!displayWalletAddress}
+              >
+                {walletCopied ? "Wallet copied" : "Copy wallet"}
+              </Btn>
+              {publicUrl && (
+                <a
+                  href={publicUrl}
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-xl text-[12px] font-extrabold text-white border border-white/15 bg-white/[0.06] hover:bg-white/10"
+                >
+                  Open public profile →
+                </a>
+              )}
             </div>
           </Card>
 
           <div className="text-[11px] text-white/40 text-center">
-            Tip: wallet verification happens in the top bar (signature once). This page reads everything from <span className="font-mono text-white/55">/api/me</span>.
+            Tip: wallet verification happens in the top bar (signature once). This
+            page reads everything from{" "}
+            <span className="font-mono text-white/55">/api/me</span>.
           </div>
         </div>
       </main>
