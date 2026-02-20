@@ -121,8 +121,9 @@ const tokenSelect = {
   walletChainId: true,
 } as const;
 
-function tokenUserId(token: any): string | null {
-  return (token?.uid as string) || (token?.sub as string) || null;
+// 🔥 ГЛАВНЫЙ ФИКС БЕЗОПАСНОСТИ ДЛЯ БД: Игнорируем sub (ID из Твиттера), берем ТОЛЬКО uid (наш из БД)
+function getDbUserId(token: any): string | null {
+  return (token?.uid as string) || null;
 }
 
 function applyUserToToken(token: any, user: any) {
@@ -148,32 +149,32 @@ function applyUserToToken(token: any, user: any) {
 /* AUTH OPTIONS                                                               */
 /* -------------------------------------------------------------------------- */
 
+const isProd = process.env.NODE_ENV === "production";
+const sec = isProd ? "__Secure-" : "";
+
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   trustHost: true,
 
-  // 🔥 ПАТЧ 1: Принудительно включаем secure cookies для продакшена (Railway)
-  useSecureCookies: process.env.NODE_ENV === "production",
+  useSecureCookies: isProd,
 
-  // 🔥 ПАТЧ 2: Явно разрешаем кросс-доменные куки для PKCE, чтобы убрать ошибку Callback
+  // 🔥 МЁРТВАЯ ХВАТКА КУКИ: Делаем sameSite: "none" для ВСЕХ системных кукисов!
   cookies: {
+    sessionToken: {
+      name: `${sec}next-auth.session-token`,
+      options: { httpOnly: true, sameSite: "none", path: "/", secure: isProd },
+    },
+    callbackUrl: {
+      name: `${sec}next-auth.callback-url`,
+      options: { sameSite: "none", path: "/", secure: isProd },
+    },
     pkceCodeVerifier: {
-      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.pkce.code_verifier`,
-      options: {
-        httpOnly: true,
-        sameSite: "none",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
+      name: `${sec}next-auth.pkce.code_verifier`,
+      options: { httpOnly: true, sameSite: "none", path: "/", secure: isProd },
     },
     state: {
-      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.state`,
-      options: {
-        httpOnly: true,
-        sameSite: "none",
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
+      name: `${sec}next-auth.state`,
+      options: { httpOnly: true, sameSite: "none", path: "/", secure: isProd },
     }
   },
 
@@ -182,7 +183,7 @@ export const authOptions: NextAuthOptions = {
     error: "/app/profile",
   },
 
-  debug: process.env.NODE_ENV !== "production" || process.env.NEXTAUTH_DEBUG === "true",
+  debug: true,
 
   providers: [
     CredentialsProvider({
@@ -242,12 +243,10 @@ export const authOptions: NextAuthOptions = {
       },
     }),
 
-    // 🔥 Официальный провайдер Твиттера
     TwitterProvider({
       clientId: process.env.TWITTER_CLIENT_ID!,
       clientSecret: process.env.TWITTER_CLIENT_SECRET!,
-      version: "2.0", // Обязательно для OAuth 2.0
-      // 🔥 ПАТЧ 3: Явно указываем права
+      version: "2.0",
       authorization: {
         params: {
           scope: "users.read tweet.read offline.access",
@@ -274,7 +273,8 @@ export const authOptions: NextAuthOptions = {
         return { ...token, ...session };
       }
 
-      const currentUserId = tokenUserId(token);
+      // Используем безопасную функцию получения ID из БД
+      const dbUserId = getDbUserId(token);
 
       /* ------------------------------ WALLET LOGIN ------------------------------ */
       if (account?.provider === "wallet" && user?.id) {
@@ -290,12 +290,13 @@ export const authOptions: NextAuthOptions = {
 
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
-        if (!currentUserId) {
+        
+        // Если кука кошелька отпала, безопасно прерываем процесс
+        if (!dbUserId) {
           throw new Error("WalletSessionLost");
         }
 
         const twitterId = account?.providerAccountId;
-        // Берем данные из объекта user, который мы сформировали в profile() выше
         const twitterUser = user?.twitterUser ?? null;
         const twitterName = user?.name ?? null;
         const twitterImage = user?.image ?? null;
@@ -309,12 +310,14 @@ export const authOptions: NextAuthOptions = {
               select: { id: true },
             });
 
-            if (existingLink && existingLink.id !== currentUserId) {
+            // Проверяем, не привязан ли этот X к ДРУГОМУ кошельку
+            if (existingLink && existingLink.id !== dbUserId) {
               throw new Error("TwitterAlreadyLinked");
             }
 
+            // 🔥 Обновляем ИМЕННО по нашему DB ID! Это решает ошибку Prisma.
             return await tx.user.update({
-              where: { id: currentUserId },
+              where: { id: dbUserId },
               data: { twitterId, twitterUser, twitterName, twitterImage },
             });
           });
@@ -336,9 +339,9 @@ export const authOptions: NextAuthOptions = {
       }
 
       /* ----------------------- REFRESH TOKEN FROM DB ----------------------- */
-      if (!account && currentUserId) {
+      if (!account && dbUserId) {
         const u = await prisma.user.findUnique({
-          where: { id: currentUserId },
+          where: { id: dbUserId },
           select: tokenSelect,
         });
         if (u) applyUserToToken(token, u);
@@ -348,14 +351,14 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      const uid = tokenUserId(token);
+      const dbUserId = getDbUserId(token);
 
-      session.userId = uid ?? undefined;
+      session.userId = dbUserId ?? undefined;
       session.linkError = token.linkError;
 
       session.user = {
         ...(session.user ?? {}),
-        id: uid ?? undefined,
+        id: dbUserId ?? undefined,
         points: token.points ?? 0,
         handle: token.handle ?? null,
         publicId: token.publicId ?? null,
