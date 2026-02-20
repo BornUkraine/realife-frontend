@@ -84,7 +84,7 @@ const tokenSelect = {
   walletChainId: true,
 } as const;
 
-// 🔥 ИЩЕМ ID ВО ВСЕХ ВОЗМОЖНЫХ МЕСТАХ
+// 🔥 ГЛАВНЫЙ ФИКС: Ищем ID юзера во всех возможных местах, чтобы Prisma не падала!
 function getDbUserId(token: any, session?: any): string | null {
   return (token?.uid as string) || (session?.user?.id as string) || (session?.userId as string) || null;
 }
@@ -114,15 +114,15 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   trustHost: true,
 
-  // Мы убираем ручные настройки кукисов. NextAuth лучше знает, как их ставить.
-  // Вся магия будет в middleware.
+  // Вся работа с кукисами теперь на стороне middleware.ts
+  useSecureCookies: isProd,
 
   pages: {
     signIn: "/app/profile",
     error: "/app/profile",
   },
 
-  debug: false, // Отключаем дебаг, чтобы логи были чище
+  debug: false,
 
   providers: [
     CredentialsProvider({
@@ -203,7 +203,11 @@ export const authOptions: NextAuthOptions = {
 
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
+        console.log("----- TWITTER OAUTH START -----");
+        console.log("FOUND DB USER ID:", dbUserId);
+        
         if (!dbUserId) {
+          console.error("❌ OAUTH FAILED: No Wallet Session ID found during redirect!");
           throw new Error("WalletSessionLost");
         }
 
@@ -217,9 +221,13 @@ export const authOptions: NextAuthOptions = {
         try {
           const updated = await prisma.$transaction(async (tx) => {
             const existingLink = await tx.user.findUnique({ where: { twitterId }, select: { id: true } });
+            
             if (existingLink && existingLink.id !== dbUserId) {
+              console.error("❌ OAUTH FAILED: Twitter already linked to user", existingLink.id);
               throw new Error("TwitterAlreadyLinked");
             }
+
+            console.log("✅ OAUTH SUCCESS: Updating user", dbUserId);
             return await tx.user.update({
               where: { id: dbUserId },
               data: { twitterId, twitterUser, twitterName, twitterImage },
@@ -232,9 +240,11 @@ export const authOptions: NextAuthOptions = {
           const fresh = await prisma.user.findUnique({ where: { id: updated.id }, select: tokenSelect });
           applyUserToToken(token, fresh ?? updated);
         } catch (e: any) {
+          console.error("❌ DB UPDATE FAILED:", e.message);
           throw new Error(e.message || "TwitterLinkFailed");
         }
 
+        console.log("----- TWITTER OAUTH END -----");
         return token;
       }
 
