@@ -1,6 +1,7 @@
 // @ts-nocheck
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import TwitterProvider from "next-auth/providers/twitter"; // 🔥 Используем официальный провайдер!
 import { prisma } from "@/lib/prisma";
 import { verifyMessage } from "viem";
 
@@ -127,49 +128,21 @@ function tokenUserId(token: any): string | null {
 function applyUserToToken(token: any, user: any) {
   token.sub = user.id;
   token.uid = user.id;
+
   token.points = user.points ?? 0;
   token.handle = user.handle ?? null;
   token.publicId = user.publicId ?? null;
+
   token.twitterId = user.twitterId ?? null;
   token.twitterUser = user.twitterUser ?? null;
   token.twitterName = user.twitterName ?? null;
   token.twitterImage = user.twitterImage ?? null;
+
   token.walletAddress = user.walletAddress ?? null;
   token.walletChainId = user.walletChainId ?? null;
+
   return token;
 }
-
-/* -------------------------------------------------------------------------- */
-/* PROVIDERS                                                                  */
-/* -------------------------------------------------------------------------- */
-
-const TwitterOAuthProvider: any = {
-  id: "twitter",
-  name: "Twitter",
-  type: "oauth",
-  version: "2.0",
-  authorization: {
-    url: "https://twitter.com/i/oauth2/authorize",
-    params: { scope: "users.read tweet.read offline.access" },
-  },
-  token: "https://api.twitter.com/2/oauth2/token",
-  userinfo: "https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url",
-  clientId: process.env.TWITTER_CLIENT_ID!,
-  clientSecret: process.env.TWITTER_CLIENT_SECRET!,
-  checks: ["pkce", "state"],
-  profile(raw: any) {
-    const d = raw?.data ?? {};
-    const img = d?.profile_image_url ?? null;
-    const bigger = typeof img === "string" ? img.replace("_normal", "") : img; 
-    return {
-      id: d?.id,
-      name: d?.name ?? null,
-      username: d?.username ?? null,
-      image: bigger ?? null,
-      __raw: raw,
-    };
-  },
-};
 
 /* -------------------------------------------------------------------------- */
 /* AUTH OPTIONS                                                               */
@@ -179,10 +152,19 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   trustHost: true,
 
-  // 🔥 ПОЛНОСТЬЮ УДАЛЕН БЛОК cookies. 
-  // Доверяем дефолтам NextAuth, они лучше всего работают с OAuth и предотвращают баги редиректов.
-  
-  // 🔥 ДОБАВЛЕН БЛОК pages, чтобы при ошибках кидало обратно на профиль, а не на стандартную страницу NextAuth
+  // 🔥 Возвращаем куки для PKCE, чтобы Railway не ругался на "Callback" ошибку
+  cookies: {
+    pkceCodeVerifier: {
+      name: "next-auth.pkce.code_verifier",
+      options: {
+        httpOnly: true,
+        sameSite: "none",
+        path: "/",
+        secure: true,
+      },
+    },
+  },
+
   pages: {
     signIn: "/app/profile",
     error: "/app/profile",
@@ -248,7 +230,24 @@ export const authOptions: NextAuthOptions = {
       },
     }),
 
-    TwitterOAuthProvider,
+    // 🔥 Официальный провайдер Твиттера
+    TwitterProvider({
+      clientId: process.env.TWITTER_CLIENT_ID!,
+      clientSecret: process.env.TWITTER_CLIENT_SECRET!,
+      version: "2.0", // Обязательно для OAuth 2.0
+      profile(profile) {
+        const d = profile?.data ?? {};
+        const img = d?.profile_image_url ?? null;
+        const bigger = typeof img === "string" ? img.replace("_normal", "") : img; 
+        return {
+          id: d?.id,
+          name: d?.name ?? null,
+          email: null,
+          image: bigger ?? null,
+          twitterUser: d?.username ?? null, // Сохраняем username для колбэка
+        };
+      },
+    }),
   ],
 
   callbacks: {
@@ -273,21 +272,15 @@ export const authOptions: NextAuthOptions = {
 
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
-        
-        // 🔥 ГЛАВНЫЙ ФИКС ЗАЩИТЫ СЕССИИ:
-        // Если при возврате с Твиттера нет сессии кошелька (кука потерялась),
-        // мы ЖЕСТКО прерываем процесс. 
-        // Это гарантирует, что "пустая" сессия не будет создана!
         if (!currentUserId) {
           throw new Error("WalletSessionLost");
         }
 
-        const d = profile as any;
-        const twitterId = d?.data?.id ?? d?.id ?? account?.providerAccountId;
-        const twitterUser = d?.data?.username ?? d?.username ?? null;
-        const twitterName = d?.data?.name ?? d?.name ?? null;
-        const rawImg = d?.data?.profile_image_url ?? d?.profile_image_url;
-        const twitterImage = typeof rawImg === "string" ? rawImg.replace("_normal", "") : rawImg;
+        const twitterId = account?.providerAccountId;
+        // Берем данные из объекта user, который мы сформировали в profile() выше
+        const twitterUser = user?.twitterUser ?? null;
+        const twitterName = user?.name ?? null;
+        const twitterImage = user?.image ?? null;
 
         if (!twitterId) return token;
 
@@ -318,7 +311,6 @@ export const authOptions: NextAuthOptions = {
 
           applyUserToToken(token, fresh ?? updated);
         } catch (e: any) {
-          // Если аккаунт уже привязан, прерываем с ошибкой, чтобы вывести ее на фронт
           throw new Error(e.message || "TwitterLinkFailed");
         }
 
