@@ -1,25 +1,12 @@
 // @ts-nocheck
 import type { NextAuthOptions } from "next-auth";
-import DiscordProvider from "next-auth/providers/discord";
 import CredentialsProvider from "next-auth/providers/credentials";
-import type { JWT } from "next-auth/jwt";
 import { prisma } from "@/lib/prisma";
 import { verifyMessage } from "viem";
 
 /* -------------------------------------------------------------------------- */
 /* HELPERS                                                                    */
 /* -------------------------------------------------------------------------- */
-
-function slugifyHandle(input: string) {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/^@+/, "")
-    .replace(/[^a-z0-9_]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 24);
-}
 
 function randomId(len = 6) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // без 0/O/I/1
@@ -53,57 +40,10 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
   throw new Error("PUBLIC_ID_GENERATION_FAILED");
 }
 
-async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?: string | null) {
-  if (!twitterUser) return;
-
-  const current = await db.user.findUnique({
-    where: { id: userId },
-    select: { handle: true, publicId: true },
-  });
-
-  if (current?.handle) return;
-
-  const base = slugifyHandle(twitterUser);
-  if (!base) return;
-
-  for (let i = 0; i < 25; i++) {
-    const h = i === 0 ? base : `${base}_${i + 1}`;
-    const taken = await db.user.findUnique({ where: { handle: h }, select: { id: true } });
-    if (!taken) {
-      await db.user.update({ where: { id: userId }, data: { handle: h } });
-      return;
-    }
-  }
-
-  // fallback: suffix with publicId tail
-  const pid = current?.publicId ?? (await ensurePublicId(db, userId));
-  if (pid) {
-    await db.user.update({
-      where: { id: userId },
-      data: { handle: `${base}_${pid.slice(-4).toLowerCase()}` },
-    });
-  }
-}
-
-function discordAvatarUrl(profile: any) {
-  const id = profile?.id;
-  const avatar = profile?.avatar;
-  if (id && avatar) return `https://cdn.discordapp.com/avatars/${id}/${avatar}.png?size=256`;
-  return null;
-}
-
-function pickDiscordProfile(profile: any) {
-  const username = profile?.username ?? null;
-  const globalName = profile?.global_name ?? null;
-  const name = globalName || username;
-  const image = discordAvatarUrl(profile) ?? profile?.image_url ?? profile?.avatar_url ?? null;
-  return { username, name, image };
-}
-
 async function awardOnce(
   db: typeof prisma,
   userId: string,
-  type: "CONNECT_X" | "CONNECT_DISCORD" | "DAILY",
+  type: "DAILY",
   points: number
 ) {
   const already = await db.pointEvent.findFirst({
@@ -130,17 +70,6 @@ const tokenSelect = {
   points: true,
   handle: true,
   publicId: true,
-
-  twitterId: true,
-  twitterUser: true,
-  twitterName: true,
-  twitterImage: true,
-
-  discordId: true,
-  discordUser: true,
-  discordName: true,
-  discordImage: true,
-
   walletAddress: true,
   walletChainId: true,
 } as const;
@@ -157,53 +86,11 @@ function applyUserToToken(token: any, user: any) {
   token.handle = user.handle ?? null;
   token.publicId = user.publicId ?? null;
 
-  token.twitterId = user.twitterId ?? null;
-  token.twitterUser = user.twitterUser ?? null;
-  token.twitterName = user.twitterName ?? null;
-  token.twitterImage = user.twitterImage ?? null;
-
-  token.discordId = user.discordId ?? null;
-  token.discordUser = user.discordUser ?? null;
-  token.discordName = user.discordName ?? null;
-  token.discordImage = user.discordImage ?? null;
-
   token.walletAddress = user.walletAddress ?? null;
   token.walletChainId = user.walletChainId ?? null;
 
   return token;
 }
-
-/* -------------------------------------------------------------------------- */
-/* PROVIDERS                                                                  */
-/* -------------------------------------------------------------------------- */
-
-const TwitterOAuthProvider: any = {
-  id: "twitter",
-  name: "Twitter",
-  type: "oauth",
-  version: "2.0",
-  authorization: {
-    url: "https://twitter.com/i/oauth2/authorize",
-    params: { scope: "users.read tweet.read offline.access" },
-  },
-  token: "https://api.twitter.com/2/oauth2/token",
-  userinfo: "https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url",
-  clientId: process.env.TWITTER_CLIENT_ID!,
-  clientSecret: process.env.TWITTER_CLIENT_SECRET!,
-  checks: ["pkce", "state"],
-  profile(raw: any) {
-    const d = raw?.data ?? {};
-    const img = d?.profile_image_url ?? null;
-    const bigger = typeof img === "string" ? img.replace("_normal", "") : img;
-    return {
-      id: d?.id,
-      name: d?.name ?? null,
-      username: d?.username ?? null,
-      image: bigger ?? null,
-      __raw: raw,
-    };
-  },
-};
 
 /* -------------------------------------------------------------------------- */
 /* AUTH OPTIONS                                                               */
@@ -284,28 +171,17 @@ export const authOptions: NextAuthOptions = {
         return { id: user.id } as any;
       },
     }),
-
-    TwitterOAuthProvider,
-
-    DiscordProvider({
-      clientId: process.env.DISCORD_CLIENT_ID!,
-      clientSecret: process.env.DISCORD_CLIENT_SECRET!,
-    }),
   ],
 
   callbacks: {
-    async jwt({ token, user, account, profile, trigger, session }) {
-      // allow manual session.update()
+    async jwt({ token, user, account, trigger, session }) {
       if (trigger === "update" && session) {
         return { ...token, ...session };
       }
 
       const currentUserId = tokenUserId(token);
 
-      /* ------------------------------ WALLET LOGIN ------------------------------ */
-      // IMPORTANT: ensure uid/sub is set right after wallet login
       if (account?.provider === "wallet" && user?.id) {
-        token.linkError = undefined;
         token.sub = user.id;
         token.uid = user.id;
 
@@ -315,110 +191,6 @@ export const authOptions: NextAuthOptions = {
         return token;
       }
 
-      /* ------------------------------ X (TWITTER) ------------------------------ */
-      // Wallet-first: only link to existing wallet user. No "create user from twitter".
-      if (account?.provider === "twitter") {
-        const d = profile as any;
-        const twitterId = d?.data?.id ?? d?.id ?? account?.providerAccountId;
-        const twitterUser = d?.data?.username ?? d?.username ?? null;
-        const twitterName = d?.data?.name ?? d?.name ?? null;
-        const rawImg = d?.data?.profile_image_url ?? d?.profile_image_url;
-        const twitterImage = typeof rawImg === "string" ? rawImg.replace("_normal", "") : rawImg;
-
-        if (!twitterId) return token;
-
-        if (!currentUserId) {
-          // no wallet session -> reject linking
-          token.linkError = "NO_SERVER_SESSION";
-          return token;
-        }
-
-        try {
-          const updated = await prisma.$transaction(async (tx) => {
-            const existingLink = await tx.user.findUnique({
-              where: { twitterId },
-              select: { id: true },
-            });
-
-            if (existingLink && existingLink.id !== currentUserId) {
-              throw new Error("TWITTER_ALREADY_LINKED");
-            }
-
-            return await tx.user.update({
-              where: { id: currentUserId },
-              data: { twitterId, twitterUser, twitterName, twitterImage },
-            });
-          });
-
-          await ensurePublicId(prisma, updated.id);
-          await ensureHandleFromX(prisma, updated.id, twitterUser);
-          await awardOnce(prisma, updated.id, "CONNECT_X", 100);
-
-          const fresh = await prisma.user.findUnique({
-            where: { id: updated.id },
-            select: tokenSelect,
-          });
-
-          token.linkError = undefined;
-          applyUserToToken(token, fresh ?? updated);
-        } catch (e: any) {
-          token.linkError = e?.message === "TWITTER_ALREADY_LINKED" ? "TWITTER_ALREADY_LINKED" : "TWITTER_LINK_FAILED";
-        }
-
-        return token;
-      }
-
-      /* ------------------------------ DISCORD ------------------------------ */
-      // Wallet-first: only link to existing wallet user.
-      if (account?.provider === "discord") {
-        if (!currentUserId) {
-          token.linkError = "NO_SERVER_SESSION";
-          return token;
-        }
-
-        const discordId = account.providerAccountId;
-        const d = pickDiscordProfile(profile);
-
-        try {
-          const updated = await prisma.$transaction(async (tx) => {
-            const existingLink = await tx.user.findUnique({
-              where: { discordId },
-              select: { id: true },
-            });
-
-            if (existingLink && existingLink.id !== currentUserId) {
-              throw new Error("DISCORD_ALREADY_LINKED");
-            }
-
-            return await tx.user.update({
-              where: { id: currentUserId },
-              data: {
-                discordId,
-                discordUser: d.username,
-                discordName: d.name,
-                discordImage: d.image,
-              },
-            });
-          });
-
-          await ensurePublicId(prisma, updated.id);
-          await awardOnce(prisma, updated.id, "CONNECT_DISCORD", 100);
-
-          const fresh = await prisma.user.findUnique({
-            where: { id: updated.id },
-            select: tokenSelect,
-          });
-
-          token.linkError = undefined;
-          applyUserToToken(token, fresh ?? updated);
-        } catch (e: any) {
-          token.linkError = e?.message === "DISCORD_ALREADY_LINKED" ? "DISCORD_ALREADY_LINKED" : "DISCORD_LINK_FAILED";
-        }
-
-        return token;
-      }
-
-      /* ----------------------- REFRESH TOKEN FROM DB ----------------------- */
       if (!account && currentUserId) {
         const u = await prisma.user.findUnique({
           where: { id: currentUserId },
@@ -433,28 +205,14 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       const uid = tokenUserId(token);
 
-      // custom fields used by your API/UI
       session.userId = uid ?? undefined;
-      session.linkError = token.linkError;
 
       session.user = {
         ...(session.user ?? {}),
         id: uid ?? undefined,
-
         points: token.points ?? 0,
         handle: token.handle ?? null,
         publicId: token.publicId ?? null,
-
-        twitterId: token.twitterId ?? null,
-        twitterUser: token.twitterUser ?? null,
-        twitterName: token.twitterName ?? null,
-        twitterImage: token.twitterImage ?? null,
-
-        discordId: token.discordId ?? null,
-        discordUser: token.discordUser ?? null,
-        discordName: token.discordName ?? null,
-        discordImage: token.discordImage ?? null,
-
         walletAddress: token.walletAddress ?? null,
         walletChainId: token.walletChainId ?? null,
       };

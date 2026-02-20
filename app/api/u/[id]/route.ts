@@ -7,25 +7,14 @@ export const revalidate = 0;
 
 const PUBLIC_PREFIX = "/u";
 
+// Очищенная выборка: только базовые данные и кошелек
 const userSelect = {
   id: true,
   handle: true,
   publicId: true,
   points: true,
-
-  twitterId: true,
-  twitterUser: true,
-  twitterName: true,
-  twitterImage: true,
-
-  discordId: true,
-  discordUser: true,
-  discordName: true,
-  discordImage: true,
-
   walletAddress: true,
   walletChainId: true,
-
   createdAt: true,
 } as const;
 
@@ -44,7 +33,7 @@ export async function GET(
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
   }
 
-  // 👇 ИСПРАВЛЕНИЕ: Добавили mode: 'insensitive' для надежного поиска
+  // Поиск пользователя по handle или publicId (регистронезависимый)
   const user = await prisma.user.findFirst({
     where: {
       OR: [
@@ -59,19 +48,16 @@ export async function GET(
     return NextResponse.json({ ok: false }, { status: 404 });
   }
 
-  const twitterConnected = Boolean(user.twitterId);
-  const discordConnected = Boolean(user.discordId);
+  // Логика состояния (теперь только кошелек)
   const walletConnected = Boolean(user.walletAddress);
 
+  // Имя пользователя: приоритет handle -> сокращенный адрес кошелька
   const displayName =
-    user.twitterName ||
-    (user.twitterUser ? `@${user.twitterUser}` : null) ||
-    user.discordName ||
-    user.discordUser ||
-    "Realife user";
+    user.handle ? `@${user.handle}` : 
+    (user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : "Realife user");
 
-  const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
-  const mainAvatar = user.twitterImage || user.discordImage || null;
+  // Аватарка теперь всегда null, так как соцсети отключены
+  const mainAvatar = null;
 
   const publicKey = pickPublicKey({
     handle: user.handle ?? null,
@@ -85,14 +71,15 @@ export async function GET(
     ok: true,
     user: {
       ...user,
-      twitterConnected,
-      discordConnected,
       walletConnected,
       displayName,
-      xHandle,
       mainAvatar,
       publicKey,
       publicUrl,
+      // Социальные флаги удалены или установлены в false для совместимости с фронтендом
+      twitterConnected: false,
+      discordConnected: false,
+      xHandle: null,
     },
   });
 }

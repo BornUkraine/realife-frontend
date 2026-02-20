@@ -19,7 +19,7 @@ function pickPublicKey(user: { handle: string | null; publicId: string | null })
   return user.handle || user.publicId || null;
 }
 
-// Генерация publicId, НО безопасно: вызывай только когда user точно существует
+// Безопасная генерация publicId внутри транзакции
 async function ensurePublicIdTx(tx: any, userId: string) {
   const u = await tx.user.findUnique({
     where: { id: userId },
@@ -40,7 +40,7 @@ async function ensurePublicIdTx(tx: any, userId: string) {
       return updated.publicId;
     } catch (e: any) {
       if (e?.code === "P2002") continue;
-      if (e?.code === "P2025") return null; // user disappeared
+      if (e?.code === "P2025") return null; 
       throw e;
     }
   }
@@ -57,7 +57,7 @@ export async function GET() {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // 1) СНАЧАЛА читаем юзера (если его нет — не трогаем update вообще)
+      // 1) Читаем только базовые данные и данные кошелька
       const user = await tx.user.findUnique({
         where: { id: uid },
         select: {
@@ -65,31 +65,19 @@ export async function GET() {
           handle: true,
           publicId: true,
           points: true,
-
-          twitterId: true,
-          twitterUser: true,
-          twitterName: true,
-          twitterImage: true,
-
-          discordId: true,
-          discordUser: true,
-          discordName: true,
-          discordImage: true,
-
           walletAddress: true,
           walletChainId: true,
-
           lastDailyAt: true,
           createdAt: true,
+          // Социальные поля удалены из запроса
         },
       });
 
-      // Если в JWT остался id удалённого юзера → говорим "не авторизован"
       if (!user) {
         return { status: 401 as const, body: { ok: false, reason: "USER_NOT_FOUND" } };
       }
 
-      // 2) Теперь безопасно обеспечиваем publicId (если надо)
+      // 2) Обеспечиваем наличие publicId
       const ensuredPublicId = user.publicId && user.publicId !== "tmp"
         ? user.publicId
         : await ensurePublicIdTx(tx, uid);
@@ -103,14 +91,13 @@ export async function GET() {
 
       const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
-      const displayName =
-        finalUser.twitterName ||
-        (finalUser.twitterUser ? `@${finalUser.twitterUser}` : null) ||
-        finalUser.discordName ||
-        finalUser.discordUser ||
-        "Realife user";
+      // 3) Логика имени теперь опирается только на кошелек или handle
+      const displayName = 
+        finalUser.handle ? `@${finalUser.handle}` : 
+        (finalUser.walletAddress ? `${finalUser.walletAddress.slice(0, 6)}...${finalUser.walletAddress.slice(-4)}` : "Realife user");
 
-      const mainAvatar = finalUser.twitterImage || finalUser.discordImage || null;
+      // Аватарка по умолчанию (пусто), так как соцсетей нет
+      const mainAvatar = null;
 
       return {
         status: 200 as const,
@@ -122,7 +109,8 @@ export async function GET() {
             displayName,
             mainAvatar,
           },
-          linkError: (session as any)?.linkError ?? null,
+          // Ошибки линковки соцсетей здесь больше не нужны
+          linkError: null,
         },
       };
     });
