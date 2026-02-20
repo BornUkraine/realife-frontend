@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyMessage } from "viem";
 
 /* -------------------------------------------------------------------------- */
-/* HELPERS (Все функции на месте)                                             */
+/* HELPERS                                                                    */
 /* -------------------------------------------------------------------------- */
 
 function slugifyHandle(input: string) {
@@ -53,7 +53,6 @@ async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?
       return;
     }
   }
-
   const pid = current?.publicId ?? (await ensurePublicId(db, userId));
   if (pid) {
     await db.user.update({
@@ -114,6 +113,8 @@ export const authOptions: NextAuthOptions = {
     signIn: "/app/profile",
     error: "/app/profile",
   },
+
+  debug: false, 
 
   providers: [
     CredentialsProvider({
@@ -177,7 +178,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, profile, trigger, session, req }) {
       if (trigger === "update" && session) return { ...token, ...session };
 
-      // 🔥 ПЛАН Б: Достаем ID кошелька из URL (?wid=...), если куки сессии были удалены браузером
+      // Пытаемся достать ID кошелька из URL, если куки умерли
       let widFromUrl = null;
       try {
         if (req?.url) {
@@ -186,11 +187,16 @@ export const authOptions: NextAuthOptions = {
         }
       } catch (e) { /* ignore */ }
 
-      // Берем ID либо из токена (куки), либо из URL (wid), либо из объекта user (при логине)
-      const dbUserId = token?.uid || widFromUrl || user?.id;
+      // 🔥 КРИТИЧЕСКИЙ ФИКС: 
+      // При логине через кошелек (account.provider === "wallet") берем user.id.
+      // При логине через X мы берем ID ТОЛЬКО из токена или из URL (wid).
+      // НИКОГДА не берем user.id, если провайдер — Twitter!
+      
+      const isWalletLogin = account?.provider === "wallet";
+      const dbUserId = isWalletLogin ? user?.id : (token?.uid || widFromUrl);
 
       /* ------------------------------ WALLET LOGIN ------------------------------ */
-      if (account?.provider === "wallet" && user?.id) {
+      if (isWalletLogin && user?.id) {
         token.uid = user.id;
         const u = await prisma.user.findUnique({ where: { id: user.id }, select: tokenSelect });
         if (u) applyUserToToken(token, u);
@@ -199,26 +205,26 @@ export const authOptions: NextAuthOptions = {
 
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
-        // Если ID всё равно нет, значит сессия кошелька потеряна окончательно
         if (!dbUserId) {
+          console.error("❌ OAUTH ERROR: No session or URL ID found!");
           throw new Error("WalletSessionLost");
         }
 
         const twitterId = account.providerAccountId;
-        const twitterUser = profile?.twitterUser || null;
+        const twitterUser = (profile as any)?.twitterUser || null;
         const twitterName = profile?.name || null;
         const twitterImage = profile?.image || null;
 
         try {
+          // Выполняем обновление только если ID найден в нашей базе
           const updated = await prisma.$transaction(async (tx) => {
-            const existingLink = await tx.user.findUnique({ where: { twitterId }, select: { id: true } });
-            
-            // Если этот X уже привязан к другому кошельку — выдаем ошибку
-            if (existingLink && existingLink.id !== dbUserId) {
-              throw new Error("TwitterAlreadyLinked");
-            }
+            // Проверяем, существует ли пользователь в БД ПЕРЕД обновлением
+            const targetUser = await tx.user.findUnique({ where: { id: dbUserId } });
+            if (!targetUser) throw new Error("UserNotFoundInDB");
 
-            // Привязываем X к текущему ID из базы
+            const existingLink = await tx.user.findUnique({ where: { twitterId }, select: { id: true } });
+            if (existingLink && existingLink.id !== dbUserId) throw new Error("TwitterAlreadyLinked");
+
             return await tx.user.update({
               where: { id: dbUserId },
               data: { twitterId, twitterUser, twitterName, twitterImage },
@@ -228,11 +234,10 @@ export const authOptions: NextAuthOptions = {
           await ensureHandleFromX(prisma, updated.id, twitterUser);
           await awardOnce(prisma, updated.id, "CONNECT_X", 100);
 
-          // 🔥 Принудительно оживляем сессию кошелька в токене
           token.uid = updated.id;
           applyUserToToken(token, updated);
-          
         } catch (e: any) {
+          console.error("❌ TWITTER LINK ERROR:", e.message);
           throw new Error(e.message || "TwitterLinkFailed");
         }
         return token;
