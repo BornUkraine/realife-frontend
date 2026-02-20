@@ -1,379 +1,505 @@
-// @ts-nocheck
-import type { NextAuthOptions } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "@/lib/prisma";
-import { verifyMessage } from "viem";
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import AppShell from "@/components/AppShell";
+import { signIn, signOut, useSession } from "next-auth/react";
+import { useAccount, useChainId } from "wagmi";
+
+/* -------------------------------------------------------------------------- */
+/* TYPES                                                                      */
+/* -------------------------------------------------------------------------- */
+
+type MeUser = {
+  id?: string;
+  handle?: string | null;
+  publicId?: string | null;
+  publicUrl?: string | null;
+
+  points?: number;
+
+  walletAddress?: string | null; // server verified
+  walletChainId?: number | null;
+
+  displayName?: string | null;
+  mainAvatar?: string | null;
+
+  lastDailyAt?: string | null; // ISO string from API
+
+  // 👇 X (Twitter) поля
+  twitterId?: string | null;
+  twitterUser?: string | null;
+  twitterName?: string | null;
+  twitterImage?: string | null;
+};
+
+type MeResponse = {
+  ok: boolean;
+  user?: MeUser | null;
+  linkError?: string | null;
+};
+
+type DailyResponse =
+  | { ok: true; add: number; points: number }
+  | { ok: false; message?: string; points?: number };
 
 /* -------------------------------------------------------------------------- */
 /* HELPERS                                                                    */
 /* -------------------------------------------------------------------------- */
 
-function slugifyHandle(input: string) {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/^@+/, "")
-    .replace(/[^a-z0-9_]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 24);
+function cx(...a: Array<string | false | null | undefined>) {
+  return a.filter(Boolean).join(" ");
 }
 
-function randomId(len = 6) {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // без 0/O/I/1
-  let out = "";
-  for (let i = 0; i < len; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
-  return out;
+function normalizePublicUrl(raw: string | null | undefined) {
+  if (!raw) return null;
+  if (raw.includes("tmp")) return null;
+  if (raw.startsWith("/u/")) return raw;
+  if (!raw.startsWith("/")) return `/u/${raw}`;
+  return raw;
 }
 
-async function ensurePublicId(db: typeof prisma, userId: string): Promise<string> {
-  const u = await db.user.findUnique({
-    where: { id: userId },
-    select: { publicId: true },
-  });
-
-  if (u?.publicId && u.publicId !== "tmp") return u.publicId;
-
-  for (let i = 0; i < 25; i++) {
-    const pid = `rl_${randomId(8)}`;
-    try {
-      const updated = await db.user.update({
-        where: { id: userId },
-        data: { publicId: pid },
-        select: { publicId: true },
-      });
-      if (updated.publicId) return updated.publicId;
-    } catch (e: any) {
-      if (e?.code === "P2002") continue; // collision -> retry
-      throw e;
-    }
-  }
-  throw new Error("PUBLIC_ID_GENERATION_FAILED");
+function shortAddr(addr?: string | null) {
+  if (!addr) return "—";
+  if (addr.length <= 12) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?: string | null) {
-  if (!twitterUser) return;
+// UTC to match server daily boundaries
+function utcKey(d: Date) {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
 
-  const current = await db.user.findUnique({
-    where: { id: userId },
-    select: { handle: true, publicId: true },
-  });
+function formatLocal(dtIso?: string | null) {
+  if (!dtIso) return "—";
+  const d = new Date(dtIso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
+}
 
-  if (current?.handle) return; // У юзера уже есть handle, не трогаем
+/* --------------------------------- UI Kit -------------------------------- */
 
-  const base = slugifyHandle(twitterUser);
-  if (!base) return;
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={cx(
+      "relative overflow-hidden rounded-[30px] p-px",
+      "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.11),rgba(184,135,10,0.10))]",
+      "shadow-[0_26px_100px_rgba(0,0,0,0.60)]",
+      className
+    )}>
+      <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl ring-1 ring-black/10">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
+          <div className="absolute inset-0 opacity-[0.06] [mask-image:radial-gradient(circle_at_40%_30%,black,transparent_70%)] bg-[linear-gradient(to_right,rgba(255,255,255,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.22)_1px,transparent_1px)] bg-[length:64px_64px]" />
+        </div>
+        <div className="relative z-10 p-6 md:p-7">{children}</div>
+      </div>
+    </div>
+  );
+}
 
-  for (let i = 0; i < 25; i++) {
-    const h = i === 0 ? base : `${base}_${i + 1}`;
-    const taken = await db.user.findUnique({ where: { handle: h }, select: { id: true } });
-    if (!taken) {
-      await db.user.update({ where: { id: userId }, data: { handle: h } });
+function Pill({ children, tone = "muted" }: { children: React.ReactNode; tone?: "muted" | "ok" | "warn" | "gold" }) {
+  const cls =
+    tone === "ok" ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200" :
+    tone === "warn" ? "border-amber-500/25 bg-amber-500/10 text-amber-100" :
+    tone === "gold" ? "border-amber-400/30 bg-amber-400/10 text-amber-100" :
+    "border-white/10 bg-white/[0.06] text-white/70";
+
+  return <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>{children}</div>;
+}
+
+function Alert({ title, text, tone = "warn" }: { title: string; text: string; tone?: "warn" | "error" }) {
+  const cls = tone === "error" ? "border-rose-500/25 bg-rose-500/10" : "border-amber-500/25 bg-amber-500/10";
+  return (
+    <div className={cx("rounded-[22px] border px-4 py-3", cls)}>
+      <div className={cx("text-sm font-extrabold", tone === "error" ? "text-rose-50" : "text-amber-50")}>{title}</div>
+      <div className={cx("mt-1 text-sm", tone === "error" ? "text-rose-100/90" : "text-amber-100/90")}>{text}</div>
+    </div>
+  );
+}
+
+function Btn({ variant = "gold", className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "gold" | "ghost" | "tiny" }) {
+  const base = "inline-flex items-center justify-center gap-2 font-extrabold transition disabled:opacity-60 disabled:cursor-not-allowed";
+  const gold = "w-full px-6 py-3 rounded-2xl text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_22px_70px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 hover:-translate-y-px active:translate-y-0";
+  const ghost = "w-full px-6 py-3 rounded-2xl text-white border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px active:translate-y-0";
+  const tiny = "px-3 py-2 rounded-xl text-[12px] text-white border border-white/15 bg-white/[0.06] backdrop-blur-2xl hover:bg-white/10 active:translate-y-[1px]";
+
+  return <button {...props} className={cx(base, variant === "gold" ? gold : variant === "ghost" ? ghost : tiny, className)} />;
+}
+
+function Avatar({ src, fallback, size = "md", ring = true }: { src?: string | null; fallback: string; size?: "sm" | "md" | "lg" | "xl" | "hero"; ring?: boolean }) {
+  const s = size === "hero" ? "h-24 w-24 md:h-28 md:w-28" : size === "xl" ? "h-20 w-20 md:h-24 md:w-24" : size === "lg" ? "h-16 w-16" : size === "sm" ? "h-12 w-12" : "h-14 w-14";
+  return (
+    <div className={cx(s, "rounded-2xl overflow-hidden flex items-center justify-center bg-white/[0.06] border border-white/10", ring ? "shadow-[0_18px_60px_rgba(212,175,55,0.10)] ring-1 ring-black/15" : "")}>
+      {src ? <img src={src} alt={fallback} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <span className="text-white/40 text-xs font-black">{fallback}</span>}
+    </div>
+  );
+}
+
+function Field({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <div className="text-[11px] text-white/55 font-semibold">{label}</div>
+      <div className={cx("mt-1 text-sm font-extrabold text-white/85 truncate", mono ? "font-mono text-[13px]" : "")}>{value}</div>
+    </div>
+  );
+}
+
+/* --------------------------------- Page ---------------------------------- */
+
+export default function ProfilePage() {
+  const { status } = useSession();
+  const authed = status === "authenticated";
+
+  const { address: liveAddress, isConnected: walletIsConnected } = useAccount();
+  const liveChainId = useChainId();
+
+  const [me, setMe] = useState<MeUser | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [walletCopied, setWalletCopied] = useState(false);
+  const [dailyBusy, setDailyBusy] = useState(false);
+  const [dailyMsg, setDailyMsg] = useState<string | null>(null);
+
+  // 👇 Состояния для привязки X
+  const [connectBusy, setConnectBusy] = useState<"" | "twitter">("");
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const busyGuardRef = useRef(false);
+
+  const serverWalletAddress = me?.walletAddress ?? null;
+  const serverWalletChainId = me?.walletChainId ?? null;
+  const twitterConnected = Boolean(me?.twitterId);
+
+  const displayWalletAddress = liveAddress ?? serverWalletAddress ?? null;
+  const displayWalletChainId = walletIsConnected && liveAddress ? liveChainId : serverWalletChainId ?? null;
+
+  const safePublicId = useMemo(() => {
+    const pid = me?.publicId ?? null;
+    if (!pid || pid === "tmp") return null;
+    return pid;
+  }, [me?.publicId]);
+
+  const publicUrl = useMemo(() => {
+    if (!me) return null;
+    const normalized = normalizePublicUrl(me.publicUrl);
+    if (normalized) return normalized;
+    if (me.handle) return `/u/${me.handle}`;
+    if (safePublicId) return `/u/${safePublicId}`;
+    return null;
+  }, [me, safePublicId]);
+
+  const publicFullUrl = useMemo(() => {
+    if (!publicUrl || typeof window === "undefined") return null;
+    return `${window.location.origin}${publicUrl}`;
+  }, [publicUrl]);
+
+  // TOP: name fallback: X -> Handle -> Wallet
+  const topDisplayName = useMemo(() => {
+    if (!me) return "Loading…";
+    return (
+      me.displayName ||
+      me.twitterName ||
+      (me.twitterUser ? `@${me.twitterUser}` : null) ||
+      (me.handle ? `@${me.handle}` : null) ||
+      (serverWalletAddress ? shortAddr(serverWalletAddress) : "Realife user")
+    );
+  }, [me, serverWalletAddress]);
+
+  const heroAvatar = useMemo(() => me?.mainAvatar || me?.twitterImage || null, [me]);
+
+  // Daily claim status
+  const dailyStatus = useMemo(() => {
+    const last = me?.lastDailyAt ?? null;
+    if (!last) return { canClaim: true, label: "Daily available" as const };
+    const lastDate = new Date(last);
+    if (Number.isNaN(lastDate.getTime())) return { canClaim: true, label: "Daily available" as const };
+
+    const today = utcKey(new Date());
+    const lastKey = utcKey(lastDate);
+    const canClaim = today !== lastKey;
+
+    return { canClaim, label: canClaim ? "Daily available" : "Claimed today" } as const;
+  }, [me?.lastDailyAt]);
+
+  async function loadMe() {
+    if (!authed) {
+      setMe(null);
+      setDailyMsg(null);
+      setLinkError(null);
       return;
     }
+    setLoading(true);
+    try {
+      const res = await fetch("/api/me", { cache: "no-store" });
+      const json = (await res.json()) as MeResponse;
+      if (json?.ok) setMe(json?.user ?? null);
+      else setMe(null);
+      
+      // Подхватываем ошибку линковки из сессии
+      setLinkError(json?.linkError ?? null);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+      setConnectBusy("");
+      busyGuardRef.current = false;
+    }
   }
 
-  // fallback
-  const pid = current?.publicId ?? (await ensurePublicId(db, userId));
-  if (pid) {
-    await db.user.update({
-      where: { id: userId },
-      data: { handle: `${base}_${pid.slice(-4).toLowerCase()}` },
+  useEffect(() => {
+    if (authed) void loadMe();
+    else {
+      setMe(null);
+      setDailyMsg(null);
+      setLinkError(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed]);
+
+  // Возврат после OAuth редиректа
+  useEffect(() => {
+    if (!authed) return;
+    const onFocus = () => void loadMe();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed]);
+
+  async function claimDaily() {
+    if (!authed || dailyBusy) return;
+    setDailyBusy(true);
+    setDailyMsg(null);
+    try {
+      const res = await fetch("/api/points/daily", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+
+      const json = (await res.json()) as DailyResponse;
+
+      if (res.ok && json.ok) {
+        setMe((prev) => prev ? { ...prev, points: json.points, lastDailyAt: new Date().toISOString() } : prev);
+        setDailyMsg(`Daily claimed: +${json.add}. New balance: ${json.points}.`);
+      } else {
+        const msg = (json as any)?.message || "Failed";
+        setDailyMsg(msg.toLowerCase().includes("already claimed") ? "Already claimed today." : "Daily claim failed.");
+      }
+    } catch {
+      setDailyMsg("Network error. Try again.");
+    } finally {
+      setDailyBusy(false);
+    }
+  }
+
+  // 👇 Логика подключения X
+  async function connectTwitter() {
+    if (!authed) {
+      setLinkError("NO_SERVER_SESSION");
+      return;
+    }
+    if (busyGuardRef.current) return;
+
+    busyGuardRef.current = true;
+    setConnectBusy("twitter");
+    setLinkError(null);
+    setDailyMsg(null);
+
+    const callbackUrl = typeof window !== "undefined" ? `${window.location.origin}/app/profile` : "/app/profile";
+
+    void signIn("twitter", { callbackUrl }).finally(() => {
+      setTimeout(() => {
+        busyGuardRef.current = false;
+        setConnectBusy("");
+      }, 1200);
     });
   }
+
+  async function copyText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const walletPillText = serverWalletAddress ? "Wallet verified (server)" : walletIsConnected ? "Wallet connected (client)" : "Wallet not connected";
+  const walletMismatch = useMemo(() => {
+    const a = liveAddress?.toLowerCase();
+    const b = serverWalletAddress?.toLowerCase();
+    return Boolean(a && b && a !== b);
+  }, [liveAddress, serverWalletAddress]);
+
+  // Человекочитаемые ошибки линковки
+  const uiErrorText =
+    linkError === "TWITTER_ALREADY_LINKED" ? "This X (Twitter) account is already linked to another wallet profile." :
+    linkError === "NO_SERVER_SESSION" ? "No server session yet. Connect your EVM wallet first." :
+    linkError ? "Failed to connect X account. Please try again." : null;
+
+  return (
+    <AppShell title="REALIFE" subtitle="Profile • Identity • Wallet">
+      <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
+        {/* Ambient background */}
+        <div className="pointer-events-none fixed inset-0">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.12),transparent_55%)]" />
+          <div className="absolute -top-80 -left-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/14 blur-3xl animate-pulse" />
+          <div
+            className="absolute inset-0 opacity-[0.06]"
+            style={{
+              backgroundImage: "linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px)",
+              backgroundSize: "56px 56px",
+            }}
+          />
+        </div>
+
+        <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
+          {/* Уведомления об ошибках / успехе */}
+          {uiErrorText && <Alert title="Linking Issue" text={uiErrorText} tone="error" />}
+          {dailyMsg && <Alert title="Points" text={dailyMsg} tone={dailyMsg.toLowerCase().includes("failed") ? "error" : "warn"} />}
+          {!authed && <Alert title="No server session yet" text="Connect wallet in the top bar and sign once to view your profile." tone="warn" />}
+          {walletMismatch && <Alert title="Wallet mismatch" text="Your connected wallet is different from the server-verified wallet. Please re-verify." tone="warn" />}
+
+          {/* HERO CARD */}
+          <Card>
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div className="flex items-center gap-5 min-w-0">
+                <Avatar src={heroAvatar} fallback="RL" size="hero" />
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-white/60">Unified profile</div>
+                  <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
+                    {authed ? topDisplayName : "—"}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Pill tone={serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"}>{walletPillText}</Pill>
+                    <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>{dailyStatus.canClaim ? "Daily available" : "Claimed today"}</Pill>
+                    {twitterConnected && <Pill tone="ok">X connected</Pill>}
+                    {me?.twitterUser && <Pill tone="gold">@{me.twitterUser}</Pill>}
+                    {me?.handle && <Pill>handle: @{me.handle}</Pill>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="w-full md:w-[300px] flex flex-col gap-2">
+                <Btn variant="ghost" onClick={loadMe} disabled={!authed || loading}>
+                  {loading ? "Refreshing…" : "Refresh"}
+                </Btn>
+                <Btn variant="gold" onClick={claimDaily} disabled={!authed || dailyBusy || !dailyStatus.canClaim}>
+                  {dailyBusy ? "Claiming…" : dailyStatus.canClaim ? "Claim daily +10" : "Daily claimed"}
+                </Btn>
+                <Btn variant="ghost" onClick={() => signOut({ redirect: false })} disabled={!authed}>
+                  Log out (server)
+                </Btn>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Field label="Points" value={me?.points ?? 0} />
+              <Field
+                label="Daily"
+                value={
+                  <div className="flex items-center gap-2">
+                    <span className="truncate">{dailyStatus.label}</span>
+                    <span className="text-[11px] text-white/55">
+                      {me?.lastDailyAt ? `• ${formatLocal(me.lastDailyAt)}` : ""}
+                    </span>
+                  </div>
+                }
+              />
+              <Field label="Wallet (connected)" value={walletIsConnected && liveAddress ? shortAddr(liveAddress) : "—"} mono />
+              <Field
+                label="Public link"
+                value={
+                  publicUrl ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyText(publicFullUrl!).then(() => {
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 1200);
+                        })
+                      }
+                      className="text-left hover:underline font-mono"
+                    >
+                      {publicUrl}{" "}
+                      <span className="text-[11px] text-white/60">{copied ? "copied" : "copy"}</span>
+                    </button>
+                  ) : (
+                    "—"
+                  )
+                }
+                mono
+              />
+              <Field label="Chain" value={displayWalletChainId ? <span className="font-extrabold">{displayWalletChainId}</span> : "—"} />
+              <Field label="Identity" value={<span className="truncate">{twitterConnected ? "Wallet + X" : "Wallet only"}</span>} />
+              <Field label="User id" value={me?.id ?? "—"} mono />
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Btn
+                variant="tiny"
+                onClick={() =>
+                  copyText(displayWalletAddress!).then(() => {
+                    setWalletCopied(true);
+                    setTimeout(() => setWalletCopied(false), 1200);
+                  })
+                }
+                disabled={!displayWalletAddress}
+              >
+                {walletCopied ? "Wallet copied" : "Copy wallet"}
+              </Btn>
+              {publicUrl && (
+                <a
+                  href={publicUrl}
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-xl text-[12px] font-extrabold text-white border border-white/15 bg-white/[0.06] hover:bg-white/10"
+                >
+                  Open public profile →
+                </a>
+              )}
+            </div>
+          </Card>
+
+          {/* 👇 X (TWITTER) CONNECT BLOCK */}
+          {authed && (
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card className={cx(twitterConnected ? "ring-1 ring-amber-500/20 bg-amber-500/[0.02]" : "")}>
+                <div className="flex items-center justify-between gap-4 mb-6">
+                  <div>
+                    <div className="text-sm font-extrabold">X (Twitter)</div>
+                    <div className="text-xs text-white/60 mt-1">Name • @username • avatar</div>
+                  </div>
+
+                  {twitterConnected ? (
+                    <Pill tone="ok">Connected</Pill>
+                  ) : (
+                    <Btn
+                      variant="gold"
+                      onClick={connectTwitter}
+                      disabled={connectBusy !== "" || !authed}
+                      className="w-auto px-5 py-2 text-[13px]"
+                    >
+                      {connectBusy === "twitter" ? "Connecting…" : "Connect X"}
+                    </Btn>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
+                  <Avatar src={me?.twitterImage ?? null} fallback="X" size="lg" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-extrabold truncate">{me?.twitterName || "Not Connected"}</div>
+                    <div className="text-xs text-white/60 font-mono truncate">{me?.twitterUser ? `@${me.twitterUser}` : "—"}</div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          <div className="text-[11px] text-white/40 text-center">
+            Tip: wallet verification happens in the top bar (signature once). This page reads everything from{" "}
+            <span className="font-mono text-white/55">/api/me</span>.
+          </div>
+        </div>
+      </main>
+    </AppShell>
+  );
 }
-
-async function awardOnce(
-  db: typeof prisma,
-  userId: string,
-  type: "DAILY" | "CONNECT_X",
-  points: number
-) {
-  const already = await db.pointEvent.findFirst({
-    where: { userId, type },
-    select: { id: true },
-  });
-
-  if (already) return false;
-
-  await db.user.update({
-    where: { id: userId },
-    data: { points: { increment: points } },
-  });
-
-  await db.pointEvent.create({
-    data: { userId, type, points },
-  });
-
-  return true;
-}
-
-const tokenSelect = {
-  id: true,
-  points: true,
-  handle: true,
-  publicId: true,
-  twitterId: true,
-  twitterUser: true,
-  twitterName: true,
-  twitterImage: true,
-  walletAddress: true,
-  walletChainId: true,
-} as const;
-
-function tokenUserId(token: any): string | null {
-  return (token?.uid as string) || (token?.sub as string) || null;
-}
-
-function applyUserToToken(token: any, user: any) {
-  token.sub = user.id;
-  token.uid = user.id;
-
-  token.points = user.points ?? 0;
-  token.handle = user.handle ?? null;
-  token.publicId = user.publicId ?? null;
-
-  token.twitterId = user.twitterId ?? null;
-  token.twitterUser = user.twitterUser ?? null;
-  token.twitterName = user.twitterName ?? null;
-  token.twitterImage = user.twitterImage ?? null;
-
-  token.walletAddress = user.walletAddress ?? null;
-  token.walletChainId = user.walletChainId ?? null;
-
-  return token;
-}
-
-/* -------------------------------------------------------------------------- */
-/* PROVIDERS                                                                  */
-/* -------------------------------------------------------------------------- */
-
-const TwitterOAuthProvider: any = {
-  id: "twitter",
-  name: "Twitter",
-  type: "oauth",
-  version: "2.0",
-  authorization: {
-    url: "https://twitter.com/i/oauth2/authorize",
-    params: { scope: "users.read tweet.read offline.access" },
-  },
-  token: "https://api.twitter.com/2/oauth2/token",
-  userinfo: "https://api.twitter.com/2/users/me?user.fields=id,name,username,profile_image_url",
-  clientId: process.env.TWITTER_CLIENT_ID!,
-  clientSecret: process.env.TWITTER_CLIENT_SECRET!,
-  checks: ["pkce", "state"],
-  profile(raw: any) {
-    const d = raw?.data ?? {};
-    const img = d?.profile_image_url ?? null;
-    const bigger = typeof img === "string" ? img.replace("_normal", "") : img; // Получаем большую аватарку
-    return {
-      id: d?.id,
-      name: d?.name ?? null,
-      username: d?.username ?? null,
-      image: bigger ?? null,
-      __raw: raw,
-    };
-  },
-};
-
-/* -------------------------------------------------------------------------- */
-/* AUTH OPTIONS                                                               */
-/* -------------------------------------------------------------------------- */
-
-export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
-  trustHost: true,
-
-  cookies: {
-    sessionToken: {
-      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.session-token`,
-      options: {
-        httpOnly: true,
-        sameSite: "lax", // 🔥 КРИТИЧНО ВАЖНО для сохранения сессии при редиректах X
-        path: "/",
-        secure: process.env.NODE_ENV === "production",
-      },
-    },
-  },
-
-  debug: process.env.NODE_ENV !== "production" && process.env.NEXTAUTH_DEBUG === "true",
-
-  providers: [
-    CredentialsProvider({
-      id: "wallet",
-      name: "Wallet",
-      credentials: {
-        address: { label: "Address", type: "text" },
-        signature: { label: "Signature", type: "text" },
-        chainId: { label: "ChainId", type: "text" },
-      },
-      async authorize(credentials) {
-        const address = String(credentials?.address || "").trim().toLowerCase();
-        const signature = String(credentials?.signature || "").trim();
-        const chainId = Number(credentials?.chainId || "0");
-
-        if (!address || !address.startsWith("0x") || signature.length < 20) return null;
-
-        const row = await prisma.walletNonce.findUnique({ where: { address } });
-        if (!row) return null;
-        if (row.expiresAt.getTime() < Date.now()) return null;
-
-        const message =
-          `Realife wallet verification\n` +
-          `Address: ${address}\n` +
-          `Nonce: ${row.nonce}\n` +
-          `URI: ${process.env.NEXTAUTH_URL ?? ""}`;
-
-        const ok = await verifyMessage({
-          address: address as `0x${string}`,
-          message,
-          signature: signature as `0x${string}`,
-        });
-
-        if (!ok) return null;
-
-        await prisma.walletNonce.delete({ where: { address } }).catch(() => {});
-
-        const user = await prisma.$transaction(async (tx) => {
-          const u = await tx.user.upsert({
-            where: { walletAddress: address },
-            create: {
-              walletAddress: address,
-              walletChainId: Number.isFinite(chainId) ? chainId : null,
-            },
-            update: {
-              walletChainId: Number.isFinite(chainId) ? chainId : null,
-            },
-          });
-
-          await ensurePublicId(tx as any, u.id);
-
-          const fresh = await tx.user.findUnique({ where: { id: u.id }, select: tokenSelect });
-          return fresh ?? u;
-        });
-
-        return { id: user.id } as any;
-      },
-    }),
-
-    TwitterOAuthProvider,
-  ],
-
-  callbacks: {
-    async jwt({ token, user, account, profile, trigger, session }) {
-      if (trigger === "update" && session) {
-        return { ...token, ...session };
-      }
-
-      const currentUserId = tokenUserId(token);
-
-      /* ------------------------------ WALLET LOGIN ------------------------------ */
-      if (account?.provider === "wallet" && user?.id) {
-        token.linkError = undefined;
-        token.sub = user.id;
-        token.uid = user.id;
-
-        const u = await prisma.user.findUnique({ where: { id: user.id }, select: tokenSelect });
-        if (u) applyUserToToken(token, u);
-
-        return token;
-      }
-
-      /* ------------------------------ X (TWITTER) ------------------------------ */
-      if (account?.provider === "twitter") {
-        // 🔥 ПРАВИЛО 1: НЕТ КОШЕЛЬКА = НЕТ X
-        // Не позволяем создать нового пользователя, отклоняем попытку входа
-        if (!currentUserId) {
-          token.linkError = "NO_SERVER_SESSION";
-          return token;
-        }
-
-        const d = profile as any;
-        const twitterId = d?.data?.id ?? d?.id ?? account?.providerAccountId;
-        const twitterUser = d?.data?.username ?? d?.username ?? null;
-        const twitterName = d?.data?.name ?? d?.name ?? null;
-        const rawImg = d?.data?.profile_image_url ?? d?.profile_image_url;
-        // Убираем _normal, чтобы получить качественную аватарку
-        const twitterImage = typeof rawImg === "string" ? rawImg.replace("_normal", "") : rawImg;
-
-        if (!twitterId) return token;
-
-        try {
-          const updated = await prisma.$transaction(async (tx) => {
-            // 🔥 ПРАВИЛО 2: ЗАЩИТА ОТ ДУБЛИКАТОВ
-            const existingLink = await tx.user.findUnique({
-              where: { twitterId },
-              select: { id: true },
-            });
-
-            // Если этот Twitter уже привязан к ДРУГОМУ кошельку - кидаем ошибку
-            if (existingLink && existingLink.id !== currentUserId) {
-              throw new Error("TWITTER_ALREADY_LINKED");
-            }
-
-            // 🔥 ПРАВИЛО 3: ТОЛЬКО ОБНОВЛЕНИЕ ТЕКУЩЕГО ПРОФИЛЯ
-            return await tx.user.update({
-              where: { id: currentUserId },
-              data: { twitterId, twitterUser, twitterName, twitterImage },
-            });
-          });
-
-          // Автоматически формируем handle и выдаем поинты
-          await ensureHandleFromX(prisma, updated.id, twitterUser);
-          await awardOnce(prisma, updated.id, "CONNECT_X", 100);
-
-          const fresh = await prisma.user.findUnique({
-            where: { id: updated.id },
-            select: tokenSelect,
-          });
-
-          token.linkError = undefined;
-          applyUserToToken(token, fresh ?? updated);
-        } catch (e: any) {
-          token.linkError = e?.message === "TWITTER_ALREADY_LINKED" ? "TWITTER_ALREADY_LINKED" : "TWITTER_LINK_FAILED";
-        }
-
-        return token;
-      }
-
-      /* ----------------------- REFRESH TOKEN FROM DB ----------------------- */
-      if (!account && currentUserId) {
-        const u = await prisma.user.findUnique({
-          where: { id: currentUserId },
-          select: tokenSelect,
-        });
-        if (u) applyUserToToken(token, u);
-      }
-
-      return token;
-    },
-
-    async session({ session, token }) {
-      const uid = tokenUserId(token);
-
-      session.userId = uid ?? undefined;
-      session.linkError = token.linkError; // Передаем ошибку на фронтенд, если она была
-
-      session.user = {
-        ...(session.user ?? {}),
-        id: uid ?? undefined,
-        points: token.points ?? 0,
-        handle: token.handle ?? null,
-        publicId: token.publicId ?? null,
-        
-        // Добавляем X в сессию
-        twitterId: token.twitterId ?? null,
-        twitterUser: token.twitterUser ?? null,
-        twitterName: token.twitterName ?? null,
-        twitterImage: token.twitterImage ?? null,
-
-        walletAddress: token.walletAddress ?? null,
-        walletChainId: token.walletChainId ?? null,
-      };
-
-      return session;
-    },
-  },
-
-  secret: process.env.NEXTAUTH_SECRET,
-};
