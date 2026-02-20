@@ -1,7 +1,7 @@
 // @ts-nocheck
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import TwitterProvider from "next-auth/providers/twitter"; // 🔥 Используем официальный провайдер!
+import TwitterProvider from "next-auth/providers/twitter";
 import { prisma } from "@/lib/prisma";
 import { verifyMessage } from "viem";
 
@@ -152,17 +152,29 @@ export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   trustHost: true,
 
-  // 🔥 Возвращаем куки для PKCE, чтобы Railway не ругался на "Callback" ошибку
+  // 🔥 ПАТЧ 1: Принудительно включаем secure cookies для продакшена (Railway)
+  useSecureCookies: process.env.NODE_ENV === "production",
+
+  // 🔥 ПАТЧ 2: Явно разрешаем кросс-доменные куки для PKCE, чтобы убрать ошибку Callback
   cookies: {
     pkceCodeVerifier: {
-      name: "next-auth.pkce.code_verifier",
+      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.pkce.code_verifier`,
       options: {
         httpOnly: true,
         sameSite: "none",
         path: "/",
-        secure: true,
+        secure: process.env.NODE_ENV === "production",
       },
     },
+    state: {
+      name: `${process.env.NODE_ENV === "production" ? "__Secure-" : ""}next-auth.state`,
+      options: {
+        httpOnly: true,
+        sameSite: "none",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    }
   },
 
   pages: {
@@ -170,7 +182,7 @@ export const authOptions: NextAuthOptions = {
     error: "/app/profile",
   },
 
-  debug: process.env.NODE_ENV !== "production" && process.env.NEXTAUTH_DEBUG === "true",
+  debug: process.env.NODE_ENV !== "production" || process.env.NEXTAUTH_DEBUG === "true",
 
   providers: [
     CredentialsProvider({
@@ -235,6 +247,12 @@ export const authOptions: NextAuthOptions = {
       clientId: process.env.TWITTER_CLIENT_ID!,
       clientSecret: process.env.TWITTER_CLIENT_SECRET!,
       version: "2.0", // Обязательно для OAuth 2.0
+      // 🔥 ПАТЧ 3: Явно указываем права
+      authorization: {
+        params: {
+          scope: "users.read tweet.read offline.access",
+        },
+      },
       profile(profile) {
         const d = profile?.data ?? {};
         const img = d?.profile_image_url ?? null;
@@ -244,7 +262,7 @@ export const authOptions: NextAuthOptions = {
           name: d?.name ?? null,
           email: null,
           image: bigger ?? null,
-          twitterUser: d?.username ?? null, // Сохраняем username для колбэка
+          twitterUser: d?.username ?? null,
         };
       },
     }),
