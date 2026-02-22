@@ -64,8 +64,11 @@ function useOnClickOutsideAndEsc(onClose: () => void) {
 export default function WalletMenu() {
   const mounted = useMounted();
 
-  const { address, isConnected } = useAccount();
+  const { address } = useAccount();
   const { openConnectModal } = useConnectModal();
+
+  // ✅ ВАЖНО: не rely на isConnected (оно может мигать). address — стабильнее.
+  const connected = mounted && Boolean(address);
 
   const chainId = useChainId();
   const { disconnect } = useDisconnect();
@@ -73,14 +76,12 @@ export default function WalletMenu() {
 
   const { signMessageAsync } = useSignMessage();
 
-  // keep stable first paint
-  const connected = mounted ? isConnected : false;
   const needsBaseSepolia = connected && chainId !== baseSepolia.id;
 
   const { data: balanceData, isLoading: balLoading } = useBalance({
     address,
     chainId: baseSepolia.id,
-    query: { enabled: Boolean(address), refetchInterval: 12_000 },
+    query: { enabled: mounted && Boolean(address), refetchInterval: 12_000 },
   });
 
   const balLabel = useMemo(() => {
@@ -91,7 +92,6 @@ export default function WalletMenu() {
     return `${fmtEth(raw)} ${balanceData.symbol ?? "ETH"}`;
   }, [mounted, connected, balLoading, balanceData]);
 
-  // compact label for pill
   const pillBalance = useMemo(() => {
     if (!mounted || !connected) return "";
     if (balLoading) return "…";
@@ -129,7 +129,7 @@ export default function WalletMenu() {
   );
 
   /* ---------------------------------------------------------------------- */
-  /* WALLET-FIRST AUTO VERIFY                      */
+  /* WALLET-FIRST AUTO VERIFY                                                */
   /* ---------------------------------------------------------------------- */
 
   const triedVerifyRef = useRef(false);
@@ -153,7 +153,6 @@ export default function WalletMenu() {
     if (verifying) return;
 
     (async () => {
-      // 1) если уже есть server-session с wallet — ничего не делаем
       const okAlready = await serverMeHasWallet();
       if (okAlready) {
         triedVerifyRef.current = true;
@@ -164,17 +163,12 @@ export default function WalletMenu() {
       setVerifying(true);
 
       try {
-        // 2) nonce
-        const nr = await fetch(`/api/auth/wallet/nonce?address=${address}`, {
-          cache: "no-store",
-        });
+        const nr = await fetch(`/api/auth/wallet/nonce?address=${address}`, { cache: "no-store" });
         const nj = await nr.json();
         if (!nr.ok || !nj?.message) throw new Error("nonce_failed");
 
-        // 3) signature
         const signature = await signMessageAsync({ message: nj.message });
 
-        // 4) server login (создаст/найдёт user и поставит session cookie)
         const res = await signIn("wallet", {
           redirect: false,
           address,
@@ -184,11 +178,9 @@ export default function WalletMenu() {
 
         if (res?.error) throw new Error(res.error);
 
-        // 5) теперь /api/me должен отдавать walletAddress + publicUrl
         await serverMeHasWallet();
       } catch {
-        // если юзер отменил подпись — разрешим повтор
-        triedVerifyRef.current = false;
+        triedVerifyRef.current = false; // allow retry
       } finally {
         setVerifying(false);
       }
@@ -197,7 +189,6 @@ export default function WalletMenu() {
 
   return (
     <div ref={wrapRef} className="relative">
-      {/* PILL — matches TopBar status block + shows mini balance */}
       <button
         type="button"
         onClick={onPillClick}
@@ -217,7 +208,6 @@ export default function WalletMenu() {
             "transition duration-200 hover:bg-[#0b0a09]/80"
           )}
         >
-          {/* inner shine */}
           <div className="pointer-events-none absolute inset-0 opacity-90">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]" />
@@ -230,7 +220,7 @@ export default function WalletMenu() {
 
             <div className="flex items-center gap-2 min-w-0">
               <div className="text-sm font-semibold text-white whitespace-nowrap">
-                {connected ? shortAddr(address) : "Connect"}
+                {connected ? shortAddr(address) : "Connect wallet"}
               </div>
 
               {mounted && connected ? (
@@ -249,11 +239,10 @@ export default function WalletMenu() {
         </div>
       </button>
 
-      {/* DROPDOWN (lux gold-edge) */}
       {open ? (
         <div
           className={cn(
-            "absolute right-0 mt-2 w-[320px] z-50", // Added z-50 just in case
+            "absolute right-0 mt-2 w-[320px] z-50",
             "rounded-3xl p-px overflow-hidden",
             "bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))]",
             "shadow-[0_28px_110px_rgba(0,0,0,0.70)]"
@@ -271,7 +260,6 @@ export default function WalletMenu() {
             )}
           >
             <div className="relative">
-              {/* HEADER */}
               <div className="px-4 py-3 border-b border-white/10">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -279,13 +267,10 @@ export default function WalletMenu() {
                       {shortAddr(address) || "Wallet"}
                     </div>
                     <div className="text-xs text-white/70 mt-1">
-                      Balance:{" "}
-                      <span className="text-white/85 font-semibold">{balLabel}</span>
+                      Balance: <span className="text-white/85 font-semibold">{balLabel}</span>
                     </div>
                     {verifying ? (
-                      <div className="text-[11px] text-white/55 mt-1">
-                        Creating your profile…
-                      </div>
+                      <div className="text-[11px] text-white/55 mt-1">Creating your profile…</div>
                     ) : null}
                   </div>
 
@@ -309,7 +294,6 @@ export default function WalletMenu() {
                 </div>
               </div>
 
-              {/* LINKS */}
               <div className="p-2">
                 <Link href="/app/profile" onClick={close} className={itemBase}>
                   <span className="flex items-center gap-3">
@@ -345,19 +329,14 @@ export default function WalletMenu() {
                   type="button"
                   onClick={() => {
                     disconnect();
-                    triedVerifyRef.current = false; // allow re-verify after reconnect
+                    triedVerifyRef.current = false;
                     close();
                   }}
-                  className={cn(
-                    itemBase,
-                    "mt-1",
-                    "hover:bg-red-500/12",
-                    "text-red-100 hover:text-red-50"
-                  )}
+                  className={cn(itemBase, "mt-1", "hover:bg-red-500/12", "text-red-100 hover:text-red-50")}
                 >
                   <span className="flex items-center gap-3">
                     <span className="text-lg">↩</span>
-                    <span>Log out</span>
+                    <span>Disconnect</span>
                   </span>
                 </button>
               </div>

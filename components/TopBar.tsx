@@ -95,9 +95,7 @@ function NetworkStatusContent({
 
       <div className="relative flex items-center gap-2">
         <StatusDot state={dotState} />
-        <div className="text-sm font-semibold whitespace-nowrap">
-          {networkTitle}
-        </div>
+        <div className="text-sm font-semibold whitespace-nowrap">{networkTitle}</div>
 
         {mounted && connected && !wrongNetwork ? (
           <span
@@ -113,8 +111,7 @@ function NetworkStatusContent({
         ) : null}
 
         <span className="ml-2 text-xs text-white/65 truncate">
-          Balance:{" "}
-          <span className="text-white/90 font-semibold">{balanceLabel}</span>
+          Balance: <span className="text-white/90 font-semibold">{balanceLabel}</span>
         </span>
 
         <button
@@ -157,25 +154,21 @@ function NetworkStatusContent({
 export default function TopBar() {
   const mounted = useMounted();
 
-  const { address, isConnected } = useAccount();
+  // ✅ НЕ используем isConnected (он может мигать на Next/RainbowKit)
+  const { address } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
 
-  const {
-    data: balanceData,
-    isLoading,
-    refetch,
-    isFetching,
-  } = useBalance({
+  const { data: balanceData, isLoading, refetch, isFetching } = useBalance({
     address,
     chainId: baseSepolia.id,
-    query: { enabled: Boolean(address), refetchInterval: 12_000 },
+    // ✅ баланс считаем только когда mounted + есть address (иначе мигание/лишние ререндеры)
+    query: { enabled: mounted && Boolean(address), refetchInterval: 12_000 },
   });
 
-  // prevent SSR/client mismatch
-  const connected = mounted ? isConnected : false;
-  const effectiveChainId = mounted ? chainId : undefined;
-  const wrongNetwork = connected && effectiveChainId !== baseSepolia.id;
+  // ✅ prevent SSR/client mismatch + стабильно
+  const connected = mounted && Boolean(address);
+  const wrongNetwork = connected && chainId !== baseSepolia.id;
 
   const balanceEth = useMemo(() => {
     if (!mounted || !balanceData) return 0;
@@ -189,8 +182,7 @@ export default function TopBar() {
   const balanceLabel = useMemo(() => {
     if (!mounted || !connected) return "—";
     if (isLoading) return "loading…";
-    if (!balanceData)
-      return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
+    if (!balanceData) return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
     const s = formatUnits(balanceData.value, balanceData.decimals);
     return `${fmtBalance(s)} ${balanceData.symbol ?? "ETH"}`;
   }, [mounted, connected, isLoading, balanceData]);
@@ -211,13 +203,8 @@ export default function TopBar() {
     ? "warn"
     : "ok";
 
-  const showGetEth = mounted
-    ? connected
-      ? wrongNetwork || !hasGas
-      : false
-    : false;
+  const showGetEth = mounted ? (connected ? wrongNetwork || !hasGas : false) : false;
 
-  // Собираем все пропсы для статуса в один объект
   const statusProps = {
     mounted,
     connected,
@@ -252,18 +239,12 @@ export default function TopBar() {
                     "ring-1 ring-black/10"
                   )}
                 >
-                  <span className="text-sm font-extrabold tracking-tight text-white">
-                    R
-                  </span>
+                  <span className="text-sm font-extrabold tracking-tight text-white">R</span>
                 </div>
 
                 <div className="min-w-0 hidden sm:block">
-                  <div className="text-sm font-extrabold tracking-tight truncate">
-                    REALIFE
-                  </div>
-                  <div className="text-[11px] text-white/60 truncate">
-                    premium creator app
-                  </div>
+                  <div className="text-sm font-extrabold tracking-tight truncate">REALIFE</div>
+                  <div className="text-[11px] text-white/60 truncate">premium creator app</div>
                 </div>
               </Link>
 
