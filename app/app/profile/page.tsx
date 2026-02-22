@@ -93,6 +93,7 @@ function humanizeXError(code?: string | null) {
   if (code === "TWITTER_ALREADY_LINKED") return "This X account is already linked to another wallet profile.";
   if (code === "LINK_FAILED") return "Linking failed (DB update).";
   if (code === "NO_CODE") return "No authorization code returned from X.";
+  if (code === "DISCONNECT_FAILED") return "Failed to disconnect X. Try again.";
   return `X linking error: ${code}`;
 }
 
@@ -316,7 +317,6 @@ export default function ProfilePage() {
       if (json?.ok) setMe(json?.user ?? null);
       else setMe(null);
 
-      // если вдруг сервер прокидывает linkError — оставим
       setLinkError(json?.linkError ?? null);
     } catch {
       // ignore
@@ -335,7 +335,6 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
-  // ✅ После возврата: /app/profile?linked=twitter[&error=...]
   useEffect(() => {
     if (!authed) return;
     if (typeof window === "undefined") return;
@@ -347,10 +346,8 @@ export default function ProfilePage() {
     if (err) setLinkError(err);
 
     if (linked === "twitter") {
-      // callback уже обновил БД -> просто рефрешим
       void loadMe();
     } else if (err) {
-      // даже без linked, если есть error — покажем, и тоже можно обновить
       void loadMe();
     }
 
@@ -363,7 +360,6 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
-  // fallback: если вкладка вернулась в фокус
   useEffect(() => {
     if (!authed) return;
     const onFocus = () => void loadMe();
@@ -385,9 +381,10 @@ export default function ProfilePage() {
 
       const json = (await res.json()) as DailyResponse;
 
-      if (res.ok && json.ok) {
-        setMe((prev) => (prev ? { ...prev, points: json.points, lastDailyAt: new Date().toISOString() } : prev));
-        setDailyMsg(`Daily claimed: +${json.add}. New balance: ${json.points}.`);
+      if (res.ok && (json as any).ok) {
+        const ok = json as any;
+        setMe((prev) => (prev ? { ...prev, points: ok.points, lastDailyAt: new Date().toISOString() } : prev));
+        setDailyMsg(`Daily claimed: +${ok.add}. New balance: ${ok.points}.`);
       } else {
         const msg = (json as any)?.message || "Failed";
         setDailyMsg(msg.toLowerCase().includes("already claimed") ? "Already claimed today." : "Daily claim failed.");
@@ -416,6 +413,26 @@ export default function ProfilePage() {
     window.location.href = `/api/x/start?returnTo=${returnTo}`;
   }
 
+  // ✅ DISCONNECT X
+  async function disconnectTwitter() {
+    if (!authed) return;
+    setConnectBusy("twitter");
+    setLinkError(null);
+    try {
+      const res = await fetch("/api/x/disconnect", { method: "POST" });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok || !j?.ok) {
+        setLinkError(j?.error || "DISCONNECT_FAILED");
+        return;
+      }
+      await loadMe();
+    } catch {
+      setLinkError("DISCONNECT_FAILED");
+    } finally {
+      setConnectBusy("");
+    }
+  }
+
   async function copyText(text: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -440,7 +457,7 @@ export default function ProfilePage() {
   const uiErrorText =
     linkError === "NO_SERVER_WALLET"
       ? "Verify your wallet first (server session). Then connect X."
-      : humanizeXError(linkError) // <- показывает конкретные BAD_STATE/PKCE_MISSING/...
+      : humanizeXError(linkError)
       ? humanizeXError(linkError)
       : linkError
       ? "Failed to connect X account. Please try again."
@@ -449,7 +466,6 @@ export default function ProfilePage() {
   return (
     <AppShell title="REALIFE" subtitle="Profile • Identity • Wallet">
       <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
-        {/* Ambient background */}
         <div className="pointer-events-none fixed inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.12),transparent_55%)]" />
           <div className="absolute -top-80 -left-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/14 blur-3xl animate-pulse" />
@@ -494,7 +510,9 @@ export default function ProfilePage() {
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Pill tone={serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"}>{walletPillText}</Pill>
-                    <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>{dailyStatus.canClaim ? "Daily available" : "Claimed today"}</Pill>
+                    <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>
+                      {dailyStatus.canClaim ? "Daily available" : "Claimed today"}
+                    </Pill>
                     {twitterConnected && <Pill tone="ok">X connected</Pill>}
                     {me?.twitterUser && <Pill tone="gold">@{me.twitterUser}</Pill>}
                     {me?.handle && <Pill>handle: @{me.handle}</Pill>}
@@ -551,7 +569,10 @@ export default function ProfilePage() {
                 }
                 mono
               />
-              <Field label="Chain" value={displayWalletChainId ? <span className="font-extrabold">{displayWalletChainId}</span> : "—"} />
+              <Field
+                label="Chain"
+                value={displayWalletChainId ? <span className="font-extrabold">{displayWalletChainId}</span> : "—"}
+              />
               <Field label="Identity" value={<span className="truncate">{twitterConnected ? "Wallet + X" : "Wallet only"}</span>} />
               <Field label="User id" value={me?.id ?? "—"} mono />
             </div>
@@ -569,6 +590,7 @@ export default function ProfilePage() {
               >
                 {walletCopied ? "Wallet copied" : "Copy wallet"}
               </Btn>
+
               {publicUrl && (
                 <a
                   href={publicUrl}
@@ -591,7 +613,17 @@ export default function ProfilePage() {
                   </div>
 
                   {twitterConnected ? (
-                    <Pill tone="ok">Connected</Pill>
+                    <div className="flex items-center gap-2">
+                      <Pill tone="ok">Connected</Pill>
+                      <Btn
+                        variant="ghost"
+                        onClick={disconnectTwitter}
+                        disabled={connectBusy !== "" || !authed}
+                        className="w-auto px-4 py-2 text-[13px]"
+                      >
+                        {connectBusy === "twitter" ? "Working…" : "Disconnect"}
+                      </Btn>
+                    </div>
                   ) : (
                     <Btn
                       variant="gold"
@@ -608,9 +640,7 @@ export default function ProfilePage() {
                   <Avatar src={me?.twitterImage ?? null} fallback="X" size="lg" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-extrabold truncate">{me?.twitterName || "Not Connected"}</div>
-                    <div className="text-xs text-white/60 font-mono truncate">
-                      {me?.twitterUser ? `@${me.twitterUser}` : "—"}
-                    </div>
+                    <div className="text-xs text-white/60 font-mono truncate">{me?.twitterUser ? `@${me.twitterUser}` : "—"}</div>
                   </div>
                 </div>
 
