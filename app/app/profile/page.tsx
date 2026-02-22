@@ -387,7 +387,7 @@ export default function ProfilePage() {
     }
   }
 
-  // 👇 Логика подключения X (Финальный фикс с кукой-проводником)
+  // 👇 Логика подключения X (ПЛАН ОМЕГА)
   async function connectTwitter() {
     if (!authed || !me?.id) {
       setLinkError("NO_SERVER_SESSION");
@@ -400,12 +400,11 @@ export default function ProfilePage() {
     setLinkError(null);
     setDailyMsg(null);
 
-    // 🔥 Снова используем куку-проводник! Она выживет при редиректе на Railway.
-    const cookieName = process.env.NODE_ENV === "production" ? "__Secure-next-auth.wid" : "next-auth.wid";
-    document.cookie = `${cookieName}=${me.id}; path=/; max-age=300; SameSite=None; Secure`;
-
+    // 🔥 ПРЯЧЕМ ID ВНУТРИ CALLBACK_URL
+    // NextAuth автоматически сохранит этот URL (вместе с параметром ?wid) 
+    // в свою защищенную серверную куку next-auth.callback-url
     const callbackUrl = typeof window !== "undefined" 
-      ? `${window.location.origin}/app/profile` 
+      ? `${window.location.origin}/app/profile?wid=${me.id}` 
       : "/app/profile";
 
     void signIn("twitter", { callbackUrl }).finally(() => {
