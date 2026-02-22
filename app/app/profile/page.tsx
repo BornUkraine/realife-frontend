@@ -402,8 +402,8 @@ export default function ProfilePage() {
 
   // ✅ Линковка X через NextAuth OAuth. НИКАКИХ cookie-мостов.
   async function connectTwitter() {
-    if (!authed) {
-      setLinkError("NO_SERVER_SESSION");
+    if (!authed || !serverWalletAddress) {
+      setLinkError("NO_SERVER_WALLET");
       return;
     }
     if (busyGuardRef.current) return;
@@ -447,13 +447,13 @@ export default function ProfilePage() {
 
   // Человекочитаемые ошибки линковки
   const uiErrorText =
-    linkError === "TwitterAlreadyLinked" || linkError === "TWITTER_ALREADY_LINKED"
-      ? "This X (Twitter) account is already linked to another wallet profile."
-      : linkError === "NO_SERVER_SESSION"
-        ? "No server session yet. Connect your EVM wallet first."
-        : linkError
-          ? "Failed to connect X account. Please try again."
-          : null;
+  linkError === "NO_SERVER_WALLET"
+    ? "Verify your wallet first (server session). Then connect X."
+    : linkError === "TwitterAlreadyLinked" || linkError === "TWITTER_ALREADY_LINKED"
+    ? "This X (Twitter) account is already linked to another wallet profile."
+    : linkError
+    ? "Failed to connect X account. Please try again."
+    : null;
 
   return (
     <AppShell title="REALIFE" subtitle="Profile • Identity • Wallet">
