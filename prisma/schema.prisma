@@ -65,3 +65,24 @@ model PointEvent {
   @@index([userId])
   @@index([type])
 }
+
+/**
+ * TEMP storage for X OAuth callback data, to link it to the current wallet-user later.
+ * This prevents creating a second user for X.
+ */
+model TwitterLinkAttempt {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
+
+  // tie to the current NextAuth session cookie
+  sessionToken String
+
+  twitterId    String
+  twitterUser  String?
+  twitterName  String?
+  twitterImage String?
+
+  @@index([sessionToken])
+  @@index([createdAt])
+  @@index([twitterId])
+}

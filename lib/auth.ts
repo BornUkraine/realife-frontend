@@ -1,24 +1,11 @@
-// @ts-nocheck
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import TwitterProvider from "next-auth/providers/twitter";
 import { prisma } from "@/lib/prisma";
 import { verifyMessage } from "viem";
 
 /* -------------------------------------------------------------------------- */
 /* HELPERS                                                                    */
 /* -------------------------------------------------------------------------- */
-
-function slugifyHandle(input: string) {
-  return input
-    .trim()
-    .toLowerCase()
-    .replace(/^@+/, "")
-    .replace(/[^a-z0-9_]/g, "_")
-    .replace(/_+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 24);
-}
 
 function randomId(len = 6) {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -48,64 +35,46 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
   throw new Error("PUBLIC_ID_GENERATION_FAILED");
 }
 
-async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?: string | null) {
-  if (!twitterUser) return;
-  const current = await db.user.findUnique({
-    where: { id: userId },
-    select: { handle: true, publicId: true },
-  });
-  if (current?.handle) return;
-
-  const base = slugifyHandle(twitterUser);
-  if (!base) return;
-
-  for (let i = 0; i < 25; i++) {
-    const h = i === 0 ? base : `${base}_${i + 1}`;
-    const taken = await db.user.findUnique({ where: { handle: h }, select: { id: true } });
-    if (!taken) {
-      await db.user.update({ where: { id: userId }, data: { handle: h } });
-      return;
-    }
-  }
-}
-
-async function awardOnce(db: typeof prisma, userId: string, type: "DAILY" | "CONNECT_X", points: number) {
-  const already = await db.pointEvent.findFirst({ where: { userId, type }, select: { id: true } });
-  if (already) return false;
-  await db.user.update({ where: { id: userId }, data: { points: { increment: points } } });
-  await db.pointEvent.create({ data: { userId, type, points } });
-  return true;
-}
-
 const tokenSelect = {
   id: true,
   points: true,
   handle: true,
   publicId: true,
+
+  walletAddress: true,
+  walletChainId: true,
+
   twitterId: true,
   twitterUser: true,
   twitterName: true,
   twitterImage: true,
-  walletAddress: true,
-  walletChainId: true,
+
+  discordId: true,
+  discordUser: true,
+  discordName: true,
+  discordImage: true,
 } as const;
 
 function applyUserToToken(token: any, user: any) {
-  // sub — это стандартное поле NextAuth JWT (его мы и будем использовать как "якорь")
-  token.sub = user.id;
   token.uid = user.id;
+  token.sub = user.id;
 
   token.points = user.points ?? 0;
   token.handle = user.handle ?? null;
   token.publicId = user.publicId ?? null;
+
+  token.walletAddress = user.walletAddress ?? null;
+  token.walletChainId = user.walletChainId ?? null;
 
   token.twitterId = user.twitterId ?? null;
   token.twitterUser = user.twitterUser ?? null;
   token.twitterName = user.twitterName ?? null;
   token.twitterImage = user.twitterImage ?? null;
 
-  token.walletAddress = user.walletAddress ?? null;
-  token.walletChainId = user.walletChainId ?? null;
+  token.discordId = user.discordId ?? null;
+  token.discordUser = user.discordUser ?? null;
+  token.discordName = user.discordName ?? null;
+  token.discordImage = user.discordImage ?? null;
 
   return token;
 }
@@ -115,28 +84,12 @@ function applyUserToToken(token: any, user: any) {
 /* -------------------------------------------------------------------------- */
 
 const isProd = process.env.NODE_ENV === "production";
+const isDebug = process.env.NEXTAUTH_DEBUG === "true" || !isProd;
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
-  trustHost: true,
   useSecureCookies: isProd,
-
-  // ✅ чтобы browser отправлял session cookie после редиректа с twitter.com
-  cookies: isProd
-    ? {
-        sessionToken: {
-          name: "__Secure-next-auth.session-token",
-          options: {
-            httpOnly: true,
-            sameSite: "none",
-            path: "/",
-            secure: true,
-          },
-        },
-      }
-    : undefined,
-
-  debug: true,
+  debug: isDebug,
 
   pages: {
     signIn: "/app/profile",
@@ -162,9 +115,12 @@ export const authOptions: NextAuthOptions = {
         const row = await prisma.walletNonce.findUnique({ where: { address } });
         if (!row || row.expiresAt.getTime() < Date.now()) return null;
 
-        const message = `Realife wallet verification\nAddress: ${address}\nNonce: ${row.nonce}\nURI: ${
-          process.env.NEXTAUTH_URL ?? ""
-        }`;
+        const message =
+          `Realife wallet verification\n` +
+          `Address: ${address}\n` +
+          `Nonce: ${row.nonce}\n` +
+          `URI: ${process.env.NEXTAUTH_URL ?? ""}`;
+
         const ok = await verifyMessage({
           address: address as `0x${string}`,
           message,
@@ -177,34 +133,22 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.$transaction(async (tx) => {
           const u = await tx.user.upsert({
             where: { walletAddress: address },
-            create: { walletAddress: address, walletChainId: Number.isFinite(chainId) ? chainId : null },
-            update: { walletChainId: Number.isFinite(chainId) ? chainId : null },
+            create: {
+              walletAddress: address,
+              walletChainId: Number.isFinite(chainId) ? chainId : null,
+            },
+            update: {
+              walletChainId: Number.isFinite(chainId) ? chainId : null,
+            },
           });
+
           await ensurePublicId(tx as any, u.id);
+
           const fresh = await tx.user.findUnique({ where: { id: u.id }, select: tokenSelect });
           return fresh ?? u;
         });
 
         return { id: user.id } as any;
-      },
-    }),
-
-    TwitterProvider({
-      clientId: process.env.TWITTER_CLIENT_ID!,
-      clientSecret: process.env.TWITTER_CLIENT_SECRET!,
-      version: "2.0",
-      authorization: { params: { scope: "users.read tweet.read offline.access" } },
-
-      // ✅ сформируем user, откуда потом заберём twitterUser/image в jwt callback
-      profile(profile) {
-        const d = profile?.data ?? {};
-        const img = d?.profile_image_url ?? null;
-        return {
-          id: d?.id,
-          name: d?.name ?? null,
-          image: typeof img === "string" ? img.replace("_normal", "") : img,
-          twitterUser: d?.username ?? null,
-        };
       },
     }),
   ],
@@ -213,67 +157,18 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, trigger, session }) {
       if (trigger === "update" && session) return { ...token, ...session };
 
-      // ✅ ВАЖНО: якорь пользователя берём из token.uid ИЛИ token.sub (надёжнее)
-      const dbUserId: string | null = (token as any)?.uid || (token as any)?.sub || null;
-
-      /* ------------------------------ WALLET LOGIN ------------------------------ */
       if (account?.provider === "wallet" && user?.id) {
-        (token as any).uid = user.id;
-        (token as any).sub = user.id;
+        token.uid = user.id;
+        token.sub = user.id;
 
         const u = await prisma.user.findUnique({ where: { id: user.id }, select: tokenSelect });
         if (u) applyUserToToken(token, u);
         return token;
       }
 
-      /* ------------------------------ X (TWITTER) ------------------------------ */
-      if (account?.provider === "twitter") {
-        // ✅ В момент callback у нас должен быть либо token.uid, либо token.sub
-        const userId = (token as any)?.uid || (token as any)?.sub || null;
-        if (!userId) {
-          console.error("❌ Wallet session missing (uid/sub). OAuth callback пришёл без привязки к wallet user.");
-          throw new Error("WalletSessionLost");
-        }
-
-        const twitterId = account.providerAccountId;
-
-        // ✅ данные X берём из `user` (результат provider.profile())
-        const twitterUser = (user as any)?.twitterUser ?? null;
-        const twitterName = (user as any)?.name ?? null;
-        const twitterImage = (user as any)?.image ?? null;
-
-        try {
-          const updated = await prisma.$transaction(async (tx) => {
-            const targetUser = await tx.user.findUnique({ where: { id: userId } });
-            if (!targetUser) throw new Error("UserNotFoundInDB");
-
-            const existingLink = await tx.user.findUnique({ where: { twitterId }, select: { id: true } });
-            if (existingLink && existingLink.id !== userId) throw new Error("TwitterAlreadyLinked");
-
-            return await tx.user.update({
-              where: { id: userId },
-              data: { twitterId, twitterUser, twitterName, twitterImage },
-              select: tokenSelect,
-            });
-          });
-
-          await ensureHandleFromX(prisma, updated.id, twitterUser);
-          await awardOnce(prisma, updated.id, "CONNECT_X", 100);
-
-          (token as any).uid = updated.id;
-          (token as any).sub = updated.id;
-          applyUserToToken(token, updated);
-        } catch (e: any) {
-          console.error("❌ TWITTER LINK DB ERROR:", e.message);
-          throw new Error(e.message || "TwitterLinkFailed");
-        }
-
-        return token;
-      }
-
-      /* ----------------------- REFRESH TOKEN FROM DB ----------------------- */
-      if (!account && dbUserId) {
-        const u = await prisma.user.findUnique({ where: { id: dbUserId }, select: tokenSelect });
+      const uid = (token as any)?.uid || (token as any)?.sub || null;
+      if (!account && uid) {
+        const u = await prisma.user.findUnique({ where: { id: uid }, select: tokenSelect });
         if (u) applyUserToToken(token, u);
       }
 
@@ -286,12 +181,24 @@ export const authOptions: NextAuthOptions = {
 
       session.user = {
         ...session.user,
+
         id: uid,
-        points: (token as any).points,
-        handle: (token as any).handle,
-        twitterUser: (token as any).twitterUser,
-        twitterImage: (token as any).twitterImage,
-        walletAddress: (token as any).walletAddress,
+        points: (token as any)?.points,
+        handle: (token as any)?.handle,
+        publicId: (token as any)?.publicId,
+
+        walletAddress: (token as any)?.walletAddress,
+        walletChainId: (token as any)?.walletChainId,
+
+        twitterId: (token as any)?.twitterId,
+        twitterUser: (token as any)?.twitterUser,
+        twitterName: (token as any)?.twitterName,
+        twitterImage: (token as any)?.twitterImage,
+
+        discordId: (token as any)?.discordId,
+        discordUser: (token as any)?.discordUser,
+        discordName: (token as any)?.discordName,
+        discordImage: (token as any)?.discordImage,
       } as any;
 
       return session;

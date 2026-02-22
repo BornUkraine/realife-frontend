@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useAccount, useChainId } from "wagmi";
 
 /* -------------------------------------------------------------------------- */
@@ -25,7 +25,7 @@ type MeUser = {
 
   lastDailyAt?: string | null; // ISO string from API
 
-  // 👇 X (Twitter) поля
+  // X (Twitter) fields from DB (already linked)
   twitterId?: string | null;
   twitterUser?: string | null;
   twitterName?: string | null;
@@ -78,15 +78,27 @@ function formatLocal(dtIso?: string | null) {
   return d.toLocaleString();
 }
 
+function humanizeXError(code?: string | null) {
+  if (!code) return null;
+  // коды из /api/x/callback
+  if (code === "NO_SERVER_SESSION") return "No server wallet session. Verify wallet again.";
+  if (code === "SERVER_MISCONFIG") return "Server misconfigured (missing NEXTAUTH_SECRET).";
+  if (code === "TWITTER_ENV_MISSING") return "Missing TWITTER_CLIENT_ID / TWITTER_CLIENT_SECRET in env.";
+  if (code === "BAD_STATE") return "State invalid/expired. Usually NEXTAUTH_SECRET mismatch between envs.";
+  if (code === "PKCE_MISSING") return "PKCE cookie missing. Usually cookie not returned after X redirect.";
+  if (code === "TOKEN_EXCHANGE") return "Failed to exchange code for access token (X OAuth token endpoint).";
+  if (code === "NO_ACCESS_TOKEN") return "X did not return access token.";
+  if (code === "ME_FAILED") return "Failed to fetch X profile (users/me).";
+  if (code === "BAD_PROFILE") return "Bad X profile response (missing id).";
+  if (code === "TWITTER_ALREADY_LINKED") return "This X account is already linked to another wallet profile.";
+  if (code === "LINK_FAILED") return "Linking failed (DB update).";
+  if (code === "NO_CODE") return "No authorization code returned from X.";
+  return `X linking error: ${code}`;
+}
+
 /* --------------------------------- UI Kit -------------------------------- */
 
-function Card({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
     <div
       className={cx(
@@ -119,16 +131,12 @@ function Pill({
     tone === "ok"
       ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
       : tone === "warn"
-        ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
-        : tone === "gold"
-          ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
-          : "border-white/10 bg-white/[0.06] text-white/70";
+      ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
+      : tone === "gold"
+      ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
+      : "border-white/10 bg-white/[0.06] text-white/70";
 
-  return (
-    <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>
-      {children}
-    </div>
-  );
+  return <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>{children}</div>;
 }
 
 function Alert({
@@ -140,16 +148,11 @@ function Alert({
   text: string;
   tone?: "warn" | "error";
 }) {
-  const cls =
-    tone === "error" ? "border-rose-500/25 bg-rose-500/10" : "border-amber-500/25 bg-amber-500/10";
+  const cls = tone === "error" ? "border-rose-500/25 bg-rose-500/10" : "border-amber-500/25 bg-amber-500/10";
   return (
     <div className={cx("rounded-[22px] border px-4 py-3", cls)}>
-      <div className={cx("text-sm font-extrabold", tone === "error" ? "text-rose-50" : "text-amber-50")}>
-        {title}
-      </div>
-      <div className={cx("mt-1 text-sm", tone === "error" ? "text-rose-100/90" : "text-amber-100/90")}>
-        {text}
-      </div>
+      <div className={cx("text-sm font-extrabold", tone === "error" ? "text-rose-50" : "text-amber-50")}>{title}</div>
+      <div className={cx("mt-1 text-sm", tone === "error" ? "text-rose-100/90" : "text-amber-100/90")}>{text}</div>
     </div>
   );
 }
@@ -158,9 +161,7 @@ function Btn({
   variant = "gold",
   className = "",
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "gold" | "ghost" | "tiny";
-}) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "gold" | "ghost" | "tiny" }) {
   const base =
     "inline-flex items-center justify-center gap-2 font-extrabold transition disabled:opacity-60 disabled:cursor-not-allowed";
   const gold =
@@ -171,10 +172,7 @@ function Btn({
     "px-3 py-2 rounded-xl text-[12px] text-white border border-white/15 bg-white/[0.06] backdrop-blur-2xl hover:bg-white/10 active:translate-y-[1px]";
 
   return (
-    <button
-      {...props}
-      className={cx(base, variant === "gold" ? gold : variant === "ghost" ? ghost : tiny, className)}
-    />
+    <button {...props} className={cx(base, variant === "gold" ? gold : variant === "ghost" ? ghost : tiny, className)} />
   );
 }
 
@@ -193,12 +191,12 @@ function Avatar({
     size === "hero"
       ? "h-24 w-24 md:h-28 md:w-28"
       : size === "xl"
-        ? "h-20 w-20 md:h-24 md:w-24"
-        : size === "lg"
-          ? "h-16 w-16"
-          : size === "sm"
-            ? "h-12 w-12"
-            : "h-14 w-14";
+      ? "h-20 w-20 md:h-24 md:w-24"
+      : size === "lg"
+      ? "h-16 w-16"
+      : size === "sm"
+      ? "h-12 w-12"
+      : "h-14 w-14";
 
   return (
     <div
@@ -217,15 +215,7 @@ function Avatar({
   );
 }
 
-function Field({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value: React.ReactNode;
-  mono?: boolean;
-}) {
+function Field({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <div className="text-[11px] text-white/55 font-semibold">{label}</div>
@@ -249,11 +239,13 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [walletCopied, setWalletCopied] = useState(false);
+
   const [dailyBusy, setDailyBusy] = useState(false);
   const [dailyMsg, setDailyMsg] = useState<string | null>(null);
 
   const [connectBusy, setConnectBusy] = useState<"" | "twitter">("");
   const [linkError, setLinkError] = useState<string | null>(null);
+
   const busyGuardRef = useRef(false);
 
   const serverWalletAddress = me?.walletAddress ?? null;
@@ -261,8 +253,7 @@ export default function ProfilePage() {
   const twitterConnected = Boolean(me?.twitterId);
 
   const displayWalletAddress = liveAddress ?? serverWalletAddress ?? null;
-  const displayWalletChainId =
-    walletIsConnected && liveAddress ? liveChainId : serverWalletChainId ?? null;
+  const displayWalletChainId = walletIsConnected && liveAddress ? liveChainId : serverWalletChainId ?? null;
 
   const safePublicId = useMemo(() => {
     const pid = me?.publicId ?? null;
@@ -284,7 +275,6 @@ export default function ProfilePage() {
     return `${window.location.origin}${publicUrl}`;
   }, [publicUrl]);
 
-  // TOP: name fallback: X -> Handle -> Wallet
   const topDisplayName = useMemo(() => {
     if (!me) return "Loading…";
     return (
@@ -298,10 +288,10 @@ export default function ProfilePage() {
 
   const heroAvatar = useMemo(() => me?.mainAvatar || me?.twitterImage || null, [me]);
 
-  // Daily claim status
   const dailyStatus = useMemo(() => {
     const last = me?.lastDailyAt ?? null;
     if (!last) return { canClaim: true, label: "Daily available" as const };
+
     const lastDate = new Date(last);
     if (Number.isNaN(lastDate.getTime())) return { canClaim: true, label: "Daily available" as const };
 
@@ -309,10 +299,7 @@ export default function ProfilePage() {
     const lastKey = utcKey(lastDate);
     const canClaim = today !== lastKey;
 
-    return {
-      canClaim,
-      label: canClaim ? "Daily available" : "Claimed today",
-    } as const;
+    return { canClaim, label: canClaim ? "Daily available" : "Claimed today" } as const;
   }, [me?.lastDailyAt]);
 
   async function loadMe() {
@@ -329,13 +316,12 @@ export default function ProfilePage() {
       if (json?.ok) setMe(json?.user ?? null);
       else setMe(null);
 
+      // если вдруг сервер прокидывает linkError — оставим
       setLinkError(json?.linkError ?? null);
     } catch {
-      /* ignore */
+      // ignore
     } finally {
       setLoading(false);
-      setConnectBusy("");
-      busyGuardRef.current = false;
     }
   }
 
@@ -349,18 +335,31 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
-  // ✅ После редиректа из OAuth: /app/profile?linked=twitter
+  // ✅ После возврата: /app/profile?linked=twitter[&error=...]
   useEffect(() => {
     if (!authed) return;
+    if (typeof window === "undefined") return;
+
     const sp = new URLSearchParams(window.location.search);
     const linked = sp.get("linked");
-    if (!linked) return;
+    const err = sp.get("error");
 
-    void loadMe();
+    if (err) setLinkError(err);
 
-    sp.delete("linked");
-    const next = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ""}`;
-    window.history.replaceState({}, "", next);
+    if (linked === "twitter") {
+      // callback уже обновил БД -> просто рефрешим
+      void loadMe();
+    } else if (err) {
+      // даже без linked, если есть error — покажем, и тоже можно обновить
+      void loadMe();
+    }
+
+    if (linked || err) {
+      sp.delete("linked");
+      sp.delete("error");
+      const next = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ""}`;
+      window.history.replaceState({}, "", next);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
@@ -400,8 +399,8 @@ export default function ProfilePage() {
     }
   }
 
-  // ✅ Линковка X через NextAuth OAuth. НИКАКИХ cookie-мостов.
-  async function connectTwitter() {
+  // ✅ START X OAUTH (custom): идём на /api/x/start
+  function connectTwitter() {
     if (!authed || !serverWalletAddress) {
       setLinkError("NO_SERVER_WALLET");
       return;
@@ -410,18 +409,11 @@ export default function ProfilePage() {
 
     busyGuardRef.current = true;
     setConnectBusy("twitter");
-    setLinkError(null);
     setDailyMsg(null);
+    setLinkError(null);
 
-    const callbackUrl =
-      typeof window !== "undefined" ? `${window.location.origin}/app/profile?linked=twitter` : "/app/profile?linked=twitter";
-
-    void signIn("twitter", { callbackUrl }).finally(() => {
-      setTimeout(() => {
-        busyGuardRef.current = false;
-        setConnectBusy("");
-      }, 1200);
-    });
+    const returnTo = encodeURIComponent("/app/profile?linked=twitter");
+    window.location.href = `/api/x/start?returnTo=${returnTo}`;
   }
 
   async function copyText(text: string) {
@@ -436,8 +428,8 @@ export default function ProfilePage() {
   const walletPillText = serverWalletAddress
     ? "Wallet verified (server)"
     : walletIsConnected
-      ? "Wallet connected (client)"
-      : "Wallet not connected";
+    ? "Wallet connected (client)"
+    : "Wallet not connected";
 
   const walletMismatch = useMemo(() => {
     const a = liveAddress?.toLowerCase();
@@ -445,15 +437,14 @@ export default function ProfilePage() {
     return Boolean(a && b && a !== b);
   }, [liveAddress, serverWalletAddress]);
 
-  // Человекочитаемые ошибки линковки
   const uiErrorText =
-  linkError === "NO_SERVER_WALLET"
-    ? "Verify your wallet first (server session). Then connect X."
-    : linkError === "TwitterAlreadyLinked" || linkError === "TWITTER_ALREADY_LINKED"
-    ? "This X (Twitter) account is already linked to another wallet profile."
-    : linkError
-    ? "Failed to connect X account. Please try again."
-    : null;
+    linkError === "NO_SERVER_WALLET"
+      ? "Verify your wallet first (server session). Then connect X."
+      : humanizeXError(linkError) // <- показывает конкретные BAD_STATE/PKCE_MISSING/...
+      ? humanizeXError(linkError)
+      : linkError
+      ? "Failed to connect X account. Please try again."
+      : null;
 
   return (
     <AppShell title="REALIFE" subtitle="Profile • Identity • Wallet">
@@ -473,7 +464,6 @@ export default function ProfilePage() {
         </div>
 
         <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
-          {/* Alerts */}
           {uiErrorText && <Alert title="Linking Issue" text={uiErrorText} tone="error" />}
           {dailyMsg && (
             <Alert title="Points" text={dailyMsg} tone={dailyMsg.toLowerCase().includes("failed") ? "error" : "warn"} />
@@ -493,7 +483,6 @@ export default function ProfilePage() {
             />
           )}
 
-          {/* HERO CARD */}
           <Card>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
               <div className="flex items-center gap-5 min-w-0">
@@ -533,7 +522,9 @@ export default function ProfilePage() {
                 value={
                   <div className="flex items-center gap-2">
                     <span className="truncate">{dailyStatus.label}</span>
-                    <span className="text-[11px] text-white/55">{me?.lastDailyAt ? `• ${formatLocal(me.lastDailyAt)}` : ""}</span>
+                    <span className="text-[11px] text-white/55">
+                      {me?.lastDailyAt ? `• ${formatLocal(me.lastDailyAt)}` : ""}
+                    </span>
                   </div>
                 }
               />
@@ -608,7 +599,7 @@ export default function ProfilePage() {
                       disabled={connectBusy !== "" || !authed}
                       className="w-auto px-5 py-2 text-[13px]"
                     >
-                      {connectBusy === "twitter" ? "Connecting…" : "Connect X"}
+                      {connectBusy === "twitter" ? "Redirecting…" : "Connect X"}
                     </Btn>
                   )}
                 </div>
@@ -617,9 +608,17 @@ export default function ProfilePage() {
                   <Avatar src={me?.twitterImage ?? null} fallback="X" size="lg" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-extrabold truncate">{me?.twitterName || "Not Connected"}</div>
-                    <div className="text-xs text-white/60 font-mono truncate">{me?.twitterUser ? `@${me.twitterUser}` : "—"}</div>
+                    <div className="text-xs text-white/60 font-mono truncate">
+                      {me?.twitterUser ? `@${me.twitterUser}` : "—"}
+                    </div>
                   </div>
                 </div>
+
+                {!twitterConnected && (
+                  <div className="mt-4 text-[11px] text-white/55">
+                    After X auth, your account will be linked to your wallet profile automatically.
+                  </div>
+                )}
               </Card>
             </div>
           )}
