@@ -66,10 +66,9 @@ function shortAddr(addr?: string | null) {
 
 // UTC to match server daily boundaries
 function utcKey(d: Date) {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(
-    2,
-    "0"
-  )}-${String(d.getUTCDate()).padStart(2, "0")}`;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    d.getUTCDate()
+  ).padStart(2, "0")}`;
 }
 
 function formatLocal(dtIso?: string | null) {
@@ -81,7 +80,13 @@ function formatLocal(dtIso?: string | null) {
 
 /* --------------------------------- UI Kit -------------------------------- */
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Card({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div
       className={cx(
@@ -114,10 +119,10 @@ function Pill({
     tone === "ok"
       ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
       : tone === "warn"
-      ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
-      : tone === "gold"
-      ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
-      : "border-white/10 bg-white/[0.06] text-white/70";
+        ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
+        : tone === "gold"
+          ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
+          : "border-white/10 bg-white/[0.06] text-white/70";
 
   return (
     <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>
@@ -142,9 +147,7 @@ function Alert({
       <div className={cx("text-sm font-extrabold", tone === "error" ? "text-rose-50" : "text-amber-50")}>
         {title}
       </div>
-      <div
-        className={cx("mt-1 text-sm", tone === "error" ? "text-rose-100/90" : "text-amber-100/90")}
-      >
+      <div className={cx("mt-1 text-sm", tone === "error" ? "text-rose-100/90" : "text-amber-100/90")}>
         {text}
       </div>
     </div>
@@ -155,7 +158,9 @@ function Btn({
   variant = "gold",
   className = "",
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "gold" | "ghost" | "tiny" }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "gold" | "ghost" | "tiny";
+}) {
   const base =
     "inline-flex items-center justify-center gap-2 font-extrabold transition disabled:opacity-60 disabled:cursor-not-allowed";
   const gold =
@@ -188,12 +193,13 @@ function Avatar({
     size === "hero"
       ? "h-24 w-24 md:h-28 md:w-28"
       : size === "xl"
-      ? "h-20 w-20 md:h-24 md:w-24"
-      : size === "lg"
-      ? "h-16 w-16"
-      : size === "sm"
-      ? "h-12 w-12"
-      : "h-14 w-14";
+        ? "h-20 w-20 md:h-24 md:w-24"
+        : size === "lg"
+          ? "h-16 w-16"
+          : size === "sm"
+            ? "h-12 w-12"
+            : "h-14 w-14";
+
   return (
     <div
       className={cx(
@@ -203,12 +209,7 @@ function Avatar({
       )}
     >
       {src ? (
-        <img
-          src={src}
-          alt={fallback}
-          className="h-full w-full object-cover"
-          referrerPolicy="no-referrer"
-        />
+        <img src={src} alt={fallback} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
       ) : (
         <span className="text-white/40 text-xs font-black">{fallback}</span>
       )}
@@ -216,16 +217,19 @@ function Avatar({
   );
 }
 
-function Field({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
+function Field({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <div className="text-[11px] text-white/55 font-semibold">{label}</div>
-      <div
-        className={cx(
-          "mt-1 text-sm font-extrabold text-white/85 truncate",
-          mono ? "font-mono text-[13px]" : ""
-        )}
-      >
+      <div className={cx("mt-1 text-sm font-extrabold text-white/85 truncate", mono ? "font-mono text-[13px]" : "")}>
         {value}
       </div>
     </div>
@@ -248,7 +252,6 @@ export default function ProfilePage() {
   const [dailyBusy, setDailyBusy] = useState(false);
   const [dailyMsg, setDailyMsg] = useState<string | null>(null);
 
-  // 👇 Состояния для привязки X
   const [connectBusy, setConnectBusy] = useState<"" | "twitter">("");
   const [linkError, setLinkError] = useState<string | null>(null);
   const busyGuardRef = useRef(false);
@@ -326,7 +329,6 @@ export default function ProfilePage() {
       if (json?.ok) setMe(json?.user ?? null);
       else setMe(null);
 
-      // Подхватываем ошибку линковки из сессии
       setLinkError(json?.linkError ?? null);
     } catch {
       /* ignore */
@@ -347,7 +349,22 @@ export default function ProfilePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authed]);
 
-  // Возврат после OAuth редиректа
+  // ✅ После редиректа из OAuth: /app/profile?linked=twitter
+  useEffect(() => {
+    if (!authed) return;
+    const sp = new URLSearchParams(window.location.search);
+    const linked = sp.get("linked");
+    if (!linked) return;
+
+    void loadMe();
+
+    sp.delete("linked");
+    const next = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ""}`;
+    window.history.replaceState({}, "", next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authed]);
+
+  // fallback: если вкладка вернулась в фокус
   useEffect(() => {
     if (!authed) return;
     const onFocus = () => void loadMe();
@@ -370,15 +387,11 @@ export default function ProfilePage() {
       const json = (await res.json()) as DailyResponse;
 
       if (res.ok && json.ok) {
-        setMe((prev) =>
-          prev ? { ...prev, points: json.points, lastDailyAt: new Date().toISOString() } : prev
-        );
+        setMe((prev) => (prev ? { ...prev, points: json.points, lastDailyAt: new Date().toISOString() } : prev));
         setDailyMsg(`Daily claimed: +${json.add}. New balance: ${json.points}.`);
       } else {
         const msg = (json as any)?.message || "Failed";
-        setDailyMsg(
-          msg.toLowerCase().includes("already claimed") ? "Already claimed today." : "Daily claim failed."
-        );
+        setDailyMsg(msg.toLowerCase().includes("already claimed") ? "Already claimed today." : "Daily claim failed.");
       }
     } catch {
       setDailyMsg("Network error. Try again.");
@@ -387,9 +400,9 @@ export default function ProfilePage() {
     }
   }
 
-  // 👇 Логика подключения X (ОБНОВЛЕНО: Используем куку-мост)
+  // ✅ Линковка X через NextAuth OAuth. НИКАКИХ cookie-мостов.
   async function connectTwitter() {
-    if (!authed || !me?.id) {
+    if (!authed) {
       setLinkError("NO_SERVER_SESSION");
       return;
     }
@@ -400,14 +413,8 @@ export default function ProfilePage() {
     setLinkError(null);
     setDailyMsg(null);
 
-    // 🔥 ШАГ 1: Создаем "куку-мост", которая выживет при редиректе.
-    // Мы ставим SameSite=None и Secure, чтобы Chrome её не удалил.
-    const cookieName = process.env.NODE_ENV === "production" ? "__Secure-next-auth.wid" : "next-auth.wid";
-    document.cookie = `${cookieName}=${me.id}; path=/; max-age=300; SameSite=None; Secure`;
-
-    const callbackUrl = typeof window !== "undefined" 
-      ? `${window.location.origin}/app/profile` 
-      : "/app/profile";
+    const callbackUrl =
+      typeof window !== "undefined" ? `${window.location.origin}/app/profile?linked=twitter` : "/app/profile?linked=twitter";
 
     void signIn("twitter", { callbackUrl }).finally(() => {
       setTimeout(() => {
@@ -429,8 +436,8 @@ export default function ProfilePage() {
   const walletPillText = serverWalletAddress
     ? "Wallet verified (server)"
     : walletIsConnected
-    ? "Wallet connected (client)"
-    : "Wallet not connected";
+      ? "Wallet connected (client)"
+      : "Wallet not connected";
 
   const walletMismatch = useMemo(() => {
     const a = liveAddress?.toLowerCase();
@@ -440,13 +447,13 @@ export default function ProfilePage() {
 
   // Человекочитаемые ошибки линковки
   const uiErrorText =
-    linkError === "TWITTER_ALREADY_LINKED"
+    linkError === "TwitterAlreadyLinked" || linkError === "TWITTER_ALREADY_LINKED"
       ? "This X (Twitter) account is already linked to another wallet profile."
       : linkError === "NO_SERVER_SESSION"
-      ? "No server session yet. Connect your EVM wallet first."
-      : linkError
-      ? "Failed to connect X account. Please try again."
-      : null;
+        ? "No server session yet. Connect your EVM wallet first."
+        : linkError
+          ? "Failed to connect X account. Please try again."
+          : null;
 
   return (
     <AppShell title="REALIFE" subtitle="Profile • Identity • Wallet">
@@ -466,14 +473,10 @@ export default function ProfilePage() {
         </div>
 
         <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
-          {/* Уведомления об ошибках / успехе */}
+          {/* Alerts */}
           {uiErrorText && <Alert title="Linking Issue" text={uiErrorText} tone="error" />}
           {dailyMsg && (
-            <Alert
-              title="Points"
-              text={dailyMsg}
-              tone={dailyMsg.toLowerCase().includes("failed") ? "error" : "warn"}
-            />
+            <Alert title="Points" text={dailyMsg} tone={dailyMsg.toLowerCase().includes("failed") ? "error" : "warn"} />
           )}
           {!authed && (
             <Alert
@@ -501,12 +504,8 @@ export default function ProfilePage() {
                     {authed ? topDisplayName : "—"}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    <Pill tone={serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"}>
-                      {walletPillText}
-                    </Pill>
-                    <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>
-                      {dailyStatus.canClaim ? "Daily available" : "Claimed today"}
-                    </Pill>
+                    <Pill tone={serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"}>{walletPillText}</Pill>
+                    <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>{dailyStatus.canClaim ? "Daily available" : "Claimed today"}</Pill>
                     {twitterConnected && <Pill tone="ok">X connected</Pill>}
                     {me?.twitterUser && <Pill tone="gold">@{me.twitterUser}</Pill>}
                     {me?.handle && <Pill>handle: @{me.handle}</Pill>}
@@ -518,11 +517,7 @@ export default function ProfilePage() {
                 <Btn variant="ghost" onClick={loadMe} disabled={!authed || loading}>
                   {loading ? "Refreshing…" : "Refresh"}
                 </Btn>
-                <Btn
-                  variant="gold"
-                  onClick={claimDaily}
-                  disabled={!authed || dailyBusy || !dailyStatus.canClaim}
-                >
+                <Btn variant="gold" onClick={claimDaily} disabled={!authed || dailyBusy || !dailyStatus.canClaim}>
                   {dailyBusy ? "Claiming…" : dailyStatus.canClaim ? "Claim daily +10" : "Daily claimed"}
                 </Btn>
                 <Btn variant="ghost" onClick={() => signOut({ redirect: false })} disabled={!authed}>
@@ -538,17 +533,11 @@ export default function ProfilePage() {
                 value={
                   <div className="flex items-center gap-2">
                     <span className="truncate">{dailyStatus.label}</span>
-                    <span className="text-[11px] text-white/55">
-                      {me?.lastDailyAt ? `• ${formatLocal(me.lastDailyAt)}` : ""}
-                    </span>
+                    <span className="text-[11px] text-white/55">{me?.lastDailyAt ? `• ${formatLocal(me.lastDailyAt)}` : ""}</span>
                   </div>
                 }
               />
-              <Field
-                label="Wallet (connected)"
-                value={walletIsConnected && liveAddress ? shortAddr(liveAddress) : "—"}
-                mono
-              />
+              <Field label="Wallet (connected)" value={walletIsConnected && liveAddress ? shortAddr(liveAddress) : "—"} mono />
               <Field
                 label="Public link"
                 value={
@@ -563,8 +552,7 @@ export default function ProfilePage() {
                       }
                       className="text-left hover:underline font-mono"
                     >
-                      {publicUrl}{" "}
-                      <span className="text-[11px] text-white/60">{copied ? "copied" : "copy"}</span>
+                      {publicUrl} <span className="text-[11px] text-white/60">{copied ? "copied" : "copy"}</span>
                     </button>
                   ) : (
                     "—"
@@ -572,22 +560,8 @@ export default function ProfilePage() {
                 }
                 mono
               />
-              <Field
-                label="Chain"
-                value={
-                  displayWalletChainId ? (
-                    <span className="font-extrabold">{displayWalletChainId}</span>
-                  ) : (
-                    "—"
-                  )
-                }
-              />
-              <Field
-                label="Identity"
-                value={
-                  <span className="truncate">{twitterConnected ? "Wallet + X" : "Wallet only"}</span>
-                }
-              />
+              <Field label="Chain" value={displayWalletChainId ? <span className="font-extrabold">{displayWalletChainId}</span> : "—"} />
+              <Field label="Identity" value={<span className="truncate">{twitterConnected ? "Wallet + X" : "Wallet only"}</span>} />
               <Field label="User id" value={me?.id ?? "—"} mono />
             </div>
 
@@ -615,14 +589,10 @@ export default function ProfilePage() {
             </div>
           </Card>
 
-          {/* 👇 X (TWITTER) CONNECT BLOCK */}
+          {/* X CONNECT */}
           {authed && (
             <div className="grid md:grid-cols-2 gap-6">
-              <Card
-                className={cx(
-                  twitterConnected ? "ring-1 ring-amber-500/20 bg-amber-500/[0.02]" : ""
-                )}
-              >
+              <Card className={cx(twitterConnected ? "ring-1 ring-amber-500/20 bg-amber-500/[0.02]" : "")}>
                 <div className="flex items-center justify-between gap-4 mb-6">
                   <div>
                     <div className="text-sm font-extrabold">X (Twitter)</div>
@@ -646,12 +616,8 @@ export default function ProfilePage() {
                 <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
                   <Avatar src={me?.twitterImage ?? null} fallback="X" size="lg" />
                   <div className="min-w-0 flex-1">
-                    <div className="text-sm font-extrabold truncate">
-                      {me?.twitterName || "Not Connected"}
-                    </div>
-                    <div className="text-xs text-white/60 font-mono truncate">
-                      {me?.twitterUser ? `@${me.twitterUser}` : "—"}
-                    </div>
+                    <div className="text-sm font-extrabold truncate">{me?.twitterName || "Not Connected"}</div>
+                    <div className="text-xs text-white/60 font-mono truncate">{me?.twitterUser ? `@${me.twitterUser}` : "—"}</div>
                   </div>
                 </div>
               </Card>
@@ -659,8 +625,8 @@ export default function ProfilePage() {
           )}
 
           <div className="text-[11px] text-white/40 text-center">
-            Tip: wallet verification happens in the top bar (signature once). This page reads everything
-            from <span className="font-mono text-white/55">/api/me</span>.
+            Tip: wallet verification happens in the top bar (signature once). This page reads everything from{" "}
+            <span className="font-mono text-white/55">/api/me</span>.
           </div>
         </div>
       </main>

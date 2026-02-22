@@ -10,11 +10,18 @@ import { verifyMessage } from "viem";
 /* -------------------------------------------------------------------------- */
 
 function slugifyHandle(input: string) {
-  return input.trim().toLowerCase().replace(/^@+/, "").replace(/[^a-z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
+  return input
+    .trim()
+    .toLowerCase()
+    .replace(/^@+/, "")
+    .replace(/[^a-z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 24);
 }
 
 function randomId(len = 6) {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; 
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";
   for (let i = 0; i < len; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
   return out;
@@ -27,10 +34,14 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
   for (let i = 0; i < 25; i++) {
     const pid = `rl_${randomId(8)}`;
     try {
-      const updated = await db.user.update({ where: { id: userId }, data: { publicId: pid }, select: { publicId: true } });
+      const updated = await db.user.update({
+        where: { id: userId },
+        data: { publicId: pid },
+        select: { publicId: true },
+      });
       if (updated.publicId) return updated.publicId;
     } catch (e: any) {
-      if (e?.code === "P2002") continue; 
+      if (e?.code === "P2002") continue;
       throw e;
     }
   }
@@ -39,8 +50,11 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
 
 async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?: string | null) {
   if (!twitterUser) return;
-  const current = await db.user.findUnique({ where: { id: userId }, select: { handle: true, publicId: true } });
-  if (current?.handle) return; 
+  const current = await db.user.findUnique({
+    where: { id: userId },
+    select: { handle: true, publicId: true },
+  });
+  if (current?.handle) return;
 
   const base = slugifyHandle(twitterUser);
   if (!base) return;
@@ -102,12 +116,13 @@ export const authOptions: NextAuthOptions = {
   trustHost: true,
   useSecureCookies: isProd,
 
-  // 🔥 ЭТО КРИТИЧЕСКИ ВАЖНО СЕЙЧАС ДЛЯ ОТЛАДКИ
+  // ✅ для отладки
   debug: true,
 
+  // ✅ У ТЕБЯ ROUTE = /profile (а не /app/profile)
   pages: {
-    signIn: "/app/profile",
-    error: "/app/profile",
+    signIn: "/profile",
+    error: "/profile",
   },
 
   providers: [
@@ -130,7 +145,11 @@ export const authOptions: NextAuthOptions = {
         if (!row || row.expiresAt.getTime() < Date.now()) return null;
 
         const message = `Realife wallet verification\nAddress: ${address}\nNonce: ${row.nonce}\nURI: ${process.env.NEXTAUTH_URL ?? ""}`;
-        const ok = await verifyMessage({ address: address as `0x${string}`, message, signature: signature as `0x${string}` });
+        const ok = await verifyMessage({
+          address: address as `0x${string}`,
+          message,
+          signature: signature as `0x${string}`,
+        });
         if (!ok) return null;
 
         await prisma.walletNonce.delete({ where: { address } }).catch(() => {});
@@ -155,6 +174,8 @@ export const authOptions: NextAuthOptions = {
       clientSecret: process.env.TWITTER_CLIENT_SECRET!,
       version: "2.0",
       authorization: { params: { scope: "users.read tweet.read offline.access" } },
+
+      // ✅ ВАЖНО: здесь мы кладём twitterUser/image в "user" (а не в profile)
       profile(profile) {
         const d = profile?.data ?? {};
         const img = d?.profile_image_url ?? null;
@@ -172,6 +193,7 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, profile, trigger, session }) {
       if (trigger === "update" && session) return { ...token, ...session };
 
+      // ✅ dbUserId берём ПРЕЖДЕ ВСЕГО из token.uid (wallet-first)
       const dbUserId = token?.uid || user?.id;
 
       /* ------------------------------ WALLET LOGIN ------------------------------ */
@@ -184,27 +206,32 @@ export const authOptions: NextAuthOptions = {
 
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
-        if (!dbUserId) {
-          console.error("❌ OAUTH FATAL ERROR: Session token exists, but 'uid' is missing.");
+        // ✅ критично: в момент callback обязательно должен быть token.uid (wallet session)
+        if (!token?.uid) {
+          console.error("❌ Wallet session missing (token.uid). OAuth callback пришёл без твоей wallet-сессии.");
           throw new Error("WalletSessionLost");
         }
 
         const twitterId = account.providerAccountId;
-        const twitterUser = (profile as any)?.twitterUser || null;
-        const twitterName = profile?.name || null;
-        const twitterImage = profile?.image || null;
+
+        // ✅ БЕРЁМ ДАННЫЕ ИЗ user (это результат provider.profile())
+        const twitterUser = (user as any)?.twitterUser ?? null;
+        const twitterName = user?.name ?? null;
+        const twitterImage = (user as any)?.image ?? null;
 
         try {
           const updated = await prisma.$transaction(async (tx) => {
-            const targetUser = await tx.user.findUnique({ where: { id: dbUserId } });
+            const targetUser = await tx.user.findUnique({ where: { id: token.uid } });
             if (!targetUser) throw new Error("UserNotFoundInDB");
 
             const existingLink = await tx.user.findUnique({ where: { twitterId }, select: { id: true } });
-            if (existingLink && existingLink.id !== dbUserId) throw new Error("TwitterAlreadyLinked");
+            if (existingLink && existingLink.id !== token.uid) throw new Error("TwitterAlreadyLinked");
 
+            // ✅ всегда возвращаем select: tokenSelect
             return await tx.user.update({
-              where: { id: dbUserId },
+              where: { id: token.uid },
               data: { twitterId, twitterUser, twitterName, twitterImage },
+              select: tokenSelect,
             });
           });
 
@@ -230,7 +257,8 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      session.userId = token.uid;
+      (session as any).userId = token.uid;
+
       session.user = {
         ...session.user,
         id: token.uid,
@@ -239,7 +267,8 @@ export const authOptions: NextAuthOptions = {
         twitterUser: token.twitterUser,
         twitterImage: token.twitterImage,
         walletAddress: token.walletAddress,
-      };
+      } as any;
+
       return session;
     },
   },
