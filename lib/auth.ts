@@ -48,11 +48,7 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
   throw new Error("PUBLIC_ID_GENERATION_FAILED");
 }
 
-async function ensureHandleFromX(
-  db: typeof prisma,
-  userId: string,
-  twitterUser?: string | null
-) {
+async function ensureHandleFromX(db: typeof prisma, userId: string, twitterUser?: string | null) {
   if (!twitterUser) return;
   const current = await db.user.findUnique({
     where: { id: userId },
@@ -73,12 +69,7 @@ async function ensureHandleFromX(
   }
 }
 
-async function awardOnce(
-  db: typeof prisma,
-  userId: string,
-  type: "DAILY" | "CONNECT_X",
-  points: number
-) {
+async function awardOnce(db: typeof prisma, userId: string, type: "DAILY" | "CONNECT_X", points: number) {
   const already = await db.pointEvent.findFirst({ where: { userId, type }, select: { id: true } });
   if (already) return false;
   await db.user.update({ where: { id: userId }, data: { points: { increment: points } } });
@@ -100,17 +91,22 @@ const tokenSelect = {
 } as const;
 
 function applyUserToToken(token: any, user: any) {
+  // sub — это стандартное поле NextAuth JWT (его мы и будем использовать как "якорь")
   token.sub = user.id;
   token.uid = user.id;
+
   token.points = user.points ?? 0;
   token.handle = user.handle ?? null;
   token.publicId = user.publicId ?? null;
+
   token.twitterId = user.twitterId ?? null;
   token.twitterUser = user.twitterUser ?? null;
   token.twitterName = user.twitterName ?? null;
   token.twitterImage = user.twitterImage ?? null;
+
   token.walletAddress = user.walletAddress ?? null;
   token.walletChainId = user.walletChainId ?? null;
+
   return token;
 }
 
@@ -125,7 +121,7 @@ export const authOptions: NextAuthOptions = {
   trustHost: true,
   useSecureCookies: isProd,
 
-  // ✅ FIX 2: чтобы wallet-сессия НЕ терялась после возврата с twitter.com
+  // ✅ чтобы browser отправлял session cookie после редиректа с twitter.com
   cookies: isProd
     ? {
         sessionToken: {
@@ -142,8 +138,6 @@ export const authOptions: NextAuthOptions = {
 
   debug: true,
 
-  // ✅ У тебя страница лежит в app/app/profile/page.tsx => URL /app/profile
-  // Но NextAuth иногда редиректит на /profile -> поэтому лучше сделать алиас app/profile/page.tsx (redirect)
   pages: {
     signIn: "/app/profile",
     error: "/app/profile",
@@ -183,10 +177,7 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.$transaction(async (tx) => {
           const u = await tx.user.upsert({
             where: { walletAddress: address },
-            create: {
-              walletAddress: address,
-              walletChainId: Number.isFinite(chainId) ? chainId : null,
-            },
+            create: { walletAddress: address, walletChainId: Number.isFinite(chainId) ? chainId : null },
             update: { walletChainId: Number.isFinite(chainId) ? chainId : null },
           });
           await ensurePublicId(tx as any, u.id);
@@ -204,7 +195,7 @@ export const authOptions: NextAuthOptions = {
       version: "2.0",
       authorization: { params: { scope: "users.read tweet.read offline.access" } },
 
-      // ✅ кладём twitterUser/image в "user" (а не в raw profile)
+      // ✅ сформируем user, откуда потом заберём twitterUser/image в jwt callback
       profile(profile) {
         const d = profile?.data ?? {};
         const img = d?.profile_image_url ?? null;
@@ -222,11 +213,14 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, trigger, session }) {
       if (trigger === "update" && session) return { ...token, ...session };
 
-      const dbUserId = token?.uid || user?.id;
+      // ✅ ВАЖНО: якорь пользователя берём из token.uid ИЛИ token.sub (надёжнее)
+      const dbUserId: string | null = (token as any)?.uid || (token as any)?.sub || null;
 
       /* ------------------------------ WALLET LOGIN ------------------------------ */
       if (account?.provider === "wallet" && user?.id) {
-        token.uid = user.id;
+        (token as any).uid = user.id;
+        (token as any).sub = user.id;
+
         const u = await prisma.user.findUnique({ where: { id: user.id }, select: tokenSelect });
         if (u) applyUserToToken(token, u);
         return token;
@@ -234,34 +228,30 @@ export const authOptions: NextAuthOptions = {
 
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
-        // ✅ важно: при возврате с twitter.com должна прийти wallet-сессия (token.uid)
-        if (!token?.uid) {
-          console.error(
-            "❌ Wallet session missing (token.uid). OAuth callback пришёл без твоей wallet-сессии."
-          );
+        // ✅ В момент callback у нас должен быть либо token.uid, либо token.sub
+        const userId = (token as any)?.uid || (token as any)?.sub || null;
+        if (!userId) {
+          console.error("❌ Wallet session missing (uid/sub). OAuth callback пришёл без привязки к wallet user.");
           throw new Error("WalletSessionLost");
         }
 
         const twitterId = account.providerAccountId;
 
-        // ✅ данные берём из user (результат provider.profile())
+        // ✅ данные X берём из `user` (результат provider.profile())
         const twitterUser = (user as any)?.twitterUser ?? null;
-        const twitterName = user?.name ?? null;
+        const twitterName = (user as any)?.name ?? null;
         const twitterImage = (user as any)?.image ?? null;
 
         try {
           const updated = await prisma.$transaction(async (tx) => {
-            const targetUser = await tx.user.findUnique({ where: { id: token.uid } });
+            const targetUser = await tx.user.findUnique({ where: { id: userId } });
             if (!targetUser) throw new Error("UserNotFoundInDB");
 
-            const existingLink = await tx.user.findUnique({
-              where: { twitterId },
-              select: { id: true },
-            });
-            if (existingLink && existingLink.id !== token.uid) throw new Error("TwitterAlreadyLinked");
+            const existingLink = await tx.user.findUnique({ where: { twitterId }, select: { id: true } });
+            if (existingLink && existingLink.id !== userId) throw new Error("TwitterAlreadyLinked");
 
             return await tx.user.update({
-              where: { id: token.uid },
+              where: { id: userId },
               data: { twitterId, twitterUser, twitterName, twitterImage },
               select: tokenSelect,
             });
@@ -270,12 +260,14 @@ export const authOptions: NextAuthOptions = {
           await ensureHandleFromX(prisma, updated.id, twitterUser);
           await awardOnce(prisma, updated.id, "CONNECT_X", 100);
 
-          token.uid = updated.id;
+          (token as any).uid = updated.id;
+          (token as any).sub = updated.id;
           applyUserToToken(token, updated);
         } catch (e: any) {
           console.error("❌ TWITTER LINK DB ERROR:", e.message);
           throw new Error(e.message || "TwitterLinkFailed");
         }
+
         return token;
       }
 
@@ -289,16 +281,17 @@ export const authOptions: NextAuthOptions = {
     },
 
     async session({ session, token }) {
-      (session as any).userId = token.uid;
+      const uid = (token as any)?.uid || (token as any)?.sub || null;
+      (session as any).userId = uid;
 
       session.user = {
         ...session.user,
-        id: token.uid,
-        points: token.points,
-        handle: token.handle,
-        twitterUser: token.twitterUser,
-        twitterImage: token.twitterImage,
-        walletAddress: token.walletAddress,
+        id: uid,
+        points: (token as any).points,
+        handle: (token as any).handle,
+        twitterUser: (token as any).twitterUser,
+        twitterImage: (token as any).twitterImage,
+        walletAddress: (token as any).walletAddress,
       } as any;
 
       return session;
