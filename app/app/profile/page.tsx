@@ -387,7 +387,7 @@ export default function ProfilePage() {
     }
   }
 
-  // 👇 Логика подключения X (ОБНОВЛЕНО: Используем куку-мост)
+  // 👇 Логика подключения X (ПЛАН ОМЕГА)
   async function connectTwitter() {
     if (!authed || !me?.id) {
       setLinkError("NO_SERVER_SESSION");
@@ -400,13 +400,11 @@ export default function ProfilePage() {
     setLinkError(null);
     setDailyMsg(null);
 
-    // 🔥 ШАГ 1: Создаем "куку-мост", которая выживет при редиректе.
-    // Мы ставим SameSite=None и Secure, чтобы Chrome её не удалил.
-    const cookieName = process.env.NODE_ENV === "production" ? "__Secure-next-auth.wid" : "next-auth.wid";
-    document.cookie = `${cookieName}=${me.id}; path=/; max-age=300; SameSite=None; Secure`;
-
+    // 🔥 ПРЯЧЕМ ID ВНУТРИ CALLBACK_URL
+    // NextAuth автоматически сохранит этот URL (вместе с параметром ?wid) 
+    // в свою защищенную серверную куку next-auth.callback-url
     const callbackUrl = typeof window !== "undefined" 
-      ? `${window.location.origin}/app/profile` 
+      ? `${window.location.origin}/app/profile?wid=${me.id}` 
       : "/app/profile";
 
     void signIn("twitter", { callbackUrl }).finally(() => {
@@ -444,6 +442,8 @@ export default function ProfilePage() {
       ? "This X (Twitter) account is already linked to another wallet profile."
       : linkError === "NO_SERVER_SESSION"
       ? "No server session yet. Connect your EVM wallet first."
+      : linkError === "NoSessionBeforeTwitter"
+      ? "Session error. Please clear cookies and login again before connecting."
       : linkError
       ? "Failed to connect X account. Please try again."
       : null;
