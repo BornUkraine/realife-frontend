@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import TwitterProvider from "next-auth/providers/twitter";
 import { prisma } from "@/lib/prisma";
 import { verifyMessage } from "viem";
+import { cookies } from "next/headers";
 
 /* -------------------------------------------------------------------------- */
 /* HELPERS                                                                    */
@@ -95,15 +96,30 @@ function applyUserToToken(token: any, user: any) {
 /* AUTH OPTIONS                                                               */
 /* -------------------------------------------------------------------------- */
 
-const isProd = process.env.NODE_ENV === "production";
+const isProd = process.env.NODE_ENV === "production" || process.env.NEXTAUTH_URL?.includes("up.railway.app");
+const useSecureCookies = isProd || process.env.NEXTAUTH_URL?.startsWith("https://");
+const cookiePrefix = useSecureCookies ? "__Secure-" : "";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
   trustHost: true,
-  useSecureCookies: isProd,
+  useSecureCookies,
+  debug: false, // Отключаем дебаг, так как причина ясна
 
-  // 🔥 ЭТО КРИТИЧЕСКИ ВАЖНО СЕЙЧАС ДЛЯ ОТЛАДКИ
-  debug: true,
+  cookies: {
+    sessionToken: {
+      name: `${cookiePrefix}next-auth.session-token`,
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies },
+    },
+    state: {
+      name: `${cookiePrefix}next-auth.state`,
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies, maxAge: 900 },
+    },
+    pkceCodeVerifier: {
+      name: `${cookiePrefix}next-auth.pkce.code_verifier`,
+      options: { httpOnly: true, sameSite: "lax", path: "/", secure: useSecureCookies, maxAge: 900 },
+    },
+  },
 
   pages: {
     signIn: "/app/profile",
@@ -172,10 +188,18 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, account, profile, trigger, session }) {
       if (trigger === "update" && session) return { ...token, ...session };
 
-      const dbUserId = token?.uid || user?.id;
+      // 🔥 ЧИТАЕМ НАШУ КУКУ-ПРОВОДНИК
+      const cookieStore = cookies();
+      const widName = isProd ? "__Secure-next-auth.wid" : "next-auth.wid";
+      const widFromCookie = cookieStore.get(widName)?.value;
+
+      // ПРИОРИТЕТ: 1. Новый вход кошельком (user.id), 2. Кука-проводник (widFromCookie)
+      // Мы БОЛЬШЕ НЕ БЕРЕМ user.id при Твиттер-логине!
+      const isWallet = account?.provider === "wallet";
+      const dbUserId = isWallet ? user?.id : (widFromCookie || token?.uid);
 
       /* ------------------------------ WALLET LOGIN ------------------------------ */
-      if (account?.provider === "wallet" && user?.id) {
+      if (isWallet && user?.id) {
         token.uid = user.id;
         const u = await prisma.user.findUnique({ where: { id: user.id }, select: tokenSelect });
         if (u) applyUserToToken(token, u);
@@ -185,7 +209,7 @@ export const authOptions: NextAuthOptions = {
       /* ------------------------------ X (TWITTER) ------------------------------ */
       if (account?.provider === "twitter") {
         if (!dbUserId) {
-          console.error("❌ OAUTH FATAL ERROR: Session token exists, but 'uid' is missing.");
+          console.error("❌ OAUTH FATAL ERROR: Bridge cookie missing!");
           throw new Error("WalletSessionLost");
         }
 
@@ -196,6 +220,7 @@ export const authOptions: NextAuthOptions = {
 
         try {
           const updated = await prisma.$transaction(async (tx) => {
+            // Ищем юзера по ID из куки-проводника (а не из Твиттера)
             const targetUser = await tx.user.findUnique({ where: { id: dbUserId } });
             if (!targetUser) throw new Error("UserNotFoundInDB");
 
