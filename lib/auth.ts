@@ -4,7 +4,6 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import TwitterProvider from "next-auth/providers/twitter";
 import { prisma } from "@/lib/prisma";
 import { verifyMessage } from "viem";
-import { cookies } from "next/headers";
 
 /* -------------------------------------------------------------------------- */
 /* HELPERS                                                                    */
@@ -103,6 +102,9 @@ export const authOptions: NextAuthOptions = {
   trustHost: true,
   useSecureCookies: isProd,
 
+  // 🔥 ЭТО КРИТИЧЕСКИ ВАЖНО СЕЙЧАС ДЛЯ ОТЛАДКИ
+  debug: true,
+
   pages: {
     signIn: "/app/profile",
     error: "/app/profile",
@@ -167,25 +169,9 @@ export const authOptions: NextAuthOptions = {
   ],
 
   callbacks: {
-    // 🔥 ПЛАН ОМЕГА: Перехватываем процесс до того, как уйдем на Твиттер
-    async signIn({ account }) {
-      if (account?.provider === "twitter") {
-        const cookieStore = cookies();
-        const sessionToken = cookieStore.get(isProd ? "__Secure-next-auth.session-token" : "next-auth.session-token")?.value;
-        
-        if (!sessionToken) {
-           console.error("❌ SIGNIN BLOCKED: No session token found before going to Twitter.");
-           // Блокируем редирект на Твиттер, если сессия кошелька не найдена
-           return "/app/profile?error=NoSessionBeforeTwitter";
-        }
-      }
-      return true;
-    },
-
     async jwt({ token, user, account, profile, trigger, session }) {
       if (trigger === "update" && session) return { ...token, ...session };
 
-      // ПЛАН ОМЕГА: Доверяем только токену.
       const dbUserId = token?.uid || user?.id;
 
       /* ------------------------------ WALLET LOGIN ------------------------------ */
