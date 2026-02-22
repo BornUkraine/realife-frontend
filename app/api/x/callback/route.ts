@@ -47,57 +47,71 @@ function safeReturnTo(rt: any) {
 }
 
 function appendError(urlPath: string, code: string) {
-  // urlPath может быть "/app/profile" или "/app/profile?linked=twitter"
-  const u = new URL(urlPath, "http://local"); // base только чтобы парсилось
+  const u = new URL(urlPath, "http://local");
   u.searchParams.set("error", code);
-  // вернуть только path+query
   return `${u.pathname}${u.search}`;
 }
 
+function getOrigin(req: NextRequest) {
+  const env = (process.env.NEXTAUTH_URL || "").trim().replace(/\/$/, "");
+  if (env) return env;
+
+  const hdr = req.headers.get("x-forwarded-host");
+  const proto = req.headers.get("x-forwarded-proto") || "https";
+  if (hdr) return `${proto}://${hdr}`;
+
+  return req.nextUrl.origin;
+}
+
 export async function GET(req: NextRequest) {
+  const ORIGIN = getOrigin(req);
+  if (!ORIGIN) {
+    return NextResponse.redirect(new URL("/app/profile?error=SERVER_MISCONFIG", req.nextUrl.origin));
+  }
+
   const code = req.nextUrl.searchParams.get("code");
   const state = req.nextUrl.searchParams.get("state");
 
   const secret = process.env.NEXTAUTH_SECRET;
   if (!secret) {
-    return NextResponse.redirect(new URL("/app/profile?error=SERVER_MISCONFIG", req.url));
+    return NextResponse.redirect(new URL("/app/profile?error=SERVER_MISCONFIG", ORIGIN));
   }
 
   const stateObj = parseSignedToken(state || "", secret);
   if (!stateObj?.uid || !stateObj?.exp || Date.now() > Number(stateObj.exp)) {
-    return NextResponse.redirect(new URL("/app/profile?error=BAD_STATE", req.url));
+    return NextResponse.redirect(new URL("/app/profile?error=BAD_STATE", ORIGIN));
   }
 
   const returnTo = safeReturnTo(stateObj.returnTo);
 
   if (!code) {
-    return NextResponse.redirect(new URL(appendError(returnTo, "NO_CODE"), req.url));
+    return NextResponse.redirect(new URL(appendError(returnTo, "NO_CODE"), ORIGIN));
   }
 
-  // достаём PKCE verifier из cookie
+  // PKCE verifier из cookie
   const pkceCookie = req.cookies.get("x_pkce")?.value || "";
   const pkceObj = parseSignedToken(pkceCookie, secret);
 
   if (!pkceObj?.v || !pkceObj?.s || pkceObj.s !== state || Date.now() > Number(pkceObj.exp || 0)) {
-    const res = NextResponse.redirect(new URL(appendError(returnTo, "PKCE_MISSING"), req.url));
+    const res = NextResponse.redirect(new URL(appendError(returnTo, "PKCE_MISSING"), ORIGIN));
     res.cookies.set("x_pkce", "", { path: "/", maxAge: 0 });
     return res;
   }
 
   if (!process.env.TWITTER_CLIENT_ID || !process.env.TWITTER_CLIENT_SECRET) {
-    const res = NextResponse.redirect(new URL(appendError(returnTo, "TWITTER_ENV_MISSING"), req.url));
+    const res = NextResponse.redirect(new URL(appendError(returnTo, "TWITTER_ENV_MISSING"), ORIGIN));
     res.cookies.set("x_pkce", "", { path: "/", maxAge: 0 });
     return res;
   }
 
-  const redirectUri = `${req.nextUrl.origin}/api/x/callback`;
+  // ✅ MUST совпадать с /api/x/start и X Dev Portal
+  const redirectUri = `${ORIGIN}/api/x/callback`;
 
-  // обмен code -> token (OAuth2)
+  // code -> token
   const basic = Buffer.from(
     `${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`
   ).toString("base64");
 
-  // ✅ лучше api.x.com (как в твоей доке)
   const tokenRes = await fetch("https://api.x.com/2/oauth2/token", {
     method: "POST",
     headers: {
@@ -114,7 +128,7 @@ export async function GET(req: NextRequest) {
   });
 
   if (!tokenRes.ok) {
-    const res = NextResponse.redirect(new URL(appendError(returnTo, "TOKEN_EXCHANGE"), req.url));
+    const res = NextResponse.redirect(new URL(appendError(returnTo, "TOKEN_EXCHANGE"), ORIGIN));
     res.cookies.set("x_pkce", "", { path: "/", maxAge: 0 });
     return res;
   }
@@ -123,7 +137,7 @@ export async function GET(req: NextRequest) {
   const accessToken = tokenJson?.access_token as string | undefined;
 
   if (!accessToken) {
-    const res = NextResponse.redirect(new URL(appendError(returnTo, "NO_ACCESS_TOKEN"), req.url));
+    const res = NextResponse.redirect(new URL(appendError(returnTo, "NO_ACCESS_TOKEN"), ORIGIN));
     res.cookies.set("x_pkce", "", { path: "/", maxAge: 0 });
     return res;
   }
@@ -135,7 +149,7 @@ export async function GET(req: NextRequest) {
   });
 
   if (!meRes.ok) {
-    const res = NextResponse.redirect(new URL(appendError(returnTo, "ME_FAILED"), req.url));
+    const res = NextResponse.redirect(new URL(appendError(returnTo, "ME_FAILED"), ORIGIN));
     res.cookies.set("x_pkce", "", { path: "/", maxAge: 0 });
     return res;
   }
@@ -149,13 +163,12 @@ export async function GET(req: NextRequest) {
   const twitterImage = d?.profile_image_url ? String(d.profile_image_url).replace("_normal", "") : null;
 
   if (!twitterId) {
-    const res = NextResponse.redirect(new URL(appendError(returnTo, "BAD_PROFILE"), req.url));
+    const res = NextResponse.redirect(new URL(appendError(returnTo, "BAD_PROFILE"), ORIGIN));
     res.cookies.set("x_pkce", "", { path: "/", maxAge: 0 });
     return res;
   }
 
   try {
-    // ✅ обновляем именно wallet-user по uid из state
     await prisma.$transaction(async (tx) => {
       const target = await tx.user.findUnique({
         where: { id: stateObj.uid },
@@ -177,12 +190,12 @@ export async function GET(req: NextRequest) {
       });
     });
 
-    const res = NextResponse.redirect(new URL(returnTo, req.url));
+    const res = NextResponse.redirect(new URL(returnTo, ORIGIN));
     res.cookies.set("x_pkce", "", { path: "/", maxAge: 0 });
     return res;
   } catch (e: any) {
     const err = e?.message === "TWITTER_ALREADY_LINKED" ? "TWITTER_ALREADY_LINKED" : "LINK_FAILED";
-    const res = NextResponse.redirect(new URL(appendError(returnTo, err), req.url));
+    const res = NextResponse.redirect(new URL(appendError(returnTo, err), ORIGIN));
     res.cookies.set("x_pkce", "", { path: "/", maxAge: 0 });
     return res;
   }

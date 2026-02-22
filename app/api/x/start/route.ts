@@ -29,7 +29,26 @@ function makeSignedToken(obj: any, secret: string) {
   return `${payload}.${sig}`;
 }
 
+function getOrigin(req: NextRequest) {
+  // ✅ В проде берём только из env (желательно всегда)
+  const env = (process.env.NEXTAUTH_URL || "").trim().replace(/\/$/, "");
+  if (env) return env;
+
+  // fallback: прокси заголовки
+  const hdr = req.headers.get("x-forwarded-host");
+  const proto = req.headers.get("x-forwarded-proto") || "https";
+  if (hdr) return `${proto}://${hdr}`;
+
+  // крайний fallback
+  return req.nextUrl.origin;
+}
+
 export async function GET(req: NextRequest) {
+  const ORIGIN = getOrigin(req);
+  if (!ORIGIN) {
+    return NextResponse.redirect(new URL("/app/profile?error=SERVER_MISCONFIG", req.nextUrl.origin));
+  }
+
   const session = await getServerSession(authOptions);
 
   const uid =
@@ -39,16 +58,16 @@ export async function GET(req: NextRequest) {
     null;
 
   if (!uid) {
-    return NextResponse.redirect(new URL("/app/profile?error=NO_SERVER_SESSION", req.url));
+    return NextResponse.redirect(new URL("/app/profile?error=NO_SERVER_SESSION", ORIGIN));
   }
 
   const secret = process.env.NEXTAUTH_SECRET;
   if (!secret) {
-    return NextResponse.redirect(new URL("/app/profile?error=SERVER_MISCONFIG", req.url));
+    return NextResponse.redirect(new URL("/app/profile?error=SERVER_MISCONFIG", ORIGIN));
   }
 
   if (!process.env.TWITTER_CLIENT_ID || !process.env.TWITTER_CLIENT_SECRET) {
-    return NextResponse.redirect(new URL("/app/profile?error=TWITTER_ENV_MISSING", req.url));
+    return NextResponse.redirect(new URL("/app/profile?error=TWITTER_ENV_MISSING", ORIGIN));
   }
 
   // куда вернуть после линковки (только относительный путь)
@@ -80,8 +99,8 @@ export async function GET(req: NextRequest) {
     secret
   );
 
-  // ВАЖНО: redirectUri должен совпадать с Dev Console
-  const redirectUri = `${req.nextUrl.origin}/api/x/callback`;
+  // ✅ MUST совпадать с X Dev Portal
+  const redirectUri = `${ORIGIN}/api/x/callback`;
 
   // X OAuth2 authorize
   const authorizeUrl = new URL("https://twitter.com/i/oauth2/authorize");
@@ -98,8 +117,8 @@ export async function GET(req: NextRequest) {
   const res = NextResponse.redirect(authorizeUrl.toString());
   res.cookies.set("x_pkce", pkce, {
     httpOnly: true,
-    secure: isProd,      // локально false, в проде true
-    sameSite: "lax",     // важно: cookie дойдёт при возврате с twitter.com
+    secure: isProd,
+    sameSite: "lax",
     path: "/",
     maxAge: 10 * 60,
   });
