@@ -6,7 +6,9 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-// UTC "today" boundaries (стабильно для сервера)
+/**
+ * UTC "today" boundaries (stable for server)
+ */
 function startOfTodayUTC(d: Date) {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 0, 0, 0, 0));
 }
@@ -15,10 +17,11 @@ function startOfTomorrowUTC(d: Date) {
 }
 
 export async function POST() {
-  // Благодаря нашему next-auth.d.ts здесь не нужен :any
   const session = await getServerSession(authOptions);
 
-  if (!session?.userId) {
+  // Your next-auth.d.ts should provide session.userId
+  const userId = session?.userId;
+  if (!userId) {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
@@ -28,9 +31,9 @@ export async function POST() {
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // Ищем юзера и проверяем, существует ли он
+      // Ensure user exists
       const user = await tx.user.findUnique({
-        where: { id: session.userId }, // TS знает, что userId — это string
+        where: { id: userId },
         select: { id: true, points: true, lastDailyAt: true },
       });
 
@@ -38,16 +41,12 @@ export async function POST() {
         return { status: 404 as const, body: { ok: false } };
       }
 
-      // ✅ Самый надёжный анти-дабл: проверяем запись в логах за сегодня
-      // Это лучше, чем просто проверять lastDailyAt, так как защищает от сбоев даты
+      // ✅ Strong idempotency: check event log for today (UTC)
       const already = await tx.pointEvent.findFirst({
         where: {
           userId: user.id,
           type: "DAILY",
-          createdAt: {
-            gte: todayStart,
-            lt: tomorrowStart,
-          },
+          createdAt: { gte: todayStart, lt: tomorrowStart },
         },
         select: { id: true },
       });
@@ -55,31 +54,20 @@ export async function POST() {
       if (already) {
         return {
           status: 400 as const,
-          body: { 
-            ok: false, 
-            message: "Already claimed today", 
-            points: user.points ?? 0 
-          },
+          body: { ok: false, message: "Already claimed today", points: user.points ?? 0 },
         };
       }
 
-      // Обновляем баланс
+      // Update points + lastDailyAt
       const updated = await tx.user.update({
         where: { id: user.id },
-        data: { 
-          points: { increment: 10 }, 
-          lastDailyAt: now 
-        },
+        data: { points: { increment: 10 }, lastDailyAt: now },
         select: { points: true },
       });
 
-      // Записываем событие в историю
+      // Write event log
       await tx.pointEvent.create({
-        data: { 
-          userId: user.id, 
-          type: "DAILY", 
-          points: 10 
-        },
+        data: { userId: user.id, type: "DAILY", points: 10 },
       });
 
       return {

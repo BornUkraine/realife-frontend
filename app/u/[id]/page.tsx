@@ -1,13 +1,10 @@
 import AppShell from "@/components/AppShell";
-import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-const PUBLIC_PREFIX = "/u";
 
 /* --------------------------------- UI Kit -------------------------------- */
 
@@ -23,7 +20,12 @@ function shortAddr(addr?: string | null) {
 
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx("relative overflow-hidden rounded-[30px] p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_24px_90px_rgba(0,0,0,0.55)]", className)}>
+    <div
+      className={cx(
+        "relative overflow-hidden rounded-[30px] p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_24px_90px_rgba(0,0,0,0.55)]",
+        className
+      )}
+    >
       <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl ring-1 ring-black/10">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_0%,rgba(212,175,55,0.11),transparent_45%)]" />
@@ -38,22 +40,39 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
 
 function StatusPill({ ok, text }: { ok: boolean; text: string }) {
   return (
-    <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", ok ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200" : "border-white/10 bg-white/[0.06] text-white/60")}>
+    <div
+      className={cx(
+        "text-[11px] font-semibold px-3 py-1.5 rounded-full border",
+        ok ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200" : "border-white/10 bg-white/[0.06] text-white/60"
+      )}
+    >
       {text}
     </div>
   );
 }
 
 function Chip({ children, tone = "muted" }: { children: ReactNode; tone?: "muted" | "gold" }) {
-  const cls = tone === "gold" ? "border-amber-500/25 bg-amber-500/10 text-amber-100" : "border-white/10 bg-white/[0.06] text-white/70";
+  const cls =
+    tone === "gold"
+      ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
+      : "border-white/10 bg-white/[0.06] text-white/70";
   return <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>{children}</div>;
 }
 
 function Avatar({ src, fallback, size = "md" }: { src?: string | null; fallback: string; size?: "sm" | "md" | "lg" }) {
   const s = size === "lg" ? "h-16 w-16" : size === "sm" ? "h-12 w-12" : "h-14 w-14";
   return (
-    <div className={cx(s, "rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15")}>
-      {src ? <img src={src} alt={fallback} className="h-full w-full object-cover" referrerPolicy="no-referrer" /> : <span className="text-white/40 text-xs font-black">{fallback}</span>}
+    <div
+      className={cx(
+        s,
+        "rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15"
+      )}
+    >
+      {src ? (
+        <img src={src} alt={fallback} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+      ) : (
+        <span className="text-white/40 text-xs font-black">{fallback}</span>
+      )}
     </div>
   );
 }
@@ -62,61 +81,71 @@ function KeyValue({ label, value, mono = false }: { label: string; value: ReactN
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">{label}</div>
-      <div className={cx("mt-1 text-sm font-extrabold text-white/85 truncate", mono ? "font-mono text-[13px]" : "")}>{value}</div>
+      <div className={cx("mt-1 text-sm font-extrabold text-white/85 truncate", mono ? "font-mono text-[13px]" : "")}>
+        {value}
+      </div>
     </div>
   );
 }
 
 /* --------------------------------- Data ---------------------------------- */
 
-const userSelect = {
-  id: true,
-  handle: true,
-  publicId: true,
-  points: true,
-  walletAddress: true,
-  walletChainId: true,
-  createdAt: true,
-  twitterId: true,
-  twitterUser: true,
-  twitterName: true,
-  twitterImage: true,
-} as const;
+type PublicUser = {
+  id: string;
+  handle: string | null;
+  publicId: string | null;
+  points: number | null;
+  walletAddress: string | null;
+  walletChainId: number | null;
 
-export default async function PublicProfilePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+  twitterId: string | null;
+  twitterUser: string | null;
+  twitterName: string | null;
+  twitterImage: string | null;
+
+  twitterConnected: boolean;
+  discordConnected: boolean;
+
+  displayName: string;
+  xHandle: string | null;
+  mainAvatar: string | null;
+  publicKey: string | null;
+  publicUrl: string | null;
+};
+
+type ApiResp =
+  | { ok: true; user: PublicUser }
+  | { ok: false; reason?: string; error?: string };
+
+function safeDecode(v: string) {
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return v;
+  }
+}
+
+export default async function PublicProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const key = decodeURIComponent(id || "").trim();
+  const key = safeDecode(id || "").trim();
+  if (!key) notFound();
 
-  const user = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { handle: { equals: key, mode: "insensitive" } },
-        { publicId: { equals: key, mode: "insensitive" } },
-      ],
-    },
-    select: userSelect,
-  });
+  const res = await fetch(`/api/u/${encodeURIComponent(key)}`, { cache: "no-store" });
+  if (!res.ok) notFound();
 
-  if (!user) notFound();
+  const json = (await res.json()) as ApiResp;
+  if (!json.ok) notFound();
+
+  const user = json.user;
 
   const walletConnected = Boolean(user.walletAddress);
   const twitterConnected = Boolean(user.twitterId);
 
-  // Приоритет имени: X -> Handle -> Кошелек
-  const displayName =
-    user.twitterName ||
-    (user.twitterUser ? `@${user.twitterUser}` : null) ||
-    (user.handle ? `@${user.handle}` : null) ||
-    shortAddr(user.walletAddress);
+  const displayName = user.displayName || "Realife user";
+  const heroAvatar = user.mainAvatar || user.twitterImage || null;
 
-  const heroAvatar = user.twitterImage || null;
-
-  const publicKey = user.handle || user.publicId;
-  const publicUrl = publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
+  const publicKey = user.publicKey;
+  const publicUrl = user.publicUrl;
 
   return (
     <AppShell title="REALIFE" subtitle="Public identity profile">
@@ -127,7 +156,11 @@ export default async function PublicProfilePage({
           <div className="absolute -top-80 -left-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/10 blur-3xl animate-pulse" />
           <div
             className="absolute inset-0 opacity-[0.06]"
-            style={{ backgroundImage: "linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px)", backgroundSize: "56px 56px" }}
+            style={{
+              backgroundImage:
+                "linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px)",
+              backgroundSize: "56px 56px",
+            }}
           />
         </div>
 
@@ -164,7 +197,6 @@ export default async function PublicProfilePage({
             </div>
           </Card>
 
-          {/* Social connections grid */}
           <div className="grid md:grid-cols-2 gap-6">
             {twitterConnected && (
               <Card className="ring-1 ring-white/5">
@@ -176,7 +208,7 @@ export default async function PublicProfilePage({
                   <StatusPill ok={true} text="Active" />
                 </div>
                 <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
-                  <Avatar src={user.twitterImage} fallback="X" size="md" />
+                  <Avatar src={user.twitterImage ?? null} fallback="X" size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-extrabold truncate text-white/90">{user.twitterName || "—"}</div>
                     <div className="text-xs text-white/40 font-mono truncate">@{user.twitterUser}</div>

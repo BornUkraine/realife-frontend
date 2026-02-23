@@ -7,7 +7,6 @@ export const revalidate = 0;
 
 const PUBLIC_PREFIX = "/u";
 
-// 👇 Селектор полей (исключаем Discord, пока он не нужен)
 const userSelect = {
   id: true,
   handle: true,
@@ -15,26 +14,38 @@ const userSelect = {
   points: true,
   walletAddress: true,
   walletChainId: true,
-  createdAt: true,
-  // X (Twitter) поля
+  // createdAt: true, // <- обычно не надо светить публично (если надо — раскомментируй)
   twitterId: true,
   twitterUser: true,
   twitterName: true,
   twitterImage: true,
 } as const;
 
+function safeDecode(v: string) {
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return v;
+  }
+}
+
+function normalizeKey(raw: string) {
+  // безопасно декодим + тримим + режем мусор
+  const key = safeDecode(raw || "").trim();
+  // защита от очень длинных строк/мусора
+  if (!key || key.length > 64) return null;
+  return key;
+}
+
 function shortAddr(addr?: string | null) {
   if (!addr) return "—";
   if (addr.length <= 12) return addr;
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: keyRaw } = await params;
-  const key = decodeURIComponent(keyRaw || "").trim();
+  const key = normalizeKey(keyRaw);
 
   if (!key) {
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
@@ -58,14 +69,14 @@ export async function GET(
     const twitterConnected = Boolean(user.twitterId);
     const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
 
-    // 👇 Логика Display Name: X -> Handle -> Кошелек
+    // Display Name: X name -> @x -> @handle -> short wallet
     const displayName =
       user.twitterName ||
       xHandle ||
-      (user.handle ? `@${user.handle}` : null) || 
+      (user.handle ? `@${user.handle}` : null) ||
       shortAddr(user.walletAddress);
 
-    // 👇 Аватарка подтягивается из X
+    // avatar priority: X only (пока без Discord)
     const mainAvatar = user.twitterImage || null;
 
     const publicKey = user.handle || user.publicId || null;
@@ -76,7 +87,7 @@ export async function GET(
       user: {
         ...user,
         twitterConnected,
-        discordConnected: false, // Заглушка, Дискорд пока отключен по твоему решению
+        discordConnected: false, // заглушка
         displayName,
         xHandle,
         mainAvatar,
@@ -85,7 +96,7 @@ export async function GET(
       },
     });
   } catch (e) {
-    console.error("[API_PUBLIC_USER_ERROR]", e);
-    return NextResponse.json({ ok: false }, { status: 500 });
+    console.error("[API_U_ID_ERROR]", e);
+    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
   }
 }

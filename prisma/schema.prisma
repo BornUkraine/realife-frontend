@@ -7,31 +7,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/* ========================================================================== */
+/* USER                                                                       */
+/* ========================================================================== */
+
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Public profile (shareable)
+  /* ---------------- Public profile ---------------- */
   handle   String? @unique
   publicId String? @unique
 
-  // OAuth identities
-  twitterId    String? @unique
-  twitterName  String?
-  twitterUser  String?
-  twitterImage String?
-
-  discordId    String? @unique
-  discordName  String?
-  discordUser  String?
-  discordImage String?
-
-  // Wallet identity (EVM)
+  /* ---------------- Wallet (primary identity) ---------------- */
   walletAddress String @unique
   walletChainId Int?
 
-  // points
+  /* ---------------- X (Twitter) ---------------- */
+  twitterId        String? @unique
+  twitterName      String?
+  twitterUser      String?
+  twitterImage     String?
+  twitterRewarded  Boolean @default(false) // ⛔ anti-abuse
+
+  /* ---------------- Discord ---------------- */
+  discordId        String? @unique
+  discordName      String?
+  discordUser      String?
+  discordImage     String?
+  discordRewarded  Boolean @default(false) // ⛔ anti-abuse
+
+  /* ---------------- Points & rewards ---------------- */
   points      Int       @default(0)
   lastDailyAt DateTime?
 
@@ -41,15 +48,24 @@ model User {
   @@index([discordUser])
 }
 
+/* ========================================================================== */
+/* WALLET NONCE (SIWE-like)                                                    */
+/* ========================================================================== */
+
 model WalletNonce {
-  address   String   @id  // lowercased
+  address   String   @id // lowercased wallet
   nonce     String
   expiresAt DateTime
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([expiresAt])
 }
+
+/* ========================================================================== */
+/* POINT EVENTS (ledger / history)                                             */
+/* ========================================================================== */
 
 model PointEvent {
   id        String   @id @default(cuid())
@@ -58,7 +74,7 @@ model PointEvent {
   userId String
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type   String
+  type   String   // "daily", "twitter_connect", "discord_connect", etc
   points Int
   meta   Json?
 
@@ -66,15 +82,16 @@ model PointEvent {
   @@index([type])
 }
 
-/**
- * TEMP storage for X OAuth callback data, to link it to the current wallet-user later.
- * This prevents creating a second user for X.
- */
-model TwitterLinkAttempt {
-  id           String   @id @default(cuid())
-  createdAt    DateTime @default(now())
+/* ========================================================================== */
+/* TEMP STORAGE FOR X OAUTH LINKING                                            */
+/* Prevents creating second user during OAuth callback                        */
+/* ========================================================================== */
 
-  // tie to the current NextAuth session cookie
+model TwitterLinkAttempt {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // NextAuth session cookie value
   sessionToken String
 
   twitterId    String

@@ -55,7 +55,27 @@ const tokenSelect = {
   discordImage: true,
 } as const;
 
-function applyUserToToken(token: any, user: any) {
+type TokenUser = {
+  id: string;
+  points: number | null;
+  handle: string | null;
+  publicId: string | null;
+
+  walletAddress: string | null;
+  walletChainId: number | null;
+
+  twitterId: string | null;
+  twitterUser: string | null;
+  twitterName: string | null;
+  twitterImage: string | null;
+
+  discordId: string | null;
+  discordUser: string | null;
+  discordName: string | null;
+  discordImage: string | null;
+};
+
+function applyUserToToken(token: any, user: TokenUser) {
   token.uid = user.id;
   token.sub = user.id;
 
@@ -145,7 +165,7 @@ export const authOptions: NextAuthOptions = {
           await ensurePublicId(tx as any, u.id);
 
           const fresh = await tx.user.findUnique({ where: { id: u.id }, select: tokenSelect });
-          return fresh ?? u;
+          return (fresh ?? u) as any;
         });
 
         return { id: user.id } as any;
@@ -155,22 +175,26 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, user, account, trigger, session }) {
+      // ✅ session.update() support (если будешь использовать)
       if (trigger === "update" && session) return { ...token, ...session };
 
+      // ✅ При логине кошельком — один раз забираем полные поля в токен
       if (account?.provider === "wallet" && user?.id) {
         token.uid = user.id;
         token.sub = user.id;
 
-        const u = await prisma.user.findUnique({ where: { id: user.id }, select: tokenSelect });
+        const u = (await prisma.user.findUnique({
+          where: { id: user.id },
+          select: tokenSelect,
+        })) as TokenUser | null;
+
         if (u) applyUserToToken(token, u);
         return token;
       }
 
-      const uid = (token as any)?.uid || (token as any)?.sub || null;
-      if (!account && uid) {
-        const u = await prisma.user.findUnique({ where: { id: uid }, select: tokenSelect });
-        if (u) applyUserToToken(token, u);
-      }
+      // ❌ ВАЖНО: убрали постоянный DB-read на каждом запросе
+      // Если захочешь обновлять points/avatars после линковки — делай:
+      // await fetch("/api/me") на клиенте, а токен можно обновлять через session.update() по желанию.
 
       return token;
     },
