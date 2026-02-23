@@ -14,7 +14,6 @@ const userSelect = {
   points: true,
   walletAddress: true,
   walletChainId: true,
-  // createdAt: true, // <- обычно не надо светить публично (если надо — раскомментируй)
   twitterId: true,
   twitterUser: true,
   twitterName: true,
@@ -30,9 +29,7 @@ function safeDecode(v: string) {
 }
 
 function normalizeKey(raw: string) {
-  // безопасно декодим + тримим + режем мусор
   const key = safeDecode(raw || "").trim();
-  // защита от очень длинных строк/мусора
   if (!key || key.length > 64) return null;
   return key;
 }
@@ -43,9 +40,11 @@ function shortAddr(addr?: string | null) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: keyRaw } = await params;
-  const key = normalizeKey(keyRaw);
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const key = normalizeKey(params.id);
 
   if (!key) {
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
@@ -69,25 +68,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const twitterConnected = Boolean(user.twitterId);
     const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
 
-    // Display Name: X name -> @x -> @handle -> short wallet
     const displayName =
       user.twitterName ||
       xHandle ||
       (user.handle ? `@${user.handle}` : null) ||
       shortAddr(user.walletAddress);
 
-    // avatar priority: X only (пока без Discord)
     const mainAvatar = user.twitterImage || null;
 
     const publicKey = user.handle || user.publicId || null;
-    const publicUrl = publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
+    const publicUrl =
+      publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
     return NextResponse.json({
       ok: true,
       user: {
         ...user,
         twitterConnected,
-        discordConnected: false, // заглушка
+        discordConnected: false,
         displayName,
         xHandle,
         mainAvatar,

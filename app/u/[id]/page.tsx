@@ -1,10 +1,13 @@
 import AppShell from "@/components/AppShell";
+import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const PUBLIC_PREFIX = "/u";
 
 /* --------------------------------- UI Kit -------------------------------- */
 
@@ -43,7 +46,9 @@ function StatusPill({ ok, text }: { ok: boolean; text: string }) {
     <div
       className={cx(
         "text-[11px] font-semibold px-3 py-1.5 rounded-full border",
-        ok ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200" : "border-white/10 bg-white/[0.06] text-white/60"
+        ok
+          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-200"
+          : "border-white/10 bg-white/[0.06] text-white/60"
       )}
     >
       {text}
@@ -59,7 +64,15 @@ function Chip({ children, tone = "muted" }: { children: ReactNode; tone?: "muted
   return <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>{children}</div>;
 }
 
-function Avatar({ src, fallback, size = "md" }: { src?: string | null; fallback: string; size?: "sm" | "md" | "lg" }) {
+function Avatar({
+  src,
+  fallback,
+  size = "md",
+}: {
+  src?: string | null;
+  fallback: string;
+  size?: "sm" | "md" | "lg";
+}) {
   const s = size === "lg" ? "h-16 w-16" : size === "sm" ? "h-12 w-12" : "h-14 w-14";
   return (
     <div
@@ -90,32 +103,19 @@ function KeyValue({ label, value, mono = false }: { label: string; value: ReactN
 
 /* --------------------------------- Data ---------------------------------- */
 
-type PublicUser = {
-  id: string;
-  handle: string | null;
-  publicId: string | null;
-  points: number | null;
-  walletAddress: string | null;
-  walletChainId: number | null;
+const userSelect = {
+  id: true,
+  handle: true,
+  publicId: true,
+  points: true,
+  walletAddress: true,
+  walletChainId: true,
 
-  twitterId: string | null;
-  twitterUser: string | null;
-  twitterName: string | null;
-  twitterImage: string | null;
-
-  twitterConnected: boolean;
-  discordConnected: boolean;
-
-  displayName: string;
-  xHandle: string | null;
-  mainAvatar: string | null;
-  publicKey: string | null;
-  publicUrl: string | null;
-};
-
-type ApiResp =
-  | { ok: true; user: PublicUser }
-  | { ok: false; reason?: string; error?: string };
+  twitterId: true,
+  twitterUser: true,
+  twitterName: true,
+  twitterImage: true,
+} as const;
 
 function safeDecode(v: string) {
   try {
@@ -125,27 +125,37 @@ function safeDecode(v: string) {
   }
 }
 
-export default async function PublicProfilePage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const key = safeDecode(id || "").trim();
+export default async function PublicProfilePage({ params }: { params: { id: string } }) {
+  const key = safeDecode(params.id || "").trim();
   if (!key) notFound();
 
-  const res = await fetch(`/api/u/${encodeURIComponent(key)}`, { cache: "no-store" });
-  if (!res.ok) notFound();
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { handle: { equals: key, mode: "insensitive" } },
+        { publicId: { equals: key, mode: "insensitive" } },
+      ],
+    },
+    select: userSelect,
+  });
 
-  const json = (await res.json()) as ApiResp;
-  if (!json.ok) notFound();
-
-  const user = json.user;
+  if (!user) notFound();
 
   const walletConnected = Boolean(user.walletAddress);
   const twitterConnected = Boolean(user.twitterId);
 
-  const displayName = user.displayName || "Realife user";
-  const heroAvatar = user.mainAvatar || user.twitterImage || null;
+  const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
 
-  const publicKey = user.publicKey;
-  const publicUrl = user.publicUrl;
+  const displayName =
+    user.twitterName ||
+    xHandle ||
+    (user.handle ? `@${user.handle}` : null) ||
+    shortAddr(user.walletAddress);
+
+  const heroAvatar = user.twitterImage || null;
+
+  const publicKey = user.handle || user.publicId || null;
+  const publicUrl = publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
   return (
     <AppShell title="REALIFE" subtitle="Public identity profile">
@@ -208,7 +218,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                   <StatusPill ok={true} text="Active" />
                 </div>
                 <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
-                  <Avatar src={user.twitterImage ?? null} fallback="X" size="md" />
+                  <Avatar src={user.twitterImage} fallback="X" size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-extrabold truncate text-white/90">{user.twitterName || "—"}</div>
                     <div className="text-xs text-white/40 font-mono truncate">@{user.twitterUser}</div>
