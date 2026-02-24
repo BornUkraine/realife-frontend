@@ -94,7 +94,8 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
           <div className="absolute inset-x-0 top-0 h-48 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.65),transparent)]" />
         </div>
 
-        <div className="relative mx-auto max-w-6xl px-6 py-10">
+        {/* ✅ было max-w-6xl -> стало max-w-7xl */}
+        <div className="relative mx-auto max-w-7xl px-6 py-10">
           {/* header like OpenSea */}
           <div className="flex items-center gap-4">
             <div className="h-14 w-14 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden">
