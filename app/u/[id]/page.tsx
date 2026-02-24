@@ -115,6 +115,12 @@ const userSelect = {
   twitterUser: true,
   twitterName: true,
   twitterImage: true,
+
+  // ✅ Discord (public)
+  discordId: true,
+  discordUser: true,
+  discordName: true,
+  discordImage: true,
 } as const;
 
 function safeDecode(v: string) {
@@ -125,12 +131,7 @@ function safeDecode(v: string) {
   }
 }
 
-// ✅ Next 16 friendly: params as Promise
-export default async function PublicProfilePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function PublicProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
   const key = safeDecode(id || "").trim();
@@ -150,16 +151,22 @@ export default async function PublicProfilePage({
 
   const walletConnected = Boolean(user.walletAddress);
   const twitterConnected = Boolean(user.twitterId);
+  const discordConnected = Boolean(user.discordId);
 
   const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
+  const dcHandle = user.discordUser ? `@${user.discordUser}` : null;
 
+  // Name priority: X -> Discord -> Handle -> Wallet
   const displayName =
     user.twitterName ||
+    user.discordName ||
     xHandle ||
+    dcHandle ||
     (user.handle ? `@${user.handle}` : null) ||
     shortAddr(user.walletAddress);
 
-  const heroAvatar = user.twitterImage || null;
+  // Avatar priority: X -> Discord
+  const heroAvatar = user.twitterImage || user.discordImage || null;
 
   const publicKey = user.handle || user.publicId || null;
   const publicUrl = publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
@@ -194,10 +201,13 @@ export default async function PublicProfilePage({
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {user.twitterUser && <Chip tone="gold">@{user.twitterUser}</Chip>}
+                  {xHandle && <Chip tone="gold">{xHandle}</Chip>}
+                  {dcHandle && <Chip>{dcHandle}</Chip>}
                   {user.handle && user.handle !== user.twitterUser && <Chip>@{user.handle}</Chip>}
+
                   <StatusPill ok={walletConnected} text={walletConnected ? "Wallet Linked" : "No Wallet"} />
                   <StatusPill ok={twitterConnected} text={twitterConnected ? "X Verified" : "X Unlinked"} />
+                  <StatusPill ok={discordConnected} text={discordConnected ? "Discord Linked" : "Discord Unlinked"} />
                 </div>
 
                 <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -214,8 +224,9 @@ export default async function PublicProfilePage({
             </div>
           </Card>
 
+          {/* Social connections grid */}
           <div className="grid md:grid-cols-2 gap-6">
-            {twitterConnected && (
+            {twitterConnected ? (
               <Card className="ring-1 ring-white/5">
                 <div className="flex items-center justify-between mb-6">
                   <div>
@@ -232,14 +243,110 @@ export default async function PublicProfilePage({
                   </div>
                 </div>
               </Card>
+            ) : (
+              <Card className="ring-1 ring-white/5">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <div className="text-sm font-extrabold">X (Twitter)</div>
+                    <div className="text-xs text-white/60 mt-1">Verified Social Identity</div>
+                  </div>
+                  <StatusPill ok={false} text="Unlinked" />
+                </div>
+
+                <div className="relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                  <div className="pointer-events-none absolute inset-0">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
+                    <div className="absolute inset-0 opacity-[0.06] [mask-image:radial-gradient(circle_at_40%_30%,black,transparent_70%)] bg-[linear-gradient(to_right,rgba(255,255,255,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.22)_1px,transparent_1px)] bg-[length:72px_72px]" />
+                  </div>
+
+                  <div className="relative z-10 flex items-center gap-4">
+                    <Avatar src={null} fallback="X" size="md" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-extrabold truncate text-white/80">Not connected</div>
+                      <div className="text-xs text-white/40 mt-0.5">This user hasn’t linked X yet.</div>
+                    </div>
+                    <div className="shrink-0">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/60">
+                        <span className="text-white/35">🔒</span>
+                        Private
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="text-[11px] font-semibold px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-white/60">
+                    Coming soon
+                  </div>
+                  <div className="text-[11px] font-semibold px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-amber-100">
+                    Identity-ready
+                  </div>
+                </div>
+              </Card>
             )}
 
-            <div className="rounded-[30px] border border-white/5 bg-white/[0.02] p-8 flex flex-col items-center justify-center text-center">
-              <div className="h-10 w-10 rounded-full bg-white/5 flex items-center justify-center mb-3">
-                <span className="text-white/20 text-xl">🔒</span>
-              </div>
-              <div className="text-xs font-bold text-white/30 uppercase tracking-widest">More links coming soon</div>
-            </div>
+            {discordConnected ? (
+              <Card className="ring-1 ring-white/5">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <div className="text-sm font-extrabold">Discord</div>
+                    <div className="text-xs text-white/60 mt-1">Verified Social Identity</div>
+                  </div>
+                  <StatusPill ok={true} text="Active" />
+                </div>
+
+                <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
+                  <Avatar src={user.discordImage} fallback="DC" size="md" />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-extrabold truncate text-white/90">{user.discordName || "—"}</div>
+                    <div className="text-xs text-white/40 font-mono truncate">
+                      {user.discordUser ? `@${user.discordUser}` : "—"}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ) : (
+              <Card className="ring-1 ring-white/5">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <div className="text-sm font-extrabold">Discord</div>
+                    <div className="text-xs text-white/60 mt-1">Verified Social Identity</div>
+                  </div>
+                  <StatusPill ok={false} text="Unlinked" />
+                </div>
+
+                <div className="relative overflow-hidden rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+                  <div className="pointer-events-none absolute inset-0">
+                    <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
+                    <div className="absolute inset-0 opacity-[0.06] [mask-image:radial-gradient(circle_at_40%_30%,black,transparent_70%)] bg-[linear-gradient(to_right,rgba(255,255,255,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.22)_1px,transparent_1px)] bg-[length:72px_72px]" />
+                  </div>
+
+                  <div className="relative z-10 flex items-center gap-4">
+                    <Avatar src={null} fallback="DC" size="md" />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-extrabold truncate text-white/80">Not connected</div>
+                      <div className="text-xs text-white/40 mt-0.5">This user hasn’t linked Discord yet.</div>
+                    </div>
+
+                    <div className="shrink-0">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/60">
+                        <span className="text-white/35">🔒</span>
+                        Private
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <div className="text-[11px] font-semibold px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-white/60">
+                    Coming soon
+                  </div>
+                  <div className="text-[11px] font-semibold px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-amber-100">
+                    Identity-ready
+                  </div>
+                </div>
+              </Card>
+            )}
           </div>
 
           <div className="text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em] pt-10">
