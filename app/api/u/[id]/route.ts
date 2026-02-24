@@ -14,10 +14,16 @@ const userSelect = {
   points: true,
   walletAddress: true,
   walletChainId: true,
+
   twitterId: true,
   twitterUser: true,
   twitterName: true,
   twitterImage: true,
+
+  discordId: true,
+  discordUser: true,
+  discordName: true,
+  discordImage: true,
 } as const;
 
 function safeDecode(v: string) {
@@ -40,10 +46,7 @@ function shortAddr(addr?: string | null) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-export async function GET(
-  _req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: keyRaw } = await params;
   const key = normalizeKey(keyRaw);
 
@@ -67,28 +70,34 @@ export async function GET(
     }
 
     const twitterConnected = Boolean(user.twitterId);
+    const discordConnected = Boolean(user.discordId);
+
     const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
+    const dcHandle = user.discordUser ? `@${user.discordUser}` : null;
 
     const displayName =
       user.twitterName ||
+      user.discordName ||
       xHandle ||
+      dcHandle ||
       (user.handle ? `@${user.handle}` : null) ||
       shortAddr(user.walletAddress);
 
-    const mainAvatar = user.twitterImage || null;
+    // Avatar priority: X -> Discord
+    const mainAvatar = user.twitterImage || user.discordImage || null;
 
     const publicKey = user.handle || user.publicId || null;
-    const publicUrl =
-      publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
+    const publicUrl = publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
     return NextResponse.json({
       ok: true,
       user: {
         ...user,
         twitterConnected,
-        discordConnected: false,
-        displayName,
+        discordConnected,
         xHandle,
+        dcHandle,
+        displayName,
         mainAvatar,
         publicKey,
         publicUrl,
