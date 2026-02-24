@@ -25,7 +25,8 @@ export async function GET(req: Request) {
 
   try {
     const items = await prisma.mint.findMany({
-      where: { userId: uid },
+      // 👇 Добавили фильтр verified: true
+      where: { userId: uid, verified: true },
       orderBy: { createdAt: "desc" },
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

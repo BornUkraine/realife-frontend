@@ -54,7 +54,8 @@ export async function GET(
     }
 
     const items = await prisma.mint.findMany({
-      where: { userId: user.id },
+      // 👇 Добавили фильтр verified: true
+      where: { userId: user.id, verified: true },
       orderBy: { createdAt: "desc" },
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),

@@ -16,8 +16,9 @@ function cx(...a: Array<string | false | null | undefined>) {
 
 function shortAddr(addr?: string | null) {
   if (!addr) return "—";
-  if (addr.length <= 12) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+  const s = String(addr);
+  if (s.length <= 12) return s;
+  return `${s.slice(0, 6)}…${s.slice(-4)}`;
 }
 
 function Pill({ children }: { children: ReactNode }) {
@@ -112,7 +113,11 @@ function Chip({
       ? "border-white/15 bg-white/[0.08] text-white/80"
       : "border-white/10 bg-white/[0.06] text-white/70";
 
-  return <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>{children}</div>;
+  return (
+    <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>
+      {children}
+    </div>
+  );
 }
 
 function Avatar({
@@ -220,6 +225,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
 
   const publicKey = user.handle || user.publicId || null;
   const publicUrl = publicKey && publicKey !== "tmp" ? `/u/${publicKey}` : null;
+  const nftsUrl = publicUrl ? `${publicUrl}/nfts` : null;
 
   const xUrl = user.twitterUser ? `https://x.com/${user.twitterUser}` : null;
 
@@ -275,15 +281,16 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                     <StatusPill ok={discordConnected} text={discordConnected ? "Discord Linked" : "Discord Unlinked"} />
                   </div>
 
+                  {/* убрали Public ID (не нужно юзеру), оставили только полезное */}
                   <div className="mt-7 grid grid-cols-2 md:grid-cols-4 gap-3">
                     <KeyValue label="Points" value={user.points ?? 0} />
-                    <KeyValue label="Public ID" value={user.publicId || "—"} mono />
                     <KeyValue
                       label="Public Link"
                       value={publicUrl ? <span className="text-amber-400/90">{publicKey}</span> : "—"}
                       mono
                     />
                     <KeyValue label="EVM Wallet" value={shortAddr(user.walletAddress)} mono />
+                    <KeyValue label="Status" value={walletConnected ? "Verified" : "—"} />
                   </div>
 
                   <div className="mt-6 flex flex-wrap gap-3">
@@ -304,6 +311,19 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                         className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
                       >
                         Public URL
+                      </Link>
+                    ) : null}
+
+                    {/* ✅ ВОТ ТУТ КНОПКА NFTs */}
+                    {nftsUrl ? (
+                      <Link
+                        href={nftsUrl}
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-[13px] font-extrabold text-black
+                          bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]
+                          shadow-[0_18px_60px_rgba(212,175,55,0.18)]
+                          ring-1 ring-black/15 hover:brightness-110 hover:-translate-y-px active:translate-y-0 transition"
+                      >
+                        NFTs →
                       </Link>
                     ) : null}
                   </div>

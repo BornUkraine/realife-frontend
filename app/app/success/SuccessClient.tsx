@@ -234,8 +234,9 @@ export default function SuccessClient() {
         : null;
 
     (async () => {
+      // ✅ ВАЖНО: Больше не глотаем ошибку молча
       try {
-        await fetch("/api/mints", {
+        const r = await fetch("/api/mints", {
           method: "POST",
           headers: { "content-type": "application/json" },
           credentials: "include",
@@ -250,8 +251,13 @@ export default function SuccessClient() {
             verified: true,
           }),
         });
-      } catch {
-        // ignore
+
+        if (!r.ok) {
+          const t = await r.text().catch(() => "");
+          console.error("SAVE_MINT_FAILED (SuccessClient)", r.status, t);
+        }
+      } catch (e) {
+        console.error("SAVE_MINT_EXCEPTION (SuccessClient)", e);
       }
     })();
   }, [tokenId, tx, name, mediaUrl, mediaKind]);

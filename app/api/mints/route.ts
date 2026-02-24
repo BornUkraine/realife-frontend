@@ -6,7 +6,8 @@ import { authOptions } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const norm = (a: string) => a.toLowerCase();
+// 👇 Безопасная нормализация (не упадет на undefined/null)
+const norm = (a: string) => String(a || "").trim().toLowerCase();
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);

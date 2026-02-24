@@ -559,9 +559,10 @@ export default function MintForm() {
       const finalCategory = previewCategory || selectedCategoryLabel;
       const tokenId = extractTokenIdFromReceipt(receipt);
 
+      // ✅ ВАЖНО: Больше не глотаем ошибку молча
       try {
         if (CONTRACT_ADDRESS && tokenId) {
-          await fetch("/api/mints", {
+          const r = await fetch("/api/mints", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
@@ -575,9 +576,14 @@ export default function MintForm() {
               verified: true,
             }),
           });
+
+          if (!r.ok) {
+            const t = await r.text().catch(() => "");
+            console.error("SAVE_MINT_FAILED", r.status, t);
+          }
         }
-      } catch {
-        // ignore
+      } catch (e) {
+        console.error("SAVE_MINT_EXCEPTION", e);
       }
 
       router.push(

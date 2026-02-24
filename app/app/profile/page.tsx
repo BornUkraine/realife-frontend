@@ -383,13 +383,11 @@ export default function ProfilePage() {
   const busyTimerRef = useRef<number | null>(null);
 
   const serverWalletAddress = me?.walletAddress ?? null;
-  const serverWalletChainId = me?.walletChainId ?? null;
 
   const twitterConnected = Boolean(me?.twitterId);
   const discordConnected = Boolean(me?.discordId);
 
   const displayWalletAddress = liveAddress ?? serverWalletAddress ?? null;
-  const displayWalletChainId = walletIsConnected && liveAddress ? liveChainId : serverWalletChainId ?? null;
 
   const safePublicId = useMemo(() => {
     const pid = me?.publicId ?? null;
@@ -777,12 +775,6 @@ export default function ProfilePage() {
                 }
                 mono
               />
-              <Field label="Chain" value={displayWalletChainId ? <span className="font-extrabold">{displayWalletChainId}</span> : "—"} />
-              <Field
-                label="Identity"
-                value={<span className="truncate">{twitterConnected || discordConnected ? "Wallet + socials" : "Wallet only"}</span>}
-              />
-              <Field label="User id" value={me?.id ?? "—"} mono />
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -807,6 +799,19 @@ export default function ProfilePage() {
                   className="inline-flex items-center justify-center px-3 py-2 rounded-xl text-[12px] font-extrabold text-white border border-white/15 bg-white/[0.06] hover:bg-white/10"
                 >
                   Open public profile →
+                </a>
+              )}
+
+              {/* 👇 НОВАЯ КНОПКА NFTs */}
+              {publicUrl && (
+                <a
+                  href={`${publicUrl}/nfts`}
+                  className="inline-flex items-center justify-center px-3 py-2 rounded-xl text-[12px] font-extrabold text-black
+                    bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]
+                    shadow-[0_18px_60px_rgba(212,175,55,0.18)]
+                    ring-1 ring-black/15 hover:brightness-110 hover:-translate-y-px active:translate-y-0"
+                >
+                  NFTs →
                 </a>
               )}
 
