@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -29,7 +30,7 @@ export async function POST() {
   const tomorrowStart = startOfTomorrowUTC(now);
 
   try {
-    const result = await prisma.$transaction(async (tx: typeof prisma) => {
+    const result = await prisma.$transaction(async (tx) => {
       // Ensure user exists
       const user = await tx.user.findUnique({
         where: { id: userId },
