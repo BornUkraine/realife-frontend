@@ -6,6 +6,13 @@ import { signOut, useSession } from "next-auth/react";
 import { useAccount, useChainId } from "wagmi";
 
 /* -------------------------------------------------------------------------- */
+/* REWARDS                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const REWARD_X = 100;
+const REWARD_DISCORD = 100;
+
+/* -------------------------------------------------------------------------- */
 /* TYPES                                                                      */
 /* -------------------------------------------------------------------------- */
 
@@ -286,6 +293,48 @@ function SocialIcon({ kind }: { kind: "x" | "discord" }) {
   );
 }
 
+function RewardStrip({
+  connected,
+  reward,
+  label,
+}: {
+  connected: boolean;
+  reward: number;
+  label: string;
+}) {
+  return (
+    <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
+            Rewards
+          </div>
+          <div className="mt-1 text-sm font-extrabold text-white/85">
+            {label}{" "}
+            <span className="text-amber-200">+{reward}</span> points
+          </div>
+          <div className="mt-1 text-xs text-white/45">
+            One-time bonus for linking your identity.
+          </div>
+        </div>
+
+        {connected ? (
+          <div className="shrink-0 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/80">
+            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 border border-white/15">
+              ✓
+            </span>
+            Claimed
+          </div>
+        ) : (
+          <div className="shrink-0 inline-flex items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100">
+            ✨ +{reward}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SocialRow({
   kind,
   title,
@@ -297,6 +346,7 @@ function SocialRow({
   busy,
   onConnect,
   onDisconnect,
+  reward,
 }: {
   kind: "x" | "discord";
   title: string;
@@ -308,7 +358,11 @@ function SocialRow({
   busy: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
+  reward: number;
 }) {
+  const connectLabel =
+    kind === "x" ? `Connect X (+${reward})` : `Connect Discord (+${reward})`;
+
   return (
     <Card className={cx(connected ? "ring-1 ring-amber-500/20 bg-amber-500/[0.02]" : "")}>
       <div className="flex items-center justify-between gap-4 mb-6">
@@ -331,7 +385,7 @@ function SocialRow({
           </div>
         ) : (
           <Btn variant="gold" onClick={onConnect} disabled={busy} className="w-auto px-5 py-2 text-[13px]">
-            {busy ? "Redirecting…" : `Connect ${kind === "x" ? "X" : "Discord"}`}
+            {busy ? "Redirecting…" : connectLabel}
           </Btn>
         )}
       </div>
@@ -345,6 +399,12 @@ function SocialRow({
           </div>
         </div>
       </div>
+
+      <RewardStrip
+        connected={connected}
+        reward={reward}
+        label={kind === "x" ? "Connect X and earn" : "Connect Discord and earn"}
+      />
 
       {!connected && (
         <div className="mt-4 text-[11px] text-white/55">
@@ -707,6 +767,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Pill tone={serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"}>{walletPillText}</Pill>
+
                     <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>
                       {dailyStatus.canClaim ? "Daily available" : "Claimed today"}
                     </Pill>
@@ -739,18 +800,47 @@ export default function ProfilePage() {
 
             <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
               <Field label="Points" value={me?.points ?? 0} />
+
+              {/* ✅ FIX: больше не будет "C ..." — делаем читабельный статус + дата на 2 строках */}
               <Field
                 label="Daily"
                 value={
-                  <div className="flex items-center gap-2">
-                    <span className="truncate">{dailyStatus.label}</span>
-                    <span className="text-[11px] text-white/55">
-                      {me?.lastDailyAt ? `• ${formatLocal(me.lastDailyAt)}` : ""}
-                    </span>
+                  <div className="flex flex-col leading-tight">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cx(
+                          "inline-flex h-5 w-5 items-center justify-center rounded-full border text-[12px] font-black",
+                          dailyStatus.canClaim
+                            ? "border-amber-500/25 bg-amber-500/10 text-amber-100"
+                            : "border-white/15 bg-white/[0.06] text-white/90"
+                        )}
+                        title={dailyStatus.canClaim ? "Available" : "Claimed"}
+                      >
+                        {dailyStatus.canClaim ? "+" : "✓"}
+                      </span>
+
+                      <span className="text-sm font-extrabold text-white/85">
+                        {dailyStatus.canClaim ? "Available" : "Claimed"}
+                      </span>
+                    </div>
+
+                    {me?.lastDailyAt ? (
+                      <span className="mt-1 text-[11px] text-white/55 truncate">
+                        {formatLocal(me.lastDailyAt)}
+                      </span>
+                    ) : (
+                      <span className="mt-1 text-[11px] text-white/45">—</span>
+                    )}
                   </div>
                 }
               />
-              <Field label="Wallet (connected)" value={walletIsConnected && liveAddress ? shortAddr(liveAddress) : "—"} mono />
+
+              <Field
+                label="Wallet (connected)"
+                value={walletIsConnected && liveAddress ? shortAddr(liveAddress) : "—"}
+                mono
+              />
+
               <Field
                 label="Public link"
                 value={
@@ -767,7 +857,8 @@ export default function ProfilePage() {
                       }}
                       className="text-left hover:underline font-mono"
                     >
-                      {publicUrl} <span className="text-[11px] text-white/60">{copied ? "copied" : "copy"}</span>
+                      {publicUrl}{" "}
+                      <span className="text-[11px] text-white/60">{copied ? "copied" : "copy"}</span>
                     </button>
                   ) : (
                     "—"
@@ -802,7 +893,7 @@ export default function ProfilePage() {
                 </a>
               )}
 
-              {/* 👇 НОВАЯ КНОПКА NFTs */}
+              {/* 👇 КНОПКА NFTs */}
               {publicUrl && (
                 <a
                   href={`${publicUrl}/nfts`}
@@ -834,9 +925,10 @@ export default function ProfilePage() {
                 avatarSrc={me?.twitterImage ?? null}
                 name={me?.twitterName ?? null}
                 username={me?.twitterUser ?? null}
-                busy={busyX} // ✅ only X is busy
+                busy={busyX}
                 onConnect={connectTwitter}
                 onDisconnect={disconnectTwitter}
+                reward={REWARD_X}
               />
 
               <SocialRow
@@ -847,9 +939,10 @@ export default function ProfilePage() {
                 avatarSrc={me?.discordImage ?? null}
                 name={me?.discordName ?? null}
                 username={me?.discordUser ?? null}
-                busy={busyDiscord} // ✅ only Discord is busy
+                busy={busyDiscord}
                 onConnect={connectDiscord}
                 onDisconnect={disconnectDiscord}
+                reward={REWARD_DISCORD}
               />
             </div>
           )}

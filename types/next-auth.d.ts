@@ -3,11 +3,11 @@ import "next-auth/jwt";
 import type { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
-  interface Session {
+  interface Session extends DefaultSession {
     userId?: string;
     linkError?: string;
 
-    user?: DefaultSession["user"] & {
+    user: DefaultSession["user"] & {
       id?: string;
       points?: number;
 
@@ -41,9 +41,6 @@ declare module "next-auth" {
 
 declare module "next-auth/jwt" {
   interface JWT {
-    // ✅ стандартный id NextAuth (fallback)
-    sub?: string;
-
     // ✅ наш алиас user id
     uid?: string;
 

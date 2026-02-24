@@ -30,6 +30,25 @@ function norm(a: string) {
   return String(a || "").trim().toLowerCase();
 }
 
+// ✅ открываем ipfs:// в браузере
+function ipfsToHttp(uri: string) {
+  const u = String(uri || "").trim();
+  if (!u) return "";
+  if (u.startsWith("ipfs://")) {
+    const cid = u.replace("ipfs://", "");
+    return `https://gateway.pinata.cloud/ipfs/${cid}`;
+  }
+  return u;
+}
+
+// ✅ маппер эксплорера по chainId (минимум Base + Base Sepolia)
+function txExplorerUrl(chainId: number, txHash: string) {
+  if (!txHash) return null;
+  if (chainId === 84532) return `https://sepolia.basescan.org/tx/${txHash}`; // Base Sepolia
+  if (chainId === 8453) return `https://basescan.org/tx/${txHash}`; // Base mainnet
+  return null; // unknown chain
+}
+
 export default async function NftDetailsPage({
   params,
 }: {
@@ -91,6 +110,9 @@ export default async function NftDetailsPage({
     shortAddr(u.walletAddress);
 
   const avatar = u.twitterImage || u.discordImage || null;
+
+  const tokenUriHttp = nft.tokenUri ? ipfsToHttp(nft.tokenUri) : null;
+  const txUrl = nft.txHash ? txExplorerUrl(nft.chainId, nft.txHash) : null;
 
   return (
     <AppShell title="REALIFE" subtitle="NFT details">
@@ -181,7 +203,12 @@ export default async function NftDetailsPage({
                     <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center">
                       {avatar ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={avatar} alt="owner" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        <img
+                          src={avatar}
+                          alt="owner"
+                          className="h-full w-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
                       ) : (
                         <span className="text-white/35 text-xs font-black">RL</span>
                       )}
@@ -191,7 +218,13 @@ export default async function NftDetailsPage({
                         Owner
                       </div>
                       <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
-                        {ownerUrl ? <Link className="hover:underline" href={ownerUrl}>{ownerName}</Link> : ownerName}
+                        {ownerUrl ? (
+                          <Link className="hover:underline" href={ownerUrl}>
+                            {ownerName}
+                          </Link>
+                        ) : (
+                          ownerName
+                        )}
                       </div>
                     </div>
                     {ownerNftsUrl ? (
@@ -204,31 +237,39 @@ export default async function NftDetailsPage({
                     ) : null}
                   </div>
 
-                  {/* Details grid (как OpenSea: Contract/Token ID/Chain) */}
+                  {/* Details */}
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Contract</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Contract
+                      </div>
                       <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
                         {shortAddr(nft.contract)}
                       </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Token ID</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Token ID
+                      </div>
                       <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
                         #{nft.tokenId}
                       </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Chain ID</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Chain ID
+                      </div>
                       <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
                         {nft.chainId}
                       </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Minted</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Minted
+                      </div>
                       <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                         {new Date(nft.createdAt).toLocaleString("en-GB")}
                       </div>
@@ -237,9 +278,10 @@ export default async function NftDetailsPage({
 
                   {/* Links */}
                   <div className="mt-6 flex flex-wrap gap-3">
-                    {nft.tokenUri ? (
+                    {/* ✅ Token URI оставляем — это важная публичная ссылка */}
+                    {tokenUriHttp ? (
                       <a
-                        href={nft.tokenUri}
+                        href={tokenUriHttp}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
@@ -248,9 +290,10 @@ export default async function NftDetailsPage({
                       </a>
                     ) : null}
 
-                    {nft.txHash ? (
+                    {/* ✅ Tx ↗ теперь правильный для Base Sepolia */}
+                    {txUrl ? (
                       <a
-                        href={`https://basescan.org/tx/${nft.txHash}`}
+                        href={txUrl}
                         target="_blank"
                         rel="noreferrer"
                         className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"

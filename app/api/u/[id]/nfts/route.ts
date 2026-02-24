@@ -23,10 +23,7 @@ function norm(a: string) {
   return String(a || "").trim().toLowerCase();
 }
 
-export async function GET(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: keyRaw } = await params;
   const key = normalizeKey(keyRaw);
 
@@ -54,7 +51,6 @@ export async function GET(
     }
 
     const items = await prisma.mint.findMany({
-      // 👇 Добавили фильтр verified: true
       where: { userId: user.id, verified: true },
       orderBy: { createdAt: "desc" },
       take: take + 1,
@@ -74,10 +70,13 @@ export async function GET(
     });
 
     const hasMore = items.length > take;
-    const data = hasMore ? items.slice(0, take) : items;
+
+    // ✅ ВАЖНО: сохраняем тип массива (чтобы x не был any)
+    const data: typeof items = hasMore ? items.slice(0, take) : items;
+
     const nextCursor = hasMore ? data[data.length - 1]?.id ?? null : null;
 
-    const nfts = data.map((x) => ({ ...x, contract: norm(x.contract) }));
+    const nfts = data.map((x: typeof items[number]) => ({ ...x, contract: norm(x.contract) }));
 
     return NextResponse.json({ ok: true, nfts, nextCursor });
   } catch (e) {

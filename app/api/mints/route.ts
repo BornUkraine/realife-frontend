@@ -9,11 +9,22 @@ export const dynamic = "force-dynamic";
 // 👇 Безопасная нормализация (не упадет на undefined/null)
 const norm = (a: string) => String(a || "").trim().toLowerCase();
 
+/**
+ * ✅ Удобно для проверки в браузере:
+ * GET /api/mints -> не 405, а подсказка
+ */
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    hint: "Use POST /api/mints to save mint (requires auth session).",
+  });
+}
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   const userId = (session as any)?.user?.id || (session as any)?.userId;
 
-  if (!userId) return NextResponse.json({ ok: false }, { status: 401 });
+  if (!userId) return NextResponse.json({ ok: false, reason: "UNAUTHORIZED" }, { status: 401 });
 
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ ok: false, error: "bad_json" }, { status: 400 });

@@ -34,16 +34,30 @@ function safeDecode(v: string) {
   }
 }
 
+/**
+ * Очень мягкая нормализация:
+ * - trim
+ * - длина <= 64
+ * - запрет "/" чтобы не было path-injection в ключ
+ * - allowlist символов (можно расширить при желании)
+ */
 function normalizeKey(raw: string) {
   const key = safeDecode(raw || "").trim();
   if (!key || key.length > 64) return null;
+  if (key.includes("/")) return null;
+
+  // allowlist: буквы/цифры/подчёрк/дефис/точка
+  // (под твои rl_XXXX и handle идеально)
+  if (!/^[a-zA-Z0-9_.-]+$/.test(key)) return null;
+
   return key;
 }
 
 function shortAddr(addr?: string | null) {
-  if (!addr) return "—";
-  if (addr.length <= 12) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+  const s = addr ? String(addr) : "";
+  if (!s) return "—";
+  if (s.length <= 12) return s;
+  return `${s.slice(0, 6)}…${s.slice(-4)}`;
 }
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -89,6 +103,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const publicKey = user.handle || user.publicId || null;
     const publicUrl = publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
+    // ✅ удобно фронту, ничего не ломает
+    const nftsUrl = publicUrl ? `${publicUrl}/nfts` : null;
+
     return NextResponse.json({
       ok: true,
       user: {
@@ -101,6 +118,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         mainAvatar,
         publicKey,
         publicUrl,
+        nftsUrl,
       },
     });
   } catch (e) {

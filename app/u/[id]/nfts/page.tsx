@@ -26,6 +26,16 @@ function shortAddr(addr?: string | null) {
   return `${s.slice(0, 6)}…${s.slice(-4)}`;
 }
 
+type Nft = {
+  id: string;
+  createdAt: Date;
+  chainId: number;
+  contract: string;
+  tokenId: string;
+  name: string | null;
+  image: string | null;
+};
+
 export default async function PublicNFTsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const key = safeDecode(id || "").trim();
@@ -66,7 +76,7 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
   const publicKey = user.handle || user.publicId || null;
   const publicUrl = publicKey && publicKey !== "tmp" ? `/u/${publicKey}` : null;
 
-  const nfts = await prisma.mint.findMany({
+  const nfts: Nft[] = await prisma.mint.findMany({
     where: { userId: user.id, verified: true },
     orderBy: { createdAt: "desc" },
     select: {
@@ -94,7 +104,8 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
           <div className="absolute inset-x-0 top-0 h-48 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.65),transparent)]" />
         </div>
 
-        <div className="relative mx-auto max-w-6xl px-6 py-10">
+        {/* ✅ было max-w-6xl -> стало max-w-7xl */}
+        <div className="relative mx-auto max-w-7xl px-6 py-10">
           {/* header like OpenSea */}
           <div className="flex items-center gap-4">
             <div className="h-14 w-14 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden">
