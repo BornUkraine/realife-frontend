@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import AppShell from "@/components/AppShell";
 import { signOut, useSession } from "next-auth/react";
 import { useAccount, useChainId } from "wagmi";
@@ -72,10 +72,9 @@ function shortAddr(addr?: string | null) {
 
 // UTC to match server daily boundaries
 function utcKey(d: Date) {
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(
-    2,
-    "0"
-  )}`;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(
+    d.getUTCDate()
+  ).padStart(2, "0")}`;
 }
 
 function formatLocal(dtIso?: string | null) {
@@ -89,10 +88,13 @@ function humanizeLinkError(code?: string | null) {
   if (!code) return null;
 
   // shared
-  if (code === "NO_SERVER_WALLET") return "Verify your wallet first (server session). Then connect socials.";
+  if (code === "NO_SERVER_WALLET")
+    return "Verify your wallet first (server session). Then connect socials.";
   if (code === "NO_SERVER_SESSION") return "No server wallet session. Verify wallet again.";
-  if (code === "SERVER_MISCONFIG") return "Server misconfigured (missing NEXTAUTH_SECRET / NEXTAUTH_URL).";
-  if (code === "BAD_STATE") return "State invalid/expired. Usually NEXTAUTH_SECRET mismatch between envs.";
+  if (code === "SERVER_MISCONFIG")
+    return "Server misconfigured (missing NEXTAUTH_SECRET / NEXTAUTH_URL).";
+  if (code === "BAD_STATE")
+    return "State invalid/expired. Usually NEXTAUTH_SECRET mismatch between envs.";
   if (code === "NO_CODE") return "No authorization code returned from provider.";
   if (code === "TOKEN_EXCHANGE") return "Failed to exchange code for access token.";
   if (code === "NO_ACCESS_TOKEN") return "Provider did not return access token.";
@@ -102,12 +104,15 @@ function humanizeLinkError(code?: string | null) {
 
   // X-specific
   if (code === "TWITTER_ENV_MISSING") return "Missing TWITTER_CLIENT_ID / TWITTER_CLIENT_SECRET in env.";
-  if (code === "PKCE_MISSING") return "PKCE cookie missing. Usually cookie not returned after X redirect.";
-  if (code === "TWITTER_ALREADY_LINKED") return "This X account is already linked to another wallet profile.";
+  if (code === "PKCE_MISSING")
+    return "PKCE cookie missing. Usually cookie not returned after X redirect.";
+  if (code === "TWITTER_ALREADY_LINKED")
+    return "This X account is already linked to another wallet profile.";
 
   // Discord-specific
   if (code === "DISCORD_ENV_MISSING") return "Missing DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET in env.";
-  if (code === "DISCORD_ALREADY_LINKED") return "This Discord account is already linked to another wallet profile.";
+  if (code === "DISCORD_ALREADY_LINKED")
+    return "This Discord account is already linked to another wallet profile.";
 
   // generic
   if (code === "DISCONNECT_FAILED") return "Failed to disconnect. Try again.";
@@ -179,7 +184,9 @@ function Alert({
   const cls = tone === "error" ? "border-rose-500/25 bg-rose-500/10" : "border-amber-500/25 bg-amber-500/10";
   return (
     <div className={cx("rounded-[22px] border px-4 py-3", cls)}>
-      <div className={cx("text-sm font-extrabold", tone === "error" ? "text-rose-50" : "text-amber-50")}>{title}</div>
+      <div className={cx("text-sm font-extrabold", tone === "error" ? "text-rose-50" : "text-amber-50")}>
+        {title}
+      </div>
       <div className={cx("mt-1 text-sm", tone === "error" ? "text-rose-100/90" : "text-amber-100/90")}>{text}</div>
     </div>
   );
@@ -200,7 +207,10 @@ function Btn({
     "px-3 py-2 rounded-xl text-[12px] text-white border border-white/15 bg-white/[0.06] backdrop-blur-2xl hover:bg-white/10 active:translate-y-[1px]";
 
   return (
-    <button {...props} className={cx(base, variant === "gold" ? gold : variant === "ghost" ? ghost : tiny, className)} />
+    <button
+      {...props}
+      className={cx(base, variant === "gold" ? gold : variant === "ghost" ? ghost : tiny, className)}
+    />
   );
 }
 
@@ -440,7 +450,7 @@ export default function ProfilePage() {
 
   const uiErrorText = humanizeLinkError(linkError);
 
-  async function loadMe() {
+  const loadMe = useCallback(async () => {
     if (!authed) {
       setMe(null);
       setDailyMsg(null);
@@ -460,7 +470,7 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [authed]);
 
   useEffect(() => {
     if (authed) void loadMe();
@@ -469,8 +479,7 @@ export default function ProfilePage() {
       setDailyMsg(null);
       setLinkError(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed]);
+  }, [authed, loadMe]);
 
   // ✅ After return: /app/profile?linked=twitter|discord[&error=...]
   useEffect(() => {
@@ -501,8 +510,7 @@ export default function ProfilePage() {
       const next = `${window.location.pathname}${sp.toString() ? `?${sp.toString()}` : ""}`;
       window.history.replaceState({}, "", next);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed]);
+  }, [authed, loadMe]);
 
   // fallback: when tab refocus
   useEffect(() => {
@@ -510,8 +518,7 @@ export default function ProfilePage() {
     const onFocus = () => void loadMe();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authed]);
+  }, [authed, loadMe]);
 
   useEffect(() => {
     return () => {
@@ -519,10 +526,11 @@ export default function ProfilePage() {
     };
   }, []);
 
-  async function claimDaily() {
+  const claimDaily = useCallback(async () => {
     if (!authed || dailyBusy) return;
     setDailyBusy(true);
     setDailyMsg(null);
+
     try {
       const res = await fetch("/api/points/daily", {
         method: "POST",
@@ -545,9 +553,9 @@ export default function ProfilePage() {
     } finally {
       setDailyBusy(false);
     }
-  }
+  }, [authed, dailyBusy]);
 
-  function startGuard(kind: "x" | "discord") {
+  const startGuard = useCallback((kind: "x" | "discord") => {
     busyGuardRef.current = kind;
 
     // if user cancels auth / goes back — auto-unlock after 20s
@@ -558,10 +566,10 @@ export default function ProfilePage() {
       setBusyDiscord(false);
       busyTimerRef.current = null;
     }, 20_000);
-  }
+  }, []);
 
   // ✅ START X OAUTH: /api/x/start
-  function connectTwitter() {
+  const connectTwitter = useCallback(() => {
     if (!authed || !serverWalletAddress) {
       setLinkError("NO_SERVER_WALLET");
       return;
@@ -576,10 +584,10 @@ export default function ProfilePage() {
 
     const returnTo = encodeURIComponent("/app/profile?linked=twitter");
     window.location.href = `/api/x/start?returnTo=${returnTo}`;
-  }
+  }, [authed, serverWalletAddress, startGuard]);
 
   // ✅ START DISCORD OAUTH: /api/discord/start
-  function connectDiscord() {
+  const connectDiscord = useCallback(() => {
     if (!authed || !serverWalletAddress) {
       setLinkError("NO_SERVER_WALLET");
       return;
@@ -594,13 +602,14 @@ export default function ProfilePage() {
 
     const returnTo = encodeURIComponent("/app/profile?linked=discord");
     window.location.href = `/api/discord/start?returnTo=${returnTo}`;
-  }
+  }, [authed, serverWalletAddress, startGuard]);
 
   // ✅ DISCONNECT X
-  async function disconnectTwitter() {
+  const disconnectTwitter = useCallback(async () => {
     if (!authed || busyX) return;
     setBusyX(true);
     setLinkError(null);
+
     try {
       const res = await fetch("/api/x/disconnect", { method: "POST" });
       const j = await res.json().catch(() => ({}));
@@ -615,13 +624,14 @@ export default function ProfilePage() {
       setBusyX(false);
       busyGuardRef.current = null;
     }
-  }
+  }, [authed, busyX, loadMe]);
 
   // ✅ DISCONNECT DISCORD
-  async function disconnectDiscord() {
+  const disconnectDiscord = useCallback(async () => {
     if (!authed || busyDiscord) return;
     setBusyDiscord(true);
     setLinkError(null);
+
     try {
       const res = await fetch("/api/discord/disconnect", { method: "POST" });
       const j = await res.json().catch(() => ({}));
@@ -636,7 +646,7 @@ export default function ProfilePage() {
       setBusyDiscord(false);
       busyGuardRef.current = null;
     }
-  }
+  }, [authed, busyDiscord, loadMe]);
 
   const walletPillText = serverWalletAddress
     ? "Wallet verified (server)"

@@ -1,6 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import { verifyMessage } from "viem";
 
 /* -------------------------------------------------------------------------- */
@@ -150,7 +151,7 @@ export const authOptions: NextAuthOptions = {
 
         await prisma.walletNonce.delete({ where: { address } }).catch(() => {});
 
-        const user = await prisma.$transaction(async (tx) => {
+        const user = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
           const u = await tx.user.upsert({
             where: { walletAddress: address },
             create: {

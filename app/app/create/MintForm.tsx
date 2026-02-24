@@ -199,6 +199,14 @@ function extractTokenIdFromReceipt(receipt: any): string | null {
   return null;
 }
 
+/** only persist stable urls (not blob:) */
+function persistableImageUrl(input?: string | null) {
+  const s = (input || "").trim();
+  if (!s) return null;
+  if (s.startsWith("blob:")) return null;
+  return s;
+}
+
 /** VIP Stepper */
 function Stepper({
   mounted,
@@ -234,9 +242,30 @@ function Stepper({
   }, [mounted, connected, wrongNetwork, step, tokenURI, isMining, isSuccess]);
 
   const items = [
-    { k: "prepare", n: "01", t: "Prepare", d: "Upload → IPFS", ok: Boolean(tokenURI), active: stage === 1 && !isSuccess },
-    { k: "sign", n: "02", t: "Sign", d: "Wallet signature", ok: step !== "idle" && (stage >= 2 || isMining || isSuccess), active: stage === 2 && !isSuccess },
-    { k: "mint", n: "03", t: "Mint", d: "Tx mining", ok: Boolean(txHash) && (isMining || isSuccess || stage >= 3), active: stage === 3 && !isSuccess },
+    {
+      k: "prepare",
+      n: "01",
+      t: "Prepare",
+      d: "Upload → IPFS",
+      ok: Boolean(tokenURI),
+      active: stage === 1 && !isSuccess,
+    },
+    {
+      k: "sign",
+      n: "02",
+      t: "Sign",
+      d: "Wallet signature",
+      ok: step !== "idle" && (stage >= 2 || isMining || isSuccess),
+      active: stage === 2 && !isSuccess,
+    },
+    {
+      k: "mint",
+      n: "03",
+      t: "Mint",
+      d: "Tx mining",
+      ok: Boolean(txHash) && (isMining || isSuccess || stage >= 3),
+      active: stage === 3 && !isSuccess,
+    },
     { k: "verify", n: "04", t: "Verify", d: "Explorer proof", ok: isSuccess, active: stage === 4 || isSuccess },
   ] as const;
 
@@ -361,9 +390,7 @@ function Stepper({
                       : "bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.08),transparent_45%)]",
                   ].join(" ")}
                 />
-                {isActive ? (
-                  <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#d4af37]/12 blur-3xl" />
-                ) : null}
+                {isActive ? <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#d4af37]/12 blur-3xl" /> : null}
               </div>
 
               <div className="relative p-4">
@@ -413,6 +440,7 @@ export default function MintForm() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // guard so we do not double-push / double-save
   const pushedRef = useRef(false);
 
   const { address, isConnected } = useAccount();
@@ -501,12 +529,12 @@ export default function MintForm() {
     pushedRef.current = false;
   }
 
+  // ✅ correct cleanup for ObjectURL
   useEffect(() => {
     return () => {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [filePreviewUrl]);
 
   function openFilePicker() {
     fileInputRef.current?.click();
@@ -519,26 +547,59 @@ export default function MintForm() {
     query: { enabled: Boolean(txHash) },
   });
 
+  // ✅ on success: save mint in DB then redirect to success page
   useEffect(() => {
     if (!isSuccess || !receipt) return;
     if (pushedRef.current) return;
 
     pushedRef.current = true;
 
-    const finalName = name.trim() || "Untitled NFT";
-    const finalCategory = previewCategory || selectedCategoryLabel;
+    (async () => {
+      const finalName = name.trim() || "Untitled NFT";
+      const finalCategory = previewCategory || selectedCategoryLabel;
+      const tokenId = extractTokenIdFromReceipt(receipt);
 
-    const tokenId = extractTokenIdFromReceipt(receipt);
+      try {
+        if (CONTRACT_ADDRESS && tokenId) {
+          await fetch("/api/mints", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              chainId: baseSepolia.id,
+              contract: CONTRACT_ADDRESS,
+              tokenId,
+              txHash: txHash || "",
+              tokenUri: tokenURI || "",
+              name: finalName,
+              image: persistableImageUrl(previewImage), // do not store blob:
+              verified: true,
+            }),
+          });
+        }
+      } catch {
+        // ignore
+      }
 
-    router.push(
-      `/app/success?name=${encodeURIComponent(finalName)}&image=${encodeURIComponent(
-        previewImage || ""
-      )}&category=${encodeURIComponent(finalCategory)}&project=${encodeURIComponent(
-        project
-      )}&tx=${encodeURIComponent(txHash || "")}&tokenId=${encodeURIComponent(tokenId || "")}`
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSuccess, receipt]);
+      router.push(
+        `/app/success?name=${encodeURIComponent(finalName)}&image=${encodeURIComponent(
+          previewImage || ""
+        )}&category=${encodeURIComponent(finalCategory)}&project=${encodeURIComponent(
+          project
+        )}&tx=${encodeURIComponent(txHash || "")}&tokenId=${encodeURIComponent(tokenId || "")}`
+      );
+    })();
+  }, [
+    isSuccess,
+    receipt,
+    name,
+    previewCategory,
+    selectedCategoryLabel,
+    project,
+    txHash,
+    tokenURI,
+    previewImage,
+    router,
+  ]);
 
   async function ensureCorrectNetwork() {
     if (!connected) {
@@ -1084,9 +1145,7 @@ export default function MintForm() {
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
               <div className="text-xs font-semibold text-white/60">Preview</div>
-              <div className="mt-1 text-sm font-extrabold truncate">
-                {name.trim() || "Untitled NFT"}
-              </div>
+              <div className="mt-1 text-sm font-extrabold truncate">{name.trim() || "Untitled NFT"}</div>
               <div className="mt-1 text-xs text-white/60 truncate">
                 {project} • {selectedCategoryLabel} • Supply {clampSupply(supply)}
               </div>

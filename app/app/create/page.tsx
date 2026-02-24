@@ -1,10 +1,8 @@
-"use client";
-
 import Link from "next/link";
-import { useMemo } from "react";
+import type { ReactNode } from "react";
 import MintForm from "./MintForm";
 
-function Pill({ children }: { children: React.ReactNode }) {
+function Pill({ children }: { children: ReactNode }) {
   return (
     <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
       {children}
@@ -17,7 +15,7 @@ function GoldEdgeWrap({
   children,
 }: {
   className?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div
@@ -46,7 +44,7 @@ function GoldEdgeWrap({
 }
 
 export default function CreatePage() {
-  const year = useMemo(() => new Date().getFullYear(), []);
+  const year = new Date().getFullYear();
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-hidden">

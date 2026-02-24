@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { baseSepolia } from "wagmi/chains";
 
 import AppShell from "@/components/AppShell";
 
@@ -192,6 +193,8 @@ function isVideoUrl(url: string) {
   );
 }
 
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as `0x${string}` | undefined;
+
 export default function SuccessClient() {
   const mounted = useMounted();
   const sp = useSearchParams();
@@ -213,6 +216,45 @@ export default function SuccessClient() {
   const [mediaKind, setMediaKind] = useState<"image" | "video">(
     initialMedia && isVideoUrl(initialMedia) ? "video" : "image"
   );
+
+  // ✅ Persist mint to DB (anti-duplicate by key tokenId:tx)
+  const savedKeyRef = useRef<string>("");
+  useEffect(() => {
+    const key = tokenId && tx ? `${tokenId}:${tx}` : "";
+    if (!key) return;
+    if (!CONTRACT_ADDRESS) return;
+
+    // avoid double-run (StrictMode, re-render, etc)
+    if (savedKeyRef.current === key) return;
+    savedKeyRef.current = key;
+
+    const imageToSave =
+      mediaKind === "image" && mediaUrl && !mediaUrl.startsWith("blob:")
+        ? mediaUrl
+        : null;
+
+    (async () => {
+      try {
+        await fetch("/api/mints", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+          body: JSON.stringify({
+            chainId: baseSepolia.id,
+            contract: CONTRACT_ADDRESS,
+            tokenId,
+            txHash: tx,
+            name: name || null,
+            image: imageToSave,
+            verified: true,
+          }),
+        });
+      } catch {
+        // ignore
+      }
+    })();
+  }, [tokenId, tx, name, mediaUrl, mediaKind]);
 
   useEffect(() => {
     let alive = true;
