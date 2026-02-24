@@ -125,8 +125,15 @@ function safeDecode(v: string) {
   }
 }
 
-export default async function PublicProfilePage({ params }: { params: { id: string } }) {
-  const key = safeDecode(params.id || "").trim();
+// ✅ Next 16 friendly: params as Promise
+export default async function PublicProfilePage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  const key = safeDecode(id || "").trim();
   if (!key) notFound();
 
   const user = await prisma.user.findFirst({
