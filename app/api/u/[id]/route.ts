@@ -42,9 +42,10 @@ function shortAddr(addr?: string | null) {
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const key = normalizeKey(params.id);
+  const { id: keyRaw } = await params;
+  const key = normalizeKey(keyRaw);
 
   if (!key) {
     return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
