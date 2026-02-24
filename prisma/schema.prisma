@@ -25,24 +25,27 @@ model User {
   walletChainId Int?
 
   /* ---------------- X (Twitter) ---------------- */
-  twitterId        String? @unique
-  twitterName      String?
-  twitterUser      String?
-  twitterImage     String?
-  twitterRewarded  Boolean @default(false) // ⛔ anti-abuse
+  twitterId       String?  @unique
+  twitterName     String?
+  twitterUser     String?
+  twitterImage    String?
+  twitterRewarded Boolean @default(false) // ⛔ anti-abuse
 
   /* ---------------- Discord ---------------- */
-  discordId        String? @unique
-  discordName      String?
-  discordUser      String?
-  discordImage     String?
-  discordRewarded  Boolean @default(false) // ⛔ anti-abuse
+  discordId       String?  @unique
+  discordName     String?
+  discordUser     String?
+  discordImage    String?
+  discordRewarded Boolean @default(false) // ⛔ anti-abuse
 
   /* ---------------- Points & rewards ---------------- */
   points      Int       @default(0)
   lastDailyAt DateTime?
 
   events PointEvent[]
+
+  /* ---------------- Minted NFTs ---------------- */
+  mints Mint[]
 
   @@index([twitterUser])
   @@index([discordUser])
@@ -102,4 +105,30 @@ model TwitterLinkAttempt {
   @@index([sessionToken])
   @@index([createdAt])
   @@index([twitterId])
+}
+
+/* ========================================================================== */
+/* MINTED NFT CACHE (for profile display)                                      */
+/* ========================================================================== */
+
+model Mint {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  chainId  Int
+  contract String
+  tokenId  String
+
+  txHash   String? @unique
+  tokenUri String?
+  name     String?
+  image    String?
+
+  verified Boolean @default(true)
+
+  @@unique([chainId, contract, tokenId])
+  @@index([userId, createdAt])
 }
