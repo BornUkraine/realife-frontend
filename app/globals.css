@@ -29,13 +29,5 @@ html {
 
 body {
   margin: 0;
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* premium accessible focus */
-:focus-visible {
-  outline: 2px solid rgba(212, 175, 55, 0.65);
-  outline-offset: 3px;
+  /* ✅ не задаем Arial — пусть Geist рулит */
 }

@@ -44,7 +44,6 @@ function GoldEdgeCard({
           "border border-white/10",
           "bg-[#0b0a09]/70 backdrop-blur-2xl",
           "ring-1 ring-black/10",
-          // inner shine
           "before:pointer-events-none before:absolute before:inset-0",
           "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.12),transparent_45%)]",
           "after:pointer-events-none after:absolute after:inset-0",
@@ -102,7 +101,7 @@ function StatCard({
 export default function AppPage() {
   return (
     <>
-      {/* Global keyframes (можно вынести в globals.css, но оставим как было) */}
+      {/* Global keyframes */}
       <style jsx global>{`
         @keyframes fadeUp {
           from {
@@ -161,14 +160,12 @@ export default function AppPage() {
               Upload → IPFS metadata → sign → on-chain NFT → verify.
             </p>
 
-            {/* Stats */}
             <div className="mt-10 grid md:grid-cols-3 gap-4">
               <StatCard title="Network" value="Base Sepolia" hint="Fast & cheap testnet mints" />
               <StatCard title="Metadata" value="IPFS tokenURI" hint="Verifiable, permanent content" />
               <StatCard title="Flow" value="Prepare → Mint" hint="Success page + explorer proof" />
             </div>
 
-            {/* CTA strip */}
             <div className="mt-10 rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.30),rgba(212,175,55,0.14),rgba(184,135,10,0.10))]">
               <div className="rounded-[34px] border border-white/10 bg-[#0b0a09]/65 backdrop-blur-2xl p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
@@ -201,7 +198,6 @@ export default function AppPage() {
         </GoldEdgeCard>
       </Reveal>
 
-      {/* HOW IT WORKS + ROADMAP */}
       <div className="grid lg:grid-cols-3 gap-6">
         <Reveal className="lg:col-span-2">
           <GoldEdgeCard>
@@ -308,7 +304,6 @@ export default function AppPage() {
         </Reveal>
       </div>
 
-      {/* Footer tiny */}
       <div className="text-xs text-white/45 px-2">
         Base Sepolia • IPFS • On-chain mint • Realife premium UI
       </div>

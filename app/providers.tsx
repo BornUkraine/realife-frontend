@@ -1,6 +1,6 @@
 "use client";
 
-import React, { ReactNode, useMemo, useState } from "react";
+import React, { ReactNode, useState } from "react";
 import { SessionProvider } from "next-auth/react";
 
 import { WagmiProvider } from "wagmi";
@@ -14,26 +14,21 @@ import {
 
 import "@rainbow-me/rainbowkit/styles.css";
 
+// ✅ ВАЖНО: config на уровне модуля — не пересоздаётся при ре-рендерах Providers
+const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
+if (!projectId) {
+  throw new Error("Missing NEXT_PUBLIC_WC_PROJECT_ID in env");
+}
+
+const wagmiConfig = getDefaultConfig({
+  appName: "Realife",
+  projectId,
+  chains: [baseSepolia],
+  ssr: true, // ✅ важно для Next App Router, чтобы коннект не “схлопывался”
+});
+
 export default function Providers({ children }: { children: ReactNode }) {
-  const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID;
-
-  if (!projectId) {
-    // лучше понятная ошибка, чем “тихо не работает”
-    throw new Error("Missing NEXT_PUBLIC_WC_PROJECT_ID in env");
-  }
-
-  const wagmiConfig = useMemo(
-    () =>
-      getDefaultConfig({
-        appName: "Realife",
-        projectId,
-        chains: [baseSepolia],
-        ssr: true,
-        multiInjectedProviderDiscovery: false,
-      }),
-    [projectId]
-  );
-
+  // ✅ QueryClient стабилен
   const [queryClient] = useState(() => new QueryClient());
 
   return (

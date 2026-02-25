@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useBalance, useChainId, useSwitchChain } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
@@ -87,7 +86,6 @@ function NetworkStatusContent({
 
   return (
     <div className="relative px-3 py-2">
-      {/* inner shine */}
       <div className="pointer-events-none absolute inset-0 opacity-80">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]" />
@@ -153,7 +151,6 @@ function NetworkStatusContent({
 
 export default function TopBar() {
   const mounted = useMounted();
-
   const { address } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
@@ -219,43 +216,49 @@ export default function TopBar() {
   return (
     <header className="w-full">
       <div className="relative">
-        {/* premium glows */}
         <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[780px] rounded-full bg-[#d4af37]/12 blur-3xl" />
         <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[520px] rounded-full bg-white/[0.06] blur-2xl" />
 
         <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-3">
             <div className="flex items-center justify-between gap-3">
-              {/* brand (mobile: mark, desktop: wordmark) */}
-              <Link href="/app" className="inline-flex items-center gap-3 min-w-0">
-                {/* mobile */}
+              {/* brand: click -> HOME (/) */}
+              <Link href="/" className="inline-flex items-center gap-3 min-w-0">
+                {/* mobile mark */}
                 <span
                   className={cn(
                     "sm:hidden h-10 w-10 rounded-2xl overflow-hidden",
                     "bg-white/[0.06] border border-white/10 backdrop-blur-2xl",
-                    "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
+                    "shadow-[0_18px_70px_rgba(0,0,0,0.25)]",
+                    "ring-1 ring-black/10"
                   )}
                 >
-                  <Image
+                  <img
                     src="/brand/logo-mark.png"
                     alt="Realife"
-                    width={40}
-                    height={40}
                     className="h-full w-full object-cover"
-                    priority
+                    onError={(e) => {
+                      // fallback: если вдруг файл не найден
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
                   />
+                  <span className="sr-only">Realife</span>
                 </span>
 
-                {/* desktop */}
-                <span className="hidden sm:block min-w-0">
-                  <Image
+                {/* desktop wordmark */}
+                <span className="hidden sm:flex items-center">
+                  <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
-                    width={170}
-                    height={40}
                     className="h-10 w-auto object-contain"
-                    priority
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
                   />
+                  {/* текст-фоллбек если картинка не загрузилась */}
+                  <span className="ml-2 text-sm font-extrabold tracking-tight">
+                    REALIFE
+                  </span>
                 </span>
               </Link>
 
