@@ -93,7 +93,10 @@ function NetworkStatusContent({
 
       <div className="relative flex items-center gap-2">
         <StatusDot state={dotState} />
-        <div className="text-sm font-semibold whitespace-nowrap">{networkTitle}</div>
+
+        <div className="text-sm font-semibold whitespace-nowrap">
+          {mounted ? (connected ? networkTitle : "Wallet") : "Wallet"}
+        </div>
 
         {mounted && connected && !wrongNetwork ? (
           <span
@@ -216,18 +219,19 @@ export default function TopBar() {
   return (
     <header className="w-full">
       <div className="relative">
-        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[780px] rounded-full bg-[#d4af37]/12 blur-3xl" />
-        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[520px] rounded-full bg-white/[0.06] blur-2xl" />
+        {/* premium glows */}
+        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[820px] rounded-full bg-[#d4af37]/14 blur-3xl" />
+        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[560px] rounded-full bg-white/[0.06] blur-2xl" />
 
         <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               {/* brand: click -> HOME (/) */}
               <Link href="/" className="inline-flex items-center gap-3 min-w-0">
-                {/* mobile mark */}
+                {/* mobile: mark */}
                 <span
                   className={cn(
-                    "sm:hidden h-10 w-10 rounded-2xl overflow-hidden",
+                    "sm:hidden h-11 w-11 rounded-2xl overflow-hidden",
                     "bg-white/[0.06] border border-white/10 backdrop-blur-2xl",
                     "shadow-[0_18px_70px_rgba(0,0,0,0.25)]",
                     "ring-1 ring-black/10"
@@ -237,28 +241,22 @@ export default function TopBar() {
                     src="/brand/logo-mark.png"
                     alt="Realife"
                     className="h-full w-full object-cover"
-                    onError={(e) => {
-                      // fallback: если вдруг файл не найден
-                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                    }}
+                    draggable={false}
                   />
-                  <span className="sr-only">Realife</span>
                 </span>
 
-                {/* desktop wordmark */}
+                {/* desktop: wordmark (BIG + GLOW) */}
                 <span className="hidden sm:flex items-center">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
-                    className="h-10 w-auto object-contain"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                    }}
+                    className={cn(
+                      "h-12 w-auto object-contain",
+                      "brightness-110",
+                      "drop-shadow-[0_14px_34px_rgba(212,175,55,0.28)]"
+                    )}
+                    draggable={false}
                   />
-                  {/* текст-фоллбек если картинка не загрузилась */}
-                  <span className="ml-2 text-sm font-extrabold tracking-tight">
-                    REALIFE
-                  </span>
                 </span>
               </Link>
 

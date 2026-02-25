@@ -124,21 +124,33 @@ export default function AppSidebar({
     <div className="sticky top-24">
       <GoldEdgeCard>
         <div className="p-6">
-          {/* Brand */}
+          {/* Brand (NEW LOGOS) */}
           <Link href="/app" className="flex items-center gap-4 mb-8">
+            {/* mark */}
             <div className="relative w-14 h-14 rounded-2xl p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
-              <div className="w-full h-full rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl flex items-center justify-center">
-                <div className="w-10 h-10 rounded-2xl border border-[#d4af37]/50 bg-black/30 flex items-center justify-center font-extrabold">
-                  R
-                </div>
+              <div className="w-full h-full rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl overflow-hidden">
+                <img
+                  src="/brand/logo-mark.png"
+                  alt="Realife"
+                  className="h-full w-full object-cover"
+                  draggable={false}
+                />
               </div>
             </div>
 
+            {/* wordmark */}
             <div className="min-w-0">
-              <p className="text-lg font-extrabold tracking-[0.22em] truncate">
-                {title}
-              </p>
-              <p className="text-xs text-white/60 truncate">
+              <img
+                src="/brand/logo-wordmark.png"
+                alt="Realife"
+                className={[
+                  "h-10 w-auto object-contain", // bigger => visible
+                  "brightness-110",
+                  "drop-shadow-[0_14px_34px_rgba(212,175,55,0.22)]",
+                ].join(" ")}
+                draggable={false}
+              />
+              <p className="mt-1 text-xs text-white/60 truncate">
                 {subtitle || "premium creator app"}
               </p>
             </div>
