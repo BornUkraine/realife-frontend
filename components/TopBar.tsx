@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useBalance, useChainId, useSwitchChain } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
@@ -69,7 +70,6 @@ function GoldEdgeWrap({
   );
 }
 
-// 👇 Вынесли общую логику отображения статуса
 function NetworkStatusContent({
   mounted,
   connected,
@@ -154,7 +154,6 @@ function NetworkStatusContent({
 export default function TopBar() {
   const mounted = useMounted();
 
-  // ✅ НЕ используем isConnected (он может мигать на Next/RainbowKit)
   const { address } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
@@ -162,11 +161,9 @@ export default function TopBar() {
   const { data: balanceData, isLoading, refetch, isFetching } = useBalance({
     address,
     chainId: baseSepolia.id,
-    // ✅ баланс считаем только когда mounted + есть address (иначе мигание/лишние ререндеры)
     query: { enabled: mounted && Boolean(address), refetchInterval: 12_000 },
   });
 
-  // ✅ prevent SSR/client mismatch + стабильно
   const connected = mounted && Boolean(address);
   const wrongNetwork = connected && chainId !== baseSepolia.id;
 
@@ -229,23 +226,37 @@ export default function TopBar() {
         <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-3">
             <div className="flex items-center justify-between gap-3">
-              {/* brand */}
-              <Link href="/app" className="inline-flex items-center gap-2 min-w-0">
-                <div
+              {/* brand (mobile: mark, desktop: wordmark) */}
+              <Link href="/app" className="inline-flex items-center gap-3 min-w-0">
+                {/* mobile */}
+                <span
                   className={cn(
-                    "h-10 w-10 rounded-2xl flex items-center justify-center",
+                    "sm:hidden h-10 w-10 rounded-2xl overflow-hidden",
                     "bg-white/[0.06] border border-white/10 backdrop-blur-2xl",
-                    "shadow-[0_18px_70px_rgba(0,0,0,0.25)]",
-                    "ring-1 ring-black/10"
+                    "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
                   )}
                 >
-                  <span className="text-sm font-extrabold tracking-tight text-white">R</span>
-                </div>
+                  <Image
+                    src="/brand/logo-mark.png"
+                    alt="Realife"
+                    width={40}
+                    height={40}
+                    className="h-full w-full object-cover"
+                    priority
+                  />
+                </span>
 
-                <div className="min-w-0 hidden sm:block">
-                  <div className="text-sm font-extrabold tracking-tight truncate">REALIFE</div>
-                  <div className="text-[11px] text-white/60 truncate">premium creator app</div>
-                </div>
+                {/* desktop */}
+                <span className="hidden sm:block min-w-0">
+                  <Image
+                    src="/brand/logo-wordmark.png"
+                    alt="Realife"
+                    width={170}
+                    height={40}
+                    className="h-10 w-auto object-contain"
+                    priority
+                  />
+                </span>
               </Link>
 
               {/* desktop status */}

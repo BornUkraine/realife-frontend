@@ -17,9 +17,9 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-[#070606] text-white overflow-hidden">
+    <main className="relative min-h-screen bg-[#070606] text-white overflow-hidden">
       {/* premium background */}
-      <div className="pointer-events-none fixed inset-0">
+      <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-56 -left-56 h-190 w-190 rounded-full bg-[#d4af37]/18 blur-3xl" />
         <div className="absolute -bottom-56 -right-56 h-190 w-190 rounded-full bg-[#d4af37]/12 blur-3xl" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(212,175,55,0.10),transparent_55%)]" />
