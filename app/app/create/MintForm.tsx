@@ -62,7 +62,9 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
 const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as `0x${string}` | undefined;
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as
+  | `0x${string}`
+  | undefined;
 
 function Pill({ children }: { children: React.ReactNode }) {
   return (
@@ -174,10 +176,13 @@ function GhostButton({
 }
 
 /** Extract ERC-721 tokenId from Transfer event logs */
-function extractTokenIdFromReceipt(receipt: any): string | null {
+function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): string | null {
   try {
     const logs = receipt?.logs ?? [];
     for (const log of logs) {
+      // если знаем адрес контракта — фильтруем, чтобы не пытаться декодить всё подряд
+      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) continue;
+
       const decoded = decodeEventLog({
         abi: REALIFE_ABI,
         data: log.data,
@@ -186,7 +191,7 @@ function extractTokenIdFromReceipt(receipt: any): string | null {
 
       if (decoded?.eventName === "Transfer") {
         const args: any = decoded.args;
-        const tokenId = args?.tokenId;
+        const tokenId = args?.tokenId ?? args?.[2]; // иногда viem кладёт как индекс
 
         if (typeof tokenId === "bigint") return tokenId.toString();
         if (typeof tokenId === "number") return String(tokenId);
@@ -266,7 +271,14 @@ function Stepper({
       ok: Boolean(txHash) && (isMining || isSuccess || stage >= 3),
       active: stage === 3 && !isSuccess,
     },
-    { k: "verify", n: "04", t: "Verify", d: "Explorer proof", ok: isSuccess, active: stage === 4 || isSuccess },
+    {
+      k: "verify",
+      n: "04",
+      t: "Verify",
+      d: "Explorer proof",
+      ok: isSuccess,
+      active: stage === 4 || isSuccess,
+    },
   ] as const;
 
   const locked = !mounted || !connected || wrongNetwork;
@@ -390,7 +402,9 @@ function Stepper({
                       : "bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.08),transparent_45%)]",
                   ].join(" ")}
                 />
-                {isActive ? <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#d4af37]/12 blur-3xl" /> : null}
+                {isActive ? (
+                  <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#d4af37]/12 blur-3xl" />
+                ) : null}
               </div>
 
               <div className="relative p-4">
@@ -507,7 +521,9 @@ export default function MintForm() {
   );
 
   function toggleCategory(cat: string) {
-    setCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
+    setCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    );
   }
 
   function onPickFile(f: File | null) {
@@ -557,9 +573,12 @@ export default function MintForm() {
     (async () => {
       const finalName = name.trim() || "Untitled NFT";
       const finalCategory = previewCategory || selectedCategoryLabel;
-      const tokenId = extractTokenIdFromReceipt(receipt);
 
-      // ✅ ВАЖНО: Больше не глотаем ошибку молча
+      const tokenId = extractTokenIdFromReceipt(receipt, CONTRACT_ADDRESS);
+
+      // ✅ если previewImage = blob: — в URL не отправляем, чтобы success не ломался после reload
+      const imageForQuery = persistableImageUrl(previewImage) || "";
+
       try {
         if (CONTRACT_ADDRESS && tokenId) {
           const r = await fetch("/api/mints", {
@@ -572,7 +591,7 @@ export default function MintForm() {
               txHash: txHash || "",
               tokenUri: tokenURI || "",
               name: finalName,
-              image: persistableImageUrl(previewImage), // do not store blob:
+              image: imageForQuery || null,
               verified: true,
             }),
           });
@@ -588,7 +607,7 @@ export default function MintForm() {
 
       router.push(
         `/app/success?name=${encodeURIComponent(finalName)}&image=${encodeURIComponent(
-          previewImage || ""
+          imageForQuery
         )}&category=${encodeURIComponent(finalCategory)}&project=${encodeURIComponent(
           project
         )}&tx=${encodeURIComponent(txHash || "")}&tokenId=${encodeURIComponent(tokenId || "")}`
@@ -675,7 +694,7 @@ export default function MintForm() {
 
       setTokenURI(uri);
 
-      // ✅ fallback to local blob preview if backend didn't send preview.image
+      // ✅ backend image preferred; blob allowed only for LIVE preview on this page
       setPreviewImage(data?.preview?.image || filePreviewUrl || null);
       setPreviewCategory(data?.preview?.category || selectedCategoryLabel);
 
@@ -911,11 +930,21 @@ export default function MintForm() {
                 <span
                   className={[
                     "h-2 w-2 rounded-full",
-                    !mounted || !connected ? "bg-white/30" : wrongNetwork ? "bg-rose-400" : "bg-emerald-400",
+                    !mounted || !connected
+                      ? "bg-white/30"
+                      : wrongNetwork
+                      ? "bg-rose-400"
+                      : "bg-emerald-400",
                     "shadow-[0_0_0_6px_rgba(255,255,255,0.06)]",
                   ].join(" ")}
                 />
-                {mounted ? (connected ? (wrongNetwork ? "Wrong network" : "Base Sepolia") : "Connect wallet") : "Connect wallet"}
+                {mounted
+                  ? connected
+                    ? wrongNetwork
+                      ? "Wrong network"
+                      : "Base Sepolia"
+                    : "Connect wallet"
+                  : "Connect wallet"}
               </Pill>
 
               <div className="mt-3 text-sm font-extrabold tracking-tight">
@@ -940,7 +969,10 @@ export default function MintForm() {
                       : hasGas
                       ? "Prepare → sign → tx mined → success."
                       : "Open faucet, claim test ETH, then refresh."}{" "}
-                    <Link href="/app/faucet" className="text-[#d4af37] font-semibold hover:brightness-110 transition">
+                    <Link
+                      href="/app/faucet"
+                      className="text-[#d4af37] font-semibold hover:brightness-110 transition"
+                    >
                       Faucet ↗
                     </Link>
                   </>
