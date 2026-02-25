@@ -128,11 +128,11 @@ export default function AppSidebar({
           <Link href="/app" className="flex items-center gap-4 mb-8">
             {/* mark */}
             <div className="relative w-14 h-14 rounded-2xl p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
-              <div className="w-full h-full rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl overflow-hidden flex items-center justify-center">
+              <div className="w-full h-full rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl overflow-hidden">
                 <img
                   src="/brand/logo-mark.png"
                   alt="Realife"
-                  className="h-[80%] w-[80%] object-contain" // Немного уменьшили марку внутри квадрата, чтобы дышала
+                  className="h-full w-full object-cover"
                   draggable={false}
                 />
               </div>
@@ -144,13 +144,13 @@ export default function AppSidebar({
                 src="/brand/logo-wordmark.png"
                 alt="Realife"
                 className={[
-                  "h-14 w-auto object-contain -ml-1", // УВЕЛИЧИЛИ ДО h-14 и сдвинули чуть левее
-                  "brightness-200",                 // СДЕЛАЛИ ОЧЕНЬ ЯРКИМ
-                  "drop-shadow-[0_14px_34px_rgba(212,175,55,0.3)]",
+                  "h-10 w-auto object-contain", // bigger => visible
+                  "brightness-110",
+                  "drop-shadow-[0_14px_34px_rgba(212,175,55,0.22)]",
                 ].join(" ")}
                 draggable={false}
               />
-              <p className="mt-0.5 text-xs text-white/60 truncate">
+              <p className="mt-1 text-xs text-white/60 truncate">
                 {subtitle || "premium creator app"}
               </p>
             </div>

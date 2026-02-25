@@ -245,15 +245,15 @@ export default function TopBar() {
                   />
                 </span>
 
-                {/* desktop: wordmark (BIG + GLOW + BRIGHTNESS) */}
+                {/* desktop: wordmark (BIG + GLOW) */}
                 <span className="hidden sm:flex items-center">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
                     className={cn(
-                      "h-16 w-auto object-contain", // УВЕЛИЧИЛИ ДО h-16
-                      "brightness-200",             // СДЕЛАЛИ ОЧЕНЬ ЯРКИМ
-                      "drop-shadow-[0_14px_34px_rgba(212,175,55,0.4)]" // УСИЛИЛИ СВЕЧЕНИЕ
+                      "h-12 w-auto object-contain",
+                      "brightness-110",
+                      "drop-shadow-[0_14px_34px_rgba(212,175,55,0.28)]"
                     )}
                     draggable={false}
                   />

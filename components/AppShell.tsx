@@ -17,7 +17,7 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-[#070606] text-white overflow-x-hidden">
+    <main className="min-h-screen bg-[#070606] text-white overflow-hidden">
       {/* VIP premium background */}
       <div className="pointer-events-none fixed inset-0">
         {/* deep vignette */}
