@@ -132,25 +132,27 @@ export default function AppSidebar({
                 <img
                   src="/brand/logo-mark.png"
                   alt="Realife"
-                  className="h-[80%] w-[80%] object-contain" // Немного уменьшили марку внутри квадрата, чтобы дышала
+                  className="h-[80%] w-[80%] object-contain"
                   draggable={false}
                 />
               </div>
             </div>
 
-            {/* wordmark */}
-            <div className="min-w-0">
+            {/* wordmark (EXTREME ZOOM CSS HACK) */}
+            <div className="relative w-32 h-10 ml-2">
               <img
                 src="/brand/logo-wordmark.png"
                 alt="Realife"
                 className={[
-                  "h-14 w-auto object-contain -ml-1", // УВЕЛИЧИЛИ ДО h-14 и сдвинули чуть левее
-                  "brightness-200",                 // СДЕЛАЛИ ОЧЕНЬ ЯРКИМ
-                  "drop-shadow-[0_14px_34px_rgba(212,175,55,0.3)]",
+                  "absolute top-1/2 left-0 -translate-y-1/2", // Центрируем
+                  "w-[300%] max-w-none object-contain", // Убираем ограничения
+                  "scale-[1.8] origin-left", // Зумируем
+                  "brightness-200 contrast-150", // Делаем ярким
+                  "drop-shadow-[0_0px_12px_rgba(212,175,55,0.8)]",
                 ].join(" ")}
                 draggable={false}
               />
-              <p className="mt-0.5 text-xs text-white/60 truncate">
+              <p className="absolute -bottom-4 left-0 text-xs text-white/60 whitespace-nowrap">
                 {subtitle || "premium creator app"}
               </p>
             </div>

@@ -245,15 +245,17 @@ export default function TopBar() {
                   />
                 </span>
 
-                {/* desktop: wordmark (BIG + GLOW + BRIGHTNESS) */}
-                <span className="hidden sm:flex items-center">
+                {/* desktop: wordmark (EXTREME ZOOM CSS HACK) */}
+                <span className="hidden sm:block relative w-32 h-10 ml-4">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
                     className={cn(
-                      "h-16 w-auto object-contain", // УВЕЛИЧИЛИ ДО h-16
-                      "brightness-200",             // СДЕЛАЛИ ОЧЕНЬ ЯРКИМ
-                      "drop-shadow-[0_14px_34px_rgba(212,175,55,0.4)]" // УСИЛИЛИ СВЕЧЕНИЕ
+                      "absolute top-1/2 left-0 -translate-y-1/2", // Центрируем по вертикали
+                      "w-[300%] max-w-none object-contain", // Разрешаем картинке быть в 3 раза шире контейнера
+                      "scale-[1.8] origin-left", // Дополнительно зумируем
+                      "brightness-200 contrast-150", // Делаем супер-ярким
+                      "drop-shadow-[0_0px_12px_rgba(212,175,55,0.8)]"
                     )}
                     draggable={false}
                   />
