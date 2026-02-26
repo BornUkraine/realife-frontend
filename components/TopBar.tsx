@@ -240,19 +240,19 @@ export default function TopBar() {
                   <img
                     src="/brand/logo-mark.png"
                     alt="Realife"
-                    className="h-full w-full object-cover mix-blend-screen scale-[4.5]" 
+                    className="h-full w-full object-cover mix-blend-screen scale-[3.2]" // Выровняли масштаб с сайдбаром
                     draggable={false}
                   />
                 </span>
 
-                {/* desktop: wordmark (УВЕЛИЧИЛИ КОНТЕЙНЕР ДО w-96, ЗУМ ДО 7.5) */}
-                <span className="hidden sm:flex relative w-96 h-14 ml-2 overflow-visible items-center">
+                {/* desktop: wordmark (ТЯНЕМ ВЛЕВО С ПОМОЩЬЮ -ml-14) */}
+                <span className="hidden sm:flex relative w-80 h-14 -ml-14 overflow-visible items-center">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
                     className={cn(
                       "w-full h-full object-contain object-left", 
-                      "mix-blend-screen scale-[7.5] origin-left" 
+                      "mix-blend-screen scale-[7] origin-left" 
                     )}
                     draggable={false}
                   />
