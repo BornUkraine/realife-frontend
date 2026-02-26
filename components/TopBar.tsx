@@ -228,30 +228,30 @@ export default function TopBar() {
             <div className="flex items-center justify-between gap-3">
               {/* brand: click -> HOME (/) */}
               <Link href="/" className="inline-flex items-center gap-3 min-w-0">
-                {/* mobile: mark (фон чисто черный, зум 2.2) */}
+                {/* mobile: mark */}
                 <span
                   className={cn(
                     "sm:hidden h-11 w-11 rounded-2xl overflow-hidden flex items-center justify-center",
-                    "bg-black border border-white/10 backdrop-blur-2xl", 
+                    "bg-transparent border border-white/10 backdrop-blur-2xl", 
                     "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
                   )}
                 >
                   <img
                     src="/brand/logo-mark.png"
                     alt="Realife"
-                    className="h-full w-full object-cover mix-blend-screen scale-[2.2]" 
+                    className="h-full w-full object-cover mix-blend-screen scale-[3]" 
                     draggable={false}
                   />
                 </span>
 
-                {/* desktop: wordmark (зум выкручен до 3.5) */}
-                <span className="hidden sm:flex relative w-56 h-10 ml-2 overflow-hidden items-center">
+                {/* desktop: wordmark */}
+                <span className="hidden sm:flex relative w-64 h-10 ml-4 overflow-visible items-center">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
                     className={cn(
                       "w-full h-full object-contain object-left", 
-                      "mix-blend-screen scale-[3.5] origin-left" 
+                      "mix-blend-screen scale-[4.5] origin-left" // Увеличили масштаб до 4.5
                     )}
                     draggable={false}
                   />

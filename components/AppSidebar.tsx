@@ -126,27 +126,27 @@ export default function AppSidebar({
         <div className="p-6">
           
           {/* Brand */}
-          <Link href="/app" className="flex items-center gap-3 mb-8">
+          <Link href="/app" className="flex items-center gap-2 mb-8">
             
-            {/* Mark: Сделали фон чисто черным (bg-black) и сильно увеличили (scale-2.2) */}
-            <div className="shrink-0 relative w-14 h-14 rounded-2xl p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
-              <div className="w-full h-full rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center bg-black">
+            {/* Mark: Убрали bg-black, вернули стекло, увеличили размер контейнера до w-16 h-16 */}
+            <div className="shrink-0 relative w-16 h-16 rounded-2xl p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
+              <div className="w-full h-full rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center bg-white/[0.02] backdrop-blur-2xl">
                 <img
                   src="/brand/logo-mark.png"
                   alt="Realife"
-                  className="w-full h-full object-cover mix-blend-screen scale-[2.2]"
+                  className="w-full h-full object-contain mix-blend-screen scale-[3.2]" // Зум на 3.2
                   draggable={false}
                 />
               </div>
             </div>
 
-            {/* Wordmark: Увеличили масштаб до 2.5 */}
-            <div className="flex-1 min-w-0 flex flex-col justify-center ml-1">
-              <div className="h-10 w-full flex items-center justify-start overflow-hidden">
+            {/* Wordmark: Увеличили зум до 4 и добавили overflow-visible */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center ml-2">
+              <div className="h-10 w-full flex items-center justify-start overflow-visible">
                 <img
                   src="/brand/logo-wordmark.png"
                   alt="Realife"
-                  className="h-full w-full object-contain object-left mix-blend-screen scale-[2.5] origin-left"
+                  className="h-full w-full object-contain object-left mix-blend-screen scale-[4] origin-left"
                   draggable={false}
                 />
               </div>
