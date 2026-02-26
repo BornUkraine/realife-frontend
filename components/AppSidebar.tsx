@@ -128,9 +128,9 @@ export default function AppSidebar({
           {/* Brand */}
           <Link href="/app" className="flex items-center mb-8 relative overflow-visible">
             
-            {/* Mark: Сделали иконку крупнее (зум 3.5), чтобы заполнила черный круг */}
+            {/* Mark: УБРАЛИ bg-black! Теперь фон прозрачный, а картинка растворяет свой черный фон. */}
             <div className="z-10 shrink-0 relative w-14 h-14 rounded-full p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
-              <div className="w-full h-full rounded-full border border-white/10 overflow-hidden flex items-center justify-center bg-black">
+              <div className="w-full h-full rounded-full border border-white/10 overflow-hidden flex items-center justify-center bg-transparent backdrop-blur-xl">
                 <img
                   src="/brand/logo-mark.png"
                   alt="Realife"
@@ -140,12 +140,12 @@ export default function AppSidebar({
               </div>
             </div>
 
-            {/* Wordmark: Потянули текст левее к иконке (left-[-28px]) */}
+            {/* Wordmark: Текст пододвинут идеально влево */}
             <div className="relative flex-1 h-10 overflow-visible z-0">
               <img
                 src="/brand/logo-wordmark.png"
                 alt="Realife"
-                className="absolute top-1/2 left-[-28px] -translate-y-1/2 w-[240px] max-w-none object-contain object-left mix-blend-screen"
+                className="absolute top-1/2 left-[-24px] -translate-y-1/2 w-[240px] max-w-none object-contain object-left mix-blend-screen"
                 draggable={false}
               />
             </div>
