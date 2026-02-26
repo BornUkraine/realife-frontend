@@ -228,30 +228,31 @@ export default function TopBar() {
             <div className="flex items-center justify-between gap-3">
               {/* brand: click -> HOME (/) */}
               <Link href="/" className="inline-flex items-center gap-3 min-w-0">
-                {/* mobile: mark */}
+                
+                {/* mobile: mark (сделали монетой для мобилок тоже) */}
                 <span
                   className={cn(
-                    "sm:hidden h-11 w-11 rounded-2xl overflow-hidden flex items-center justify-center",
-                    "bg-transparent border border-white/10 backdrop-blur-2xl", 
+                    "sm:hidden h-11 w-11 rounded-full overflow-hidden flex items-center justify-center", 
+                    "bg-black border border-white/10", 
                     "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
                   )}
                 >
                   <img
                     src="/brand/logo-mark.png"
                     alt="Realife"
-                    className="h-full w-full object-cover mix-blend-screen scale-[3]" 
+                    className="h-full w-full object-cover mix-blend-screen scale-[2.2]" 
                     draggable={false}
                   />
                 </span>
 
-                {/* desktop: wordmark */}
-                <span className="hidden sm:flex relative w-64 h-10 ml-4 overflow-visible items-center">
+                {/* desktop: wordmark (КОНТЕЙНЕР ОГРОМНЫЙ, ЗУМ 5.5) */}
+                <span className="hidden sm:flex relative w-80 h-12 ml-4 overflow-hidden items-center">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
                     className={cn(
                       "w-full h-full object-contain object-left", 
-                      "mix-blend-screen scale-[4.5] origin-left" // Увеличили масштаб до 4.5
+                      "mix-blend-screen scale-[5.5] origin-left" 
                     )}
                     draggable={false}
                   />

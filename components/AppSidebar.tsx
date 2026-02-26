@@ -126,27 +126,27 @@ export default function AppSidebar({
         <div className="p-6">
           
           {/* Brand */}
-          <Link href="/app" className="flex items-center gap-2 mb-8">
+          <Link href="/app" className="flex items-center gap-3 mb-8">
             
-            {/* Mark: Убрали bg-black, вернули стекло, увеличили размер контейнера до w-16 h-16 */}
-            <div className="shrink-0 relative w-16 h-16 rounded-2xl p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
-              <div className="w-full h-full rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center bg-white/[0.02] backdrop-blur-2xl">
+            {/* Mark: ПРЕВРАТИЛИ В ИДЕАЛЬНУЮ КРУГЛУЮ МОНЕТУ */}
+            <div className="shrink-0 relative w-16 h-16 rounded-full p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
+              <div className="w-full h-full rounded-full border border-white/10 overflow-hidden flex items-center justify-center bg-black">
                 <img
                   src="/brand/logo-mark.png"
                   alt="Realife"
-                  className="w-full h-full object-contain mix-blend-screen scale-[3.2]" // Зум на 3.2
+                  className="w-full h-full object-cover mix-blend-screen scale-[2.4]"
                   draggable={false}
                 />
               </div>
             </div>
 
-            {/* Wordmark: Увеличили зум до 4 и добавили overflow-visible */}
-            <div className="flex-1 min-w-0 flex flex-col justify-center ml-2">
-              <div className="h-10 w-full flex items-center justify-start overflow-visible">
+            {/* Wordmark: Вернули аккуратные рамки и выровняли */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+              <div className="h-10 w-full flex items-center justify-start overflow-hidden">
                 <img
                   src="/brand/logo-wordmark.png"
                   alt="Realife"
-                  className="h-full w-full object-contain object-left mix-blend-screen scale-[4] origin-left"
+                  className="h-full w-full object-contain object-left mix-blend-screen scale-[3] origin-left"
                   draggable={false}
                 />
               </div>
