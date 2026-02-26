@@ -125,34 +125,31 @@ export default function AppSidebar({
       <GoldEdgeCard>
         <div className="p-6">
           
-          {/* Brand (SAFE ZOOM) */}
+          {/* Brand (NEW PREMIUM SOLID LOGOS - FIXED EXTENSION) */}
           <Link href="/app" className="flex items-center gap-3 mb-8">
             
             {/* Mark */}
             <div className="shrink-0 relative w-14 h-14 rounded-2xl p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
-              <div className="w-full h-full rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl overflow-hidden flex items-center justify-center">
+              <div className="w-full h-full rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center bg-[#070606]">
                 <img
-                  src="/brand/logo-mark.png"
+                  src="/brand/logo-mark.png" // ИСПРАВЛЕНО НА .png
                   alt="Realife"
-                  className="w-full h-full object-contain scale-[3]" // Безопасный зум внутри скрытого контейнера
+                  className="w-full h-full object-cover mix-blend-screen scale-[1.3]"
                   draggable={false}
                 />
               </div>
             </div>
 
-            {/* Wordmark */}
-            <div className="flex-1 min-w-0 flex flex-col justify-center">
-              <div className="h-8 w-full flex items-center justify-start overflow-hidden">
+            {/* Wordmark (No subtitle) */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center ml-1">
+              <div className="h-10 w-full flex items-center justify-start overflow-hidden">
                 <img
-                  src="/brand/logo-wordmark.png"
+                  src="/brand/logo-wordmark.png" // ИСПРАВЛЕНО НА .png
                   alt="Realife"
-                  className="h-full w-full object-contain object-left scale-[1.5] origin-left brightness-[2] drop-shadow-[0_2px_10px_rgba(212,175,55,0.5)]"
+                  className="h-full w-full object-contain object-left mix-blend-screen scale-[1.4] origin-left"
                   draggable={false}
                 />
               </div>
-              <p className="mt-1 text-[11px] text-white/55 truncate">
-                {subtitle || "premium creator app"}
-              </p>
             </div>
 
           </Link>
@@ -163,7 +160,6 @@ export default function AppSidebar({
             </div>
           ) : null}
 
-          {/* 🔥 Тут вернули чистый перебор APP_NAV */}
           <nav className="space-y-2">
             {APP_NAV.map((item) => (
               <SidebarNavItem

@@ -231,29 +231,27 @@ export default function TopBar() {
                 {/* mobile: mark */}
                 <span
                   className={cn(
-                    "sm:hidden h-11 w-11 rounded-2xl overflow-hidden",
-                    "bg-white/[0.06] border border-white/10 backdrop-blur-2xl",
-                    "shadow-[0_18px_70px_rgba(0,0,0,0.25)]",
-                    "ring-1 ring-black/10"
+                    "sm:hidden h-11 w-11 rounded-2xl overflow-hidden flex items-center justify-center",
+                    "bg-[#070606] border border-white/10 backdrop-blur-2xl", // Черный фон для мобильной иконки
+                    "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
                   )}
                 >
                   <img
                     src="/brand/logo-mark.png"
                     alt="Realife"
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover mix-blend-screen scale-[1.3]" // mix-blend-screen убирает черный фон картинки
                     draggable={false}
                   />
                 </span>
 
-                {/* desktop: wordmark (SAFE DISPLAY) */}
-                <span className="hidden sm:block relative w-48 h-10 ml-2">
+                {/* desktop: wordmark (CLEAN POSITIONING) */}
+                <span className="hidden sm:flex relative w-48 h-10 ml-2 overflow-hidden items-center">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
                     className={cn(
-                      "w-full h-full object-contain object-left", // Картинка будет прижата влево и вписана в рамки
-                      "brightness-[2] contrast-150",              // Яркая подсветка
-                      "drop-shadow-[0_2px_12px_rgba(212,175,55,0.6)]"
+                      "w-full h-full object-contain object-left", 
+                      "mix-blend-screen scale-[1.8] origin-left" // Чистый зум без ломания верстки
                     )}
                     draggable={false}
                   />
