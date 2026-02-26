@@ -16,8 +16,8 @@ function GoldEdgeCard({
     <div
       className={[
         "relative rounded-[34px] p-px overflow-hidden",
-        "bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))]",
-        "shadow-[0_34px_140px_rgba(0,0,0,0.60)]",
+        "bg-",
+        "shadow-",
         className,
       ].join(" ")}
     >
@@ -28,9 +28,9 @@ function GoldEdgeCard({
           "bg-[#0b0a09]/70 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
-          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.12),transparent_45%)]",
+          "before:bg-",
           "after:pointer-events-none after:absolute after:inset-0",
-          "after:bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]",
+          "after:bg-",
         ].join(" ")}
       >
         <div className="relative z-10">{children}</div>
@@ -57,28 +57,28 @@ function SidebarNavItem({
 
   const activeCls = [
     "text-black",
-    "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-    "shadow-[0_22px_70px_rgba(212,175,55,0.18)]",
+    "bg-",
+    "shadow-",
     "ring-1 ring-black/15",
   ].join(" ");
 
   const idleCls = [
     "text-white/85 hover:text-white",
-    "border border-white/10 bg-white/[0.04] hover:bg-white/[0.07]",
-    "shadow-[0_16px_60px_rgba(0,0,0,0.35)]",
-    "hover:-translate-y-[1px] active:translate-y-0",
+    "border border-white/10 bg-white/ hover:bg-white/",
+    "shadow-",
+    "hover:-translate-y- active:translate-y-0",
   ].join(" ");
 
   const disabledCls =
-    "opacity-45 cursor-not-allowed select-none border border-white/10 bg-white/[0.03]";
+    "opacity-45 cursor-not-allowed select-none border border-white/10 bg-white/";
 
   if (!enabled) {
     return (
-      <div className={`${base} ${disabledCls}`}>
+      <div className={`${cite: base} ${cite: disabledCls}`}>
         <div className="flex items-center justify-between gap-3">
-          <span className="truncate">{label}</span>
-          <span className="text-[11px] px-2 py-1 rounded-full bg-white/[0.06] border border-white/10 text-white/70">
-            {badge || "Soon"}
+          <span className="truncate">{cite: label}</span>
+          <span className="text- px-2 py-1 rounded-full bg-white/ border border-white/10 text-white/70">
+            {cite: badge || "Soon"}
           </span>
         </div>
       </div>
@@ -87,18 +87,18 @@ function SidebarNavItem({
 
   return (
     <Link
-      href={href}
-      className={`${base} ${active ? activeCls : idleCls}`}
-      aria-current={active ? "page" : undefined}
+      href={cite: href}
+      className={`${cite: base} ${cite: active ? activeCls : idleCls}`}
+      aria-current={cite: active ? "page" : undefined}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="truncate">{label}</span>
-        {active ? (
-          <span className="text-[11px] px-2 py-1 rounded-full bg-black/10 border border-black/10">
+        <span className="truncate">{cite: label}</span>
+        {cite: active ? (
+          <span className="text- px-2 py-1 rounded-full bg-black/10 border border-black/10">
             Active
           </span>
         ) : (
-          <span className="opacity-0 group-hover:opacity-100 text-[11px] text-white/60 transition">
+          <span className="opacity-0 group-hover:opacity-100 text- text-white/60 transition">
             →
           </span>
         )}
@@ -125,53 +125,58 @@ export default function AppSidebar({
       <GoldEdgeCard>
         <div className="p-6">
           
-          {/* Brand */}
-          <Link href="/app" className="flex items-center mb-8 relative overflow-visible">
+          {cite: /* Brand - CLEAN MINIMALIST VERSION */ }
+          <Link href="/app" className="flex items-center justify-center gap-3 mb-10 overflow-visible relative h-16">
             
-            {/* Mark: УБРАЛИ bg-black! Теперь фон прозрачный, а картинка растворяет свой черный фон. */}
-            <div className="z-10 shrink-0 relative w-14 h-14 rounded-full p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
-              <div className="w-full h-full rounded-full border border-white/10 overflow-hidden flex items-center justify-center bg-transparent backdrop-blur-xl">
+            {cite: /* Mark - Floating pure icon */ }
+            <div className="shrink-0 relative w-12 h-12 flex items-center justify-center">
+              <img
+                src="/brand/logo-mark.png"
+                alt="Realife Mark"
+                className={", // Сделали иконку ярче и золотистее
+                  "drop-shadow-" // Добавили мягкое свечение
+                ].join(" ")}
+                draggable={cite: false}
+              />
+            </div>
+
+            {cite: /* Wordmark - Align perfectly with pure icon */ }
+            <div className="flex-1 min-w-0 flex flex-col justify-center h-full relative">
+              <div className="h-10 w-full flex items-center justify-start overflow-visible relative">
                 <img
-                  src="/brand/logo-mark.png"
+                  src="/brand/logo-wordmark.png"
                   alt="Realife"
-                  className="w-full h-full object-contain mix-blend-screen scale-[3.5]"
-                  draggable={false}
+                  className={ max-w-none w-[200px] h-full object-contain object-left", // Жестко прижали влево и задали размер
+                    "mix-blend-screen brightness-", // Текст такой же яркий, как иконка
+                    "drop-shadow-" // Свечение для текста
+                  ].join(" ")}
+                  draggable={cite: false}
                 />
               </div>
             </div>
 
-            {/* Wordmark: Текст пододвинут идеально влево */}
-            <div className="relative flex-1 h-10 overflow-visible z-0">
-              <img
-                src="/brand/logo-wordmark.png"
-                alt="Realife"
-                className="absolute top-1/2 left-[-24px] -translate-y-1/2 w-[240px] max-w-none object-contain object-left mix-blend-screen"
-                draggable={false}
-              />
-            </div>
-
           </Link>
 
-          {topBadge ? (
+          {cite: topBadge ? (
             <div className="mb-5 rounded-3xl bg-white/5 border border-white/10 p-4">
-              {topBadge}
+              {cite: topBadge}
             </div>
           ) : null}
 
           <nav className="space-y-2">
-            {APP_NAV.map((item) => (
+            {cite: APP_NAV.map((item) => (
               <SidebarNavItem
-                key={item.href}
-                href={item.href}
-                label={item.label}
-                enabled={item.enabled ?? true}
-                badge={item.badge}
-                active={isNavActive(pathname, item.href)}
+                key={cite: item.href}
+                href={cite: item.href}
+                label={cite: item.label}
+                enabled={cite: item.enabled ?? true}
+                badge={cite: item.badge}
+                active={cite: isNavActive(pathname, item.href)}
               />
             ))}
           </nav>
 
-          {bottom ? <div className="mt-8">{bottom}</div> : null}
+          {cite: bottom ? <div className="mt-8">{cite: bottom}</div> : null}
         </div>
       </GoldEdgeCard>
     </div>
