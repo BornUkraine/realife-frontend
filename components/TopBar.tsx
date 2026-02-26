@@ -229,7 +229,7 @@ export default function TopBar() {
               {/* brand: click -> HOME (/) */}
               <Link href="/" className="inline-flex items-center gap-3 min-w-0">
                 
-                {/* mobile: mark (сделали монетой для мобилок тоже) */}
+                {/* mobile: mark */}
                 <span
                   className={cn(
                     "sm:hidden h-11 w-11 rounded-full overflow-hidden flex items-center justify-center", 
@@ -240,19 +240,19 @@ export default function TopBar() {
                   <img
                     src="/brand/logo-mark.png"
                     alt="Realife"
-                    className="h-full w-full object-cover mix-blend-screen scale-[2.2]" 
+                    className="h-full w-full object-cover mix-blend-screen scale-[4.5]" 
                     draggable={false}
                   />
                 </span>
 
-                {/* desktop: wordmark (КОНТЕЙНЕР ОГРОМНЫЙ, ЗУМ 5.5) */}
-                <span className="hidden sm:flex relative w-80 h-12 ml-4 overflow-hidden items-center">
+                {/* desktop: wordmark (УВЕЛИЧИЛИ КОНТЕЙНЕР ДО w-96, ЗУМ ДО 7.5) */}
+                <span className="hidden sm:flex relative w-96 h-14 ml-2 overflow-visible items-center">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
                     className={cn(
                       "w-full h-full object-contain object-left", 
-                      "mix-blend-screen scale-[5.5] origin-left" 
+                      "mix-blend-screen scale-[7.5] origin-left" 
                     )}
                     draggable={false}
                   />
