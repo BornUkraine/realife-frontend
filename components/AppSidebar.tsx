@@ -125,28 +125,28 @@ export default function AppSidebar({
       <GoldEdgeCard>
         <div className="p-6">
           
-          {/* Brand (NEW PREMIUM SOLID LOGOS - FIXED EXTENSION) */}
+          {/* Brand */}
           <Link href="/app" className="flex items-center gap-3 mb-8">
             
-            {/* Mark */}
+            {/* Mark: Сделали фон чисто черным (bg-black) и сильно увеличили (scale-2.2) */}
             <div className="shrink-0 relative w-14 h-14 rounded-2xl p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
-              <div className="w-full h-full rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center bg-[#070606]">
+              <div className="w-full h-full rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center bg-black">
                 <img
-                  src="/brand/logo-mark.png" // ИСПРАВЛЕНО НА .png
+                  src="/brand/logo-mark.png"
                   alt="Realife"
-                  className="w-full h-full object-cover mix-blend-screen scale-[1.3]"
+                  className="w-full h-full object-cover mix-blend-screen scale-[2.2]"
                   draggable={false}
                 />
               </div>
             </div>
 
-            {/* Wordmark (No subtitle) */}
+            {/* Wordmark: Увеличили масштаб до 2.5 */}
             <div className="flex-1 min-w-0 flex flex-col justify-center ml-1">
               <div className="h-10 w-full flex items-center justify-start overflow-hidden">
                 <img
-                  src="/brand/logo-wordmark.png" // ИСПРАВЛЕНО НА .png
+                  src="/brand/logo-wordmark.png"
                   alt="Realife"
-                  className="h-full w-full object-contain object-left mix-blend-screen scale-[1.4] origin-left"
+                  className="h-full w-full object-contain object-left mix-blend-screen scale-[2.5] origin-left"
                   draggable={false}
                 />
               </div>

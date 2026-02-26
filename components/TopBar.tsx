@@ -228,30 +228,30 @@ export default function TopBar() {
             <div className="flex items-center justify-between gap-3">
               {/* brand: click -> HOME (/) */}
               <Link href="/" className="inline-flex items-center gap-3 min-w-0">
-                {/* mobile: mark */}
+                {/* mobile: mark (фон чисто черный, зум 2.2) */}
                 <span
                   className={cn(
                     "sm:hidden h-11 w-11 rounded-2xl overflow-hidden flex items-center justify-center",
-                    "bg-[#070606] border border-white/10 backdrop-blur-2xl", // Черный фон для мобильной иконки
+                    "bg-black border border-white/10 backdrop-blur-2xl", 
                     "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
                   )}
                 >
                   <img
                     src="/brand/logo-mark.png"
                     alt="Realife"
-                    className="h-full w-full object-cover mix-blend-screen scale-[1.3]" // mix-blend-screen убирает черный фон картинки
+                    className="h-full w-full object-cover mix-blend-screen scale-[2.2]" 
                     draggable={false}
                   />
                 </span>
 
-                {/* desktop: wordmark (CLEAN POSITIONING) */}
-                <span className="hidden sm:flex relative w-48 h-10 ml-2 overflow-hidden items-center">
+                {/* desktop: wordmark (зум выкручен до 3.5) */}
+                <span className="hidden sm:flex relative w-56 h-10 ml-2 overflow-hidden items-center">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
                     className={cn(
                       "w-full h-full object-contain object-left", 
-                      "mix-blend-screen scale-[1.8] origin-left" // Чистый зум без ломания верстки
+                      "mix-blend-screen scale-[3.5] origin-left" 
                     )}
                     draggable={false}
                   />
