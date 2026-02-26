@@ -128,24 +128,24 @@ export default function AppSidebar({
           {/* Brand */}
           <Link href="/app" className="flex items-center mb-8 relative overflow-visible">
             
-            {/* Mark: Аккуратный размер, безопасный зум 2.5 */}
+            {/* Mark: Сделали иконку крупнее (зум 3.5), чтобы заполнила черный круг */}
             <div className="z-10 shrink-0 relative w-14 h-14 rounded-full p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
               <div className="w-full h-full rounded-full border border-white/10 overflow-hidden flex items-center justify-center bg-black">
                 <img
                   src="/brand/logo-mark.png"
                   alt="Realife"
-                  className="w-full h-full object-contain mix-blend-screen scale-[2.5]"
+                  className="w-full h-full object-contain mix-blend-screen scale-[3.5]"
                   draggable={false}
                 />
               </div>
             </div>
 
-            {/* Wordmark: БРУТФОРС. Задаем огромную ширину w-[240px] и тянем влево */}
-            <div className="relative flex-1 h-10 overflow-visible">
+            {/* Wordmark: Потянули текст левее к иконке (left-[-28px]) */}
+            <div className="relative flex-1 h-10 overflow-visible z-0">
               <img
                 src="/brand/logo-wordmark.png"
                 alt="Realife"
-                className="absolute top-1/2 left-[-15px] -translate-y-1/2 w-[240px] max-w-none object-contain object-left mix-blend-screen"
+                className="absolute top-1/2 left-[-28px] -translate-y-1/2 w-[240px] max-w-none object-contain object-left mix-blend-screen"
                 draggable={false}
               />
             </div>
