@@ -11,7 +11,7 @@ export const APP_NAV: AppNavItem[] = [
   { label: "Faucet ETH", href: "/app/faucet", enabled: true },
   { label: "Success", href: "/app/success", enabled: true },
   { label: "Trading NFTs", href: "/app/trading", enabled: false, badge: "Soon" },
-  { label: "Profile", href: "/app/profile", enabled: false, badge: "Soon" },
+  { label: "Profile", href: "/app/profile", enabled: true },
   { label: "Contact", href: "/#contact", enabled: true },
 ];
 

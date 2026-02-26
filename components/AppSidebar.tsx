@@ -124,38 +124,37 @@ export default function AppSidebar({
     <div className="sticky top-24">
       <GoldEdgeCard>
         <div className="p-6">
-          {/* Brand (NEW LOGOS) */}
-          <Link href="/app" className="flex items-center gap-4 mb-8">
-            {/* mark */}
-            <div className="relative w-14 h-14 rounded-2xl p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
+          
+          {/* Brand (SAFE ZOOM) */}
+          <Link href="/app" className="flex items-center gap-3 mb-8">
+            
+            {/* Mark */}
+            <div className="shrink-0 relative w-14 h-14 rounded-2xl p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
               <div className="w-full h-full rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-2xl overflow-hidden flex items-center justify-center">
                 <img
                   src="/brand/logo-mark.png"
                   alt="Realife"
-                  className="h-[80%] w-[80%] object-contain"
+                  className="w-full h-full object-contain scale-[3]" // Безопасный зум внутри скрытого контейнера
                   draggable={false}
                 />
               </div>
             </div>
 
-            {/* wordmark (EXTREME ZOOM CSS HACK) */}
-            <div className="relative w-32 h-10 ml-2">
-              <img
-                src="/brand/logo-wordmark.png"
-                alt="Realife"
-                className={[
-                  "absolute top-1/2 left-0 -translate-y-1/2", // Центрируем
-                  "w-[300%] max-w-none object-contain", // Убираем ограничения
-                  "scale-[1.8] origin-left", // Зумируем
-                  "brightness-200 contrast-150", // Делаем ярким
-                  "drop-shadow-[0_0px_12px_rgba(212,175,55,0.8)]",
-                ].join(" ")}
-                draggable={false}
-              />
-              <p className="absolute -bottom-4 left-0 text-xs text-white/60 whitespace-nowrap">
+            {/* Wordmark */}
+            <div className="flex-1 min-w-0 flex flex-col justify-center">
+              <div className="h-8 w-full flex items-center justify-start overflow-hidden">
+                <img
+                  src="/brand/logo-wordmark.png"
+                  alt="Realife"
+                  className="h-full w-full object-contain object-left scale-[1.5] origin-left brightness-[2] drop-shadow-[0_2px_10px_rgba(212,175,55,0.5)]"
+                  draggable={false}
+                />
+              </div>
+              <p className="mt-1 text-[11px] text-white/55 truncate">
                 {subtitle || "premium creator app"}
               </p>
             </div>
+
           </Link>
 
           {topBadge ? (
@@ -164,6 +163,7 @@ export default function AppSidebar({
             </div>
           ) : null}
 
+          {/* 🔥 Тут вернули чистый перебор APP_NAV */}
           <nav className="space-y-2">
             {APP_NAV.map((item) => (
               <SidebarNavItem
