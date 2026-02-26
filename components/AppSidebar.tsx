@@ -126,30 +126,28 @@ export default function AppSidebar({
         <div className="p-6">
           
           {/* Brand */}
-          <Link href="/app" className="flex items-center mb-8 relative">
+          <Link href="/app" className="flex items-center mb-8 relative overflow-visible">
             
-            {/* Mark: Иконка-монета */}
-            <div className="z-10 shrink-0 relative w-16 h-16 rounded-full p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
+            {/* Mark: Аккуратный размер, безопасный зум 2.5 */}
+            <div className="z-10 shrink-0 relative w-14 h-14 rounded-full p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))] shadow-[0_22px_80px_rgba(0,0,0,0.45)]">
               <div className="w-full h-full rounded-full border border-white/10 overflow-hidden flex items-center justify-center bg-black">
                 <img
                   src="/brand/logo-mark.png"
                   alt="Realife"
-                  className="w-full h-full object-cover mix-blend-screen scale-[3.2]"
+                  className="w-full h-full object-contain mix-blend-screen scale-[2.5]"
                   draggable={false}
                 />
               </div>
             </div>
 
-            {/* Wordmark: СДЕЛАЛИ ТЕКСТ КРУПНЕЕ (scale-[4.5]) И ВЫРОВНЯЛИ ОТСТУП (-ml-3) */}
-            <div className="flex-1 min-w-0 flex flex-col justify-center -ml-3">
-              <div className="h-10 w-full flex items-center justify-start overflow-visible">
-                <img
-                  src="/brand/logo-wordmark.png"
-                  alt="Realife"
-                  className="h-full w-full object-contain object-left mix-blend-screen scale-[4.5] origin-left"
-                  draggable={false}
-                />
-              </div>
+            {/* Wordmark: БРУТФОРС. Задаем огромную ширину w-[240px] и тянем влево */}
+            <div className="relative flex-1 h-10 overflow-visible">
+              <img
+                src="/brand/logo-wordmark.png"
+                alt="Realife"
+                className="absolute top-1/2 left-[-15px] -translate-y-1/2 w-[240px] max-w-none object-contain object-left mix-blend-screen"
+                draggable={false}
+              />
             </div>
 
           </Link>
