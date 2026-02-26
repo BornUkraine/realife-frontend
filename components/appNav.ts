@@ -8,9 +8,9 @@ export type AppNavItem = {
 export const APP_NAV: AppNavItem[] = [
   { label: "Home", href: "/app", enabled: true },
   { label: "Create NFT", href: "/app/create", enabled: true },
-  { label: "Faucet ETH", href: "/app/faucet", enabled: true },
-  { label: "Success", href: "/app/success", enabled: true },
   { label: "Trading NFTs", href: "/app/trading", enabled: false, badge: "Soon" },
+  { label: "Real Marketing", href: "/app/real-marketing", enabled: false, badge: "Soon" },
+  { label: "Social Learning", href: "/app/social-learning", enabled: false, badge: "Soon" },
   { label: "Profile", href: "/app/profile", enabled: true },
   { label: "Contact", href: "/#contact", enabled: true },
 ];
