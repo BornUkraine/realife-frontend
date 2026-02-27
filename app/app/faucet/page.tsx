@@ -9,7 +9,6 @@ import { formatUnits } from "viem";
 import Reveal from "@/components/Reveal";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 const FAUCETS = [
   { name: "Alchemy Base Sepolia Faucet", url: "https://www.alchemy.com/faucets/base-sepolia" },
