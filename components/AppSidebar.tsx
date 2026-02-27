@@ -143,7 +143,7 @@ export default function AppSidebar({
               <img
                 src="/brand/logo-wordmark.png"
                 alt="Realife"
-                className="absolute top-1/2 left-[-90px] -translate-y-1/2 w-[300px] max-w-none object-contain object-left mix-blend-screen"
+                className="absolute top-1/2 left-[-75px] -translate-y-1/2 w-[300px] max-w-none object-contain object-left mix-blend-screen"
                 draggable={false}
               />
             </div>
