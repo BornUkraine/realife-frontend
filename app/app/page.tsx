@@ -2,25 +2,7 @@
 
 import Link from "next/link";
 import React from "react";
-
-function Reveal({
-  className = "",
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className={[
-        "motion-safe:animate-[fadeUp_.7s_ease-out_both]",
-        className,
-      ].join(" ")}
-    >
-      {children}
-    </div>
-  );
-}
+import Reveal from "@/components/Reveal";
 
 function GoldEdgeCard({
   className = "",
@@ -101,20 +83,6 @@ function StatCard({
 export default function AppPage() {
   return (
     <>
-      {/* Global keyframes */}
-      <style jsx global>{`
-        @keyframes fadeUp {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
-
       {/* HERO */}
       <Reveal>
         <GoldEdgeCard className="rounded-[46px]">
@@ -156,14 +124,26 @@ export default function AppPage() {
             </h1>
 
             <p className="mt-5 text-sm md:text-base max-w-2xl text-white/65 leading-relaxed">
-              Mint proof of work: art, craft, products, inventions, design, AI output.
-              Upload → IPFS metadata → sign → on-chain NFT → verify.
+              Mint proof of work: art, craft, products, inventions, design, AI
+              output. Upload → IPFS metadata → sign → on-chain NFT → verify.
             </p>
 
             <div className="mt-10 grid md:grid-cols-3 gap-4">
-              <StatCard title="Network" value="Base Sepolia" hint="Fast & cheap testnet mints" />
-              <StatCard title="Metadata" value="IPFS tokenURI" hint="Verifiable, permanent content" />
-              <StatCard title="Flow" value="Prepare → Mint" hint="Success page + explorer proof" />
+              <StatCard
+                title="Network"
+                value="Base Sepolia"
+                hint="Fast & cheap testnet mints"
+              />
+              <StatCard
+                title="Metadata"
+                value="IPFS tokenURI"
+                hint="Verifiable, permanent content"
+              />
+              <StatCard
+                title="Flow"
+                value="Prepare → Mint"
+                hint="Success page + explorer proof"
+              />
             </div>
 
             <div className="mt-10 rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.30),rgba(212,175,55,0.14),rgba(184,135,10,0.10))]">
@@ -178,7 +158,6 @@ export default function AppPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  {/* 🔥 ТА САМАЯ КНОПКА: ТЕПЕРЬ ОНА ЗОЛОТАЯ */}
                   <Link
                     href="/app/create"
                     className={[
@@ -206,7 +185,7 @@ export default function AppPage() {
       </Reveal>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <Reveal className="lg:col-span-2">
+        <Reveal className="lg:col-span-2" delayMs={90}>
           <GoldEdgeCard>
             <div className="p-8 md:p-10">
               <p className="text-xs font-semibold text-white/60">How it works</p>
@@ -234,7 +213,9 @@ export default function AppPage() {
                       </div>
                       <p className="text-sm font-extrabold">{s.t}</p>
                     </div>
-                    <p className="mt-2 text-xs text-white/60 leading-relaxed">{s.d}</p>
+                    <p className="mt-2 text-xs text-white/60 leading-relaxed">
+                      {s.d}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -264,7 +245,7 @@ export default function AppPage() {
           </GoldEdgeCard>
         </Reveal>
 
-        <Reveal>
+        <Reveal delayMs={150}>
           <GoldEdgeCard>
             <div className="p-8 md:p-10">
               <p className="text-xs font-semibold text-white/60">Roadmap</p>
@@ -296,7 +277,6 @@ export default function AppPage() {
                 ))}
               </div>
 
-              {/* 🔥 ЗДЕСЬ ТОЖЕ СДЕЛАЛИ КНОПКУ ЗОЛОТОЙ */}
               <Link
                 href="/app/create"
                 className={[

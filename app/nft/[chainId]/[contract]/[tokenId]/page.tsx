@@ -116,7 +116,6 @@ export default async function NftDetailsPage({
   return (
     // 🔥 Возвращаем <main> и фон, так как это публичная страница без AppShell
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
-      
       {/* Premium background */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
@@ -129,7 +128,7 @@ export default async function NftDetailsPage({
 
       <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
         {/* Top nav */}
-        <div className="flex items-center justify-between gap-4">
+        <div className="reveal flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-[12px] text-white/55">
             {ownerNftsUrl ? (
               <Link className="hover:underline" href={ownerNftsUrl}>
@@ -163,10 +162,11 @@ export default async function NftDetailsPage({
           {/* Left: media */}
           <div
             className={cx(
-              "rounded-[34px] p-px overflow-hidden",
+              "reveal rounded-[34px] p-px overflow-hidden",
               "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
               "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
             )}
+            style={{ animationDelay: "80ms" }}
           >
             <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/15 backdrop-blur-2xl ring-1 ring-black/10">
               <div className="aspect-square bg-black/30 flex items-center justify-center relative">
@@ -184,10 +184,11 @@ export default async function NftDetailsPage({
           {/* Right: meta */}
           <div
             className={cx(
-              "rounded-[34px] p-px overflow-hidden",
+              "reveal rounded-[34px] p-px overflow-hidden",
               "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
               "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
             )}
+            style={{ animationDelay: "140ms" }}
           >
             <div className="rounded-[34px] h-full overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10">
               <div className="p-6 md:p-7 h-full flex flex-col">
@@ -321,7 +322,10 @@ export default async function NftDetailsPage({
           </div>
         </div>
 
-        <footer className="pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]">
+        <footer
+          className="reveal pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]"
+          style={{ animationDelay: "220ms" }}
+        >
           Realife Ecosystem • NFT Verified
         </footer>
       </div>

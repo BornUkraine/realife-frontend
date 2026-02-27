@@ -31,3 +31,33 @@ body {
   margin: 0;
   /* ✅ не задаем Arial — пусть Geist рулит */
 }
+
+/* -------------------------- Global animations -------------------------- */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Optional helper class you can use anywhere:
+   <div className="reveal">...</div>
+   or via <Reveal /> component that adds class "reveal"
+*/
+.reveal {
+  animation: fadeUp 0.7s ease-out both;
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    animation: none !important;
+  }
+}

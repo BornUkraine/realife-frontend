@@ -6,6 +6,7 @@ import { useAccount, useBalance, useChainId, useSwitchChain } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { formatUnits } from "viem";
+import Reveal from "@/components/Reveal";
 
 const FAUCETS = [
   { name: "Alchemy Base Sepolia Faucet", url: "https://www.alchemy.com/faucets/base-sepolia" },
@@ -150,225 +151,233 @@ export default function FaucetPage() {
   return (
     <div className="space-y-6">
       {/* HERO CARD */}
-      <GoldEdgeWrap className="rounded-[46px]">
-        <div className="relative overflow-hidden">
-          <div className="pointer-events-none absolute -top-40 -right-40 h-[720px] w-[720px] rounded-full bg-[#d4af37]/14 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-56 -left-56 h-[820px] w-[820px] rounded-full bg-white/[0.06] blur-3xl" />
+      <Reveal>
+        <GoldEdgeWrap className="rounded-[46px]">
+          <div className="relative overflow-hidden">
+            <div className="pointer-events-none absolute -top-40 -right-40 h-[720px] w-[720px] rounded-full bg-[#d4af37]/14 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-56 -left-56 h-[820px] w-[820px] rounded-full bg-white/[0.06] blur-3xl" />
 
-          <div
-            className="pointer-events-none absolute inset-0 opacity-[0.06]"
-            style={{
-              backgroundImage:
-                "linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px)",
-              backgroundSize: "56px 56px",
-            }}
-          />
+            <div
+              className="pointer-events-none absolute inset-0 opacity-[0.06]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px)",
+                backgroundSize: "56px 56px",
+              }}
+            />
 
-          <div className="relative p-8 md:p-12">
-            <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-              <div className="min-w-0">
-                <Pill>
-                  <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                  Faucet ETH • Base Sepolia
-                </Pill>
+            <div className="relative p-8 md:p-12">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+                <div className="min-w-0">
+                  <Pill>
+                    <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
+                    Faucet ETH • Base Sepolia
+                  </Pill>
 
-                <h1 className="mt-5 text-4xl md:text-5xl font-black leading-[1.05] tracking-[-0.02em]">
-                  Get test ETH{" "}
-                  <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
-                    for gas
-                  </span>
-                </h1>
+                  <h1 className="mt-5 text-4xl md:text-5xl font-black leading-[1.05] tracking-[-0.02em]">
+                    Get test ETH{" "}
+                    <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
+                      for gas
+                    </span>
+                  </h1>
 
-                <p className="mt-3 text-sm md:text-base text-white/70 max-w-2xl leading-relaxed">
-                  You need a small balance of <b>test ETH</b> on the <b>Base Sepolia</b> network to mint.
-                  Click <b>Switch</b> if you are on the wrong network, then open any faucet below.
-                </p>
-              </div>
+                  <p className="mt-3 text-sm md:text-base text-white/70 max-w-2xl leading-relaxed">
+                    You need a small balance of <b>test ETH</b> on the <b>Base Sepolia</b> network to mint.
+                    Click <b>Switch</b> if you are on the wrong network, then open any faucet below.
+                  </p>
+                </div>
 
-              <div className="flex flex-wrap items-center gap-3">
-                {!connected ? (
-                  <button
-                    type="button"
-                    onClick={() => openConnectModal?.()}
-                    className="h-11 px-6 rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition font-semibold shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
-                  >
-                    Connect wallet
-                  </button>
-                ) : (
-                  <div className="h-11 inline-flex items-center px-5 rounded-2xl border border-white/10 bg-white/[0.06] text-sm font-semibold shadow-[0_18px_70px_rgba(0,0,0,0.28)]">
-                    {shortAddr(address)}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* STATUS STRIP */}
-            <div className="mt-8 rounded-[38px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.30),rgba(212,175,55,0.14),rgba(184,135,10,0.10))]">
-              <div className="rounded-[38px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl p-5 md:p-6 shadow-[0_26px_90px_rgba(0,0,0,0.45)]">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <StatusDot state={dotState} />
-                      <div className="text-sm font-extrabold">{title}</div>
-
-                      {mounted && connected && !wrongNetwork ? (
-                        <span
-                          className={[
-                            "ml-2 text-xs font-semibold px-2.5 py-1 rounded-full border",
-                            hasGas
-                              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-200"
-                              : "bg-rose-500/10 border-rose-500/20 text-rose-200",
-                          ].join(" ")}
-                        >
-                          {hasGas ? "Gas OK" : "No gas"}
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-2 text-xs text-white/70">
-                      Base Sepolia balance:{" "}
-                      <span className="text-white font-semibold">{balanceLabel}</span>
-                    </div>
-
-                    <div className="mt-1 text-[11px] text-white/55">
-                      {mounted && connected
-                        ? wrongNetwork
-                          ? "Switch network to Base Sepolia to mint."
-                          : hasGas
-                          ? "Ready — go mint."
-                          : "Request test ETH below, then Refresh."
-                        : "Connect wallet to see balance + enable switch."}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  {!connected ? (
                     <button
                       type="button"
-                      onClick={() => refetch()}
-                      disabled={!mounted || !connected || wrongNetwork || isFetching}
-                      className="h-11 px-5 rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition text-sm font-semibold disabled:opacity-50 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                      onClick={() => openConnectModal?.()}
+                      className="h-11 px-6 rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition font-semibold shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                     >
-                      {!mounted ? "Refresh" : isFetching ? "Refreshing…" : "Refresh"}
+                      Connect wallet
                     </button>
-
-                    {mounted && connected && wrongNetwork ? (
-                      <button
-                        type="button"
-                        disabled={isSwitching}
-                        onClick={() =>
-                          switchChainAsync({ chainId: baseSepolia.id }).catch(() => {})
-                        }
-                        className="h-11 px-5 rounded-2xl text-black font-extrabold hover:brightness-110 transition disabled:opacity-60 shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
-                      >
-                        {isSwitching ? "Switching…" : "Switch to Base Sepolia"}
-                      </button>
-                    ) : null}
-
-                    <Link
-                      href="/app/create"
-                      className="h-11 px-5 inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition text-sm font-semibold shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
-                    >
-                      Open Create
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* QUICK STEPS */}
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
-                <div className="text-xs font-semibold text-white/60">Step 1</div>
-                <div className="mt-2 text-sm font-extrabold">Switch to Base Sepolia</div>
-                <div className="mt-2 text-[11px] text-white/55">
-                  If you are on the wrong network, click <b>Switch</b>.
-                </div>
-              </div>
-              <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
-                <div className="text-xs font-semibold text-white/60">Step 2</div>
-                <div className="mt-2 text-sm font-extrabold">Open faucet</div>
-                <div className="mt-2 text-[11px] text-white/55">
-                  Open any faucet below and request <b>test ETH</b>.
-                </div>
-              </div>
-              <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
-                <div className="text-xs font-semibold text-white/60">Step 3</div>
-                <div className="mt-2 text-sm font-extrabold">Refresh balance</div>
-                <div className="mt-2 text-[11px] text-white/55">
-                  Wait 10–60s and click <b>Refresh</b>.
-                </div>
-              </div>
-            </div>
-
-            {/* FAUCETS GRID */}
-            <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {FAUCETS.map((f, idx) => (
-                <a
-                  key={f.url}
-                  href={f.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className={[
-                    "group relative rounded-[30px] p-px overflow-hidden",
-                    "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.12),rgba(184,135,10,0.08))]",
-                    "shadow-[0_22px_80px_rgba(0,0,0,0.45)]",
-                    "transition duration-300 hover:-translate-y-[2px] hover:brightness-110",
-                  ].join(" ")}
-                >
-                  <div className="relative rounded-[30px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl p-5 overflow-hidden">
-                    <div className="pointer-events-none absolute inset-0 opacity-90">
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
-                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
+                  ) : (
+                    <div className="h-11 inline-flex items-center px-5 rounded-2xl border border-white/10 bg-white/[0.06] text-sm font-semibold shadow-[0_18px_70px_rgba(0,0,0,0.28)]">
+                      {shortAddr(address)}
                     </div>
+                  )}
+                </div>
+              </div>
 
-                    <div className="relative flex items-start justify-between gap-3">
+              {/* STATUS STRIP */}
+              <Reveal delayMs={80}>
+                <div className="mt-8 rounded-[38px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.30),rgba(212,175,55,0.14),rgba(184,135,10,0.10))]">
+                  <div className="rounded-[38px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl p-5 md:p-6 shadow-[0_26px_90px_rgba(0,0,0,0.45)]">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       <div className="min-w-0">
-                        <div className="text-sm font-extrabold leading-snug">{f.name}</div>
-                        <div className="mt-2 text-[11px] text-white/60 break-all">{f.url}</div>
+                        <div className="flex items-center gap-2">
+                          <StatusDot state={dotState} />
+                          <div className="text-sm font-extrabold">{title}</div>
+
+                          {mounted && connected && !wrongNetwork ? (
+                            <span
+                              className={[
+                                "ml-2 text-xs font-semibold px-2.5 py-1 rounded-full border",
+                                hasGas
+                                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-200"
+                                  : "bg-rose-500/10 border-rose-500/20 text-rose-200",
+                              ].join(" ")}
+                            >
+                              {hasGas ? "Gas OK" : "No gas"}
+                            </span>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-2 text-xs text-white/70">
+                          Base Sepolia balance:{" "}
+                          <span className="text-white font-semibold">{balanceLabel}</span>
+                        </div>
+
+                        <div className="mt-1 text-[11px] text-white/55">
+                          {mounted && connected
+                            ? wrongNetwork
+                              ? "Switch network to Base Sepolia to mint."
+                              : hasGas
+                              ? "Ready — go mint."
+                              : "Request test ETH below, then Refresh."
+                            : "Connect wallet to see balance + enable switch."}
+                        </div>
                       </div>
 
-                      <div className="shrink-0 h-10 w-10 rounded-2xl border border-white/10 bg-white/[0.06] flex items-center justify-center text-[#d4af37] shadow-[0_18px_60px_rgba(0,0,0,0.35)]">
-                        ↗
-                      </div>
-                    </div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => refetch()}
+                          disabled={!mounted || !connected || wrongNetwork || isFetching}
+                          className="h-11 px-5 rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition text-sm font-semibold disabled:opacity-50 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                        >
+                          {!mounted ? "Refresh" : isFetching ? "Refreshing…" : "Refresh"}
+                        </button>
 
-                    <div className="relative mt-4 flex items-center justify-between gap-3">
-                      <div className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-white/70">
-                        Open faucet <span className="text-[#d4af37]">•</span> Request ETH
-                      </div>
+                        {mounted && connected && wrongNetwork ? (
+                          <button
+                            type="button"
+                            disabled={isSwitching}
+                            onClick={() => switchChainAsync({ chainId: baseSepolia.id }).catch(() => {})}
+                            className="h-11 px-5 rounded-2xl text-black font-extrabold hover:brightness-110 transition disabled:opacity-60 shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                          >
+                            {isSwitching ? "Switching…" : "Switch to Base Sepolia"}
+                          </button>
+                        ) : null}
 
-                      <div className="text-[11px] text-white/45">
-                        #{String(idx + 1).padStart(2, "0")}
+                        <Link
+                          href="/app/create"
+                          className="h-11 px-5 inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition text-sm font-semibold shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                        >
+                          Open Create
+                        </Link>
                       </div>
                     </div>
                   </div>
-                </a>
-              ))}
-            </div>
+                </div>
+              </Reveal>
 
-            <div className="mt-6 text-xs text-white/55">
-              Tip: if a faucet asks for a network, choose <b>Base Sepolia</b>. After funding,
-              click <b>Refresh</b>. Testnet only.
+              {/* QUICK STEPS */}
+              <Reveal delayMs={120}>
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
+                    <div className="text-xs font-semibold text-white/60">Step 1</div>
+                    <div className="mt-2 text-sm font-extrabold">Switch to Base Sepolia</div>
+                    <div className="mt-2 text-[11px] text-white/55">
+                      If you are on the wrong network, click <b>Switch</b>.
+                    </div>
+                  </div>
+                  <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
+                    <div className="text-xs font-semibold text-white/60">Step 2</div>
+                    <div className="mt-2 text-sm font-extrabold">Open faucet</div>
+                    <div className="mt-2 text-[11px] text-white/55">
+                      Open any faucet below and request <b>test ETH</b>.
+                    </div>
+                  </div>
+                  <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
+                    <div className="text-xs font-semibold text-white/60">Step 3</div>
+                    <div className="mt-2 text-sm font-extrabold">Refresh balance</div>
+                    <div className="mt-2 text-[11px] text-white/55">
+                      Wait 10–60s and click <b>Refresh</b>.
+                    </div>
+                  </div>
+                </div>
+              </Reveal>
+
+              {/* FAUCETS GRID */}
+              <Reveal delayMs={160}>
+                <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {FAUCETS.map((f, idx) => (
+                    <a
+                      key={f.url}
+                      href={f.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={[
+                        "group relative rounded-[30px] p-px overflow-hidden",
+                        "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.12),rgba(184,135,10,0.08))]",
+                        "shadow-[0_22px_80px_rgba(0,0,0,0.45)]",
+                        "transition duration-300 hover:-translate-y-[2px] hover:brightness-110",
+                      ].join(" ")}
+                    >
+                      <div className="relative rounded-[30px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl p-5 overflow-hidden">
+                        <div className="pointer-events-none absolute inset-0 opacity-90">
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
+                        </div>
+
+                        <div className="relative flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-sm font-extrabold leading-snug">{f.name}</div>
+                            <div className="mt-2 text-[11px] text-white/60 break-all">{f.url}</div>
+                          </div>
+
+                          <div className="shrink-0 h-10 w-10 rounded-2xl border border-white/10 bg-white/[0.06] flex items-center justify-center text-[#d4af37] shadow-[0_18px_60px_rgba(0,0,0,0.35)]">
+                            ↗
+                          </div>
+                        </div>
+
+                        <div className="relative mt-4 flex items-center justify-between gap-3">
+                          <div className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-white/70">
+                            Open faucet <span className="text-[#d4af37]">•</span> Request ETH
+                          </div>
+
+                          <div className="text-[11px] text-white/45">#{String(idx + 1).padStart(2, "0")}</div>
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </Reveal>
+
+              <Reveal delayMs={220}>
+                <div className="mt-6 text-xs text-white/55">
+                  Tip: if a faucet asks for a network, choose <b>Base Sepolia</b>. After funding, click <b>Refresh</b>.
+                  Testnet only.
+                </div>
+              </Reveal>
             </div>
           </div>
-        </div>
-      </GoldEdgeWrap>
+        </GoldEdgeWrap>
+      </Reveal>
 
       {/* bottom action */}
-      <div className="flex flex-wrap gap-3">
-        <Link
-          href="/app/create"
-          className="px-6 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
-        >
-          Back to Mint
-        </Link>
-        <Link
-          href="/app"
-          className="px-6 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-semibold hover:bg-white/10 transition backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
-        >
-          Back to App
-        </Link>
-      </div>
+      <Reveal delayMs={140}>
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href="/app/create"
+            className="px-6 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+          >
+            Back to Mint
+          </Link>
+          <Link
+            href="/app"
+            className="px-6 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-semibold hover:bg-white/10 transition backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+          >
+            Back to App
+          </Link>
+        </div>
+      </Reveal>
     </div>
   );
 }

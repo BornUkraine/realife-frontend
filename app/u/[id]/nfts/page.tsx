@@ -81,9 +81,7 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
   });
 
   return (
-    // Убрали AppShell. Вернули <main> и красивые анимированные сферы для фона
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
-      
       {/* Premium background */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
@@ -96,13 +94,15 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
 
       <div className="relative mx-auto max-w-7xl px-6 py-10">
         {/* header like OpenSea */}
-        <div className="flex items-center gap-4">
+        <div className="reveal flex items-center gap-4">
           <div className="h-14 w-14 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
             {avatar ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatar} alt="avatar" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
             ) : (
-              <div className="h-full w-full flex items-center justify-center text-white/35 font-black text-xs">RL</div>
+              <div className="h-full w-full flex items-center justify-center text-white/35 font-black text-xs">
+                RL
+              </div>
             )}
           </div>
 
@@ -130,14 +130,17 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
         </div>
 
         {/* grid */}
-        <div className="mt-10 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div
+          className="reveal mt-10 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+          style={{ animationDelay: "90ms" }}
+        >
           {nfts.map((x) => (
             <Link
               key={x.id}
               href={`/nft/${x.chainId}/${x.contract}/${x.tokenId}`}
               className={cx(
                 "group rounded-[26px] overflow-hidden border border-white/10 bg-white/[0.04]",
-                "backdrop-blur-xl", 
+                "backdrop-blur-xl",
                 "shadow-[0_24px_90px_rgba(0,0,0,0.55)] hover:-translate-y-1 transition-all duration-300 hover:bg-white/[0.08]"
               )}
             >
@@ -150,7 +153,6 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
                     No image
                   </div>
                 )}
-                {/* Легкий градиент поверх картинки, чтобы текст ниже читался лучше */}
                 <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.4)_0%,transparent_40%)] opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
 
@@ -174,10 +176,20 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
         </div>
 
         {nfts.length === 0 && (
-          <div className="mt-10 rounded-[26px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60">
+          <div
+            className="reveal mt-10 rounded-[26px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60"
+            style={{ animationDelay: "140ms" }}
+          >
             This creator hasn't minted any NFTs yet.
           </div>
         )}
+
+        <footer
+          className="reveal pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]"
+          style={{ animationDelay: "180ms" }}
+        >
+          Realife Ecosystem • Gallery
+        </footer>
       </div>
     </main>
   );

@@ -251,7 +251,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
 
       <div className="relative mx-auto max-w-5xl px-6 py-10 space-y-8">
         {/* HERO */}
-        <GoldEdgeWrap className="rounded-[44px]">
+        <GoldEdgeWrap className="reveal rounded-[44px]">
           <div className="relative p-7 md:p-10">
             <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/10 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.04] blur-3xl" />
@@ -329,7 +329,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         </GoldEdgeWrap>
 
         {/* SOCIAL CARDS */}
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="reveal grid md:grid-cols-2 gap-6" style={{ animationDelay: "110ms" }}>
           <Card className="ring-1 ring-white/5">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -429,7 +429,10 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
           </Card>
         </div>
 
-        <footer className="pt-6 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]">
+        <footer
+          className="reveal pt-6 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]"
+          style={{ animationDelay: "190ms" }}
+        >
           Realife Ecosystem • Identity Verified
         </footer>
       </div>
