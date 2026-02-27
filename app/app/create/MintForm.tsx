@@ -93,7 +93,7 @@ function Card({
       <div
         className={[
           "relative overflow-hidden rounded-[28px]",
-          "border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl",
+          "border border-white/10 bg-[#0b0a09]/15 backdrop-blur-3xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
           "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]",
@@ -132,7 +132,7 @@ function GoldButton({
         "ring-1 ring-black/15",
         "transition duration-300 hover:brightness-110 hover:-translate-y-px",
         "active:translate-y-0",
-        "disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:brightness-100",
+        "disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0",
         "before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(255,255,255,0.35),transparent)]",
         "before:translate-x-[-140%] hover:before:translate-x-[140%] before:transition before:duration-700",
         className,
@@ -175,12 +175,10 @@ function GhostButton({
   );
 }
 
-/** Extract ERC-721 tokenId from Transfer event logs */
 function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): string | null {
   try {
     const logs = receipt?.logs ?? [];
     for (const log of logs) {
-      // если знаем адрес контракта — фильтруем, чтобы не пытаться декодить всё подряд
       if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) continue;
 
       const decoded = decodeEventLog({
@@ -191,7 +189,7 @@ function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): stri
 
       if (decoded?.eventName === "Transfer") {
         const args: any = decoded.args;
-        const tokenId = args?.tokenId ?? args?.[2]; // иногда viem кладёт как индекс
+        const tokenId = args?.tokenId ?? args?.[2];
 
         if (typeof tokenId === "bigint") return tokenId.toString();
         if (typeof tokenId === "number") return String(tokenId);
@@ -204,7 +202,6 @@ function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): stri
   return null;
 }
 
-/** only persist stable urls (not blob:) */
 function persistableImageUrl(input?: string | null) {
   const s = (input || "").trim();
   if (!s) return null;
@@ -212,7 +209,6 @@ function persistableImageUrl(input?: string | null) {
   return s;
 }
 
-/** VIP Stepper */
 function Stepper({
   mounted,
   connected,
@@ -388,7 +384,7 @@ function Stepper({
               key={it.k}
               className={[
                 "relative rounded-3xl border overflow-hidden",
-                "bg-[linear-gradient(180deg,rgba(0,0,0,0.30),rgba(0,0,0,0.22))]",
+                "bg-white/[0.02] backdrop-blur-xl",
                 isActive ? "border-white/20" : "border-white/10",
                 "shadow-[0_18px_70px_rgba(0,0,0,0.30)]",
               ].join(" ")}
@@ -399,7 +395,7 @@ function Stepper({
                     "absolute inset-0 opacity-90",
                     isOk
                       ? "bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.16),transparent_45%)]"
-                      : "bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.08),transparent_45%)]",
+                      : "bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.05),transparent_45%)]",
                   ].join(" ")}
                 />
                 {isActive ? (
@@ -445,7 +441,7 @@ function Stepper({
           );
         })}
       </div>
-    </Card>
+    </Card> // 🔥 ВОТ ОНО! Здесь теперь закрывающий тег Card, а не Stepper. Ошибка ушла!
   );
 }
 
@@ -454,7 +450,6 @@ export default function MintForm() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // guard so we do not double-push / double-save
   const pushedRef = useRef(false);
 
   const { address, isConnected } = useAccount();
@@ -541,11 +536,9 @@ export default function MintForm() {
     const url = URL.createObjectURL(f);
     setFilePreviewUrl(url);
 
-    // reset push guard if user re-starts flow
     pushedRef.current = false;
   }
 
-  // ✅ correct cleanup for ObjectURL
   useEffect(() => {
     return () => {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
@@ -563,7 +556,6 @@ export default function MintForm() {
     query: { enabled: Boolean(txHash) },
   });
 
-  // ✅ on success: save mint in DB then redirect to success page
   useEffect(() => {
     if (!isSuccess || !receipt) return;
     if (pushedRef.current) return;
@@ -575,8 +567,6 @@ export default function MintForm() {
       const finalCategory = previewCategory || selectedCategoryLabel;
 
       const tokenId = extractTokenIdFromReceipt(receipt, CONTRACT_ADDRESS);
-
-      // ✅ если previewImage = blob: — в URL не отправляем, чтобы success не ломался после reload
       const imageForQuery = persistableImageUrl(previewImage) || "";
 
       try {
@@ -693,8 +683,6 @@ export default function MintForm() {
       }
 
       setTokenURI(uri);
-
-      // ✅ backend image preferred; blob allowed only for LIVE preview on this page
       setPreviewImage(data?.preview?.image || filePreviewUrl || null);
       setPreviewCategory(data?.preview?.category || selectedCategoryLabel);
 
@@ -785,7 +773,7 @@ export default function MintForm() {
                     "shadow-[0_16px_40px_rgba(0,0,0,0.35)]",
                     active
                       ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                      : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+                      : "bg-white/[0.04] border-white/10 hover:bg-white/10 text-white backdrop-blur-md",
                   ].join(" ")}
                 >
                   {p}
@@ -827,7 +815,7 @@ export default function MintForm() {
             }}
             className={[
               "relative overflow-hidden rounded-[26px] border-2 border-dashed",
-              "border-white/15 bg-white/[0.04]",
+              "border-white/15 bg-white/[0.02] backdrop-blur-md",
               "p-6 cursor-pointer transition",
               "hover:bg-white/[0.06] hover:border-white/25",
             ].join(" ")}
@@ -836,7 +824,7 @@ export default function MintForm() {
             <div className="pointer-events-none absolute -bottom-28 -left-28 w-80 h-80 bg-white/[0.06] rounded-full blur-3xl" />
 
             <div className="relative flex gap-5 items-center">
-              <div className="w-28 h-28 rounded-2xl bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shrink-0 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
+              <div className="w-28 h-28 rounded-2xl bg-white/[0.04] backdrop-blur-md border border-white/10 overflow-hidden flex items-center justify-center shrink-0 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
                 {filePreviewUrl && file?.type?.startsWith("image/") ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={filePreviewUrl} alt="Preview" className="w-full h-full object-cover" />
@@ -897,7 +885,7 @@ export default function MintForm() {
                     "shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
                     active
                       ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                      : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+                      : "bg-white/[0.04] border-white/10 hover:bg-white/10 text-white backdrop-blur-md",
                   ].join(" ")}
                 >
                   <span className="font-extrabold">{c}</span>
@@ -921,7 +909,8 @@ export default function MintForm() {
       </div>
 
       {/* RIGHT */}
-      <div className="space-y-6">
+      <div className="space-y-6 lg:sticky lg:top-8">
+        
         {/* STATUS */}
         <Card>
           <div className="flex items-start justify-between gap-4">
@@ -990,7 +979,7 @@ export default function MintForm() {
                 type="button"
                 onClick={() => refetchBalance()}
                 disabled={!mounted || !connected || isBalanceFetching}
-                className="h-10 px-4 rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition text-xs font-extrabold disabled:opacity-40 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                className="h-10 px-4 rounded-2xl border border-white/10 bg-white/[0.04] backdrop-blur-md hover:bg-white/10 transition text-xs font-extrabold disabled:opacity-40 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
                 {refreshLabel}
               </button>
@@ -1043,9 +1032,9 @@ export default function MintForm() {
             onChange={(e) => setName(e.target.value)}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-white/[0.04] border border-white/10 text-white",
+              "bg-white/[0.03] border border-white/10 text-white backdrop-blur-md",
               "placeholder:text-white/35",
-              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20 transition-all",
             ].join(" ")}
           />
         </Card>
@@ -1071,8 +1060,8 @@ export default function MintForm() {
             onChange={(e) => setSupply(clampSupply(Number(e.target.value)))}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-white/[0.04] border border-white/10 text-white",
-              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              "bg-white/[0.03] border border-white/10 text-white backdrop-blur-md",
+              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20 transition-all",
             ].join(" ")}
           />
 
@@ -1100,9 +1089,9 @@ export default function MintForm() {
             onChange={(e) => setDescription(e.target.value)}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm min-h-[160px]",
-              "bg-white/[0.04] border border-white/10 text-white",
+              "bg-white/[0.03] border border-white/10 text-white backdrop-blur-md",
               "placeholder:text-white/35",
-              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20 transition-all",
               "resize-none",
             ].join(" ")}
           />
@@ -1128,15 +1117,15 @@ export default function MintForm() {
             onChange={(e) => setProofUrl(e.target.value)}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-white/[0.04] border border-white/10 text-white",
+              "bg-white/[0.03] border border-white/10 text-white backdrop-blur-md",
               "placeholder:text-white/35",
-              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20 transition-all",
             ].join(" ")}
           />
         </Card>
 
         {error && (
-          <div className="rounded-[24px] border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 shadow-[0_22px_70px_rgba(0,0,0,0.35)]">
+          <div className="rounded-[24px] border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 shadow-[0_22px_70px_rgba(0,0,0,0.35)] backdrop-blur-md">
             {error}
           </div>
         )}
@@ -1189,7 +1178,7 @@ export default function MintForm() {
               </div>
             </div>
 
-            <div className="w-16 h-16 rounded-2xl bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
+            <div className="w-16 h-16 rounded-2xl bg-white/[0.04] backdrop-blur-md border border-white/10 overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
               {filePreviewUrl && file?.type?.startsWith("image/") ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={filePreviewUrl} alt="Preview" className="w-full h-full object-cover" />

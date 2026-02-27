@@ -31,7 +31,8 @@ function GoldEdgeWrap({
       <div
         className={[
           "relative overflow-hidden rounded-[34px]",
-          "border border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl",
+          /* 🔥 Сделали обертку прозрачной (/15) с мощным блюром, чтобы пропустить свет AppShell */
+          "border border-white/10 bg-[#0b0a09]/15 backdrop-blur-3xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
           "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.12),transparent_45%)]",
@@ -50,9 +51,10 @@ export default function CreatePage() {
 
   return (
     <div className="space-y-6">
-      {/* HERO (теперь это просто карточка в контент-колонке AppShell) */}
+      {/* HERO */}
       <GoldEdgeWrap className="rounded-[40px]">
         <div className="relative p-7 md:p-10 overflow-hidden">
+          {/* Легкие блики внутри Hero */}
           <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/14 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
 
@@ -104,11 +106,12 @@ export default function CreatePage() {
       {/* FORM */}
       <GoldEdgeWrap className="rounded-[40px]">
         <div className="p-6 md:p-10">
+          {/* Здесь рендерится наш обновленный стеклянный MintForm */}
           <MintForm />
         </div>
       </GoldEdgeWrap>
 
-      {/* footer — уже без full-screen, просто компактный */}
+      {/* footer */}
       <div className="pt-2 pb-6 text-xs text-white/45 flex flex-wrap items-center justify-between gap-4">
         <div>© {year} Realife</div>
         <div className="flex items-center gap-4">

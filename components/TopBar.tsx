@@ -217,7 +217,7 @@ export default function TopBar() {
   };
 
   return (
-    <header className="w-full">
+    <header className="w-full relative z-50">
       <div className="relative">
         {/* premium glows */}
         <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[820px] rounded-full bg-[#d4af37]/14 blur-3xl" />
@@ -226,13 +226,18 @@ export default function TopBar() {
         <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-3">
             <div className="flex items-center justify-between gap-3">
+              
               {/* brand: click -> HOME (/) */}
-              <Link href="/" className="inline-flex items-center gap-3 min-w-0">
+              {/* 🔥 Добавлен relative и group для правильной работы хитбокса */}
+              <Link href="/" className="inline-flex items-center gap-3 min-w-0 relative group">
                 
+                {/* 🔥 Невидимый слой, который принимает клик (ограничен по ширине!) */}
+                <div className="absolute inset-y-0 left-0 w-16 sm:w-64 z-20 cursor-pointer" />
+
                 {/* mobile: mark */}
                 <span
                   className={cn(
-                    "sm:hidden h-11 w-11 rounded-full overflow-hidden flex items-center justify-center", 
+                    "sm:hidden relative h-11 w-11 rounded-full overflow-hidden flex items-center justify-center", 
                     "bg-black border border-white/10", 
                     "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
                   )}
@@ -240,18 +245,20 @@ export default function TopBar() {
                   <img
                     src="/brand/logo-mark.png"
                     alt="Realife"
-                    className="h-full w-full object-cover mix-blend-screen scale-[3.2]" // Выровняли масштаб с сайдбаром
+                    // 🔥 pointer-events-none чтобы огромная картинка не воровала клики
+                    className="h-full w-full object-cover mix-blend-screen scale-[3.2] pointer-events-none"
                     draggable={false}
                   />
                 </span>
 
-                {/* desktop: wordmark (ТЯНЕМ ВЛЕВО С ПОМОЩЬЮ -ml-40) */}
+                {/* desktop: wordmark */}
                 <span className="hidden sm:flex relative w-80 h-14 -ml-40 overflow-visible items-center">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
+                    // 🔥 pointer-events-none: эта картинка больше не будет перекрывать хедер
                     className={cn(
-                      "w-full h-full object-contain object-left", 
+                      "w-full h-full object-contain object-left pointer-events-none", 
                       "mix-blend-screen scale-[7] origin-left" 
                     )}
                     draggable={false}
@@ -260,7 +267,7 @@ export default function TopBar() {
               </Link>
 
               {/* desktop status */}
-              <div className="hidden md:flex items-center gap-2 min-w-0">
+              <div className="hidden md:flex items-center gap-2 min-w-0 relative z-30">
                 <GoldEdgeWrap>
                   <NetworkStatusContent {...statusProps} />
                 </GoldEdgeWrap>
@@ -282,7 +289,7 @@ export default function TopBar() {
               </div>
 
               {/* right */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 relative z-30">
                 {showGetEth ? (
                   <Link
                     href="/app/faucet"
@@ -303,7 +310,7 @@ export default function TopBar() {
             </div>
 
             {/* mobile status */}
-            <div className="md:hidden mt-3">
+            <div className="md:hidden mt-3 relative z-30">
               <GoldEdgeWrap>
                 <NetworkStatusContent {...statusProps} />
               </GoldEdgeWrap>
