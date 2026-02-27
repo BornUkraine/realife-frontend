@@ -17,41 +17,43 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-[#070606] text-white overflow-x-hidden">
-      {/* VIP premium background */}
-      <div className="pointer-events-none fixed inset-0">
-        {/* deep vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,transparent_0%,rgba(0,0,0,0.55)_70%,rgba(0,0,0,0.85)_100%)]" />
+    <main className="min-h-screen bg-[#070606] text-white overflow-x-hidden relative">
+      
+      {/* VIP Premium Background */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        
+        {/* 1. Deep Core Vignette - Создает глубокий черный цвет по краям */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_20%,#040303_100%)] z-10 opacity-90" />
 
-        {/* gold spotlights */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.14),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_18%,rgba(212,175,55,0.10),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_12%,rgba(212,175,55,0.08),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
+        {/* 2. Luxury Ambient Gold Orbs - Огромные, сверхразмытые пятна для богатства */}
+        {/* Верхний левый угол */}
+        <div className="absolute -top-[30%] -left-[10%] h-[800px] w-[800px] rounded-full bg-[#d4af37]/20 blur-[140px]" />
+        {/* Нижний правый угол */}
+        <div className="absolute -bottom-[20%] -right-[10%] h-[900px] w-[900px] rounded-full bg-[#d4af37]/15 blur-[160px]" />
+        {/* Мягкий центральный верхний подсвет для TopBar */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[400px] w-[600px] rounded-full bg-[#f7e7a7]/10 blur-[120px]" />
 
-        {/* gold orbs */}
-        <div className="absolute -top-72 -left-72 h-[920px] w-[920px] rounded-full bg-[#d4af37]/16 blur-3xl" />
-        <div className="absolute -bottom-80 -right-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/10 blur-3xl" />
-        <div className="absolute top-1/3 -right-72 h-[760px] w-[760px] rounded-full bg-white/[0.04] blur-3xl" />
-
-        {/* premium grid (slightly finer) */}
+        {/* 3. Premium Fading Grid - Сетка, которая плавно исчезает к краям */}
         <div
-          className="absolute inset-0 opacity-[0.07]"
+          className="absolute inset-0 opacity-[0.06] z-0"
           style={{
             backgroundImage:
-              "linear-gradient(to right, rgba(255,255,255,.20) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.20) 1px, transparent 1px)",
-            backgroundSize: "52px 52px",
+              "linear-gradient(to right, rgba(255,255,255,1) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,1) 1px, transparent 1px)",
+            backgroundSize: "64px 64px",
+            // Маска заставляет сетку исчезать по краям экрана
+            maskImage: "radial-gradient(ellipse at 50% 40%, black 20%, transparent 70%)",
+            WebkitMaskImage: "radial-gradient(ellipse at 50% 40%, black 20%, transparent 70%)",
           }}
         />
 
-        {/* micro-noise */}
-        <div className="absolute inset-0 opacity-[0.045] bg-[radial-gradient(circle,rgba(255,255,255,.16)_1px,transparent_1px)] [background-size:18px_18px]" />
+        {/* 4. Micro-noise - Добавляет текстуру дорогих материалов */}
+        <div className="absolute inset-0 opacity-[0.03] z-20 mix-blend-screen bg-[radial-gradient(circle,rgba(255,255,255,1)_1px,transparent_1px)] [background-size:12px_12px]" />
 
-        {/* top shade to support TopBar */}
-        <div className="absolute inset-x-0 top-0 h-56 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.70),transparent)]" />
       </div>
 
-      <div className="relative max-w-7xl mx-auto px-6 md:px-10 pt-10 pb-10 md:pt-14 md:pb-14 grid grid-cols-12 gap-10">
+      {/* Content Layout */}
+      <div className="relative z-30 max-w-7xl mx-auto px-6 md:px-10 pt-10 pb-10 md:pt-14 md:pb-14 grid grid-cols-12 gap-10">
+        
         <aside className="col-span-12 lg:col-span-3">
           <AppSidebar
             title={title}
@@ -64,6 +66,7 @@ export default function AppShell({
         <section className="col-span-12 lg:col-span-9 space-y-6">
           {children}
         </section>
+
       </div>
     </main>
   );
