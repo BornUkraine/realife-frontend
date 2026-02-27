@@ -128,7 +128,7 @@ export default function AppSidebar({
           {/* Brand */}
           <Link href="/app" className="flex items-center mb-10 relative overflow-visible">
             
-            {/* Mark: УВЕЛИЧИЛИ РАЗМЕР (w-16 h-16) И ЗУМ (scale-[4.5]) */}
+            {/* Mark: Иконка (с чистым фоном) */}
             <div className="z-10 shrink-0 relative w-16 h-16 flex items-center justify-center">
               <img
                 src="/brand/logo-mark.png"
@@ -138,12 +138,12 @@ export default function AppSidebar({
               />
             </div>
 
-            {/* Wordmark: СДЕЛАЛИ ТЕКСТ ЕЩЕ БОЛЬШЕ (w-[300px]) И ВЫРОВНЯЛИ (-32px) */}
+            {/* Wordmark: ЖЕСТКО ТЯНЕМ ВЛЕВО (left-[-90px]) ЧТОБЫ УБРАТЬ ДЫРУ */}
             <div className="relative flex-1 h-12 overflow-visible z-0">
               <img
                 src="/brand/logo-wordmark.png"
                 alt="Realife"
-                className="absolute top-1/2 left-[-32px] -translate-y-1/2 w-[300px] max-w-none object-contain object-left mix-blend-screen"
+                className="absolute top-1/2 left-[-90px] -translate-y-1/2 w-[300px] max-w-none object-contain object-left mix-blend-screen"
                 draggable={false}
               />
             </div>
