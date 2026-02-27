@@ -128,8 +128,8 @@ export default function AppSidebar({
           {/* Brand */}
           <Link href="/app" className="flex items-center mb-10 relative overflow-visible">
             
-            {/* Mark: Иконка (с чистым фоном). Добавили -ml-3 чтобы сдвинуть левее! */}
-            <div className="z-10 shrink-0 relative w-16 h-16 flex items-center justify-center -ml-3">
+            {/* Mark: Иконка (с чистым фоном). Добавили -ml-2 чтобы сдвинуть левее! */}
+            <div className="z-10 shrink-0 relative w-16 h-16 flex items-center justify-center -ml-2">
               <img
                 src="/brand/logo-mark.png"
                 alt="Realife"
@@ -138,7 +138,7 @@ export default function AppSidebar({
               />
             </div>
 
-            {/* Wordmark: Оставляем твою идеальную настройку left-[-72px] */}
+            {/* Wordmark: Оставляем твою идеальную настройку left-[-71px] */}
             <div className="relative flex-1 h-12 overflow-visible z-0">
               <img
                 src="/brand/logo-wordmark.png"
