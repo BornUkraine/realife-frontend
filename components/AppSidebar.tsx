@@ -125,25 +125,25 @@ export default function AppSidebar({
       <GoldEdgeCard>
         <div className="p-6">
           
-          {/* Brand */}
-          <Link href="/app" className="flex items-center mb-10 relative overflow-visible">
+          {/* Brand - ЧИСТАЯ ВЕРСИЯ БЕЗ КРУЖКА */}
+          <Link href="/app" className="flex items-center mb-8 relative overflow-visible">
             
-            {/* Mark: Иконка (с чистым фоном) */}
-            <div className="z-10 shrink-0 relative w-16 h-16 flex items-center justify-center">
+            {/* Mark: Добавили -ml-3 чтобы сдвинуть иконку чуть левее */}
+            <div className="z-10 shrink-0 relative w-14 h-14 flex items-center justify-center -ml-3">
               <img
                 src="/brand/logo-mark.png"
                 alt="Realife"
-                className="w-full h-full object-contain mix-blend-screen scale-[4.5]"
+                className="w-full h-full object-contain mix-blend-screen scale-[3.5]"
                 draggable={false}
               />
             </div>
 
-            {/* Wordmark: ЖЕСТКО ТЯНЕМ ВЛЕВО (left-[-90px]) ЧТОБЫ УБРАТЬ ДЫРУ */}
-            <div className="relative flex-1 h-12 overflow-visible z-0">
+            {/* Wordmark: Твоя настройка left-[-75px] сохранена! */}
+            <div className="relative flex-1 h-10 overflow-visible z-0">
               <img
                 src="/brand/logo-wordmark.png"
                 alt="Realife"
-                className="absolute top-1/2 left-[-75px] -translate-y-1/2 w-[300px] max-w-none object-contain object-left mix-blend-screen"
+                className="absolute top-1/2 left-[-75px] -translate-y-1/2 w-[240px] max-w-none object-contain object-left mix-blend-screen"
                 draggable={false}
               />
             </div>
