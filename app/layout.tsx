@@ -15,6 +15,13 @@ export const metadata: Metadata = {
   description: "Tokenized real-world creativity",
 };
 
+/**
+ * ✅ FIX build/prerender:
+ * Next не будет пытаться SSG/ISR для страниц с wagmi/rainbowkit
+ */
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
