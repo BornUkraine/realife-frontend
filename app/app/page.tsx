@@ -42,7 +42,7 @@ function GoldEdgeCard({
         className={[
           "relative rounded-[40px] overflow-hidden",
           "border border-white/10",
-          "bg-[#0b0a09]/70 backdrop-blur-2xl",
+          "bg-[#0b0a09]/40 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
           "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.12),transparent_45%)]",
@@ -167,7 +167,7 @@ export default function AppPage() {
             </div>
 
             <div className="mt-10 rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.30),rgba(212,175,55,0.14),rgba(184,135,10,0.10))]">
-              <div className="rounded-[34px] border border-white/10 bg-[#0b0a09]/65 backdrop-blur-2xl p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="rounded-[34px] border border-white/10 bg-[#0b0a09]/50 backdrop-blur-2xl p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                 <div>
                   <p className="text-sm font-extrabold text-white">
                     Ready to mint your first real-life creation?
@@ -178,9 +178,16 @@ export default function AppPage() {
                 </div>
 
                 <div className="flex flex-wrap gap-3">
+                  {/* 🔥 ТА САМАЯ КНОПКА: ТЕПЕРЬ ОНА ЗОЛОТАЯ */}
                   <Link
                     href="/app/create"
-                    className="inline-flex justify-center px-7 py-3 rounded-2xl bg-white text-black font-extrabold hover:bg-gray-100 transition shadow-[0_18px_70px_rgba(0,0,0,0.35)]"
+                    className={[
+                      "inline-flex items-center justify-center px-7 py-3 rounded-2xl",
+                      "text-black font-extrabold",
+                      "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
+                      "shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15",
+                      "hover:brightness-110 hover:-translate-y-[1px] transition active:translate-y-0",
+                    ].join(" ")}
                   >
                     Start minting
                   </Link>
@@ -289,9 +296,16 @@ export default function AppPage() {
                 ))}
               </div>
 
+              {/* 🔥 ЗДЕСЬ ТОЖЕ СДЕЛАЛИ КНОПКУ ЗОЛОТОЙ */}
               <Link
                 href="/app/create"
-                className="mt-6 inline-flex w-full justify-center px-6 py-3 rounded-2xl bg-white text-black font-extrabold hover:bg-gray-100 transition shadow-[0_18px_70px_rgba(0,0,0,0.35)]"
+                className={[
+                  "mt-6 inline-flex w-full justify-center px-6 py-3 rounded-2xl",
+                  "text-black font-extrabold",
+                  "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
+                  "shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15",
+                  "hover:brightness-110 hover:-translate-y-[1px] transition active:translate-y-0",
+                ].join(" ")}
               >
                 Mint now
               </Link>
