@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import AppShell from "@/components/AppShell";
 import SidebarBottom from "@/components/SidebarBottom";
 
+export const dynamic = "force-dynamic"; // ← добавь эту строку
+
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <AppShell
