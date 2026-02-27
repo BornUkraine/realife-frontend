@@ -180,8 +180,8 @@ export default function FaucetPage() {
                 </h1>
 
                 <p className="mt-3 text-sm md:text-base text-white/70 max-w-2xl leading-relaxed">
-                  Для минта нужен небольшой баланс <b>test ETH</b> в сети <b>Base Sepolia</b>.
-                  Нажми <b>Switch</b> если сеть неправильная, затем открой любой faucet ниже.
+                  You need a small balance of <b>test ETH</b> on the <b>Base Sepolia</b> network to mint.
+                  Click <b>Switch</b> if you are on the wrong network, then open any faucet below.
                 </p>
               </div>
 
@@ -281,21 +281,21 @@ export default function FaucetPage() {
                 <div className="text-xs font-semibold text-white/60">Step 1</div>
                 <div className="mt-2 text-sm font-extrabold">Switch to Base Sepolia</div>
                 <div className="mt-2 text-[11px] text-white/55">
-                  Если сеть другая — нажми <b>Switch</b>.
+                  If you are on the wrong network, click <b>Switch</b>.
                 </div>
               </div>
               <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
                 <div className="text-xs font-semibold text-white/60">Step 2</div>
                 <div className="mt-2 text-sm font-extrabold">Open faucet</div>
                 <div className="mt-2 text-[11px] text-white/55">
-                  Открой любой faucet ниже и запроси <b>test ETH</b>.
+                  Open any faucet below and request <b>test ETH</b>.
                 </div>
               </div>
               <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
                 <div className="text-xs font-semibold text-white/60">Step 3</div>
                 <div className="mt-2 text-sm font-extrabold">Refresh balance</div>
                 <div className="mt-2 text-[11px] text-white/55">
-                  Подожди 10–60s и нажми <b>Refresh</b>.
+                  Wait 10–60s and click <b>Refresh</b>.
                 </div>
               </div>
             </div>
@@ -347,8 +347,8 @@ export default function FaucetPage() {
             </div>
 
             <div className="mt-6 text-xs text-white/55">
-              Tip: если faucet спрашивает сеть — выбирай <b>Base Sepolia</b>. После пополнения
-              нажми <b>Refresh</b>. Testnet only.
+              Tip: if a faucet asks for a network, choose <b>Base Sepolia</b>. After funding,
+              click <b>Refresh</b>. Testnet only.
             </div>
           </div>
         </div>
