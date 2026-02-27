@@ -19,19 +19,38 @@ export default function AppShell({
   return (
     <main className="min-h-screen bg-[#070606] text-white overflow-x-hidden relative">
       
+      {/* 🔥 ПЛАВНЫЕ АНИМАЦИИ ДЛЯ ПРЕМИУМ-ФОНА */}
+      <style>{`
+        @keyframes slow-float {
+          0%, 100% { transform: translate(0px, 0px) scale(1); opacity: 0.15; }
+          50% { transform: translate(-30px, 20px) scale(1.05); opacity: 0.25; }
+        }
+        @keyframes slow-float-reverse {
+          0%, 100% { transform: translate(0px, 0px) scale(1); opacity: 0.10; }
+          50% { transform: translate(30px, -20px) scale(1.1); opacity: 0.20; }
+        }
+        @keyframes slow-pulse-top {
+          0%, 100% { opacity: 0.05; }
+          50% { opacity: 0.15; }
+        }
+        .animate-orb-1 { animation: slow-float 15s ease-in-out infinite; }
+        .animate-orb-2 { animation: slow-float-reverse 18s ease-in-out infinite; }
+        .animate-top-glow { animation: slow-pulse-top 10s ease-in-out infinite; }
+      `}</style>
+
       {/* VIP Premium Background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         
         {/* 1. Deep Core Vignette - Создает глубокий черный цвет по краям */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_20%,#040303_100%)] z-10 opacity-90" />
 
-        {/* 2. Luxury Ambient Gold Orbs - Огромные, сверхразмытые пятна для богатства */}
+        {/* 2. Luxury Ambient Gold Orbs - Огромные, сверхразмытые пятна (ТЕПЕРЬ ЖИВЫЕ!) */}
         {/* Верхний левый угол */}
-        <div className="absolute -top-[30%] -left-[10%] h-[800px] w-[800px] rounded-full bg-[#d4af37]/20 blur-[140px]" />
+        <div className="animate-orb-1 absolute -top-[30%] -left-[10%] h-[800px] w-[800px] rounded-full bg-[#d4af37] blur-[140px]" />
         {/* Нижний правый угол */}
-        <div className="absolute -bottom-[20%] -right-[10%] h-[900px] w-[900px] rounded-full bg-[#d4af37]/15 blur-[160px]" />
+        <div className="animate-orb-2 absolute -bottom-[20%] -right-[10%] h-[900px] w-[900px] rounded-full bg-[#d4af37] blur-[160px]" />
         {/* Мягкий центральный верхний подсвет для TopBar */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 h-[400px] w-[600px] rounded-full bg-[#f7e7a7]/10 blur-[120px]" />
+        <div className="animate-top-glow absolute top-0 left-1/2 -translate-x-1/2 h-[400px] w-[600px] rounded-full bg-[#f7e7a7] blur-[120px]" />
 
         {/* 3. Premium Fading Grid - Сетка, которая плавно исчезает к краям */}
         <div
