@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import { useAccount, useBalance, useChainId, useSwitchChain } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { formatUnits } from "viem";
 import Reveal from "@/components/Reveal";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const FAUCETS = [
   { name: "Alchemy Base Sepolia Faucet", url: "https://www.alchemy.com/faucets/base-sepolia" },
@@ -17,9 +20,11 @@ const FAUCETS = [
 ] as const;
 
 function useMounted() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  return mounted;
+  return useSyncExternalStore(
+    () => () => {},
+    () => true, // client snapshot
+    () => false // server snapshot
+  );
 }
 
 function shortAddr(a?: `0x${string}`) {
@@ -258,7 +263,9 @@ export default function FaucetPage() {
                           <button
                             type="button"
                             disabled={isSwitching}
-                            onClick={() => switchChainAsync({ chainId: baseSepolia.id }).catch(() => {})}
+                            onClick={() =>
+                              switchChainAsync({ chainId: baseSepolia.id }).catch(() => {})
+                            }
                             className="h-11 px-5 rounded-2xl text-black font-extrabold hover:brightness-110 transition disabled:opacity-60 shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
                           >
                             {isSwitching ? "Switching…" : "Switch to Base Sepolia"}
@@ -287,6 +294,7 @@ export default function FaucetPage() {
                       If you are on the wrong network, click <b>Switch</b>.
                     </div>
                   </div>
+
                   <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
                     <div className="text-xs font-semibold text-white/60">Step 2</div>
                     <div className="mt-2 text-sm font-extrabold">Open faucet</div>
@@ -294,6 +302,7 @@ export default function FaucetPage() {
                       Open any faucet below and request <b>test ETH</b>.
                     </div>
                   </div>
+
                   <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
                     <div className="text-xs font-semibold text-white/60">Step 3</div>
                     <div className="mt-2 text-sm font-extrabold">Refresh balance</div>
@@ -342,7 +351,9 @@ export default function FaucetPage() {
                             Open faucet <span className="text-[#d4af37]">•</span> Request ETH
                           </div>
 
-                          <div className="text-[11px] text-white/45">#{String(idx + 1).padStart(2, "0")}</div>
+                          <div className="text-[11px] text-white/45">
+                            #{String(idx + 1).padStart(2, "0")}
+                          </div>
                         </div>
                       </div>
                     </a>
@@ -352,8 +363,8 @@ export default function FaucetPage() {
 
               <Reveal delayMs={220}>
                 <div className="mt-6 text-xs text-white/55">
-                  Tip: if a faucet asks for a network, choose <b>Base Sepolia</b>. After funding, click <b>Refresh</b>.
-                  Testnet only.
+                  Tip: if a faucet asks for a network, choose <b>Base Sepolia</b>. After funding, click{" "}
+                  <b>Refresh</b>. Testnet only.
                 </div>
               </Reveal>
             </div>
