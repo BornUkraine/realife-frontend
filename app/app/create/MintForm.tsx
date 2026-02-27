@@ -68,8 +68,7 @@ const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as
 
 function Pill({ children }: { children: React.ReactNode }) {
   return (
-    // 🔥 Золотисто-черный фон для плашек
-    <div className="inline-flex items-center gap-2 rounded-full border border-[#d4af37]/20 bg-[#1a1405]/80 px-3 py-1.5 text-[11px] font-semibold text-[#f7e7a7] backdrop-blur-2xl shadow-[0_4px_20px_rgba(212,175,55,0.1)]">
+    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
       {children}
     </div>
   );
@@ -86,22 +85,20 @@ function Card({
     <div
       className={[
         "relative overflow-hidden rounded-[28px] p-px",
-        // Мягкая золотая окантовка снаружи
-        "bg-[linear-gradient(135deg,rgba(247,231,167,0.25),rgba(212,175,55,0.1),rgba(184,135,10,0.05))]",
-        "shadow-[0_26px_80px_rgba(10,8,0,0.8)]", // Тень с легким теплым (коричневатым) оттенком черного
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.26),rgba(212,175,55,0.12),rgba(184,135,10,0.08))]",
+        "shadow-[0_26px_100px_rgba(0,0,0,0.55)]",
         className,
       ].join(" ")}
     >
       <div
         className={[
           "relative overflow-hidden rounded-[28px]",
-          // 🔥 Идеальный золотисто-черный градиент для фона самой карточки
-          "border border-[#d4af37]/15 bg-[linear-gradient(135deg,rgba(26,20,5,0.75),rgba(11,10,9,0.85))] backdrop-blur-2xl",
-          "ring-1 ring-black/40",
+          "border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl",
+          "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
-          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.08),transparent_45%)]",
+          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]",
           "after:pointer-events-none after:absolute after:inset-0",
-          "after:bg-[radial-gradient(circle_at_85%_115%,rgba(212,175,55,0.03),transparent_55%)]",
+          "after:bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]",
         ].join(" ")}
       >
         <div className="relative z-10 p-6">{children}</div>
@@ -131,12 +128,12 @@ function GoldButton({
         "px-10 py-4 rounded-2xl",
         "text-black font-extrabold tracking-tight",
         "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-        "shadow-[0_16px_40px_rgba(212,175,55,0.25)]",
+        "shadow-[0_22px_70px_rgba(212,175,55,0.18)]",
         "ring-1 ring-black/15",
         "transition duration-300 hover:brightness-110 hover:-translate-y-px",
         "active:translate-y-0",
         "disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:brightness-100",
-        "before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(255,255,255,0.4),transparent)]",
+        "before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(255,255,255,0.35),transparent)]",
         "before:translate-x-[-140%] hover:before:translate-x-[140%] before:transition before:duration-700",
         className,
       ].join(" ")}
@@ -165,10 +162,9 @@ function GhostButton({
       className={[
         "w-full inline-flex items-center justify-center",
         "px-10 py-4 rounded-2xl",
-        // 🔥 Теплый золотисто-черный "Ghost"
-        "border border-[#d4af37]/30 bg-[#1a1405]/60 text-[#f7e7a7] font-extrabold",
-        "backdrop-blur-2xl shadow-[0_18px_40px_rgba(0,0,0,0.4)]",
-        "transition duration-300 hover:bg-[#d4af37]/10 hover:-translate-y-px",
+        "border border-white/15 bg-white/[0.06] text-white font-extrabold",
+        "backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]",
+        "transition duration-300 hover:bg-white/10 hover:-translate-y-px",
         "active:translate-y-0",
         "disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0",
         className,
@@ -184,6 +180,7 @@ function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): stri
   try {
     const logs = receipt?.logs ?? [];
     for (const log of logs) {
+      // если знаем адрес контракта — фильтруем, чтобы не пытаться декодить всё подряд
       if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) continue;
 
       const decoded = decodeEventLog({
@@ -194,7 +191,7 @@ function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): stri
 
       if (decoded?.eventName === "Transfer") {
         const args: any = decoded.args;
-        const tokenId = args?.tokenId ?? args?.[2]; 
+        const tokenId = args?.tokenId ?? args?.[2]; // иногда viem кладёт как индекс
 
         if (typeof tokenId === "bigint") return tokenId.toString();
         if (typeof tokenId === "number") return String(tokenId);
@@ -291,11 +288,11 @@ function Stepper({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <Pill>
-            <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.15)]" />
+            <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
             VIP Mint Flow
           </Pill>
 
-          <div className="mt-3 text-sm md:text-base font-extrabold tracking-tight text-white">
+          <div className="mt-3 text-sm md:text-base font-extrabold tracking-tight">
             {locked
               ? !mounted
                 ? "Connect wallet to start"
@@ -317,13 +314,13 @@ function Stepper({
               : "Prepare your NFT"}
           </div>
 
-          <div className="mt-2 text-[11px] text-[#d4af37]/70 leading-relaxed">
+          <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
             {locked ? (
               <>
                 {wrongNetwork ? (
                   <>
                     Wrong network — switch to{" "}
-                    <span className="text-[#f7e7a7] font-semibold">Base Sepolia</span>.
+                    <span className="text-white/75 font-semibold">Base Sepolia</span>.
                   </>
                 ) : (
                   <>Connect wallet and follow the flow: Prepare → Sign → Mint → Verify.</>
@@ -334,14 +331,14 @@ function Stepper({
                 {hasGas ? (
                   <>
                     Gas is OK. If you already prepared metadata — press{" "}
-                    <span className="text-[#f7e7a7] font-semibold">Mint</span>.
+                    <span className="text-white/75 font-semibold">Mint</span>.
                   </>
                 ) : (
                   <>
                     No gas on Base Sepolia.{" "}
                     <Link
                       href="/app/faucet"
-                      className="text-[#f7e7a7] font-semibold hover:brightness-110 transition underline"
+                      className="text-[#d4af37] font-semibold hover:brightness-110 transition"
                     >
                       Faucet ↗
                     </Link>{" "}
@@ -358,10 +355,10 @@ function Stepper({
             className={[
               "px-3 py-1.5 rounded-full border text-[11px] font-semibold",
               locked
-                ? "border-[#d4af37]/20 bg-[#1a1405]/60 text-[#d4af37]/60"
+                ? "border-white/10 bg-white/[0.06] text-white/60"
                 : hasGas
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                : "border-rose-500/30 bg-rose-500/10 text-rose-300",
+                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+                : "border-rose-500/20 bg-rose-500/10 text-rose-200",
             ].join(" ")}
           >
             {locked ? "Locked" : hasGas ? "Gas OK" : "No gas"}
@@ -390,23 +387,23 @@ function Stepper({
             <div
               key={it.k}
               className={[
-                "relative rounded-3xl border overflow-hidden transition-all duration-300",
-                // 🔥 Плашки шагов тоже тепло-черные
-                "bg-[linear-gradient(180deg,rgba(26,20,5,0.6),rgba(11,10,9,0.8))] backdrop-blur-md",
-                isActive ? "border-[#d4af37]/40 shadow-[0_10px_30px_rgba(212,175,55,0.1)]" : "border-[#d4af37]/10",
+                "relative rounded-3xl border overflow-hidden",
+                "bg-[linear-gradient(180deg,rgba(0,0,0,0.30),rgba(0,0,0,0.22))]",
+                isActive ? "border-white/20" : "border-white/10",
+                "shadow-[0_18px_70px_rgba(0,0,0,0.30)]",
               ].join(" ")}
             >
               <div className="pointer-events-none absolute inset-0">
                 <div
                   className={[
-                    "absolute inset-0 opacity-90 transition-opacity",
+                    "absolute inset-0 opacity-90",
                     isOk
-                      ? "bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.15),transparent_50%)]"
-                      : "bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.03),transparent_50%)]",
+                      ? "bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.16),transparent_45%)]"
+                      : "bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.08),transparent_45%)]",
                   ].join(" ")}
                 />
                 {isActive ? (
-                  <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#d4af37]/15 blur-3xl" />
+                  <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#d4af37]/12 blur-3xl" />
                 ) : null}
               </div>
 
@@ -415,29 +412,29 @@ function Stepper({
                   <div className="flex items-center gap-3 min-w-0">
                     <div
                       className={[
-                        "h-9 w-9 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 transition-colors",
+                        "h-9 w-9 rounded-2xl flex items-center justify-center font-black text-xs shrink-0",
                         isOk
-                          ? "text-black bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] shadow-[0_0_15px_rgba(212,175,55,0.3)]"
-                          : "text-[#d4af37]/60 bg-[#1a1405] border border-[#d4af37]/20",
+                          ? "text-black bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]"
+                          : "text-white bg-white/[0.06] border border-white/10",
                       ].join(" ")}
                     >
                       {isOk ? "✓" : it.n}
                     </div>
 
                     <div className="min-w-0">
-                      <div className={["text-sm font-extrabold tracking-tight truncate transition-colors", isActive || isOk ? "text-[#f7e7a7]" : "text-[#d4af37]/50"].join(" ")}>{it.t}</div>
-                      <div className="text-[11px] text-[#d4af37]/40 truncate transition-colors">{it.d}</div>
+                      <div className="text-sm font-extrabold tracking-tight truncate">{it.t}</div>
+                      <div className="text-[11px] text-white/55 truncate">{it.d}</div>
                     </div>
                   </div>
 
                   <div
                     className={[
-                      "text-[11px] font-semibold px-2 py-1 rounded-full border transition-colors",
+                      "text-[11px] font-semibold px-2 py-1 rounded-full border",
                       isDisabled
-                        ? "border-[#d4af37]/10 bg-[#1a1405]/40 text-[#d4af37]/30"
+                        ? "border-white/10 bg-white/[0.06] text-white/45"
                         : isActive
-                        ? "border-[#d4af37]/40 bg-[#d4af37]/10 text-[#f7e7a7]"
-                        : "border-[#d4af37]/20 bg-[#1a1405]/60 text-[#d4af37]/60",
+                        ? "border-white/15 bg-white/[0.08] text-white/75"
+                        : "border-white/10 bg-white/[0.06] text-white/55",
                     ].join(" ")}
                   >
                     {isDisabled ? "Locked" : isOk ? "Done" : isActive ? "Now" : "Next"}
@@ -457,6 +454,7 @@ export default function MintForm() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // guard so we do not double-push / double-save
   const pushedRef = useRef(false);
 
   const { address, isConnected } = useAccount();
@@ -543,9 +541,11 @@ export default function MintForm() {
     const url = URL.createObjectURL(f);
     setFilePreviewUrl(url);
 
+    // reset push guard if user re-starts flow
     pushedRef.current = false;
   }
 
+  // ✅ correct cleanup for ObjectURL
   useEffect(() => {
     return () => {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
@@ -563,6 +563,7 @@ export default function MintForm() {
     query: { enabled: Boolean(txHash) },
   });
 
+  // ✅ on success: save mint in DB then redirect to success page
   useEffect(() => {
     if (!isSuccess || !receipt) return;
     if (pushedRef.current) return;
@@ -574,6 +575,8 @@ export default function MintForm() {
       const finalCategory = previewCategory || selectedCategoryLabel;
 
       const tokenId = extractTokenIdFromReceipt(receipt, CONTRACT_ADDRESS);
+
+      // ✅ если previewImage = blob: — в URL не отправляем, чтобы success не ломался после reload
       const imageForQuery = persistableImageUrl(previewImage) || "";
 
       try {
@@ -690,6 +693,8 @@ export default function MintForm() {
       }
 
       setTokenURI(uri);
+
+      // ✅ backend image preferred; blob allowed only for LIVE preview on this page
       setPreviewImage(data?.preview?.image || filePreviewUrl || null);
       setPreviewCategory(data?.preview?.category || selectedCategoryLabel);
 
@@ -756,9 +761,9 @@ export default function MintForm() {
         <Card>
           <div className="flex items-end justify-between mb-4">
             <div>
-              <div className="text-sm font-extrabold tracking-tight text-[#f7e7a7]">Select project</div>
-              <div className="text-[11px] text-[#d4af37]/60 mt-1">
-                Choose the context for your mint.
+              <div className="text-sm font-extrabold tracking-tight">Select project</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Choose the context for your mint (premium metadata).
               </div>
             </div>
             <Pill>
@@ -776,10 +781,11 @@ export default function MintForm() {
                   type="button"
                   onClick={() => setProject(p)}
                   className={[
-                    "px-4 py-2.5 rounded-2xl border text-sm font-extrabold transition-all",
+                    "px-4 py-2.5 rounded-2xl border text-sm font-extrabold transition",
+                    "shadow-[0_16px_40px_rgba(0,0,0,0.35)]",
                     active
-                      ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-[#d4af37] shadow-[0_4px_20px_rgba(212,175,55,0.25)]"
-                      : "bg-[#1a1405]/50 border-[#d4af37]/20 hover:bg-[#d4af37]/10 text-[#d4af37]/80 backdrop-blur-md", // 🔥 Золотисто-черная кнопка
+                      ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                      : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
                   ].join(" ")}
                 >
                   {p}
@@ -793,9 +799,9 @@ export default function MintForm() {
         <Card>
           <div className="flex items-end justify-between mb-4">
             <div>
-              <div className="text-sm font-extrabold tracking-tight text-[#f7e7a7]">Upload your file</div>
-              <div className="text-[11px] text-[#d4af37]/60 mt-1">
-                Photo / video / design / product image.
+              <div className="text-sm font-extrabold tracking-tight">Upload your file</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Photo / video / design / product image (token media).
               </div>
             </div>
             <Pill>
@@ -821,43 +827,43 @@ export default function MintForm() {
             }}
             className={[
               "relative overflow-hidden rounded-[26px] border-2 border-dashed",
-              "border-[#d4af37]/30 bg-[#1a1405]/40 backdrop-blur-md", // 🔥 Золотисто-черная зона загрузки
-              "p-6 cursor-pointer transition-all",
-              "hover:bg-[#d4af37]/10 hover:border-[#d4af37]/50",
+              "border-white/15 bg-white/[0.04]",
+              "p-6 cursor-pointer transition",
+              "hover:bg-white/[0.06] hover:border-white/25",
             ].join(" ")}
           >
-            <div className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 bg-[#d4af37]/10 rounded-full blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-28 -left-28 w-80 h-80 bg-white/[0.02] rounded-full blur-3xl" />
+            <div className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 bg-[#d4af37]/14 rounded-full blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-28 -left-28 w-80 h-80 bg-white/[0.06] rounded-full blur-3xl" />
 
             <div className="relative flex gap-5 items-center">
-              <div className="w-28 h-28 rounded-2xl bg-[#0b0a09]/80 border border-[#d4af37]/20 overflow-hidden flex items-center justify-center shrink-0 shadow-inner">
+              <div className="w-28 h-28 rounded-2xl bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shrink-0 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
                 {filePreviewUrl && file?.type?.startsWith("image/") ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={filePreviewUrl} alt="Preview" className="w-full h-full object-cover" />
                 ) : filePreviewUrl && file?.type?.startsWith("video/") ? (
                   <video className="w-full h-full object-cover" src={filePreviewUrl} muted playsInline />
                 ) : (
-                  <div className="text-xs text-center text-[#d4af37]/50 px-3 font-semibold">
+                  <div className="text-xs text-center text-white/60 px-3">
                     {file ? "Preview" : "Click to upload"}
                   </div>
                 )}
               </div>
 
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-extrabold mb-1 text-[#f7e7a7]">Premium media upload</p>
-                <p className="text-xs text-[#d4af37]/60 leading-relaxed">
-                  Click to select high-quality asset.
+                <p className="text-sm font-extrabold mb-1">Premium media upload</p>
+                <p className="text-xs text-white/60 leading-relaxed">
+                  Click to upload. (We can add drag & drop + smart crop next.)
                 </p>
 
                 {file && (
-                  <p className="mt-3 text-xs font-semibold truncate text-[#d4af37]">
-                    Selected: <span className="text-[#f7e7a7]">{file.name}</span>
+                  <p className="mt-3 text-xs font-semibold truncate">
+                    Selected: <span className="text-white/70">{file.name}</span>
                   </p>
                 )}
 
                 {tokenURI && (
-                  <p className="mt-3 text-xs font-semibold">
-                    <span className="text-emerald-400 mr-1">✓</span> <span className="text-[#f7e7a7]">IPFS Ready</span>
+                  <p className="mt-3 text-xs">
+                    ✅ Prepared tokenURI: <span className="text-white/70 break-all">{tokenURI}</span>
                   </p>
                 )}
               </div>
@@ -869,11 +875,11 @@ export default function MintForm() {
         <Card>
           <div className="flex items-end justify-between mb-4">
             <div>
-              <div className="text-sm font-extrabold tracking-tight text-[#f7e7a7]">Category</div>
-              <div className="text-[11px] text-[#d4af37]/60 mt-1">Choose one or more to enrich metadata.</div>
+              <div className="text-sm font-extrabold tracking-tight">Category</div>
+              <div className="text-[11px] text-white/55 mt-1">Choose one or more to enrich metadata.</div>
             </div>
             <Pill>
-              <span className="h-2 w-2 rounded-full bg-[#d4af37]/40" />
+              <span className="h-2 w-2 rounded-full bg-white/60" />
               Optional
             </Pill>
           </div>
@@ -887,17 +893,18 @@ export default function MintForm() {
                   type="button"
                   onClick={() => toggleCategory(c)}
                   className={[
-                    "flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border text-sm transition-all",
+                    "flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border text-sm transition",
+                    "shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
                     active
-                      ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-[#d4af37] shadow-[0_4px_20px_rgba(212,175,55,0.25)]"
-                      : "bg-[#1a1405]/50 border-[#d4af37]/20 hover:bg-[#d4af37]/10 text-[#d4af37]/80 backdrop-blur-md", // 🔥 Золотисто-черная кнопка
+                      ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                      : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
                   ].join(" ")}
                 >
                   <span className="font-extrabold">{c}</span>
                   <span
                     className={[
-                      "w-5 h-5 rounded-md border flex items-center justify-center text-xs transition-colors",
-                      active ? "border-black/35 bg-black/10" : "border-[#d4af37]/20 bg-[#0b0a09]/60",
+                      "w-5 h-5 rounded-md border flex items-center justify-center text-xs",
+                      active ? "border-black/35 bg-black/10" : "border-white/25",
                     ].join(" ")}
                   >
                     {active ? "✓" : ""}
@@ -906,12 +913,15 @@ export default function MintForm() {
               );
             })}
           </div>
+
+          <p className="mt-3 text-xs text-white/60">
+            Selected: <span className="font-semibold text-white">{selectedCategoryLabel}</span>
+          </p>
         </Card>
       </div>
 
       {/* RIGHT */}
-      <div className="space-y-6 lg:sticky lg:top-8">
-        
+      <div className="space-y-6">
         {/* STATUS */}
         <Card>
           <div className="flex items-start justify-between gap-4">
@@ -921,11 +931,11 @@ export default function MintForm() {
                   className={[
                     "h-2 w-2 rounded-full",
                     !mounted || !connected
-                      ? "bg-[#d4af37]/40"
+                      ? "bg-white/30"
                       : wrongNetwork
                       ? "bg-rose-400"
                       : "bg-emerald-400",
-                    "shadow-[0_0_0_6px_rgba(212,175,55,0.06)]",
+                    "shadow-[0_0_0_6px_rgba(255,255,255,0.06)]",
                   ].join(" ")}
                 />
                 {mounted
@@ -937,7 +947,7 @@ export default function MintForm() {
                   : "Connect wallet"}
               </Pill>
 
-              <div className="mt-3 text-sm font-extrabold tracking-tight text-[#f7e7a7]">
+              <div className="mt-3 text-sm font-extrabold tracking-tight">
                 {mounted && connected
                   ? wrongNetwork
                     ? "Switch to Base Sepolia"
@@ -947,11 +957,11 @@ export default function MintForm() {
                   : "Connect wallet to mint"}
               </div>
 
-              <div className="mt-2 text-xs text-[#d4af37]/80">
-                Balance: <span className="font-semibold text-[#f7e7a7]">{balanceLabel}</span>
+              <div className="mt-2 text-xs text-white/65">
+                Balance: <span className="font-semibold text-white">{balanceLabel}</span>
               </div>
 
-              <div className="mt-2 text-[11px] text-[#d4af37]/60 leading-relaxed">
+              <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
                 {mounted && connected ? (
                   <>
                     {wrongNetwork
@@ -961,7 +971,7 @@ export default function MintForm() {
                       : "Open faucet, claim test ETH, then refresh."}{" "}
                     <Link
                       href="/app/faucet"
-                      className="text-[#f7e7a7] font-semibold hover:brightness-110 transition underline"
+                      className="text-[#d4af37] font-semibold hover:brightness-110 transition"
                     >
                       Faucet ↗
                     </Link>
@@ -969,7 +979,7 @@ export default function MintForm() {
                 ) : (
                   <>
                     Connect wallet to enable switching, balance check and mint.{" "}
-                    <span className="text-[#d4af37]/50">(VIP flow)</span>
+                    <span className="text-white/45">(VIP flow)</span>
                   </>
                 )}
               </div>
@@ -980,7 +990,7 @@ export default function MintForm() {
                 type="button"
                 onClick={() => refetchBalance()}
                 disabled={!mounted || !connected || isBalanceFetching}
-                className="h-10 px-4 rounded-2xl border border-[#d4af37]/20 bg-[#1a1405]/60 hover:bg-[#d4af37]/10 backdrop-blur-md transition text-xs font-extrabold text-[#f7e7a7] disabled:opacity-40"
+                className="h-10 px-4 rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition text-xs font-extrabold disabled:opacity-40 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
                 {refreshLabel}
               </button>
@@ -989,7 +999,7 @@ export default function MintForm() {
                 <button
                   type="button"
                   onClick={() => openConnectModal?.()}
-                  className="h-10 px-4 rounded-2xl bg-[linear-gradient(135deg,#f7e7a7,#d4af37)] text-black hover:brightness-110 transition text-xs font-extrabold"
+                  className="h-10 px-4 rounded-2xl bg-white text-black hover:bg-gray-100 transition text-xs font-extrabold shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                 >
                   Connect
                 </button>
@@ -998,7 +1008,7 @@ export default function MintForm() {
                   type="button"
                   disabled={isSwitching}
                   onClick={() => switchChainAsync({ chainId: baseSepolia.id }).catch(() => {})}
-                  className="h-10 px-4 rounded-2xl bg-[linear-gradient(135deg,#f7e7a7,#d4af37)] text-black hover:brightness-110 transition text-xs font-extrabold disabled:opacity-60"
+                  className="h-10 px-4 rounded-2xl bg-white text-black hover:bg-gray-100 transition text-xs font-extrabold disabled:opacity-60 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                 >
                   {isSwitching ? "Switching…" : "Switch"}
                 </button>
@@ -1017,7 +1027,8 @@ export default function MintForm() {
         <Card>
           <div className="flex items-end justify-between mb-3">
             <div>
-              <div className="text-sm font-extrabold tracking-tight text-[#f7e7a7]">NFT name / Title</div>
+              <div className="text-sm font-extrabold tracking-tight">NFT name / Title</div>
+              <div className="text-[11px] text-white/55 mt-1">Public title on-chain.</div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1032,9 +1043,9 @@ export default function MintForm() {
             onChange={(e) => setName(e.target.value)}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-[#1a1405]/60 border border-[#d4af37]/20 text-[#f7e7a7] backdrop-blur-md", // 🔥 Золотисто-черный инпут
-              "placeholder:text-[#d4af37]/40",
-              "focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 focus:border-[#d4af37]/60 transition-all",
+              "bg-white/[0.04] border border-white/10 text-white",
+              "placeholder:text-white/35",
+              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
             ].join(" ")}
           />
         </Card>
@@ -1043,10 +1054,11 @@ export default function MintForm() {
         <Card>
           <div className="flex items-end justify-between mb-3">
             <div>
-              <div className="text-sm font-extrabold tracking-tight text-[#f7e7a7]">Amount / Supply</div>
+              <div className="text-sm font-extrabold tracking-tight">Amount / Supply</div>
+              <div className="text-[11px] text-white/55 mt-1">Usually 1 for ERC-721.</div>
             </div>
             <Pill>
-              <span className="h-2 w-2 rounded-full bg-[#d4af37]/40" />
+              <span className="h-2 w-2 rounded-full bg-white/60" />
               Meta
             </Pill>
           </div>
@@ -1059,20 +1071,25 @@ export default function MintForm() {
             onChange={(e) => setSupply(clampSupply(Number(e.target.value)))}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-[#1a1405]/60 border border-[#d4af37]/20 text-[#f7e7a7] backdrop-blur-md", // 🔥 Золотисто-черный инпут
-              "focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 focus:border-[#d4af37]/60 transition-all",
+              "bg-white/[0.04] border border-white/10 text-white",
+              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
             ].join(" ")}
           />
+
+          <p className="mt-2 text-xs text-white/55">
+            Supply is stored in metadata for now (we can turn it into real mint logic later).
+          </p>
         </Card>
 
         {/* DESCRIPTION */}
         <Card>
           <div className="flex items-end justify-between mb-3">
             <div>
-              <div className="text-sm font-extrabold tracking-tight text-[#f7e7a7]">Description</div>
+              <div className="text-sm font-extrabold tracking-tight">Description</div>
+              <div className="text-[11px] text-white/55 mt-1">Story builds credibility.</div>
             </div>
             <Pill>
-              <span className="h-2 w-2 rounded-full bg-[#d4af37]/40" />
+              <span className="h-2 w-2 rounded-full bg-white/60" />
               Optional
             </Pill>
           </div>
@@ -1082,10 +1099,10 @@ export default function MintForm() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className={[
-              "w-full rounded-2xl px-4 py-3 text-sm min-h-[120px]",
-              "bg-[#1a1405]/60 border border-[#d4af37]/20 text-[#f7e7a7] backdrop-blur-md", // 🔥 Золотисто-черный инпут
-              "placeholder:text-[#d4af37]/40",
-              "focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 focus:border-[#d4af37]/60 transition-all",
+              "w-full rounded-2xl px-4 py-3 text-sm min-h-[160px]",
+              "bg-white/[0.04] border border-white/10 text-white",
+              "placeholder:text-white/35",
+              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
               "resize-none",
             ].join(" ")}
           />
@@ -1095,10 +1112,11 @@ export default function MintForm() {
         <Card>
           <div className="flex items-end justify-between mb-3">
             <div>
-              <div className="text-sm font-extrabold tracking-tight text-[#f7e7a7]">Proof / X link</div>
+              <div className="text-sm font-extrabold tracking-tight">Proof / X link</div>
+              <div className="text-[11px] text-white/55 mt-1">Optional proof URL.</div>
             </div>
             <Pill>
-              <span className="h-2 w-2 rounded-full bg-[#d4af37]/40" />
+              <span className="h-2 w-2 rounded-full bg-white/60" />
               Optional
             </Pill>
           </div>
@@ -1110,15 +1128,15 @@ export default function MintForm() {
             onChange={(e) => setProofUrl(e.target.value)}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-[#1a1405]/60 border border-[#d4af37]/20 text-[#f7e7a7] backdrop-blur-md", // 🔥 Золотисто-черный инпут
-              "placeholder:text-[#d4af37]/40",
-              "focus:outline-none focus:ring-1 focus:ring-[#d4af37]/50 focus:border-[#d4af37]/60 transition-all",
+              "bg-white/[0.04] border border-white/10 text-white",
+              "placeholder:text-white/35",
+              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
             ].join(" ")}
           />
         </Card>
 
         {error && (
-          <div className="rounded-[24px] border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 shadow-[0_4px_20px_rgba(225,29,72,0.2)] backdrop-blur-md">
+          <div className="rounded-[24px] border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 shadow-[0_22px_70px_rgba(0,0,0,0.35)]">
             {error}
           </div>
         )}
@@ -1138,17 +1156,24 @@ export default function MintForm() {
                 : "2) Mint On-chain (Signature + Gas)"}
             </GoldButton>
 
-            {txHash && (
-              <div className="mt-4 text-center">
+            <div className="flex items-center justify-between gap-3 text-xs text-white/55">
+              <span>prepare → signature → tx mined → success</span>
+              {txHash ? (
                 <a
                   href={`https://sepolia.basescan.org/tx/${txHash}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-xs font-semibold text-[#f7e7a7] hover:text-white transition"
+                  className="text-[#d4af37] font-semibold hover:brightness-110 transition"
                 >
-                  View tx on BaseScan ↗
+                  View tx ↗
                 </a>
-              </div>
+              ) : null}
+            </div>
+
+            {txHash && (
+              <p className="text-xs text-white/60 break-all">
+                txHash: <span className="font-semibold text-white">{txHash}</span>
+              </p>
             )}
           </div>
         </Card>
@@ -1157,24 +1182,24 @@ export default function MintForm() {
         <Card>
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-[#d4af37]/60">Preview</div>
-              <div className="mt-1 text-sm font-extrabold truncate text-[#f7e7a7]">{name.trim() || "Untitled NFT"}</div>
-              <div className="mt-1 text-xs text-[#d4af37]/60 truncate">
+              <div className="text-xs font-semibold text-white/60">Preview</div>
+              <div className="mt-1 text-sm font-extrabold truncate">{name.trim() || "Untitled NFT"}</div>
+              <div className="mt-1 text-xs text-white/60 truncate">
                 {project} • {selectedCategoryLabel} • Supply {clampSupply(supply)}
               </div>
             </div>
 
-            <div className="w-16 h-16 rounded-2xl bg-[#1a1405]/60 backdrop-blur-md border border-[#d4af37]/20 overflow-hidden flex items-center justify-center shadow-[0_4px_20px_rgba(212,175,55,0.1)]">
+            <div className="w-16 h-16 rounded-2xl bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
               {filePreviewUrl && file?.type?.startsWith("image/") ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={filePreviewUrl} alt="Preview" className="w-full h-full object-cover" />
               ) : (
-                <span className="text-[10px] font-black text-[#d4af37]/40">NFT</span>
+                <span className="text-[10px] text-white/45">NFT</span>
               )}
             </div>
           </div>
 
-          <p className="mt-3 text-[11px] text-[#d4af37]/50">
+          <p className="mt-3 text-[11px] text-white/45">
             Tokenization = media + IPFS metadata + on-chain ownership.
           </p>
         </Card>
