@@ -245,8 +245,8 @@ export default function TopBar() {
                   />
                 </span>
 
-                {/* desktop: wordmark (ТЯНЕМ ВЛЕВО С ПОМОЩЬЮ -ml-14) */}
-                <span className="hidden sm:flex relative w-80 h-14 -ml-14 overflow-visible items-center">
+                {/* desktop: wordmark (ТЯНЕМ ВЛЕВО С ПОМОЩЬЮ -ml-18) */}
+                <span className="hidden sm:flex relative w-80 h-14 -ml-18 overflow-visible items-center">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
