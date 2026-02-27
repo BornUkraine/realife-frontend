@@ -24,7 +24,7 @@ const wagmiConfig = getDefaultConfig({
   appName: "Realife",
   projectId,
   chains: [baseSepolia],
-  ssr: false, // ✅ важно для Next App Router, чтобы коннект не “схлопывался”
+  ssr: true, // ✅ важно для Next App Router, чтобы коннект не “схлопывался”
 });
 
 export default function Providers({ children }: { children: ReactNode }) {
