@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const REWARD_X = 100;
+
 function b64url(input: Buffer | string) {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
   return buf
@@ -184,17 +186,36 @@ export async function GET(req: NextRequest) {
         throw new Error("TWITTER_ALREADY_LINKED");
       }
 
+      // 1) линк X
       await tx.user.update({
         where: { id: stateObj.uid },
         data: { twitterId, twitterUser, twitterName, twitterImage },
       });
+
+      // 2) начисление ровно один раз (через флаг)
+      const rewardedNow = await tx.user.updateMany({
+        where: { id: stateObj.uid, twitterRewarded: false },
+        data: { points: { increment: REWARD_X }, twitterRewarded: true },
+      });
+
+      if (rewardedNow.count === 1) {
+        await tx.pointEvent.create({
+          data: {
+            userId: stateObj.uid,
+            type: "TWITTER_CONNECT",
+            points: REWARD_X,
+            meta: { twitterId },
+          },
+        });
+      }
     });
 
     const res = NextResponse.redirect(new URL(returnTo, ORIGIN));
     res.cookies.set("x_pkce", "", { path: "/", maxAge: 0 });
     return res;
   } catch (e: any) {
-    const err = e?.message === "TWITTER_ALREADY_LINKED" ? "TWITTER_ALREADY_LINKED" : "LINK_FAILED";
+    const err =
+      e?.message === "TWITTER_ALREADY_LINKED" ? "TWITTER_ALREADY_LINKED" : "LINK_FAILED";
     const res = NextResponse.redirect(new URL(appendError(returnTo, err), ORIGIN));
     res.cookies.set("x_pkce", "", { path: "/", maxAge: 0 });
     return res;

@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const REWARD_DISCORD = 100;
+
 function b64url(input: Buffer | string) {
   const buf = Buffer.isBuffer(input) ? input : Buffer.from(input);
   return buf
@@ -137,7 +139,11 @@ export async function GET(req: NextRequest) {
   const discordId = String(meJson?.id || "");
   const discordUser = meJson?.username ? String(meJson.username) : null;
   const discordName =
-    meJson?.global_name ? String(meJson.global_name) : meJson?.username ? String(meJson.username) : null;
+    meJson?.global_name
+      ? String(meJson.global_name)
+      : meJson?.username
+      ? String(meJson.username)
+      : null;
   const discordImage = discordAvatarUrl(discordId, meJson?.avatar);
 
   if (!discordId) {
@@ -149,7 +155,7 @@ export async function GET(req: NextRequest) {
       // target user exists
       const target = await tx.user.findUnique({
         where: { id: stateObj.uid },
-        select: { id: true, discordId: true },
+        select: { id: true },
       });
       if (!target) throw new Error("USER_NOT_FOUND");
 
@@ -162,36 +168,41 @@ export async function GET(req: NextRequest) {
         throw new Error("DISCORD_ALREADY_LINKED");
       }
 
-      const wasConnectedBefore = Boolean(target.discordId);
-
-      // update user
+      // 1) линк Discord
       await tx.user.update({
         where: { id: stateObj.uid },
         data: { discordId, discordUser, discordName, discordImage },
       });
 
-      // reward points only once
-      if (!wasConnectedBefore) {
-        const alreadyRewarded = await tx.pointEvent.findFirst({
-          where: { userId: stateObj.uid, type: "DISCORD_CONNECT" },
-          select: { id: true },
+      // 2) если когда-то уже был event (старые данные) — просто подними флаг
+      const oldEvent = await tx.pointEvent.findFirst({
+        where: { userId: stateObj.uid, type: "DISCORD_CONNECT" },
+        select: { id: true },
+      });
+
+      if (oldEvent) {
+        await tx.user.updateMany({
+          where: { id: stateObj.uid, discordRewarded: false },
+          data: { discordRewarded: true },
         });
+        return;
+      }
 
-        if (!alreadyRewarded) {
-          await tx.user.update({
-            where: { id: stateObj.uid },
-            data: { points: { increment: 100 } },
-          });
+      // 3) начисление ровно 1 раз (идемпотентно)
+      const rewardedNow = await tx.user.updateMany({
+        where: { id: stateObj.uid, discordRewarded: false },
+        data: { points: { increment: REWARD_DISCORD }, discordRewarded: true },
+      });
 
-          await tx.pointEvent.create({
-            data: {
-              userId: stateObj.uid,
-              type: "DISCORD_CONNECT",
-              points: 100,
-              meta: { discordId },
-            },
-          });
-        }
+      if (rewardedNow.count === 1) {
+        await tx.pointEvent.create({
+          data: {
+            userId: stateObj.uid,
+            type: "DISCORD_CONNECT",
+            points: REWARD_DISCORD,
+            meta: { discordId },
+          },
+        });
       }
     });
 

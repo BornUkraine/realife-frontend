@@ -62,15 +62,19 @@ export async function GET() {
           lastDailyAt: true,
           createdAt: true,
 
+          // X (Twitter)
           twitterId: true,
           twitterUser: true,
           twitterName: true,
           twitterImage: true,
+          twitterRewarded: true, // ✅ added
 
+          // Discord
           discordId: true,
           discordUser: true,
           discordName: true,
           discordImage: true,
+          discordRewarded: true, // ✅ added
         },
       });
 
@@ -93,7 +97,9 @@ export async function GET() {
         user.discordName ||
         (user.discordUser ? `@${user.discordUser}` : null) ||
         (user.handle ? `@${user.handle}` : null) ||
-        (user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : "Realife user");
+        (user.walletAddress
+          ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
+          : "Realife user");
 
       const mainAvatar = user.twitterImage || user.discordImage || null;
 

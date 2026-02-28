@@ -37,12 +37,14 @@ type MeUser = {
   twitterUser?: string | null;
   twitterName?: string | null;
   twitterImage?: string | null;
+  twitterRewarded?: boolean; // ✅
 
   // Discord
   discordId?: string | null;
   discordUser?: string | null;
   discordName?: string | null;
   discordImage?: string | null;
+  discordRewarded?: boolean; // ✅
 };
 
 type MeResponse = {
@@ -276,9 +278,7 @@ function Avatar({
       className={cx(
         s,
         "rounded-2xl overflow-hidden flex items-center justify-center bg-white/[0.06] border border-white/10",
-        ring
-          ? "shadow-[0_18px_60px_rgba(212,175,55,0.10)] ring-1 ring-black/15"
-          : ""
+        ring ? "shadow-[0_18px_60px_rgba(212,175,55,0.10)] ring-1 ring-black/15" : ""
       )}
     >
       {src ? (
@@ -357,10 +357,12 @@ function SocialIcon({ kind }: { kind: "x" | "discord" }) {
 
 function RewardStrip({
   connected,
+  claimed,
   reward,
   label,
 }: {
   connected: boolean;
+  claimed: boolean;
   reward: number;
   label: string;
 }) {
@@ -379,12 +381,16 @@ function RewardStrip({
           </div>
         </div>
 
-        {connected ? (
+        {claimed ? (
           <div className="shrink-0 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/80">
             <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-white/10 border border-white/15">
               ✓
             </span>
             Claimed
+          </div>
+        ) : connected ? (
+          <div className="shrink-0 inline-flex items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100">
+            ⏳ Pending
           </div>
         ) : (
           <div className="shrink-0 inline-flex items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[11px] font-semibold text-amber-100">
@@ -401,6 +407,7 @@ function SocialRow({
   title,
   subtitle,
   connected,
+  claimed,
   avatarSrc,
   name,
   username,
@@ -413,6 +420,7 @@ function SocialRow({
   title: string;
   subtitle: string;
   connected: boolean;
+  claimed: boolean;
   avatarSrc?: string | null;
   name?: string | null;
   username?: string | null;
@@ -421,8 +429,13 @@ function SocialRow({
   onDisconnect: () => void;
   reward: number;
 }) {
-  const connectLabel =
-    kind === "x" ? `Connect X (+${reward})` : `Connect Discord (+${reward})`;
+  const connectLabel = claimed
+    ? kind === "x"
+      ? "Connect X"
+      : "Connect Discord"
+    : kind === "x"
+    ? `Connect X (+${reward})`
+    : `Connect Discord (+${reward})`;
 
   return (
     <Card className={cx(connected ? "ring-1 ring-amber-500/20 bg-amber-500/[0.02]" : "")}>
@@ -475,6 +488,7 @@ function SocialRow({
 
       <RewardStrip
         connected={connected}
+        claimed={claimed}
         reward={reward}
         label={kind === "x" ? "Connect X and earn" : "Connect Discord and earn"}
       />
@@ -517,6 +531,9 @@ export default function ProfilePage() {
 
   const twitterConnected = Boolean(me?.twitterId);
   const discordConnected = Boolean(me?.discordId);
+
+  const twitterClaimed = Boolean(me?.twitterRewarded);
+  const discordClaimed = Boolean(me?.discordRewarded);
 
   const displayWalletAddress = liveAddress ?? serverWalletAddress ?? null;
 
@@ -562,7 +579,8 @@ export default function ProfilePage() {
     if (!last) return { canClaim: true, label: "Daily available" as const };
 
     const lastDate = new Date(last);
-    if (Number.isNaN(lastDate.getTime())) return { canClaim: true, label: "Daily available" as const };
+    if (Number.isNaN(lastDate.getTime()))
+      return { canClaim: true, label: "Daily available" as const };
 
     const today = utcKey(new Date());
     const lastKey = utcKey(lastDate);
@@ -668,11 +686,17 @@ export default function ProfilePage() {
 
       if (res.ok && (json as any).ok) {
         const ok = json as any;
-        setMe((prev) => (prev ? { ...prev, points: ok.points, lastDailyAt: new Date().toISOString() } : prev));
+        setMe((prev) =>
+          prev ? { ...prev, points: ok.points, lastDailyAt: new Date().toISOString() } : prev
+        );
         setDailyMsg(`Daily claimed: +${ok.add}. New balance: ${ok.points}.`);
       } else {
         const msg = (json as any)?.message || "Failed";
-        setDailyMsg(msg.toLowerCase().includes("already claimed") ? "Already claimed today." : "Daily claim failed.");
+        setDailyMsg(
+          msg.toLowerCase().includes("already claimed")
+            ? "Already claimed today."
+            : "Daily claim failed."
+        );
       }
     } catch {
       setDailyMsg("Network error. Try again.");
@@ -783,7 +807,11 @@ export default function ProfilePage() {
       {uiErrorText && <Alert title="Linking Issue" text={uiErrorText} tone="error" />}
 
       {dailyMsg && (
-        <Alert title="Points" text={dailyMsg} tone={dailyMsg.toLowerCase().includes("failed") ? "error" : "warn"} />
+        <Alert
+          title="Points"
+          text={dailyMsg}
+          tone={dailyMsg.toLowerCase().includes("failed") ? "error" : "warn"}
+        />
       )}
 
       {!authed && (
@@ -814,7 +842,9 @@ export default function ProfilePage() {
                   {authed ? topDisplayName : "—"}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Pill tone={serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"}>{walletPillText}</Pill>
+                  <Pill tone={serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"}>
+                    {walletPillText}
+                  </Pill>
 
                   <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>
                     {dailyStatus.canClaim ? "Daily available" : "Claimed today"}
@@ -836,7 +866,11 @@ export default function ProfilePage() {
                 {loading ? "Refreshing…" : "Refresh"}
               </Btn>
 
-              <Btn variant="gold" onClick={claimDaily} disabled={!authed || dailyBusy || !dailyStatus.canClaim}>
+              <Btn
+                variant="gold"
+                onClick={claimDaily}
+                disabled={!authed || dailyBusy || !dailyStatus.canClaim}
+              >
                 {dailyBusy ? "Claiming…" : dailyStatus.canClaim ? "Claim daily +10" : "Daily claimed"}
               </Btn>
 
@@ -904,7 +938,8 @@ export default function ProfilePage() {
                     }}
                     className="text-left hover:underline font-mono"
                   >
-                    {publicUrl} <span className="text-[11px] text-white/60">{copied ? "copied" : "copy"}</span>
+                    {publicUrl}{" "}
+                    <span className="text-[11px] text-white/60">{copied ? "copied" : "copy"}</span>
                   </button>
                 ) : (
                   "—"
@@ -984,7 +1019,8 @@ export default function ProfilePage() {
               kind="x"
               title="X (Twitter)"
               subtitle="Name • @username • avatar"
-              connected={Boolean(me?.twitterId)}
+              connected={twitterConnected}
+              claimed={twitterClaimed}
               avatarSrc={me?.twitterImage ?? null}
               name={me?.twitterName ?? null}
               username={me?.twitterUser ?? null}
@@ -998,7 +1034,8 @@ export default function ProfilePage() {
               kind="discord"
               title="Discord"
               subtitle="Name • @username • avatar"
-              connected={Boolean(me?.discordId)}
+              connected={discordConnected}
+              claimed={discordClaimed}
               avatarSrc={me?.discordImage ?? null}
               name={me?.discordName ?? null}
               username={me?.discordUser ?? null}
@@ -1013,8 +1050,8 @@ export default function ProfilePage() {
 
       <Reveal delayMs={200}>
         <div className="text-[11px] text-white/40 text-center">
-          Tip: wallet verification happens in the top bar (signature once). This page reads everything from{" "}
-          <span className="font-mono text-white/55">/api/me</span>.
+          Tip: wallet verification happens in the top bar (signature once). This page reads everything
+          from <span className="font-mono text-white/55">/api/me</span>.
         </div>
       </Reveal>
     </div>
