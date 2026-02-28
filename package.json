@@ -37,5 +37,14 @@
     "prisma": "6.19.2",
     "tailwindcss": "^4.2.1",
     "typescript": "5.9.3"
+  },
+  "overrides": {
+    "@walletconnect/core": "2.21.1",
+    "@walletconnect/sign-client": "2.21.1",
+    "@walletconnect/universal-provider": "2.21.1",
+    "@walletconnect/ethereum-provider": "2.21.1",
+    "lit": "3.3.0",
+    "@lit/reactive-element": "2.1.2",
+    "lit-element": "4.2.2"
   }
 }
