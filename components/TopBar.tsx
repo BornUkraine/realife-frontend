@@ -113,8 +113,7 @@ function NetworkStatusContent({
         ) : null}
 
         <span className="ml-2 text-xs text-white/65 truncate">
-          Balance:{" "}
-          <span className="text-white/90 font-semibold">{balanceLabel}</span>
+          Balance: <span className="text-white/90 font-semibold">{balanceLabel}</span>
         </span>
 
         <button
@@ -147,7 +146,7 @@ function NetworkStatusContent({
             )}
             title={!canSwitch ? "This wallet cannot switch network automatically" : "Switch network"}
           >
-            {isSwitching ? "Switching…" : canSwitch ? "Switch" : "Switch"}
+            {isSwitching ? "Switching…" : "Switch"}
           </button>
         ) : null}
       </div>
@@ -158,70 +157,54 @@ function NetworkStatusContent({
 export default function TopBar() {
   const mounted = useMounted();
 
+  // ✅ ХУКИ — ВСЕГДА, без ранних return
   const { address } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
 
-  const connected = mounted && Boolean(address);
-  const wrongNetwork = connected && chainId !== baseSepolia.id;
-
-  // ✅ Важно: баланс считаем только когда смонтировано и адрес есть
-  // ✅ И используем реальный chainId, иначе странности при другой сети
   const { data: balanceData, isLoading, refetch, isFetching } = useBalance({
     address,
     chainId: chainId ?? baseSepolia.id,
     query: { enabled: mounted && Boolean(address), refetchInterval: 12_000 },
   });
 
-  // ✅ Мягкая защита: пока не mounted — не пытаемся отображать “умные” данные
-  if (!mounted) {
-    return (
-      <header className="w-full relative z-50">
-        <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
-          <div className="mx-auto w-full max-w-7xl px-4 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <Link href="/" className="inline-flex items-center gap-3 min-w-0">
-                <span className="h-11 w-11 rounded-full bg-white/5 border border-white/10" />
-                <span className="hidden sm:block h-8 w-56 rounded-xl bg-white/5 border border-white/10" />
-              </Link>
-              <div className="h-10 w-40 rounded-2xl bg-white/5 border border-white/10" />
-            </div>
-          </div>
-        </div>
-      </header>
-    );
-  }
+  const connected = mounted && Boolean(address);
+  const wrongNetwork = connected && chainId !== baseSepolia.id;
 
   const balanceEth = useMemo(() => {
-    if (!balanceData) return 0;
+    if (!mounted || !balanceData) return 0;
     const s = formatUnits(balanceData.value, balanceData.decimals);
     const n = Number(s);
     return Number.isFinite(n) ? n : 0;
-  }, [balanceData]);
+  }, [mounted, balanceData]);
 
   const hasGas = connected && !wrongNetwork && balanceEth > 0;
 
   const balanceLabel = useMemo(() => {
-    if (!connected) return "—";
+    if (!mounted || !connected) return "—";
     if (isLoading) return "loading…";
     if (!balanceData) return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
     const s = formatUnits(balanceData.value, balanceData.decimals);
     return `${fmtBalance(s)} ${balanceData.symbol ?? "ETH"}`;
-  }, [connected, isLoading, balanceData]);
+  }, [mounted, connected, isLoading, balanceData]);
 
-  const networkTitle = !connected
+  const networkTitle = !mounted
+    ? "Connect wallet"
+    : !connected
     ? "Connect wallet"
     : wrongNetwork
     ? "Wrong network"
     : "Base Sepolia";
 
-  const dotState: "ok" | "warn" | "off" = !connected
+  const dotState: "ok" | "warn" | "off" = !mounted
+    ? "off"
+    : !connected
     ? "off"
     : wrongNetwork
     ? "warn"
     : "ok";
 
-  const showGetEth = connected ? wrongNetwork || !hasGas : false;
+  const showGetEth = mounted ? (connected ? wrongNetwork || !hasGas : false) : false;
   const canSwitch = typeof switchChainAsync === "function";
 
   const statusProps = {
@@ -242,92 +225,109 @@ export default function TopBar() {
 
   return (
     <header className="w-full relative z-50">
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[820px] rounded-full bg-[#d4af37]/14 blur-3xl" />
-        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[560px] rounded-full bg-white/[0.06] blur-2xl" />
-
+      {!mounted ? (
+        // ✅ СКЕЛЕТ ВНУТРИ JSX (НЕ ранний return)
         <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-3">
             <div className="flex items-center justify-between gap-3">
-              <Link href="/" className="inline-flex items-center gap-3 min-w-0 relative group">
-                <div className="absolute inset-y-0 left-0 w-16 sm:w-64 z-20 cursor-pointer" />
-                <span
-                  className={cn(
-                    "sm:hidden relative h-11 w-11 rounded-full overflow-hidden flex items-center justify-center",
-                    "bg-black border border-white/10",
-                    "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
-                  )}
-                >
-                  <img
-                    src="/brand/logo-mark.png"
-                    alt="Realife"
-                    className="h-full w-full object-cover mix-blend-screen scale-[3.2] pointer-events-none"
-                    draggable={false}
-                  />
-                </span>
-
-                <span className="hidden sm:flex relative w-80 h-14 -ml-40 overflow-visible items-center">
-                  <img
-                    src="/brand/logo-wordmark.png"
-                    alt="Realife"
-                    className={cn(
-                      "w-full h-full object-contain object-left pointer-events-none",
-                      "mix-blend-screen scale-[7] origin-left"
-                    )}
-                    draggable={false}
-                  />
-                </span>
+              <Link href="/" className="inline-flex items-center gap-3 min-w-0">
+                <span className="h-11 w-11 rounded-full bg-white/5 border border-white/10" />
+                <span className="hidden sm:block h-8 w-56 rounded-xl bg-white/5 border border-white/10" />
               </Link>
-
-              <div className="hidden md:flex items-center gap-2 min-w-0 relative z-30">
-                <GoldEdgeWrap>
-                  <NetworkStatusContent {...statusProps} />
-                </GoldEdgeWrap>
-
-                {showGetEth ? (
-                  <Link
-                    href="/app/faucet"
-                    className={cn(
-                      "h-10 inline-flex items-center justify-center px-4 rounded-2xl",
-                      "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
-                      "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
-                      "hover:bg-white/10 hover:-translate-y-[1px] transition",
-                      "text-sm font-semibold"
-                    )}
-                  >
-                    Get ETH ↗
-                  </Link>
-                ) : null}
-              </div>
-
-              <div className="flex items-center gap-2 relative z-30">
-                {showGetEth ? (
-                  <Link
-                    href="/app/faucet"
-                    className={cn(
-                      "md:hidden h-10 inline-flex items-center justify-center px-3 rounded-2xl",
-                      "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
-                      "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
-                      "hover:bg-white/10 hover:-translate-y-[1px] transition",
-                      "text-sm font-semibold"
-                    )}
-                  >
-                    Get ETH
-                  </Link>
-                ) : null}
-
-                <WalletMenu />
-              </div>
-            </div>
-
-            <div className="md:hidden mt-3 relative z-30">
-              <GoldEdgeWrap>
-                <NetworkStatusContent {...statusProps} />
-              </GoldEdgeWrap>
+              <div className="h-10 w-40 rounded-2xl bg-white/5 border border-white/10" />
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        // ✅ ТВОЙ ОРИГИНАЛЬНЫЙ UI
+        <div className="relative">
+          <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[820px] rounded-full bg-[#d4af37]/14 blur-3xl" />
+          <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[560px] rounded-full bg-white/[0.06] blur-2xl" />
+
+          <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
+            <div className="mx-auto w-full max-w-7xl px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <Link href="/" className="inline-flex items-center gap-3 min-w-0 relative group">
+                  <div className="absolute inset-y-0 left-0 w-16 sm:w-64 z-20 cursor-pointer" />
+
+                  <span
+                    className={cn(
+                      "sm:hidden relative h-11 w-11 rounded-full overflow-hidden flex items-center justify-center",
+                      "bg-black border border-white/10",
+                      "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
+                    )}
+                  >
+                    <img
+                      src="/brand/logo-mark.png"
+                      alt="Realife"
+                      className="h-full w-full object-cover mix-blend-screen scale-[3.2] pointer-events-none"
+                      draggable={false}
+                    />
+                  </span>
+
+                  <span className="hidden sm:flex relative w-80 h-14 -ml-40 overflow-visible items-center">
+                    <img
+                      src="/brand/logo-wordmark.png"
+                      alt="Realife"
+                      className={cn(
+                        "w-full h-full object-contain object-left pointer-events-none",
+                        "mix-blend-screen scale-[7] origin-left"
+                      )}
+                      draggable={false}
+                    />
+                  </span>
+                </Link>
+
+                <div className="hidden md:flex items-center gap-2 min-w-0 relative z-30">
+                  <GoldEdgeWrap>
+                    <NetworkStatusContent {...statusProps} />
+                  </GoldEdgeWrap>
+
+                  {showGetEth ? (
+                    <Link
+                      href="/app/faucet"
+                      className={cn(
+                        "h-10 inline-flex items-center justify-center px-4 rounded-2xl",
+                        "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
+                        "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
+                        "hover:bg-white/10 hover:-translate-y-[1px] transition",
+                        "text-sm font-semibold"
+                      )}
+                    >
+                      Get ETH ↗
+                    </Link>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center gap-2 relative z-30">
+                  {showGetEth ? (
+                    <Link
+                      href="/app/faucet"
+                      className={cn(
+                        "md:hidden h-10 inline-flex items-center justify-center px-3 rounded-2xl",
+                        "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
+                        "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
+                        "hover:bg-white/10 hover:-translate-y-[1px] transition",
+                        "text-sm font-semibold"
+                      )}
+                    >
+                      Get ETH
+                    </Link>
+                  ) : null}
+
+                  <WalletMenu />
+                </div>
+              </div>
+
+              <div className="md:hidden mt-3 relative z-30">
+                <GoldEdgeWrap>
+                  <NetworkStatusContent {...statusProps} />
+                </GoldEdgeWrap>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
