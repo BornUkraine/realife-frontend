@@ -24,6 +24,17 @@ model User {
   walletAddress String @unique
   walletChainId Int?
 
+  /* ---------------- Referrals ---------------- */
+  referralCode String? @unique
+  referredById String?
+  referredAt   DateTime?
+
+  // who referred me
+  referredBy User? @relation("UserReferrals", fields: [referredById], references: [id])
+
+  // users I referred
+  referrals  User[] @relation("UserReferrals")
+
   /* ---------------- X (Twitter) ---------------- */
   twitterId       String?  @unique
   twitterName     String?
@@ -49,6 +60,8 @@ model User {
 
   @@index([twitterUser])
   @@index([discordUser])
+  @@index([referralCode])
+  @@index([referredById])
 }
 
 /* ========================================================================== */
@@ -56,7 +69,7 @@ model User {
 /* ========================================================================== */
 
 model WalletNonce {
-  address   String   @id // lowercased wallet
+  address   String   @id // lowercased wallet (у тебя тут еще используется как ref:... key)
   nonce     String
   expiresAt DateTime
 
@@ -77,12 +90,19 @@ model PointEvent {
   userId String
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type   String   // "daily", "twitter_connect", "discord_connect", etc
+  type   String   // "daily", "twitter_connect", "discord_connect", "REFERRAL_INVITER", "REFERRAL_JOINER", etc
   points Int
   meta   Json?
 
+  // для idempotency рефералок (кто был “второй стороной”)
+  refUserId String?
+
   @@index([userId])
   @@index([type])
+
+  // idempotent начисления для referrals:
+  // (userId + type + refUserId) уникальны
+  @@unique([userId, type, refUserId])
 }
 
 /* ========================================================================== */
