@@ -108,13 +108,15 @@ function humanizeLinkError(code?: string | null) {
   if (code === "BAD_PROFILE") return "Bad profile response (missing id).";
   if (code === "LINK_FAILED") return "Linking failed (DB update).";
 
-  if (code === "TWITTER_ENV_MISSING") return "Missing TWITTER_CLIENT_ID / TWITTER_CLIENT_SECRET in env.";
+  if (code === "TWITTER_ENV_MISSING")
+    return "Missing TWITTER_CLIENT_ID / TWITTER_CLIENT_SECRET in env.";
   if (code === "PKCE_MISSING")
     return "PKCE cookie missing. Usually cookie not returned after X redirect.";
   if (code === "TWITTER_ALREADY_LINKED")
     return "This X account is already linked to another wallet profile.";
 
-  if (code === "DISCORD_ENV_MISSING") return "Missing DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET in env.";
+  if (code === "DISCORD_ENV_MISSING")
+    return "Missing DISCORD_CLIENT_ID / DISCORD_CLIENT_SECRET in env.";
   if (code === "DISCORD_ALREADY_LINKED")
     return "This Discord account is already linked to another wallet profile.";
 
@@ -134,7 +136,13 @@ async function copyText(text: string) {
 
 /* --------------------------------- UI Kit -------------------------------- */
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+function Card({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
     <div
       className={cx(
@@ -171,7 +179,11 @@ function Pill({
       ? "border-amber-400/30 bg-amber-400/10 text-amber-100"
       : "border-white/10 bg-white/[0.06] text-white/70";
 
-  return <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>{children}</div>;
+  return (
+    <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>
+      {children}
+    </div>
+  );
 }
 
 function Alert({
@@ -183,13 +195,28 @@ function Alert({
   text: string;
   tone?: "warn" | "error";
 }) {
-  const cls = tone === "error" ? "border-rose-500/25 bg-rose-500/10" : "border-amber-500/25 bg-amber-500/10";
+  const cls =
+    tone === "error"
+      ? "border-rose-500/25 bg-rose-500/10"
+      : "border-amber-500/25 bg-amber-500/10";
   return (
     <div className={cx("rounded-[22px] border px-4 py-3 backdrop-blur-md", cls)}>
-      <div className={cx("text-sm font-extrabold", tone === "error" ? "text-rose-50" : "text-amber-50")}>
+      <div
+        className={cx(
+          "text-sm font-extrabold",
+          tone === "error" ? "text-rose-50" : "text-amber-50"
+        )}
+      >
         {title}
       </div>
-      <div className={cx("mt-1 text-sm", tone === "error" ? "text-rose-100/90" : "text-amber-100/90")}>{text}</div>
+      <div
+        className={cx(
+          "mt-1 text-sm",
+          tone === "error" ? "text-rose-100/90" : "text-amber-100/90"
+        )}
+      >
+        {text}
+      </div>
     </div>
   );
 }
@@ -198,7 +225,9 @@ function Btn({
   variant = "gold",
   className = "",
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "gold" | "ghost" | "tiny" }) {
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "gold" | "ghost" | "tiny";
+}) {
   const base =
     "inline-flex items-center justify-center gap-2 font-extrabold transition disabled:opacity-60 disabled:cursor-not-allowed";
   const gold =
@@ -211,7 +240,11 @@ function Btn({
   return (
     <button
       {...props}
-      className={cx(base, variant === "gold" ? gold : variant === "ghost" ? ghost : tiny, className)}
+      className={cx(
+        base,
+        variant === "gold" ? gold : variant === "ghost" ? ghost : tiny,
+        className
+      )}
     />
   );
 }
@@ -243,11 +276,18 @@ function Avatar({
       className={cx(
         s,
         "rounded-2xl overflow-hidden flex items-center justify-center bg-white/[0.06] border border-white/10",
-        ring ? "shadow-[0_18px_60px_rgba(212,175,55,0.10)] ring-1 ring-black/15" : ""
+        ring
+          ? "shadow-[0_18px_60px_rgba(212,175,55,0.10)] ring-1 ring-black/15"
+          : ""
       )}
     >
       {src ? (
-        <img src={src} alt={fallback} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+        <img
+          src={src}
+          alt={fallback}
+          className="h-full w-full object-cover"
+          referrerPolicy="no-referrer"
+        />
       ) : (
         <span className="text-white/40 text-xs font-black">{fallback}</span>
       )}
@@ -255,11 +295,24 @@ function Avatar({
   );
 }
 
-function Field({ label, value, mono = false }: { label: string; value: React.ReactNode; mono?: boolean }) {
+function Field({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: React.ReactNode;
+  mono?: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <div className="text-[11px] text-white/55 font-semibold">{label}</div>
-      <div className={cx("mt-1 text-sm font-extrabold text-white/85 truncate", mono ? "font-mono text-[13px]" : "")}>
+      <div
+        className={cx(
+          "mt-1 text-sm font-extrabold text-white/85 truncate",
+          mono ? "font-mono text-[13px]" : ""
+        )}
+      >
         {value}
       </div>
     </div>
@@ -269,7 +322,14 @@ function Field({ label, value, mono = false }: { label: string; value: React.Rea
 function SocialIcon({ kind }: { kind: "x" | "discord" }) {
   if (kind === "x") {
     return (
-      <svg width="16" height="16" viewBox="0 0 1200 1227" fill="none" aria-hidden="true" className="opacity-90">
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 1200 1227"
+        fill="none"
+        aria-hidden="true"
+        className="opacity-90"
+      >
         <path
           d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.802 750.218L842.672 1226.37H1200L714.163 519.284ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.828Z"
           fill="currentColor"
@@ -279,7 +339,14 @@ function SocialIcon({ kind }: { kind: "x" | "discord" }) {
   }
 
   return (
-    <svg width="18" height="18" viewBox="0 0 256 199" fill="none" aria-hidden="true" className="opacity-90">
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 256 199"
+      fill="none"
+      aria-hidden="true"
+      className="opacity-90"
+    >
       <path
         d="M216.856 16.597A208.502 208.502 0 0 0 164.042 0c-2.204 3.97-4.81 9.289-6.59 13.506a193.512 193.512 0 0 0-58.902 0C96.77 9.289 94.13 3.97 91.93 0a207.853 207.853 0 0 0-52.818 16.597C5.615 67.028-3.49 116.113 1.052 164.49c22.274 16.52 43.834 26.58 65.027 33.17 5.27-7.185 9.95-14.81 13.98-22.822-7.66-2.9-14.97-6.46-21.95-10.61 1.84-1.35 3.64-2.76 5.4-4.2 42.34 19.77 88.26 19.77 130.1 0 1.78 1.46 3.6 2.86 5.43 4.2-6.99 4.16-14.32 7.72-21.99 10.63 4.03 7.99 8.72 15.62 13.98 22.8 21.21-6.59 42.78-16.65 65.05-33.19 5.32-56.11-9.1-104.74-38.76-147.893ZM85.5 135.1c-12.5 0-22.9-11.5-22.9-25.6 0-14.1 10.1-25.6 22.9-25.6 12.8 0 23.2 11.6 22.9 25.6 0 14.1-10.1 25.6-22.9 25.6Zm85 0c-12.5 0-22.9-11.5-22.9-25.6 0-14.1 10.1-25.6 22.9-25.6 12.8 0 23.2 11.6 22.9 25.6 0 14.1-10.1 25.6-22.9 25.6Z"
         fill="currentColor"
@@ -354,7 +421,8 @@ function SocialRow({
   onDisconnect: () => void;
   reward: number;
 }) {
-  const connectLabel = kind === "x" ? `Connect X (+${reward})` : `Connect Discord (+${reward})`;
+  const connectLabel =
+    kind === "x" ? `Connect X (+${reward})` : `Connect Discord (+${reward})`;
 
   return (
     <Card className={cx(connected ? "ring-1 ring-amber-500/20 bg-amber-500/[0.02]" : "")}>
@@ -372,12 +440,22 @@ function SocialRow({
         {connected ? (
           <div className="flex items-center gap-2">
             <Pill tone="ok">Connected</Pill>
-            <Btn variant="ghost" onClick={onDisconnect} disabled={busy} className="w-auto px-4 py-2 text-[13px]">
+            <Btn
+              variant="ghost"
+              onClick={onDisconnect}
+              disabled={busy}
+              className="w-auto px-4 py-2 text-[13px]"
+            >
               {busy ? "Working…" : "Disconnect"}
             </Btn>
           </div>
         ) : (
-          <Btn variant="gold" onClick={onConnect} disabled={busy} className="w-auto px-5 py-2 text-[13px]">
+          <Btn
+            variant="gold"
+            onClick={onConnect}
+            disabled={busy}
+            className="w-auto px-5 py-2 text-[13px]"
+          >
             {busy ? "Redirecting…" : connectLabel}
           </Btn>
         )}
@@ -386,14 +464,20 @@ function SocialRow({
       <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
         <Avatar src={avatarSrc ?? null} fallback={kind === "x" ? "X" : "D"} size="lg" />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-extrabold truncate">{connected ? name || "Connected" : "Not Connected"}</div>
+          <div className="text-sm font-extrabold truncate">
+            {connected ? name || "Connected" : "Not Connected"}
+          </div>
           <div className="text-xs text-white/60 font-mono truncate">
             {connected ? (username ? `@${username}` : "—") : "—"}
           </div>
         </div>
       </div>
 
-      <RewardStrip connected={connected} reward={reward} label={kind === "x" ? "Connect X and earn" : "Connect Discord and earn"} />
+      <RewardStrip
+        connected={connected}
+        reward={reward}
+        label={kind === "x" ? "Connect X and earn" : "Connect Discord and earn"}
+      />
 
       {!connected && (
         <div className="mt-4 text-[11px] text-white/55">
@@ -867,10 +951,26 @@ export default function ProfilePage() {
               </a>
             )}
 
-            {canCopyPublic && (
-              <span className="inline-flex items-center px-3 py-2 rounded-xl text-[12px] font-semibold text-white/55 border border-white/10 bg-white/[0.03]">
-                Copy uses full URL
-              </span>
+            {authed && (
+              <a
+                href="/app/referrals"
+                className={cx(
+                  "inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl",
+                  "text-[12px] font-extrabold",
+                  "text-black",
+                  "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
+                  "shadow-[0_18px_60px_rgba(212,175,55,0.16)]",
+                  "ring-1 ring-black/15",
+                  "hover:brightness-110 hover:-translate-y-px active:translate-y-0 transition"
+                )}
+                title="Referrals: invite friends and earn points"
+              >
+                Referrals
+                <span className="inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-black/80 bg-black/10 ring-1 ring-black/10">
+                  +50
+                </span>
+                ↗
+              </a>
             )}
           </div>
         </Card>
