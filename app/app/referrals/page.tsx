@@ -117,7 +117,7 @@ function Btn({
   type?: "button" | "submit";
 }) {
   const base =
-    "inline-flex items-center justify-center gap-2 font-extrabold transition disabled:opacity-60 disabled:cursor-not-allowed";
+    "min-w-0 inline-flex items-center justify-center gap-2 font-extrabold transition disabled:opacity-60 disabled:cursor-not-allowed";
   const gold =
     "h-11 px-6 rounded-2xl text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_22px_70px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 hover:-translate-y-px active:translate-y-0";
   const ghost =
@@ -150,7 +150,11 @@ function Pill({
       : tone === "warn"
       ? "border-rose-500/25 bg-rose-500/10 text-rose-200"
       : "border-white/10 bg-white/[0.06] text-white/70";
-  return <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>{children}</div>;
+  return (
+    <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>
+      {children}
+    </div>
+  );
 }
 
 function normalizeCode(raw: string) {
@@ -190,7 +194,9 @@ export default function ReferralsPage() {
 
   const [pendingRef, setPendingRef] = useState<string | null>(null);
 
-  const [notice, setNotice] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
+  const [notice, setNotice] = useState<{ tone: "ok" | "warn"; text: string } | null>(
+    null
+  );
 
   const canSetCode = useMemo(() => {
     const c = normalizeCode(newCode);
@@ -250,7 +256,11 @@ export default function ReferralsPage() {
       setPendingRef(code);
 
       url.searchParams.delete("ref");
-      window.history.replaceState({}, "", url.pathname + (url.searchParams.toString() ? `?${url.searchParams}` : ""));
+      window.history.replaceState(
+        {},
+        "",
+        url.pathname + (url.searchParams.toString() ? `?${url.searchParams}` : "")
+      );
     } else {
       try {
         const saved = localStorage.getItem("rl_ref_pending") || "";
@@ -266,14 +276,17 @@ export default function ReferralsPage() {
   }, []);
 
   async function getNonce(action: "SET_CODE" | "APPLY", code: string) {
-    const r = await fetch(`/api/referral/nonce?action=${action}&code=${encodeURIComponent(code)}`, { cache: "no-store" });
+    const r = await fetch(
+      `/api/referral/nonce?action=${action}&code=${encodeURIComponent(code)}`,
+      { cache: "no-store" }
+    );
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.nonce) throw new Error(j?.message || "Nonce failed");
     return String(j.nonce);
   }
 
   async function requireWalletReady() {
-    // Клиентский кошелек должен быть подключен + серверный walletAddress должен быть установлен (TopBar verify)
+    // Client wallet must be connected + server walletAddress must be set (TopBar verify)
     if (!isConnected || !address) throw new Error("Connect wallet first.");
     if (!serverWalletOk) throw new Error("Verify wallet in top bar (signature once) first.");
     if (me?.walletAddress && address.toLowerCase() !== me.walletAddress.toLowerCase()) {
@@ -293,7 +306,7 @@ export default function ReferralsPage() {
       const code = normalizeCode(newCode);
       const nonce = await getNonce("SET_CODE", code);
       const issuedAt = new Date().toISOString();
-      const origin = window.location.origin; // клиент шлёт, сервер проверяет и использует NEXTAUTH_URL
+      const origin = window.location.origin;
 
       const message = buildMsg({ action: "SET_CODE", code, nonce, origin, issuedAt });
       const signature = await signMessageAsync({ message });
@@ -385,8 +398,14 @@ export default function ReferralsPage() {
             <div className="mt-6 flex flex-wrap gap-2">
               <Pill tone="ok">Your points: {me?.points ?? 0}</Pill>
               <Pill tone="gold">Invited: {me?.invitedCount ?? 0}</Pill>
-              {alreadyApplied ? <Pill tone="ok">Used code: {me?.referredByCode}</Pill> : <Pill>Code not used</Pill>}
-              <Pill tone={serverWalletOk ? "ok" : "warn"}>{serverWalletOk ? "Wallet verified" : "Verify wallet"}</Pill>
+              {alreadyApplied ? (
+                <Pill tone="ok">Used code: {me?.referredByCode}</Pill>
+              ) : (
+                <Pill>Code not used</Pill>
+              )}
+              <Pill tone={serverWalletOk ? "ok" : "warn"}>
+                {serverWalletOk ? "Wallet verified" : "Verify wallet"}
+              </Pill>
             </div>
 
             {pendingRef && !alreadyApplied ? (
@@ -424,7 +443,11 @@ export default function ReferralsPage() {
                   </Btn>
                 </div>
 
-                {isSelf ? <div className="mt-3 text-[11px] text-rose-100/90">You can’t apply your own code.</div> : null}
+                {isSelf ? (
+                  <div className="mt-3 text-[11px] text-rose-100/90">
+                    You can’t apply your own code.
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -432,13 +455,25 @@ export default function ReferralsPage() {
               <div
                 className={cx(
                   "mt-6 rounded-[22px] border px-4 py-3 backdrop-blur-md",
-                  notice.tone === "ok" ? "border-emerald-500/25 bg-emerald-500/10" : "border-rose-500/25 bg-rose-500/10"
+                  notice.tone === "ok"
+                    ? "border-emerald-500/25 bg-emerald-500/10"
+                    : "border-rose-500/25 bg-rose-500/10"
                 )}
               >
-                <div className={cx("text-sm font-extrabold", notice.tone === "ok" ? "text-emerald-50" : "text-rose-50")}>
+                <div
+                  className={cx(
+                    "text-sm font-extrabold",
+                    notice.tone === "ok" ? "text-emerald-50" : "text-rose-50"
+                  )}
+                >
                   {notice.tone === "ok" ? "Success" : "Notice"}
                 </div>
-                <div className={cx("mt-1 text-sm", notice.tone === "ok" ? "text-emerald-100/90" : "text-rose-100/90")}>
+                <div
+                  className={cx(
+                    "mt-1 text-sm",
+                    notice.tone === "ok" ? "text-emerald-100/90" : "text-rose-100/90"
+                  )}
+                >
                   {notice.text}
                 </div>
               </div>
@@ -452,20 +487,32 @@ export default function ReferralsPage() {
       <div className="grid lg:grid-cols-3 gap-6">
         <Reveal delayMs={80}>
           <GoldEdgeWrap>
-            <Card title="Create your code" subtitle="3–16 chars. A–Z / 0–9 / _ . No spaces. One-time setup.">
+            <Card
+              title="Create your code"
+              subtitle="3–16 chars. A–Z / 0–9 / _ . No spaces. One-time setup."
+            >
               {me?.referralCode ? (
                 <div className="space-y-4">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Your code</div>
-                    <div className="mt-1 text-2xl font-black tracking-tight text-amber-200">{me.referralCode}</div>
+                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                      Your code
+                    </div>
+                    <div className="mt-1 text-2xl font-black tracking-tight text-amber-200">
+                      {me.referralCode}
+                    </div>
                   </div>
 
                   <div className="flex gap-3">
-                    <Btn variant="gold" className="flex-1" onClick={() => copy(me.referralCode!)}>
+                    <Btn variant="gold" className="flex-1 min-w-0" onClick={() => copy(me.referralCode!)}>
                       Copy code
                     </Btn>
-                    <Btn variant="ghost" className="flex-1" disabled={!inviteLink} onClick={() => inviteLink && copy(inviteLink)}>
-                      Copy invite link
+                    <Btn
+                      variant="ghost"
+                      className="flex-1 min-w-0"
+                      disabled={!inviteLink}
+                      onClick={() => inviteLink && copy(inviteLink)}
+                    >
+                      Copy link
                     </Btn>
                   </div>
 
@@ -473,7 +520,12 @@ export default function ReferralsPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <Input value={newCode} onChange={(v) => setNewCode(v.toUpperCase())} placeholder="BORN" disabled={saving} />
+                  <Input
+                    value={newCode}
+                    onChange={(v) => setNewCode(v.toUpperCase())}
+                    placeholder="YOUR_CODE"
+                    disabled={saving}
+                  />
 
                   <div className="flex items-center justify-between gap-3">
                     <Pill tone={canSetCode ? "ok" : "muted"}>{canSetCode ? "Valid code" : "Invalid code"}</Pill>
@@ -545,10 +597,15 @@ export default function ReferralsPage() {
                 </div>
 
                 <div className="flex gap-3">
-                  <Btn variant="gold" className="flex-1" disabled={!inviteLink} onClick={() => inviteLink && copy(inviteLink)}>
+                  <Btn
+                    variant="gold"
+                    className="flex-1 min-w-0"
+                    disabled={!inviteLink}
+                    onClick={() => inviteLink && copy(inviteLink)}
+                  >
                     Copy link
                   </Btn>
-                  <Btn variant="ghost" className="flex-1" onClick={load}>
+                  <Btn variant="ghost" className="flex-1 min-w-0" onClick={load}>
                     Refresh
                   </Btn>
                 </div>

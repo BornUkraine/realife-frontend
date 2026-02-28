@@ -39,7 +39,6 @@ function GoldEdgeWrap({
       <div
         className={[
           "relative overflow-hidden rounded-[34px]",
-          // 🔥 Сделали фон почти прозрачным (/15), чтобы анимации AppShell "били" через стекло
           "border border-white/10 bg-[#0b0a09]/15 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
@@ -70,7 +69,6 @@ function Card({
         className,
       ].join(" ")}
     >
-      {/* 🔥 Прозрачность /15 */}
       <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/15 backdrop-blur-2xl ring-1 ring-black/10">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
@@ -183,12 +181,7 @@ function safeUrl(input?: string) {
 function isVideoUrl(url: string) {
   const u = url.toLowerCase();
   const clean = u.split("?")[0].split("#")[0];
-  return (
-    clean.endsWith(".mp4") ||
-    clean.endsWith(".mov") ||
-    clean.endsWith(".webm") ||
-    u.startsWith("data:video/")
-  );
+  return clean.endsWith(".mp4") || clean.endsWith(".mov") || clean.endsWith(".webm") || u.startsWith("data:video/");
 }
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as `0x${string}` | undefined;
@@ -207,6 +200,18 @@ export default function SuccessClient() {
   const tx = useMemo(() => (sp.get("tx") || "").trim(), [sp]);
   const tokenId = useMemo(() => (sp.get("tokenId") || "").trim(), [sp]);
 
+  const initialEarned = useMemo(() => {
+    const n = Number((sp.get("earned") || "0").trim());
+    return Number.isFinite(n) ? n : 0;
+  }, [sp]);
+
+  const initialPoints = useMemo(() => {
+    const raw = (sp.get("points") || "").trim();
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }, [sp]);
+
   const [name, setName] = useState(initialName);
   const [category, setCategory] = useState(initialCategory);
   const [project, setProject] = useState(initialProject);
@@ -215,7 +220,12 @@ export default function SuccessClient() {
     initialMedia && isVideoUrl(initialMedia) ? "video" : "image"
   );
 
+  const [earned, setEarned] = useState<number>(initialEarned);
+  const [pointsAfter, setPointsAfter] = useState<number | null>(initialPoints);
+
   const savedKeyRef = useRef<string>("");
+
+  // ✅ Ensure mint is saved (idempotent). If earned/points not present, we fetch them here.
   useEffect(() => {
     const key = tokenId && tx ? `${tokenId}:${tx}` : "";
     if (!key) return;
@@ -247,7 +257,12 @@ export default function SuccessClient() {
           }),
         });
 
-        if (!r.ok) {
+        const j = await r.json().catch(() => ({} as any));
+        if (r.ok && j?.ok) {
+          const add = Number(j?.add || 0) || 0;
+          if (add > 0 && earned === 0) setEarned(add);
+          if (typeof j?.points === "number") setPointsAfter(j.points);
+        } else if (!r.ok) {
           const t = await r.text().catch(() => "");
           console.error("SAVE_MINT_FAILED (SuccessClient)", r.status, t);
         }
@@ -255,8 +270,9 @@ export default function SuccessClient() {
         console.error("SAVE_MINT_EXCEPTION (SuccessClient)", e);
       }
     })();
-  }, [tokenId, tx, name, mediaUrl, mediaKind]);
+  }, [tokenId, tx, name, mediaUrl, mediaKind, earned]);
 
+  // ✅ Hydrate media/name from backend if missing
   useEffect(() => {
     let alive = true;
 
@@ -268,9 +284,7 @@ export default function SuccessClient() {
       if (!base) return;
 
       try {
-        const res = await fetch(`${base}/metadata/${encodeURIComponent(tokenId)}`, {
-          cache: "no-store",
-        });
+        const res = await fetch(`${base}/metadata/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
         if (!res.ok) return;
         const json = await res.json();
 
@@ -351,6 +365,22 @@ export default function SuccessClient() {
                 <p className="mt-4 text-sm md:text-base text-white/70 max-w-2xl leading-relaxed">
                   Your NFT is minted on-chain. Keep the transaction link as permanent proof.
                 </p>
+
+                {/* ✅ Reward banner */}
+                <div className="mt-6 flex flex-wrap gap-2">
+                  {earned > 0 ? (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-100">
+                      ✨ You earned <span className="font-black">+{earned}</span> points
+                      {typeof pointsAfter === "number" ? (
+                        <span className="text-emerald-200/90">• Balance: {pointsAfter}</span>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70">
+                      Mint rewards: <span className="text-amber-200 font-black">+10 points</span> per NFT
+                    </div>
+                  )}
+                </div>
 
                 <div className="mt-6 flex flex-wrap gap-3">
                   <GoldButton href="/app/create">Mint another</GoldButton>

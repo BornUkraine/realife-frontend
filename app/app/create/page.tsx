@@ -59,10 +59,17 @@ export default function CreatePage() {
             <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
 
             <div className="relative">
-              <Pill>
-                <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                VIP Mint Studio • Base Sepolia • IPFS metadata
-              </Pill>
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill>
+                  <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
+                  VIP Mint Studio • Base Sepolia • IPFS metadata
+                </Pill>
+
+                <Pill>
+                  <span className="text-amber-200 font-black">+10</span>
+                  points per mint
+                </Pill>
+              </div>
 
               <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
                 Mint NFT{" "}
@@ -74,6 +81,14 @@ export default function CreatePage() {
               <p className="mt-4 text-sm md:text-base text-white/70 max-w-3xl leading-relaxed">
                 Prepare (IPFS) → Sign → Mint → Verify. One premium flow, no extra noise.
               </p>
+
+              <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
+                Mint an NFT and earn{" "}
+                <span className="text-amber-200 font-extrabold">+10 points</span>.{" "}
+                <span className="text-white/55">
+                  More mints → more points → stronger creator reputation.
+                </span>
+              </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link

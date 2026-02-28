@@ -16,7 +16,7 @@ function PremiumFallback() {
             <div className="h-3 w-40 rounded bg-white/10 animate-pulse" />
             <div className="mt-2 h-3 w-64 rounded bg-white/10 animate-pulse" />
           </div>
-          <div className="h-9 w-24 rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] opacity-40 animate-pulse" />
+          <div className="h-9 w-28 rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] opacity-40 animate-pulse" />
         </div>
 
         <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -28,8 +28,8 @@ function PremiumFallback() {
           ))}
         </div>
 
-        <div className="mt-6 text-xs text-white/50 font-semibold">
-          Loading success data…
+        <div className="mt-6 text-xs text-white/60 font-semibold">
+          Loading success data… <span className="text-amber-200 font-extrabold">reward +10</span>
         </div>
       </div>
     </div>

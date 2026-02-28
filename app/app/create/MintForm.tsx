@@ -49,22 +49,13 @@ function fmtEth(value?: string) {
 }
 
 function prettyError(e: any) {
-  return (
-    e?.shortMessage ||
-    e?.cause?.shortMessage ||
-    e?.cause?.message ||
-    e?.message ||
-    "Something went wrong"
-  );
+  return e?.shortMessage || e?.cause?.shortMessage || e?.cause?.message || e?.message || "Something went wrong";
 }
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
 const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as
-  | `0x${string}`
-  | undefined;
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as `0x${string}` | undefined;
 
 function Pill({ children }: { children: React.ReactNode }) {
   return (
@@ -180,7 +171,6 @@ function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): stri
   try {
     const logs = receipt?.logs ?? [];
     for (const log of logs) {
-      // если знаем адрес контракта — фильтруем, чтобы не пытаться декодить всё подряд
       if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) continue;
 
       const decoded = decodeEventLog({
@@ -191,7 +181,7 @@ function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): stri
 
       if (decoded?.eventName === "Transfer") {
         const args: any = decoded.args;
-        const tokenId = args?.tokenId ?? args?.[2]; // иногда viem кладёт как индекс
+        const tokenId = args?.tokenId ?? args?.[2];
 
         if (typeof tokenId === "bigint") return tokenId.toString();
         if (typeof tokenId === "number") return String(tokenId);
@@ -247,38 +237,10 @@ function Stepper({
   }, [mounted, connected, wrongNetwork, step, tokenURI, isMining, isSuccess]);
 
   const items = [
-    {
-      k: "prepare",
-      n: "01",
-      t: "Prepare",
-      d: "Upload → IPFS",
-      ok: Boolean(tokenURI),
-      active: stage === 1 && !isSuccess,
-    },
-    {
-      k: "sign",
-      n: "02",
-      t: "Sign",
-      d: "Wallet signature",
-      ok: step !== "idle" && (stage >= 2 || isMining || isSuccess),
-      active: stage === 2 && !isSuccess,
-    },
-    {
-      k: "mint",
-      n: "03",
-      t: "Mint",
-      d: "Tx mining",
-      ok: Boolean(txHash) && (isMining || isSuccess || stage >= 3),
-      active: stage === 3 && !isSuccess,
-    },
-    {
-      k: "verify",
-      n: "04",
-      t: "Verify",
-      d: "Explorer proof",
-      ok: isSuccess,
-      active: stage === 4 || isSuccess,
-    },
+    { k: "prepare", n: "01", t: "Prepare", d: "Upload → IPFS", ok: Boolean(tokenURI), active: stage === 1 && !isSuccess },
+    { k: "sign", n: "02", t: "Sign", d: "Wallet signature", ok: step !== "idle" && (stage >= 2 || isMining || isSuccess), active: stage === 2 && !isSuccess },
+    { k: "mint", n: "03", t: "Mint", d: "Tx mining", ok: Boolean(txHash) && (isMining || isSuccess || stage >= 3), active: stage === 3 && !isSuccess },
+    { k: "verify", n: "04", t: "Verify", d: "Explorer proof", ok: isSuccess, active: stage === 4 || isSuccess },
   ] as const;
 
   const locked = !mounted || !connected || wrongNetwork;
@@ -312,6 +274,12 @@ function Stepper({
                 ? "Ready to sign & mint"
                 : "Get test ETH to mint"
               : "Prepare your NFT"}
+          </div>
+
+          {/* ✅ Premium CTA / rewards */}
+          <div className="mt-2 text-[11px] text-white/60 leading-relaxed">
+            Mint rewards: <span className="text-amber-200 font-extrabold">+10 points</span> per NFT.
+            <span className="text-white/45"> More mints → more points → higher reputation.</span>
           </div>
 
           <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
@@ -521,9 +489,7 @@ export default function MintForm() {
   );
 
   function toggleCategory(cat: string) {
-    setCategories((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-    );
+    setCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
   }
 
   function onPickFile(f: File | null) {
@@ -563,7 +529,7 @@ export default function MintForm() {
     query: { enabled: Boolean(txHash) },
   });
 
-  // ✅ on success: save mint in DB then redirect to success page
+  // ✅ on success: save mint in DB then redirect to success page (with earned + points)
   useEffect(() => {
     if (!isSuccess || !receipt) return;
     if (pushedRef.current) return;
@@ -576,8 +542,11 @@ export default function MintForm() {
 
       const tokenId = extractTokenIdFromReceipt(receipt, CONTRACT_ADDRESS);
 
-      // ✅ если previewImage = blob: — в URL не отправляем, чтобы success не ломался после reload
+      // ✅ if previewImage = blob: — do not include in URL
       const imageForQuery = persistableImageUrl(previewImage) || "";
+
+      let earned = 0;
+      let pointsAfter: number | null = null;
 
       try {
         if (CONTRACT_ADDRESS && tokenId) {
@@ -596,7 +565,11 @@ export default function MintForm() {
             }),
           });
 
-          if (!r.ok) {
+          const j = await r.json().catch(() => ({} as any));
+          if (r.ok && j?.ok) {
+            earned = Number(j?.add || 0) || 0;
+            pointsAfter = typeof j?.points === "number" ? j.points : null;
+          } else {
             const t = await r.text().catch(() => "");
             console.error("SAVE_MINT_FAILED", r.status, t);
           }
@@ -605,13 +578,17 @@ export default function MintForm() {
         console.error("SAVE_MINT_EXCEPTION", e);
       }
 
-      router.push(
-        `/app/success?name=${encodeURIComponent(finalName)}&image=${encodeURIComponent(
-          imageForQuery
-        )}&category=${encodeURIComponent(finalCategory)}&project=${encodeURIComponent(
-          project
-        )}&tx=${encodeURIComponent(txHash || "")}&tokenId=${encodeURIComponent(tokenId || "")}`
-      );
+      const qp = new URLSearchParams();
+      qp.set("name", finalName);
+      qp.set("image", imageForQuery);
+      qp.set("category", finalCategory);
+      qp.set("project", project);
+      qp.set("tx", txHash || "");
+      qp.set("tokenId", tokenId || "");
+      if (earned > 0) qp.set("earned", String(earned));
+      if (typeof pointsAfter === "number") qp.set("points", String(pointsAfter));
+
+      router.push(`/app/success?${qp.toString()}`);
     })();
   }, [
     isSuccess,
@@ -762,9 +739,7 @@ export default function MintForm() {
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Select project</div>
-              <div className="text-[11px] text-white/55 mt-1">
-                Choose the context for your mint (premium metadata).
-              </div>
+              <div className="text-[11px] text-white/55 mt-1">Choose the context for your mint (premium metadata).</div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -800,9 +775,7 @@ export default function MintForm() {
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Upload your file</div>
-              <div className="text-[11px] text-white/55 mt-1">
-                Photo / video / design / product image (token media).
-              </div>
+              <div className="text-[11px] text-white/55 mt-1">Photo / video / design / product image (token media).</div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -843,9 +816,7 @@ export default function MintForm() {
                 ) : filePreviewUrl && file?.type?.startsWith("video/") ? (
                   <video className="w-full h-full object-cover" src={filePreviewUrl} muted playsInline />
                 ) : (
-                  <div className="text-xs text-center text-white/60 px-3">
-                    {file ? "Preview" : "Click to upload"}
-                  </div>
+                  <div className="text-xs text-center text-white/60 px-3">{file ? "Preview" : "Click to upload"}</div>
                 )}
               </div>
 
@@ -930,21 +901,11 @@ export default function MintForm() {
                 <span
                   className={[
                     "h-2 w-2 rounded-full",
-                    !mounted || !connected
-                      ? "bg-white/30"
-                      : wrongNetwork
-                      ? "bg-rose-400"
-                      : "bg-emerald-400",
+                    !mounted || !connected ? "bg-white/30" : wrongNetwork ? "bg-rose-400" : "bg-emerald-400",
                     "shadow-[0_0_0_6px_rgba(255,255,255,0.06)]",
                   ].join(" ")}
                 />
-                {mounted
-                  ? connected
-                    ? wrongNetwork
-                      ? "Wrong network"
-                      : "Base Sepolia"
-                    : "Connect wallet"
-                  : "Connect wallet"}
+                {mounted ? (connected ? (wrongNetwork ? "Wrong network" : "Base Sepolia") : "Connect wallet") : "Connect wallet"}
               </Pill>
 
               <div className="mt-3 text-sm font-extrabold tracking-tight">
@@ -962,6 +923,11 @@ export default function MintForm() {
               </div>
 
               <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
+                Mint an NFT and earn <span className="text-amber-200 font-extrabold">+10 points</span>.
+                <span className="text-white/45"> The more you mint — the higher your score.</span>
+              </div>
+
+              <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
                 {mounted && connected ? (
                   <>
                     {wrongNetwork
@@ -969,10 +935,7 @@ export default function MintForm() {
                       : hasGas
                       ? "Prepare → sign → tx mined → success."
                       : "Open faucet, claim test ETH, then refresh."}{" "}
-                    <Link
-                      href="/app/faucet"
-                      className="text-[#d4af37] font-semibold hover:brightness-110 transition"
-                    >
+                    <Link href="/app/faucet" className="text-[#d4af37] font-semibold hover:brightness-110 transition">
                       Faucet ↗
                     </Link>
                   </>
@@ -1170,11 +1133,11 @@ export default function MintForm() {
               ) : null}
             </div>
 
-            {txHash && (
+            {txHash ? (
               <p className="text-xs text-white/60 break-all">
                 txHash: <span className="font-semibold text-white">{txHash}</span>
               </p>
-            )}
+            ) : null}
           </div>
         </Card>
 
