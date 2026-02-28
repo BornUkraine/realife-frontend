@@ -79,6 +79,7 @@ function NetworkStatusContent({
   dotState,
   isFetching,
   isSwitching,
+  canSwitch,
   onRefresh,
   onSwitch,
 }: any) {
@@ -112,7 +113,8 @@ function NetworkStatusContent({
         ) : null}
 
         <span className="ml-2 text-xs text-white/65 truncate">
-          Balance: <span className="text-white/90 font-semibold">{balanceLabel}</span>
+          Balance:{" "}
+          <span className="text-white/90 font-semibold">{balanceLabel}</span>
         </span>
 
         <button
@@ -133,7 +135,7 @@ function NetworkStatusContent({
         {mounted && wrongNetwork ? (
           <button
             type="button"
-            disabled={isSwitching}
+            disabled={!canSwitch || isSwitching}
             onClick={onSwitch}
             className={cn(
               "h-9 px-3 rounded-xl text-xs font-extrabold",
@@ -143,8 +145,9 @@ function NetworkStatusContent({
               "ring-1 ring-black/15",
               "hover:brightness-110 disabled:opacity-60 transition"
             )}
+            title={!canSwitch ? "This wallet cannot switch network automatically" : "Switch network"}
           >
-            {isSwitching ? "Switching…" : "Switch"}
+            {isSwitching ? "Switching…" : canSwitch ? "Switch" : "Switch"}
           </button>
         ) : null}
       </div>
@@ -154,53 +157,72 @@ function NetworkStatusContent({
 
 export default function TopBar() {
   const mounted = useMounted();
+
   const { address } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
 
-  const { data: balanceData, isLoading, refetch, isFetching } = useBalance({
-    address,
-    chainId: baseSepolia.id,
-    query: { enabled: mounted && Boolean(address), refetchInterval: 12_000 },
-  });
-
   const connected = mounted && Boolean(address);
   const wrongNetwork = connected && chainId !== baseSepolia.id;
 
+  // ✅ Важно: баланс считаем только когда смонтировано и адрес есть
+  // ✅ И используем реальный chainId, иначе странности при другой сети
+  const { data: balanceData, isLoading, refetch, isFetching } = useBalance({
+    address,
+    chainId: chainId ?? baseSepolia.id,
+    query: { enabled: mounted && Boolean(address), refetchInterval: 12_000 },
+  });
+
+  // ✅ Мягкая защита: пока не mounted — не пытаемся отображать “умные” данные
+  if (!mounted) {
+    return (
+      <header className="w-full relative z-50">
+        <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
+          <div className="mx-auto w-full max-w-7xl px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <Link href="/" className="inline-flex items-center gap-3 min-w-0">
+                <span className="h-11 w-11 rounded-full bg-white/5 border border-white/10" />
+                <span className="hidden sm:block h-8 w-56 rounded-xl bg-white/5 border border-white/10" />
+              </Link>
+              <div className="h-10 w-40 rounded-2xl bg-white/5 border border-white/10" />
+            </div>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
   const balanceEth = useMemo(() => {
-    if (!mounted || !balanceData) return 0;
+    if (!balanceData) return 0;
     const s = formatUnits(balanceData.value, balanceData.decimals);
     const n = Number(s);
     return Number.isFinite(n) ? n : 0;
-  }, [mounted, balanceData]);
+  }, [balanceData]);
 
   const hasGas = connected && !wrongNetwork && balanceEth > 0;
 
   const balanceLabel = useMemo(() => {
-    if (!mounted || !connected) return "—";
+    if (!connected) return "—";
     if (isLoading) return "loading…";
     if (!balanceData) return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
     const s = formatUnits(balanceData.value, balanceData.decimals);
     return `${fmtBalance(s)} ${balanceData.symbol ?? "ETH"}`;
-  }, [mounted, connected, isLoading, balanceData]);
+  }, [connected, isLoading, balanceData]);
 
-  const networkTitle = !mounted
-    ? "Connect wallet"
-    : !connected
+  const networkTitle = !connected
     ? "Connect wallet"
     : wrongNetwork
     ? "Wrong network"
     : "Base Sepolia";
 
-  const dotState: "ok" | "warn" | "off" = !mounted
-    ? "off"
-    : !connected
+  const dotState: "ok" | "warn" | "off" = !connected
     ? "off"
     : wrongNetwork
     ? "warn"
     : "ok";
 
-  const showGetEth = mounted ? (connected ? wrongNetwork || !hasGas : false) : false;
+  const showGetEth = connected ? wrongNetwork || !hasGas : false;
+  const canSwitch = typeof switchChainAsync === "function";
 
   const statusProps = {
     mounted,
@@ -212,61 +234,51 @@ export default function TopBar() {
     dotState,
     isFetching,
     isSwitching,
+    canSwitch,
     onRefresh: () => refetch(),
-    onSwitch: () => switchChainAsync({ chainId: baseSepolia.id }).catch(() => {}),
+    onSwitch: () =>
+      canSwitch ? switchChainAsync({ chainId: baseSepolia.id }).catch(() => {}) : undefined,
   };
 
   return (
     <header className="w-full relative z-50">
       <div className="relative">
-        {/* premium glows */}
         <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[820px] rounded-full bg-[#d4af37]/14 blur-3xl" />
         <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[560px] rounded-full bg-white/[0.06] blur-2xl" />
 
         <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
           <div className="mx-auto w-full max-w-7xl px-4 py-3">
             <div className="flex items-center justify-between gap-3">
-              
-              {/* brand: click -> HOME (/) */}
-              {/* 🔥 Добавлен relative и group для правильной работы хитбокса */}
               <Link href="/" className="inline-flex items-center gap-3 min-w-0 relative group">
-                
-                {/* 🔥 Невидимый слой, который принимает клик (ограничен по ширине!) */}
                 <div className="absolute inset-y-0 left-0 w-16 sm:w-64 z-20 cursor-pointer" />
-
-                {/* mobile: mark */}
                 <span
                   className={cn(
-                    "sm:hidden relative h-11 w-11 rounded-full overflow-hidden flex items-center justify-center", 
-                    "bg-black border border-white/10", 
+                    "sm:hidden relative h-11 w-11 rounded-full overflow-hidden flex items-center justify-center",
+                    "bg-black border border-white/10",
                     "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
                   )}
                 >
                   <img
                     src="/brand/logo-mark.png"
                     alt="Realife"
-                    // 🔥 pointer-events-none чтобы огромная картинка не воровала клики
                     className="h-full w-full object-cover mix-blend-screen scale-[3.2] pointer-events-none"
                     draggable={false}
                   />
                 </span>
 
-                {/* desktop: wordmark */}
                 <span className="hidden sm:flex relative w-80 h-14 -ml-40 overflow-visible items-center">
                   <img
                     src="/brand/logo-wordmark.png"
                     alt="Realife"
-                    // 🔥 pointer-events-none: эта картинка больше не будет перекрывать хедер
                     className={cn(
-                      "w-full h-full object-contain object-left pointer-events-none", 
-                      "mix-blend-screen scale-[7] origin-left" 
+                      "w-full h-full object-contain object-left pointer-events-none",
+                      "mix-blend-screen scale-[7] origin-left"
                     )}
                     draggable={false}
                   />
                 </span>
               </Link>
 
-              {/* desktop status */}
               <div className="hidden md:flex items-center gap-2 min-w-0 relative z-30">
                 <GoldEdgeWrap>
                   <NetworkStatusContent {...statusProps} />
@@ -288,7 +300,6 @@ export default function TopBar() {
                 ) : null}
               </div>
 
-              {/* right */}
               <div className="flex items-center gap-2 relative z-30">
                 {showGetEth ? (
                   <Link
@@ -309,7 +320,6 @@ export default function TopBar() {
               </div>
             </div>
 
-            {/* mobile status */}
             <div className="md:hidden mt-3 relative z-30">
               <GoldEdgeWrap>
                 <NetworkStatusContent {...statusProps} />
