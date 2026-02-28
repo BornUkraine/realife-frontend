@@ -1,9 +1,10 @@
-"use client";
-
 import Link from "next/link";
 import type { ReactNode } from "react";
 import Reveal from "@/components/Reveal";
 import MintForm from "./MintForm";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function Pill({ children }: { children: ReactNode }) {
   return (
@@ -85,9 +86,7 @@ export default function CreatePage() {
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
                 Mint an NFT and earn{" "}
                 <span className="text-amber-200 font-extrabold">+10 points</span>.{" "}
-                <span className="text-white/55">
-                  More mints → more points → stronger creator reputation.
-                </span>
+                <span className="text-white/55">More mints → more points → stronger creator reputation.</span>
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">

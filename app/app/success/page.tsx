@@ -1,6 +1,9 @@
 import { Suspense } from "react";
 import SuccessClient from "./SuccessClient";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function PremiumFallback() {
   return (
     <div className="relative overflow-hidden rounded-[34px] p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_24px_90px_rgba(0,0,0,0.55)]">

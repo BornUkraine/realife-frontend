@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import NftMedia from "@/components/NftMedia";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,23 +30,67 @@ function norm(a: string) {
   return String(a || "").trim().toLowerCase();
 }
 
-// ✅ открываем ipfs:// в браузере
-function ipfsToHttp(uri: string) {
+/* ------------------------------- IPFS helpers ------------------------------ */
+
+const IPFS_GATEWAYS = [
+  "https://nftstorage.link/ipfs/",
+  "https://cloudflare-ipfs.com/ipfs/",
+  "https://ipfs.io/ipfs/",
+  "https://gateway.pinata.cloud/ipfs/",
+] as const;
+
+function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
-  if (!u) return "";
+  if (!u) return null;
+  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) return u;
+
   if (u.startsWith("ipfs://")) {
-    const cid = u.replace("ipfs://", "");
-    return `https://gateway.pinata.cloud/ipfs/${cid}`;
+    let p = u.slice("ipfs://".length);
+    if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
+    return `${gw}${p}`;
   }
+
+  if (u.startsWith("Qm") || u.startsWith("bafy")) return `${gw}${u}`;
+
   return u;
 }
 
-// ✅ маппер эксплорера по chainId (минимум Base + Base Sepolia)
+async function loadMetadata(tokenUri: string) {
+  for (const gw of IPFS_GATEWAYS) {
+    const url = ipfsToHttp(tokenUri, gw);
+    if (!url) continue;
+
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) continue;
+      const j = await r.json().catch(() => null);
+      if (j && typeof j === "object") return j;
+    } catch {
+      // try next gateway
+    }
+  }
+  return null;
+}
+
+function isLikelyVideoUrl(u?: string | null) {
+  const s = (u || "").toLowerCase();
+  return (
+    s.includes(".mp4") ||
+    s.includes(".webm") ||
+    s.includes(".mov") ||
+    s.includes(".m4v") ||
+    s.includes("video") ||
+    s.includes("animation")
+  );
+}
+
+/* --------------------------- explorer url per chain ------------------------ */
+
 function txExplorerUrl(chainId: number, txHash: string) {
   if (!txHash) return null;
   if (chainId === 84532) return `https://sepolia.basescan.org/tx/${txHash}`; // Base Sepolia
   if (chainId === 8453) return `https://basescan.org/tx/${txHash}`; // Base mainnet
-  return null; // unknown chain
+  return null;
 }
 
 export default async function NftDetailsPage({
@@ -61,12 +106,7 @@ export default async function NftDetailsPage({
   if (!Number.isFinite(chainId) || !contract.startsWith("0x") || !tokenId) notFound();
 
   const nft = await prisma.mint.findFirst({
-    where: {
-      chainId,
-      contract,
-      tokenId,
-      verified: true,
-    },
+    where: { chainId, contract, tokenId, verified: true },
     select: {
       id: true,
       createdAt: true,
@@ -76,7 +116,7 @@ export default async function NftDetailsPage({
       txHash: true,
       tokenUri: true,
       name: true,
-      image: true,
+      image: true, // poster/image fallback
       user: {
         select: {
           handle: true,
@@ -110,11 +150,59 @@ export default async function NftDetailsPage({
 
   const avatar = u.twitterImage || u.discordImage || null;
 
-  const tokenUriHttp = nft.tokenUri ? ipfsToHttp(nft.tokenUri) : null;
+  const tokenUriHttp = nft.tokenUri ? ipfsToHttp(nft.tokenUri, IPFS_GATEWAYS[0]) : null;
   const txUrl = nft.txHash ? txExplorerUrl(nft.chainId, nft.txHash) : null;
 
+  // ✅ decide media kind by reading metadata
+  const fallbackPoster = ipfsToHttp(nft.image, IPFS_GATEWAYS[0]);
+
+  let kind: "image" | "video" = "image";
+  let media: string | null = fallbackPoster;
+  let poster: string | null = null;
+
+  if (nft.tokenUri) {
+    const meta = await loadMetadata(nft.tokenUri);
+
+    const metaImage =
+      typeof meta?.image === "string"
+        ? meta.image
+        : typeof meta?.image_url === "string"
+        ? meta.image_url
+        : typeof meta?.imageUrl === "string"
+        ? meta.imageUrl
+        : null;
+
+    const metaAnimation =
+      typeof meta?.animation_url === "string"
+        ? meta.animation_url
+        : typeof meta?.animationUrl === "string"
+        ? meta.animationUrl
+        : typeof meta?.animation === "string"
+        ? meta.animation
+        : null;
+
+    const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackPoster;
+    const animHttp = ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
+
+    if (animHttp || isLikelyVideoUrl(animHttp)) {
+      kind = "video";
+      media = animHttp || null;
+      poster = imgHttp || fallbackPoster || null;
+
+      // если не смогли получить video url — fallback на image
+      if (!media) {
+        kind = "image";
+        media = poster;
+        poster = null;
+      }
+    } else {
+      kind = "image";
+      media = imgHttp || fallbackPoster;
+      poster = null;
+    }
+  }
+
   return (
-    // 🔥 Возвращаем <main> и фон, так как это публичная страница без AppShell
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
       {/* Premium background */}
       <div className="pointer-events-none fixed inset-0">
@@ -170,12 +258,20 @@ export default async function NftDetailsPage({
           >
             <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/15 backdrop-blur-2xl ring-1 ring-black/10">
               <div className="aspect-square bg-black/30 flex items-center justify-center relative">
-                {nft.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={nft.image} alt={nft.name || "NFT"} className="h-full w-full object-cover" />
+                {media ? (
+                  <NftMedia
+                    src={media}
+                    kind={kind}
+                    alt={nft.name || "NFT"}
+                    poster={kind === "video" ? poster : null}
+                    showControls={kind === "video"} // ✅ на details включаем controls
+                    className="h-full w-full"
+                    roundedClass="rounded-none"
+                  />
                 ) : (
-                  <div className="text-white/25 font-black">No image</div>
+                  <div className="text-white/25 font-black">No media</div>
                 )}
+
                 <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.35)_0%,transparent_35%)]" />
               </div>
             </div>
@@ -192,9 +288,7 @@ export default async function NftDetailsPage({
           >
             <div className="rounded-[34px] h-full overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10">
               <div className="p-6 md:p-7 h-full flex flex-col">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                  Realife NFT
-                </div>
+                <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">Realife NFT</div>
 
                 <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight">
                   {nft.name || `Token #${nft.tokenId}`}
@@ -205,20 +299,13 @@ export default async function NftDetailsPage({
                   <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
                     {avatar ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={avatar}
-                        alt="owner"
-                        className="h-full w-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
+                      <img src={avatar} alt="owner" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <span className="text-white/35 text-xs font-black">RL</span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                      Owner
-                    </div>
+                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Owner</div>
                     <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
                       {ownerUrl ? (
                         <Link className="hover:underline" href={ownerUrl}>
@@ -230,10 +317,7 @@ export default async function NftDetailsPage({
                     </div>
                   </div>
                   {ownerNftsUrl ? (
-                    <Link
-                      href={ownerNftsUrl}
-                      className="shrink-0 text-[12px] font-extrabold text-amber-100/90 hover:text-amber-100"
-                    >
+                    <Link href={ownerNftsUrl} className="shrink-0 text-[12px] font-extrabold text-amber-100/90 hover:text-amber-100">
                       View NFTs →
                     </Link>
                   ) : null}
@@ -242,43 +326,29 @@ export default async function NftDetailsPage({
                 {/* Details */}
                 <div className="mt-5 grid grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                      Contract
-                    </div>
-                    <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
-                      {shortAddr(nft.contract)}
-                    </div>
+                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Contract</div>
+                    <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">{shortAddr(nft.contract)}</div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                      Token ID
-                    </div>
-                    <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
-                      #{nft.tokenId}
-                    </div>
+                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Token ID</div>
+                    <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">#{nft.tokenId}</div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                      Chain ID
-                    </div>
-                    <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
-                      {nft.chainId}
-                    </div>
+                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Chain ID</div>
+                    <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">{nft.chainId}</div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                      Minted
-                    </div>
+                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Minted</div>
                     <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                       {new Date(nft.createdAt).toLocaleString("en-GB")}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex-1"></div>
+                <div className="flex-1" />
 
                 {/* Links */}
                 <div className="mt-8 flex flex-wrap gap-3">
@@ -315,17 +385,14 @@ export default async function NftDetailsPage({
                 </div>
 
                 <div className="mt-6 text-[11px] text-white/35">
-                  Public NFT data is served from Realife database (Mint cache). Images/metadata depend on mint process.
+                  Public NFT data is served from Realife database (Mint cache). Media is detected from tokenURI metadata.
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <footer
-          className="reveal pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]"
-          style={{ animationDelay: "220ms" }}
-        >
+        <footer className="reveal pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]" style={{ animationDelay: "220ms" }}>
           Realife Ecosystem • NFT Verified
         </footer>
       </div>

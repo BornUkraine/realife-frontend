@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import NftMedia from "@/components/NftMedia";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +24,77 @@ function shortAddr(addr?: string | null) {
   const s = String(addr);
   if (s.length <= 12) return s;
   return `${s.slice(0, 6)}…${s.slice(-4)}`;
+}
+
+/* ------------------------------- IPFS helpers ------------------------------ */
+
+const IPFS_GATEWAYS = [
+  "https://nftstorage.link/ipfs/",
+  "https://cloudflare-ipfs.com/ipfs/",
+  "https://ipfs.io/ipfs/",
+  "https://gateway.pinata.cloud/ipfs/",
+] as const;
+
+function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
+  const u = String(uri || "").trim();
+  if (!u) return null;
+  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) return u;
+
+  if (u.startsWith("ipfs://")) {
+    let p = u.slice("ipfs://".length);
+    if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
+    return `${gw}${p}`;
+  }
+
+  // sometimes it can be CID/path
+  if (u.startsWith("Qm") || u.startsWith("bafy")) return `${gw}${u}`;
+
+  return u;
+}
+
+async function loadMetadata(tokenUri: string) {
+  for (const gw of IPFS_GATEWAYS) {
+    const url = ipfsToHttp(tokenUri, gw);
+    if (!url) continue;
+
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) continue;
+      const j = await r.json().catch(() => null);
+      if (j && typeof j === "object") return j;
+    } catch {
+      // try next gateway
+    }
+  }
+  return null;
+}
+
+function isLikelyVideoUrl(u?: string | null) {
+  const s = (u || "").toLowerCase();
+  return (
+    s.includes(".mp4") ||
+    s.includes(".webm") ||
+    s.includes(".mov") ||
+    s.includes(".m4v") ||
+    s.includes("video") ||
+    s.includes("animation")
+  );
+}
+
+async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let i = 0;
+
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const idx = i++;
+      if (idx >= items.length) break;
+      out[idx] = await fn(items[idx]);
+    }
+  });
+
+  await Promise.all(workers);
+  return out;
 }
 
 export default async function PublicNFTsPage({ params }: { params: Promise<{ id: string }> }) {
@@ -73,11 +145,64 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
       chainId: true,
       contract: true,
       tokenId: true,
+      tokenUri: true, // ✅ нужен, чтобы понять video/image по metadata
       name: true,
-      image: true,
+      image: true, // poster (или image) из твоего mint flow
       createdAt: true,
     },
     take: 200,
+  });
+
+  // ✅ enrich: determine kind + media from tokenUri metadata
+  const enriched = await mapLimit(nfts, 10, async (x) => {
+    const fallbackImage = ipfsToHttp(x.image, IPFS_GATEWAYS[0]);
+
+    let kind: "image" | "video" = "image";
+    let media: string | null = fallbackImage;
+    let poster: string | null = null;
+
+    if (x.tokenUri) {
+      const meta = await loadMetadata(x.tokenUri);
+
+      const metaImage =
+        typeof meta?.image === "string"
+          ? meta.image
+          : typeof meta?.image_url === "string"
+          ? meta.image_url
+          : typeof meta?.imageUrl === "string"
+          ? meta.imageUrl
+          : null;
+
+      const metaAnimation =
+        typeof meta?.animation_url === "string"
+          ? meta.animation_url
+          : typeof meta?.animationUrl === "string"
+          ? meta.animationUrl
+          : typeof meta?.animation === "string"
+          ? meta.animation
+          : null;
+
+      const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackImage;
+      const animHttp = ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
+
+      if (animHttp || isLikelyVideoUrl(media)) {
+        kind = "video";
+        media = animHttp || null; // video src
+        poster = imgHttp || fallbackImage || null;
+        // если video src не удалось достать — покажем постер как image
+        if (!media) {
+          kind = "image";
+          media = poster;
+          poster = null;
+        }
+      } else {
+        kind = "image";
+        media = imgHttp || fallbackImage;
+        poster = null;
+      }
+    }
+
+    return { ...x, kind, media, poster };
   });
 
   return (
@@ -100,9 +225,7 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
               // eslint-disable-next-line @next/next/no-img-element
               <img src={avatar} alt="avatar" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
             ) : (
-              <div className="h-full w-full flex items-center justify-center text-white/35 font-black text-xs">
-                RL
-              </div>
+              <div className="h-full w-full flex items-center justify-center text-white/35 font-black text-xs">RL</div>
             )}
           </div>
 
@@ -115,7 +238,7 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
                 </Link>
               ) : null}
               <span>•</span>
-              <span>{nfts.length} items</span>
+              <span>{enriched.length} items</span>
             </div>
           </div>
 
@@ -130,11 +253,8 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
         </div>
 
         {/* grid */}
-        <div
-          className="reveal mt-10 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
-          style={{ animationDelay: "90ms" }}
-        >
-          {nfts.map((x) => (
+        <div className="reveal mt-10 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" style={{ animationDelay: "90ms" }}>
+          {enriched.map((x) => (
             <Link
               key={x.id}
               href={`/nft/${x.chainId}/${x.contract}/${x.tokenId}`}
@@ -145,21 +265,32 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
               )}
             >
               <div className="aspect-square w-full bg-black/30 relative">
-                {x.image ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={x.image} alt={x.name || "NFT"} className="h-full w-full object-cover" />
+                {x.media ? (
+                  <>
+                    <NftMedia
+                      src={x.media}
+                      kind={x.kind}
+                      alt={x.name || "NFT"}
+                      poster={x.kind === "video" ? x.poster : null}
+                      showControls={false}
+                      className="h-full w-full"
+                      roundedClass="rounded-none"
+                    />
+                    {x.kind === "video" ? (
+                      <div className="absolute top-3 left-3 px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-amber-100">
+                        VIDEO
+                      </div>
+                    ) : null}
+                  </>
                 ) : (
-                  <div className="h-full w-full flex items-center justify-center text-white/25 font-black">
-                    No image
-                  </div>
+                  <div className="h-full w-full flex items-center justify-center text-white/25 font-black">No media</div>
                 )}
-                <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.4)_0%,transparent_40%)] opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.4)_0%,transparent_40%)] opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
 
               <div className="p-5">
-                <div className="text-sm font-extrabold text-white/90 truncate">
-                  {x.name || `Token #${x.tokenId}`}
-                </div>
+                <div className="text-sm font-extrabold text-white/90 truncate">{x.name || `Token #${x.tokenId}`}</div>
                 <div className="mt-1.5 text-[12px] text-white/55 flex items-center justify-between gap-2">
                   <span className="truncate">{shortAddr(x.contract)}</span>
                   <span className="font-mono">#{x.tokenId}</span>
@@ -175,19 +306,16 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
           ))}
         </div>
 
-        {nfts.length === 0 && (
+        {enriched.length === 0 && (
           <div
             className="reveal mt-10 rounded-[26px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60"
             style={{ animationDelay: "140ms" }}
           >
-            This creator hasn't minted any NFTs yet.
+            This creator hasn&apos;t minted any NFTs yet.
           </div>
         )}
 
-        <footer
-          className="reveal pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]"
-          style={{ animationDelay: "180ms" }}
-        >
+        <footer className="reveal pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]" style={{ animationDelay: "180ms" }}>
           Realife Ecosystem • Gallery
         </footer>
       </div>

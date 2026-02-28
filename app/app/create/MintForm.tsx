@@ -16,6 +16,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { decodeEventLog, formatUnits } from "viem";
 
 import { REALIFE_ABI } from "@/lib/realifeAbi";
+import NftMedia from "@/components/NftMedia";
 
 const PROJECTS = ["Sentient", "Billions", "Rialo", "Neura", "Realife", "Other"] as const;
 
@@ -49,13 +50,22 @@ function fmtEth(value?: string) {
 }
 
 function prettyError(e: any) {
-  return e?.shortMessage || e?.cause?.shortMessage || e?.cause?.message || e?.message || "Something went wrong";
+  return (
+    e?.shortMessage ||
+    e?.cause?.shortMessage ||
+    e?.cause?.message ||
+    e?.message ||
+    "Something went wrong"
+  );
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
 const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as `0x${string}` | undefined;
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as
+  | `0x${string}`
+  | undefined;
 
 function Pill({ children }: { children: React.ReactNode }) {
   return (
@@ -168,9 +178,9 @@ function GhostButton({
 
 /** Extract ERC-721 tokenId from Transfer event logs */
 function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): string | null {
-  try {
-    const logs = receipt?.logs ?? [];
-    for (const log of logs) {
+  const logs = receipt?.logs ?? [];
+  for (const log of logs) {
+    try {
       if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) continue;
 
       const decoded = decodeEventLog({
@@ -187,19 +197,84 @@ function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): stri
         if (typeof tokenId === "number") return String(tokenId);
         if (typeof tokenId === "string") return tokenId;
       }
+    } catch {
+      // ignore non-matching logs
     }
-  } catch {
-    // ignore
   }
   return null;
 }
 
 /** only persist stable urls (not blob:) */
-function persistableImageUrl(input?: string | null) {
+function persistableUrl(input?: string | null) {
   const s = (input || "").trim();
   if (!s) return null;
   if (s.startsWith("blob:")) return null;
   return s;
+}
+
+/** IPFS helpers (to make preview like marketplaces) */
+const IPFS_GATEWAYS = [
+  "https://nftstorage.link/ipfs/",
+  "https://cloudflare-ipfs.com/ipfs/",
+  "https://ipfs.io/ipfs/",
+] as const;
+
+function ipfsToHttp(u?: string | null, gw: string = IPFS_GATEWAYS[0]) {
+  const s = (u || "").trim();
+  if (!s) return null;
+
+  if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:") || s.startsWith("blob:")) {
+    return s;
+  }
+
+  // ipfs://CID/path
+  if (s.startsWith("ipfs://")) {
+    let p = s.slice("ipfs://".length);
+    // ipfs://ipfs/CID/path
+    if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
+    return `${gw}${p}`;
+  }
+
+  // sometimes backend may send CID/path
+  if (/^[a-zA-Z0-9]+$/.test(s) || s.startsWith("bafy") || s.startsWith("Qm")) {
+    return `${gw}${s}`;
+  }
+
+  return s;
+}
+
+function isLikelyVideoUrl(u?: string | null) {
+  const s = (u || "").toLowerCase();
+  return (
+    s.includes(".mp4") ||
+    s.includes(".webm") ||
+    s.includes(".mov") ||
+    s.includes(".m4v") ||
+    s.includes("video") ||
+    s.includes("animation")
+  );
+}
+
+async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
+  const http = ipfsToHttp(tokenUri, IPFS_GATEWAYS[0]);
+  if (!http) return null;
+
+  // try a couple gateways (some CORS hiccups happen)
+  for (const gw of IPFS_GATEWAYS) {
+    const url = ipfsToHttp(tokenUri, gw);
+    if (!url) continue;
+
+    try {
+      const r = await fetch(url, { method: "GET", cache: "no-store" });
+      if (!r.ok) continue;
+      const j = await r.json().catch(() => null);
+      if (j && typeof j === "object") return j;
+    } catch {
+      // try next gateway
+    }
+  }
+
+  return null;
 }
 
 /** VIP Stepper */
@@ -276,7 +351,6 @@ function Stepper({
               : "Prepare your NFT"}
           </div>
 
-          {/* ✅ Premium CTA / rewards */}
           <div className="mt-2 text-[11px] text-white/60 leading-relaxed">
             Mint rewards: <span className="text-amber-200 font-extrabold">+10 points</span> per NFT.
             <span className="text-white/45"> More mints → more points → higher reputation.</span>
@@ -304,10 +378,7 @@ function Stepper({
                 ) : (
                   <>
                     No gas on Base Sepolia.{" "}
-                    <Link
-                      href="/app/faucet"
-                      className="text-[#d4af37] font-semibold hover:brightness-110 transition"
-                    >
+                    <Link href="/app/faucet" className="text-[#d4af37] font-semibold hover:brightness-110 transition">
                       Faucet ↗
                     </Link>{" "}
                     then refresh.
@@ -480,13 +551,27 @@ export default function MintForm() {
   const [error, setError] = useState<string>("");
 
   const [tokenURI, setTokenURI] = useState<string | null>(null);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // ✅ marketplace-like prepared preview (prefer IPFS URLs, not blob)
+  const [preparedKind, setPreparedKind] = useState<"image" | "video">("image");
+  const [preparedMedia, setPreparedMedia] = useState<string | null>(null); // image or video url (http/ipfs->http)
+  const [preparedPoster, setPreparedPoster] = useState<string | null>(null); // poster for video (image)
   const [previewCategory, setPreviewCategory] = useState<string>("Other");
 
   const selectedCategoryLabel = useMemo(
     () => (categories.length ? categories.join(", ") : "Other"),
     [categories]
   );
+
+  const pickedKind = useMemo<"image" | "video">(
+    () => (file?.type?.startsWith("video/") ? "video" : "image"),
+    [file]
+  );
+
+  // what to render right now
+  const effectivePreviewKind = tokenURI ? preparedKind : pickedKind;
+  const effectivePreviewSrc = tokenURI ? preparedMedia || filePreviewUrl : filePreviewUrl;
+  const effectivePoster = tokenURI ? preparedPoster : null;
 
   function toggleCategory(cat: string) {
     setCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
@@ -495,6 +580,11 @@ export default function MintForm() {
   function onPickFile(f: File | null) {
     setError("");
     setTokenURI(null);
+
+    setPreparedMedia(null);
+    setPreparedPoster(null);
+    setPreparedKind(f?.type?.startsWith("video/") ? "video" : "image");
+
     setFile(f);
 
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
@@ -529,7 +619,7 @@ export default function MintForm() {
     query: { enabled: Boolean(txHash) },
   });
 
-  // ✅ on success: save mint in DB then redirect to success page (with earned + points)
+  // ✅ on success: save mint in DB then redirect to success page
   useEffect(() => {
     if (!isSuccess || !receipt) return;
     if (pushedRef.current) return;
@@ -542,8 +632,15 @@ export default function MintForm() {
 
       const tokenId = extractTokenIdFromReceipt(receipt, CONTRACT_ADDRESS);
 
-      // ✅ if previewImage = blob: — do not include in URL
-      const imageForQuery = persistableImageUrl(previewImage) || "";
+      // For DB / success page:
+      // - keep "image" as IMAGE (poster if video)
+      // - also pass media/kind (optional) for richer success UI later (won't break if ignored)
+      const posterOrImage =
+        effectivePreviewKind === "video"
+          ? persistableUrl(preparedPoster)
+          : persistableUrl(preparedMedia);
+
+      const mediaForQuery = persistableUrl(preparedMedia);
 
       let earned = 0;
       let pointsAfter: number | null = null;
@@ -560,7 +657,7 @@ export default function MintForm() {
               txHash: txHash || "",
               tokenUri: tokenURI || "",
               name: finalName,
-              image: imageForQuery || null,
+              image: posterOrImage || null,
               verified: true,
             }),
           });
@@ -580,28 +677,22 @@ export default function MintForm() {
 
       const qp = new URLSearchParams();
       qp.set("name", finalName);
-      qp.set("image", imageForQuery);
+      qp.set("image", posterOrImage || "");
       qp.set("category", finalCategory);
       qp.set("project", project);
       qp.set("tx", txHash || "");
       qp.set("tokenId", tokenId || "");
+      // optional for richer success page
+      if (mediaForQuery) qp.set("media", mediaForQuery);
+      qp.set("kind", effectivePreviewKind);
+
       if (earned > 0) qp.set("earned", String(earned));
       if (typeof pointsAfter === "number") qp.set("points", String(pointsAfter));
 
       router.push(`/app/success?${qp.toString()}`);
     })();
-  }, [
-    isSuccess,
-    receipt,
-    name,
-    previewCategory,
-    selectedCategoryLabel,
-    project,
-    txHash,
-    tokenURI,
-    previewImage,
-    router,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuccess, receipt]);
 
   async function ensureCorrectNetwork() {
     if (!connected) {
@@ -671,8 +762,73 @@ export default function MintForm() {
 
       setTokenURI(uri);
 
-      // ✅ backend image preferred; blob allowed only for LIVE preview on this page
-      setPreviewImage(data?.preview?.image || filePreviewUrl || null);
+      // ✅ Decide prepared preview from:
+      // 1) metadata JSON (image / animation_url) -> like marketplaces
+      // 2) backend preview (preview.media / preview.kind / preview.image / preview.animation_url)
+      // 3) fallback to local blob preview
+      let kind: "image" | "video" =
+        (data?.preview?.kind === "video" ? "video" : data?.preview?.kind === "image" ? "image" : null) ??
+        (file.type.startsWith("video/") ? "video" : "image");
+
+      let media: string | null =
+        data?.preview?.media ||
+        data?.preview?.animation_url ||
+        data?.preview?.animationUrl ||
+        // some backends send "image" even for video posters — we'll still reconcile below
+        data?.preview?.image ||
+        null;
+
+      let poster: string | null =
+        data?.preview?.poster ||
+        // common: preview.image is poster for video
+        data?.preview?.image ||
+        null;
+
+      // normalize to http gateway if ipfs://
+      media = ipfsToHttp(media, IPFS_GATEWAYS[0]);
+      poster = ipfsToHttp(poster, IPFS_GATEWAYS[0]);
+
+      // try to load metadata json and override (best marketplace behavior)
+      const meta = await loadMetadataFromTokenUri(uri);
+
+      const metaImage =
+        typeof meta?.image === "string"
+          ? meta.image
+          : typeof meta?.image_url === "string"
+          ? meta.image_url
+          : typeof meta?.imageUrl === "string"
+          ? meta.imageUrl
+          : null;
+
+      const metaAnimation =
+        typeof meta?.animation_url === "string"
+          ? meta.animation_url
+          : typeof meta?.animationUrl === "string"
+          ? meta.animationUrl
+          : typeof meta?.animation === "string"
+          ? meta.animation
+          : null;
+
+      if (metaAnimation) {
+        kind = "video";
+        media = ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
+        if (metaImage) poster = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]);
+      } else if (metaImage) {
+        kind = "image";
+        media = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]);
+      } else {
+        // if metadata is missing but backend gave something, infer by url
+        if (media && isLikelyVideoUrl(media)) kind = "video";
+      }
+
+      // final fallbacks
+      if (!media) media = filePreviewUrl; // still show something even if gateway fails
+      if (kind === "video" && !poster) poster = null;
+
+      setPreparedKind(kind);
+      setPreparedMedia(media);
+      setPreparedPoster(poster);
+
       setPreviewCategory(data?.preview?.category || selectedCategoryLabel);
 
       setStep("idle");
@@ -739,7 +895,9 @@ export default function MintForm() {
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Select project</div>
-              <div className="text-[11px] text-white/55 mt-1">Choose the context for your mint (premium metadata).</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Choose the context for your mint (premium metadata).
+              </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -775,7 +933,9 @@ export default function MintForm() {
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Upload your file</div>
-              <div className="text-[11px] text-white/55 mt-1">Photo / video / design / product image (token media).</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Photo / video / design / product image (token media).
+              </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -810,14 +970,32 @@ export default function MintForm() {
 
             <div className="relative flex gap-5 items-center">
               <div className="w-28 h-28 rounded-2xl bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shrink-0 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
-                {filePreviewUrl && file?.type?.startsWith("image/") ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={filePreviewUrl} alt="Preview" className="w-full h-full object-cover" />
-                ) : filePreviewUrl && file?.type?.startsWith("video/") ? (
-                  <video className="w-full h-full object-cover" src={filePreviewUrl} muted playsInline />
-                ) : (
-                  <div className="text-xs text-center text-white/60 px-3">{file ? "Preview" : "Click to upload"}</div>
-                )}
+                <div
+                  className="h-full w-full"
+                  onClickCapture={(e) => {
+                    // so video controls/play don't open file picker
+                    if (effectivePreviewKind === "video") e.stopPropagation();
+                  }}
+                  onMouseDownCapture={(e) => {
+                    if (effectivePreviewKind === "video") e.stopPropagation();
+                  }}
+                >
+                  {effectivePreviewSrc ? (
+                    <NftMedia
+                      src={effectivePreviewSrc}
+                      kind={effectivePreviewKind}
+                      alt="Preview"
+                      poster={effectivePreviewKind === "video" ? effectivePoster : null}
+                      showControls={effectivePreviewKind === "video"}
+                      className="h-full w-full"
+                      roundedClass="rounded-2xl"
+                    />
+                  ) : (
+                    <div className="text-xs text-center text-white/60 px-3">
+                      {file ? "Preview" : "Click to upload"}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex-1 min-w-0">
@@ -834,7 +1012,8 @@ export default function MintForm() {
 
                 {tokenURI && (
                   <p className="mt-3 text-xs">
-                    ✅ Prepared tokenURI: <span className="text-white/70 break-all">{tokenURI}</span>
+                    ✅ Prepared tokenURI:{" "}
+                    <span className="text-white/70 break-all">{tokenURI}</span>
                   </p>
                 )}
               </div>
@@ -847,7 +1026,9 @@ export default function MintForm() {
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Category</div>
-              <div className="text-[11px] text-white/55 mt-1">Choose one or more to enrich metadata.</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Choose one or more to enrich metadata.
+              </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-white/60" />
@@ -901,11 +1082,21 @@ export default function MintForm() {
                 <span
                   className={[
                     "h-2 w-2 rounded-full",
-                    !mounted || !connected ? "bg-white/30" : wrongNetwork ? "bg-rose-400" : "bg-emerald-400",
+                    !mounted || !connected
+                      ? "bg-white/30"
+                      : wrongNetwork
+                      ? "bg-rose-400"
+                      : "bg-emerald-400",
                     "shadow-[0_0_0_6px_rgba(255,255,255,0.06)]",
                   ].join(" ")}
                 />
-                {mounted ? (connected ? (wrongNetwork ? "Wrong network" : "Base Sepolia") : "Connect wallet") : "Connect wallet"}
+                {mounted
+                  ? connected
+                    ? wrongNetwork
+                      ? "Wrong network"
+                      : "Base Sepolia"
+                    : "Connect wallet"
+                  : "Connect wallet"}
               </Pill>
 
               <div className="mt-3 text-sm font-extrabold tracking-tight">
@@ -923,7 +1114,8 @@ export default function MintForm() {
               </div>
 
               <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
-                Mint an NFT and earn <span className="text-amber-200 font-extrabold">+10 points</span>.
+                Mint an NFT and earn{" "}
+                <span className="text-amber-200 font-extrabold">+10 points</span>.
                 <span className="text-white/45"> The more you mint — the higher your score.</span>
               </div>
 
@@ -935,7 +1127,10 @@ export default function MintForm() {
                       : hasGas
                       ? "Prepare → sign → tx mined → success."
                       : "Open faucet, claim test ETH, then refresh."}{" "}
-                    <Link href="/app/faucet" className="text-[#d4af37] font-semibold hover:brightness-110 transition">
+                    <Link
+                      href="/app/faucet"
+                      className="text-[#d4af37] font-semibold hover:brightness-110 transition"
+                    >
                       Faucet ↗
                     </Link>
                   </>
@@ -1153,12 +1348,29 @@ export default function MintForm() {
             </div>
 
             <div className="w-16 h-16 rounded-2xl bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
-              {filePreviewUrl && file?.type?.startsWith("image/") ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={filePreviewUrl} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-[10px] text-white/45">NFT</span>
-              )}
+              <div
+                className="h-full w-full"
+                onClickCapture={(e) => {
+                  if (effectivePreviewKind === "video") e.stopPropagation();
+                }}
+                onMouseDownCapture={(e) => {
+                  if (effectivePreviewKind === "video") e.stopPropagation();
+                }}
+              >
+                {effectivePreviewSrc ? (
+                  <NftMedia
+                    src={effectivePreviewSrc}
+                    kind={effectivePreviewKind}
+                    alt="NFT preview"
+                    poster={effectivePreviewKind === "video" ? effectivePoster : null}
+                    showControls={false}
+                    className="h-full w-full"
+                    roundedClass="rounded-2xl"
+                  />
+                ) : (
+                  <span className="text-[10px] text-white/45">NFT</span>
+                )}
+              </div>
             </div>
           </div>
 

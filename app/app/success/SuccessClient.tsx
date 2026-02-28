@@ -144,13 +144,8 @@ function shortAddr(a?: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
-
-const IPFS_GATEWAY = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud").replace(
-  /\/$/,
-  ""
-);
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const IPFS_GATEWAY = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud").replace(/\/$/, "");
 
 /** allow blob:, data:, ipfs:// and http(s) + /ipfs/... */
 function safeUrl(input?: string) {
@@ -159,9 +154,7 @@ function safeUrl(input?: string) {
 
   if (url.startsWith("blob:") || url.startsWith("data:")) return url;
 
-  if (url.startsWith("/ipfs/")) {
-    return `${IPFS_GATEWAY}${url}`;
-  }
+  if (url.startsWith("/ipfs/")) return `${IPFS_GATEWAY}${url}`;
 
   if (url.startsWith("ipfs://")) {
     const rest = url.replace("ipfs://", "");
@@ -181,10 +174,96 @@ function safeUrl(input?: string) {
 function isVideoUrl(url: string) {
   const u = url.toLowerCase();
   const clean = u.split("?")[0].split("#")[0];
-  return clean.endsWith(".mp4") || clean.endsWith(".mov") || clean.endsWith(".webm") || u.startsWith("data:video/");
+  return (
+    clean.endsWith(".mp4") ||
+    clean.endsWith(".mov") ||
+    clean.endsWith(".webm") ||
+    clean.endsWith(".m4v") ||
+    u.startsWith("data:video/")
+  );
 }
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as `0x${string}` | undefined;
+
+/** Premium play/pause overlay (no ugly controls) */
+function VideoPlayOverlay({
+  src,
+  poster,
+  className = "",
+}: {
+  src: string;
+  poster?: string;
+  className?: string;
+}) {
+  const vref = useRef<HTMLVideoElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    setPlaying(false);
+    const v = vref.current;
+    if (!v) return;
+
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
+    const onEnded = () => setPlaying(false);
+
+    v.addEventListener("play", onPlay);
+    v.addEventListener("pause", onPause);
+    v.addEventListener("ended", onEnded);
+
+    return () => {
+      v.removeEventListener("play", onPlay);
+      v.removeEventListener("pause", onPause);
+      v.removeEventListener("ended", onEnded);
+    };
+  }, [src]);
+
+  const toggle = () => {
+    const v = vref.current;
+    if (!v) return;
+    if (v.paused) v.play().catch(() => {});
+    else v.pause();
+  };
+
+  return (
+    <div className={["absolute inset-0", className].join(" ")}>
+      <video
+        ref={vref}
+        src={src}
+        poster={poster}
+        playsInline
+        preload="metadata"
+        className="absolute inset-0 h-full w-full object-cover"
+        onClick={toggle}
+      />
+      {/* overlay button */}
+      <button
+        type="button"
+        onClick={toggle}
+        className={[
+          "absolute inset-0 flex items-center justify-center",
+          "transition",
+          playing ? "opacity-0 pointer-events-none" : "opacity-100",
+        ].join(" ")}
+        aria-label={playing ? "Pause" : "Play"}
+      >
+        <span
+          className={[
+            "inline-flex items-center justify-center",
+            "h-14 w-14 rounded-2xl",
+            "border border-white/15 bg-black/35 backdrop-blur-md",
+            "shadow-[0_18px_70px_rgba(0,0,0,0.45)]",
+            "ring-1 ring-black/20",
+          ].join(" ")}
+        >
+          <span className="text-amber-200 font-black text-xl">▶</span>
+        </span>
+      </button>
+
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.55),transparent_55%)]" />
+    </div>
+  );
+}
 
 export default function SuccessClient() {
   const mounted = useMounted();
@@ -194,8 +273,19 @@ export default function SuccessClient() {
   const initialCategory = useMemo(() => (sp.get("category") || "Other").trim(), [sp]);
   const initialProject = useMemo(() => (sp.get("project") || "Realife").trim(), [sp]);
 
-  const rawImage = useMemo(() => sp.get("image") || "", [sp]);
-  const initialMedia = useMemo(() => safeUrl(rawImage), [rawImage]);
+  // ✅ support both: image (poster) + media (actual video/image) + kind
+  const qpKind = useMemo(() => (sp.get("kind") || "").toLowerCase(), [sp]);
+
+  const rawPoster = useMemo(() => sp.get("image") || "", [sp]);
+  const posterUrl = useMemo(() => safeUrl(rawPoster), [rawPoster]);
+
+  const rawMedia = useMemo(() => sp.get("media") || sp.get("image") || "", [sp]);
+  const initialMedia = useMemo(() => safeUrl(rawMedia), [rawMedia]);
+
+  const initialKind = useMemo<"image" | "video">(() => {
+    if (qpKind === "video" || qpKind === "image") return qpKind;
+    return initialMedia && isVideoUrl(initialMedia) ? "video" : "image";
+  }, [qpKind, initialMedia]);
 
   const tx = useMemo(() => (sp.get("tx") || "").trim(), [sp]);
   const tokenId = useMemo(() => (sp.get("tokenId") || "").trim(), [sp]);
@@ -215,15 +305,17 @@ export default function SuccessClient() {
   const [name, setName] = useState(initialName);
   const [category, setCategory] = useState(initialCategory);
   const [project, setProject] = useState(initialProject);
+
   const [mediaUrl, setMediaUrl] = useState(initialMedia);
-  const [mediaKind, setMediaKind] = useState<"image" | "video">(
-    initialMedia && isVideoUrl(initialMedia) ? "video" : "image"
-  );
+  const [mediaKind, setMediaKind] = useState<"image" | "video">(initialKind);
 
   const [earned, setEarned] = useState<number>(initialEarned);
   const [pointsAfter, setPointsAfter] = useState<number | null>(initialPoints);
 
   const savedKeyRef = useRef<string>("");
+
+  const basescanTx = tx ? `https://sepolia.basescan.org/tx/${tx}` : "";
+  const [copied, setCopied] = useState<"" | "tx" | "link">("");
 
   // ✅ Ensure mint is saved (idempotent). If earned/points not present, we fetch them here.
   useEffect(() => {
@@ -234,10 +326,12 @@ export default function SuccessClient() {
     if (savedKeyRef.current === key) return;
     savedKeyRef.current = key;
 
+    // save a stable image for DB (poster for video, image for image)
+    const posterToSave = posterUrl && !posterUrl.startsWith("blob:") ? posterUrl : null;
     const imageToSave =
       mediaKind === "image" && mediaUrl && !mediaUrl.startsWith("blob:")
         ? mediaUrl
-        : null;
+        : posterToSave;
 
     (async () => {
       try {
@@ -270,15 +364,19 @@ export default function SuccessClient() {
         console.error("SAVE_MINT_EXCEPTION (SuccessClient)", e);
       }
     })();
-  }, [tokenId, tx, name, mediaUrl, mediaKind, earned]);
+  }, [tokenId, tx, name, mediaUrl, mediaKind, earned, posterUrl]);
 
-  // ✅ Hydrate media/name from backend if missing
+  // ✅ Hydrate media/name from backend:
+  // - If we already have real VIDEO src -> skip.
+  // - If we only have poster/image -> still try to fetch animation_url.
   useEffect(() => {
     let alive = true;
 
     async function hydrateFromBackend() {
-      if (mediaUrl) return;
       if (!tokenId) return;
+
+      // if we already have video src, do nothing
+      if (mediaKind === "video" && mediaUrl) return;
 
       const base = (API_BASE || "").replace(/\/$/, "");
       if (!base) return;
@@ -289,14 +387,15 @@ export default function SuccessClient() {
         const json = await res.json();
 
         const img = safeUrl(json?.image);
-        const anim = safeUrl(json?.animation_url);
-        const chosen = anim || img;
+        const anim = safeUrl(json?.animation_url || json?.animationUrl || json?.animation);
 
+        const chosen = anim || img;
         if (!alive) return;
 
         if (chosen) {
           setMediaUrl(chosen);
-          setMediaKind(isVideoUrl(chosen) ? "video" : "image");
+          // ✅ animation_url => video always
+          setMediaKind(anim ? "video" : isVideoUrl(chosen) ? "video" : "image");
         }
 
         if (typeof json?.name === "string" && json.name.trim()) setName(json.name.trim());
@@ -319,10 +418,7 @@ export default function SuccessClient() {
     return () => {
       alive = false;
     };
-  }, [mediaUrl, tokenId]);
-
-  const basescanTx = tx ? `https://sepolia.basescan.org/tx/${tx}` : "";
-  const [copied, setCopied] = useState<"" | "tx" | "link">("");
+  }, [tokenId, mediaUrl, mediaKind]);
 
   async function copyText(kind: "tx" | "link") {
     if (!mounted) return;
@@ -441,18 +537,14 @@ export default function SuccessClient() {
                     <div className="relative aspect-[16/10]">
                       {mediaUrl ? (
                         mediaKind === "video" ? (
-                          <video
-                            src={mediaUrl}
-                            className="absolute inset-0 h-full w-full object-cover"
-                            controls
-                            playsInline
-                          />
+                          <VideoPlayOverlay src={mediaUrl} poster={posterUrl || undefined} />
                         ) : (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={mediaUrl}
                             alt="NFT media"
                             className="absolute inset-0 h-full w-full object-cover"
+                            referrerPolicy="no-referrer"
                           />
                         )
                       ) : (
