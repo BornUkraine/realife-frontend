@@ -7,86 +7,53 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/**
- * ==========================================================================
- */
-/**
- * USER
- */
-/**
- * ==========================================================================
- */
+/* ========================================================================== */
+/* USER                                                                       */
+/* ========================================================================== */
 
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /**
-   * ---------------- Public profile ----------------
-   */
+  /* ---------------- Public profile ---------------- */
   handle   String? @unique
   publicId String? @unique
 
-  /**
-   * ---------------- Wallet (primary identity) ----------------
-   */
+  /* ---------------- Wallet (primary identity) ---------------- */
   walletAddress String @unique
   walletChainId Int?
 
-  /**
-   * ---------------- X (Twitter) ----------------
-   */
-  twitterId       String? @unique
+  /* ---------------- X (Twitter) ---------------- */
+  twitterId       String?  @unique
   twitterName     String?
   twitterUser     String?
   twitterImage    String?
   twitterRewarded Boolean @default(false) // ⛔ anti-abuse
 
-  /**
-   * ---------------- Discord ----------------
-   */
-  discordId       String? @unique
+  /* ---------------- Discord ---------------- */
+  discordId       String?  @unique
   discordName     String?
   discordUser     String?
   discordImage    String?
   discordRewarded Boolean @default(false) // ⛔ anti-abuse
 
-  /**
-   * ---------------- Points & rewards ----------------
-   */
+  /* ---------------- Points & rewards ---------------- */
   points      Int       @default(0)
   lastDailyAt DateTime?
 
   events PointEvent[]
 
-  /**
-   * ---------------- Referrals ----------------
-   */
-  referralCode String?   @unique
-  referredById String?
-  referredBy   User?     @relation("UserReferrals", fields: [referredById], references: [id])
-  referrals    User[]    @relation("UserReferrals")
-  referredAt   DateTime?
-
-  /**
-   * ---------------- Minted NFTs ----------------
-   */
+  /* ---------------- Minted NFTs ---------------- */
   mints Mint[]
 
   @@index([twitterUser])
   @@index([discordUser])
 }
 
-/**
- * ==========================================================================
- */
-/**
- * WALLET NONCE (SIWE-like)
- */
-/**
- * ==========================================================================
- */
+/* ========================================================================== */
+/* WALLET NONCE (SIWE-like)                                                    */
+/* ========================================================================== */
 
 model WalletNonce {
   address   String   @id // lowercased wallet
@@ -99,46 +66,29 @@ model WalletNonce {
   @@index([expiresAt])
 }
 
-/**
- * ==========================================================================
- */
-/**
- * POINT EVENTS (ledger / history)
- */
-/**
- * ==========================================================================
- */
+/* ========================================================================== */
+/* POINT EVENTS (ledger / history)                                             */
+/* ========================================================================== */
 
 model PointEvent {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type      String // "DAILY", "REFERRAL_INVITER", "REFERRAL_JOINER", etc
-  points    Int
-  refUserId String?
-  meta      Json?
+  type   String   // "daily", "twitter_connect", "discord_connect", etc
+  points Int
+  meta   Json?
 
-  @@unique([userId, type, refUserId])
   @@index([userId])
   @@index([type])
-  @@index([refUserId])
 }
 
-/**
- * ==========================================================================
- */
-/**
- * TEMP STORAGE FOR X OAUTH LINKING
- */
-/**
- * Prevents creating second user during OAuth callback
- */
-/**
- * ==========================================================================
- */
+/* ========================================================================== */
+/* TEMP STORAGE FOR X OAUTH LINKING                                            */
+/* Prevents creating second user during OAuth callback                        */
+/* ========================================================================== */
 
 model TwitterLinkAttempt {
   id        String   @id @default(cuid())
@@ -157,22 +107,16 @@ model TwitterLinkAttempt {
   @@index([twitterId])
 }
 
-/**
- * ==========================================================================
- */
-/**
- * MINTED NFT CACHE (for profile display)
- */
-/**
- * ==========================================================================
- */
+/* ========================================================================== */
+/* MINTED NFT CACHE (for profile display)                                      */
+/* ========================================================================== */
 
 model Mint {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   chainId  Int
   contract String

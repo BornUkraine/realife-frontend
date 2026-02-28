@@ -1,17 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import Providers from "./providers";
 import TopBar from "@/components/TopBar";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+import { GeistSans, GeistMono } from "geist/font";
+
+const geistSans = GeistSans;
+const geistMono = GeistMono;
 
 export const metadata: Metadata = {
   title: "Realife",
   description: "Tokenized real-world creativity",
 };
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -29,7 +33,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <div className="h-px bg-white/10" />
           </div>
 
-          {/* ✅ никаких контейнеров здесь — AppShell рулит сеткой */}
           {children}
         </Providers>
       </body>
