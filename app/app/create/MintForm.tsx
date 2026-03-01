@@ -50,22 +50,13 @@ function fmtEth(value?: string) {
 }
 
 function prettyError(e: any) {
-  return (
-    e?.shortMessage ||
-    e?.cause?.shortMessage ||
-    e?.cause?.message ||
-    e?.message ||
-    "Something went wrong"
-  );
+  return e?.shortMessage || e?.cause?.shortMessage || e?.cause?.message || e?.message || "Something went wrong";
 }
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
 const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as
-  | `0x${string}`
-  | undefined;
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as `0x${string}` | undefined;
 
 function Pill({ children }: { children: React.ReactNode }) {
   return (
@@ -75,13 +66,7 @@ function Pill({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Card({
-  className = "",
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
+function Card({ className = "", children }: { className?: string; children: React.ReactNode }) {
   return (
     <div
       className={[
@@ -198,7 +183,7 @@ function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): stri
         if (typeof tokenId === "string") return tokenId;
       }
     } catch {
-      // ignore non-matching logs
+      // ignore
     }
   }
   return null;
@@ -212,9 +197,10 @@ function persistableUrl(input?: string | null) {
   return s;
 }
 
-/** IPFS helpers (to make preview like marketplaces) */
+/** IPFS helpers */
 const IPFS_GATEWAYS = [
   "https://nftstorage.link/ipfs/",
+  "https://gateway.pinata.cloud/ipfs/",
   "https://cloudflare-ipfs.com/ipfs/",
   "https://ipfs.io/ipfs/",
 ] as const;
@@ -227,57 +213,36 @@ function ipfsToHttp(u?: string | null, gw: string = IPFS_GATEWAYS[0]) {
     return s;
   }
 
-  // ipfs://CID/path
   if (s.startsWith("ipfs://")) {
     let p = s.slice("ipfs://".length);
-    // ipfs://ipfs/CID/path
     if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
     return `${gw}${p}`;
   }
 
-  // sometimes backend may send CID/path
-  if (/^[a-zA-Z0-9]+$/.test(s) || s.startsWith("bafy") || s.startsWith("Qm")) {
+  if (s.startsWith("bafy") || s.startsWith("Qm")) {
     return `${gw}${s}`;
   }
 
   return s;
 }
 
-function isLikelyVideoUrl(u?: string | null) {
-  const s = (u || "").toLowerCase();
-  return (
-    s.includes(".mp4") ||
-    s.includes(".webm") ||
-    s.includes(".mov") ||
-    s.includes(".m4v") ||
-    s.includes("video") ||
-    s.includes("animation")
-  );
-}
-
 async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
-  const http = ipfsToHttp(tokenUri, IPFS_GATEWAYS[0]);
-  if (!http) return null;
-
-  // try a couple gateways (some CORS hiccups happen)
   for (const gw of IPFS_GATEWAYS) {
     const url = ipfsToHttp(tokenUri, gw);
     if (!url) continue;
 
     try {
-      const r = await fetch(url, { method: "GET", cache: "no-store" });
+      const r = await fetch(url, { cache: "no-store" });
       if (!r.ok) continue;
       const j = await r.json().catch(() => null);
       if (j && typeof j === "object") return j;
     } catch {
-      // try next gateway
+      // next
     }
   }
-
   return null;
 }
 
-/** VIP Stepper */
 function Stepper({
   mounted,
   connected,
@@ -361,8 +326,7 @@ function Stepper({
               <>
                 {wrongNetwork ? (
                   <>
-                    Wrong network — switch to{" "}
-                    <span className="text-white/75 font-semibold">Base Sepolia</span>.
+                    Wrong network — switch to <span className="text-white/75 font-semibold">Base Sepolia</span>.
                   </>
                 ) : (
                   <>Connect wallet and follow the flow: Prepare → Sign → Mint → Verify.</>
@@ -372,8 +336,7 @@ function Stepper({
               <>
                 {hasGas ? (
                   <>
-                    Gas is OK. If you already prepared metadata — press{" "}
-                    <span className="text-white/75 font-semibold">Mint</span>.
+                    Gas is OK. If you already prepared metadata — press <span className="text-white/75 font-semibold">Mint</span>.
                   </>
                 ) : (
                   <>
@@ -432,20 +395,6 @@ function Stepper({
                 "shadow-[0_18px_70px_rgba(0,0,0,0.30)]",
               ].join(" ")}
             >
-              <div className="pointer-events-none absolute inset-0">
-                <div
-                  className={[
-                    "absolute inset-0 opacity-90",
-                    isOk
-                      ? "bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.16),transparent_45%)]"
-                      : "bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.08),transparent_45%)]",
-                  ].join(" ")}
-                />
-                {isActive ? (
-                  <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-[#d4af37]/12 blur-3xl" />
-                ) : null}
-              </div>
-
               <div className="relative p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
@@ -459,7 +408,6 @@ function Stepper({
                     >
                       {isOk ? "✓" : it.n}
                     </div>
-
                     <div className="min-w-0">
                       <div className="text-sm font-extrabold tracking-tight truncate">{it.t}</div>
                       <div className="text-[11px] text-white/55 truncate">{it.d}</div>
@@ -491,9 +439,10 @@ function Stepper({
 export default function MintForm() {
   const mounted = useMounted();
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // guard so we do not double-push / double-save
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const posterInputRef = useRef<HTMLInputElement | null>(null);
+
   const pushedRef = useRef(false);
 
   const { address, isConnected } = useAccount();
@@ -505,16 +454,12 @@ export default function MintForm() {
   const connected = mounted ? isConnected : false;
   const effectiveChainId = mounted ? chainId : undefined;
 
-  const {
-    data: balanceData,
-    isLoading: isBalanceLoading,
-    isFetching: isBalanceFetching,
-    refetch: refetchBalance,
-  } = useBalance({
-    address,
-    chainId: baseSepolia.id,
-    query: { enabled: Boolean(address), refetchInterval: 12_000 },
-  });
+  const { data: balanceData, isLoading: isBalanceLoading, isFetching: isBalanceFetching, refetch: refetchBalance } =
+    useBalance({
+      address,
+      chainId: baseSepolia.id,
+      query: { enabled: Boolean(address), refetchInterval: 12_000 },
+    });
 
   const balanceEth = useMemo(() => {
     if (!mounted || !balanceData) return 0;
@@ -534,11 +479,13 @@ export default function MintForm() {
   const wrongNetwork = connected && effectiveChainId !== baseSepolia.id;
   const hasGas = connected && !wrongNetwork && balanceEth > 0;
 
-  const refreshLabel = !mounted ? "Refresh" : isBalanceFetching ? "Refreshing…" : "Refresh";
-
   // form state
   const [file, setFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
+
+  // ✅ poster upload (only for video)
+  const [posterFile, setPosterFile] = useState<File | null>(null);
+  const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null);
 
   const [project, setProject] = useState<(typeof PROJECTS)[number]>("Realife");
   const [categories, setCategories] = useState<string[]>([]);
@@ -552,26 +499,19 @@ export default function MintForm() {
 
   const [tokenURI, setTokenURI] = useState<string | null>(null);
 
-  // ✅ marketplace-like prepared preview (prefer IPFS URLs, not blob)
+  // prepared preview (after prepare)
   const [preparedKind, setPreparedKind] = useState<"image" | "video">("image");
-  const [preparedMedia, setPreparedMedia] = useState<string | null>(null); // image or video url (http/ipfs->http)
-  const [preparedPoster, setPreparedPoster] = useState<string | null>(null); // poster for video (image)
+  const [preparedMedia, setPreparedMedia] = useState<string | null>(null);
+  const [preparedPoster, setPreparedPoster] = useState<string | null>(null);
   const [previewCategory, setPreviewCategory] = useState<string>("Other");
 
-  const selectedCategoryLabel = useMemo(
-    () => (categories.length ? categories.join(", ") : "Other"),
-    [categories]
-  );
+  const selectedCategoryLabel = useMemo(() => (categories.length ? categories.join(", ") : "Other"), [categories]);
 
-  const pickedKind = useMemo<"image" | "video">(
-    () => (file?.type?.startsWith("video/") ? "video" : "image"),
-    [file]
-  );
+  const pickedKind = useMemo<"image" | "video">(() => (file?.type?.startsWith("video/") ? "video" : "image"), [file]);
 
-  // what to render right now
   const effectivePreviewKind = tokenURI ? preparedKind : pickedKind;
   const effectivePreviewSrc = tokenURI ? preparedMedia || filePreviewUrl : filePreviewUrl;
-  const effectivePoster = tokenURI ? preparedPoster : null;
+  const effectivePoster = tokenURI ? preparedPoster : posterPreviewUrl;
 
   function toggleCategory(cat: string) {
     setCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
@@ -583,11 +523,14 @@ export default function MintForm() {
 
     setPreparedMedia(null);
     setPreparedPoster(null);
-    setPreparedKind(f?.type?.startsWith("video/") ? "video" : "image");
+
+    // cleanup old blob URLs
+    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+    if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
 
     setFile(f);
-
-    if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+    setPosterFile(null);
+    setPosterPreviewUrl(null);
 
     if (!f) {
       setFilePreviewUrl(null);
@@ -601,15 +544,33 @@ export default function MintForm() {
     pushedRef.current = false;
   }
 
-  // ✅ correct cleanup for ObjectURL
+  function onPickPoster(f: File | null) {
+    setError("");
+
+    if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
+
+    setPosterFile(f);
+    if (!f) {
+      setPosterPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(f);
+    setPosterPreviewUrl(url);
+  }
+
+  // cleanup object URLs
   useEffect(() => {
     return () => {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
+      if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
     };
-  }, [filePreviewUrl]);
+  }, [filePreviewUrl, posterPreviewUrl]);
 
   function openFilePicker() {
     fileInputRef.current?.click();
+  }
+  function openPosterPicker() {
+    posterInputRef.current?.click();
   }
 
   const { data: txHash, writeContractAsync, isPending: isWalletPromptOpen } = useWriteContract();
@@ -619,7 +580,7 @@ export default function MintForm() {
     query: { enabled: Boolean(txHash) },
   });
 
-  // ✅ on success: save mint in DB then redirect to success page
+  // on success: save mint and redirect
   useEffect(() => {
     if (!isSuccess || !receipt) return;
     if (pushedRef.current) return;
@@ -629,25 +590,17 @@ export default function MintForm() {
     (async () => {
       const finalName = name.trim() || "Untitled NFT";
       const finalCategory = previewCategory || selectedCategoryLabel;
-
       const tokenId = extractTokenIdFromReceipt(receipt, CONTRACT_ADDRESS);
 
-      // For DB / success page:
-      // - keep "image" as IMAGE (poster if video)
-      // - also pass media/kind (optional) for richer success UI later (won't break if ignored)
+      // for DB & success query:
       const posterOrImage =
-        effectivePreviewKind === "video"
-          ? persistableUrl(preparedPoster)
-          : persistableUrl(preparedMedia);
+        effectivePreviewKind === "video" ? persistableUrl(preparedPoster) : persistableUrl(preparedMedia);
 
       const mediaForQuery = persistableUrl(preparedMedia);
 
-      let earned = 0;
-      let pointsAfter: number | null = null;
-
       try {
         if (CONTRACT_ADDRESS && tokenId) {
-          const r = await fetch("/api/mints", {
+          await fetch("/api/mints", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
@@ -657,37 +610,24 @@ export default function MintForm() {
               txHash: txHash || "",
               tokenUri: tokenURI || "",
               name: finalName,
-              image: posterOrImage || null,
+              image: posterOrImage || null, // ✅ poster for video
               verified: true,
             }),
           });
-
-          const j = await r.json().catch(() => ({} as any));
-          if (r.ok && j?.ok) {
-            earned = Number(j?.add || 0) || 0;
-            pointsAfter = typeof j?.points === "number" ? j.points : null;
-          } else {
-            const t = await r.text().catch(() => "");
-            console.error("SAVE_MINT_FAILED", r.status, t);
-          }
         }
-      } catch (e) {
-        console.error("SAVE_MINT_EXCEPTION", e);
+      } catch {
+        // ignore
       }
 
       const qp = new URLSearchParams();
       qp.set("name", finalName);
-      qp.set("image", posterOrImage || "");
+      qp.set("image", posterOrImage || ""); // ✅ poster
+      qp.set("media", mediaForQuery || ""); // ✅ real media
+      qp.set("kind", effectivePreviewKind);
       qp.set("category", finalCategory);
       qp.set("project", project);
       qp.set("tx", txHash || "");
       qp.set("tokenId", tokenId || "");
-      // optional for richer success page
-      if (mediaForQuery) qp.set("media", mediaForQuery);
-      qp.set("kind", effectivePreviewKind);
-
-      if (earned > 0) qp.set("earned", String(earned));
-      if (typeof pointsAfter === "number") qp.set("points", String(pointsAfter));
 
       router.push(`/app/success?${qp.toString()}`);
     })();
@@ -707,13 +647,7 @@ export default function MintForm() {
   const canPrepare = Boolean(file) && Boolean(name.trim()) && Boolean(CONTRACT_ADDRESS);
   const canMint = Boolean(tokenURI) && Boolean(CONTRACT_ADDRESS);
 
-  const busy =
-    step === "preparing" ||
-    step === "signing" ||
-    step === "mining" ||
-    isWalletPromptOpen ||
-    isMining ||
-    isSwitching;
+  const busy = step !== "idle" || isWalletPromptOpen || isMining || isSwitching;
 
   async function handlePrepare() {
     setError("");
@@ -736,6 +670,11 @@ export default function MintForm() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      // ✅ only send poster when video AND poster chosen
+      if (file.type.startsWith("video/") && posterFile) {
+        formData.append("poster", posterFile);
+      }
+
       formData.append("name", name.trim());
       formData.append("description", description.trim());
       formData.append("project", project);
@@ -745,92 +684,40 @@ export default function MintForm() {
 
       const res = await fetch(PREPARE_URL, { method: "POST", body: formData });
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok) throw new Error(data?.message || "Mint preparation failed");
 
-      const uri =
-        data?.metadataUri ||
-        data?.tokenURI ||
-        data?.tokenUri ||
-        data?.preview?.metadataUri ||
-        data?.preview?.tokenURI ||
-        null;
-
-      if (!uri || typeof uri !== "string") {
-        throw new Error("Backend didn't return metadataUri/tokenURI");
-      }
+      const uri = data?.metadataUri || data?.tokenURI || data?.tokenUri || null;
+      if (!uri || typeof uri !== "string") throw new Error("Backend didn't return metadataUri/tokenURI");
 
       setTokenURI(uri);
 
-      // ✅ Decide prepared preview from:
-      // 1) metadata JSON (image / animation_url) -> like marketplaces
-      // 2) backend preview (preview.media / preview.kind / preview.image / preview.animation_url)
-      // 3) fallback to local blob preview
-      let kind: "image" | "video" =
-        (data?.preview?.kind === "video" ? "video" : data?.preview?.kind === "image" ? "image" : null) ??
-        (file.type.startsWith("video/") ? "video" : "image");
+      // Prefer backend preview (it already knows poster/media)
+      const pKind: "image" | "video" =
+        data?.preview?.kind === "video" ? "video" : data?.preview?.kind === "image" ? "image" : pickedKind;
 
-      let media: string | null =
-        data?.preview?.media ||
-        data?.preview?.animation_url ||
-        data?.preview?.animationUrl ||
-        // some backends send "image" even for video posters — we'll still reconcile below
-        data?.preview?.image ||
-        null;
+      const pMedia = ipfsToHttp(data?.preview?.media || null, IPFS_GATEWAYS[0]) || null;
+      const pPoster = ipfsToHttp(data?.preview?.poster || null, IPFS_GATEWAYS[0]) || null;
 
-      let poster: string | null =
-        data?.preview?.poster ||
-        // common: preview.image is poster for video
-        data?.preview?.image ||
-        null;
+      setPreparedKind(pKind);
+      setPreparedMedia(pMedia || filePreviewUrl);
+      setPreparedPoster(pKind === "video" ? pPoster : null);
 
-      // normalize to http gateway if ipfs://
-      media = ipfsToHttp(media, IPFS_GATEWAYS[0]);
-      poster = ipfsToHttp(poster, IPFS_GATEWAYS[0]);
-
-      // try to load metadata json and override (best marketplace behavior)
+      // optional: use tokenURI metadata to refine (marketplace style)
       const meta = await loadMetadataFromTokenUri(uri);
+      const metaImage = typeof meta?.image === "string" ? meta.image : null;
+      const metaAnim = typeof meta?.animation_url === "string" ? meta.animation_url : null;
 
-      const metaImage =
-        typeof meta?.image === "string"
-          ? meta.image
-          : typeof meta?.image_url === "string"
-          ? meta.image_url
-          : typeof meta?.imageUrl === "string"
-          ? meta.imageUrl
-          : null;
-
-      const metaAnimation =
-        typeof meta?.animation_url === "string"
-          ? meta.animation_url
-          : typeof meta?.animationUrl === "string"
-          ? meta.animationUrl
-          : typeof meta?.animation === "string"
-          ? meta.animation
-          : null;
-
-      if (metaAnimation) {
-        kind = "video";
-        media = ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
-        if (metaImage) poster = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]);
+      if (metaAnim) {
+        setPreparedKind("video");
+        setPreparedMedia(ipfsToHttp(metaAnim, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl);
+        setPreparedPoster(ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pPoster || null);
       } else if (metaImage) {
-        kind = "image";
-        media = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]);
-      } else {
-        // if metadata is missing but backend gave something, infer by url
-        if (media && isLikelyVideoUrl(media)) kind = "video";
+        setPreparedKind("image");
+        setPreparedMedia(ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl);
+        setPreparedPoster(null);
       }
 
-      // final fallbacks
-      if (!media) media = filePreviewUrl; // still show something even if gateway fails
-      if (kind === "video" && !poster) poster = null;
-
-      setPreparedKind(kind);
-      setPreparedMedia(media);
-      setPreparedPoster(poster);
-
       setPreviewCategory(data?.preview?.category || selectedCategoryLabel);
-
       setStep("idle");
     } catch (e: any) {
       setError(prettyError(e));
@@ -874,6 +761,8 @@ export default function MintForm() {
     }
   }
 
+  const refreshLabel = !mounted ? "Refresh" : isBalanceFetching ? "Refreshing…" : "Refresh";
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
       <Stepper
@@ -895,9 +784,7 @@ export default function MintForm() {
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Select project</div>
-              <div className="text-[11px] text-white/55 mt-1">
-                Choose the context for your mint (premium metadata).
-              </div>
+              <div className="text-[11px] text-white/55 mt-1">Choose the context for your mint (premium metadata).</div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -928,14 +815,12 @@ export default function MintForm() {
           </div>
         </Card>
 
-        {/* UPLOAD */}
+        {/* UPLOAD MEDIA */}
         <Card>
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Upload your file</div>
-              <div className="text-[11px] text-white/55 mt-1">
-                Photo / video / design / product image (token media).
-              </div>
+              <div className="text-[11px] text-white/55 mt-1">Photo / video / design / product image (token media).</div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -965,44 +850,26 @@ export default function MintForm() {
               "hover:bg-white/[0.06] hover:border-white/25",
             ].join(" ")}
           >
-            <div className="pointer-events-none absolute -top-24 -right-24 w-72 h-72 bg-[#d4af37]/14 rounded-full blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-28 -left-28 w-80 h-80 bg-white/[0.06] rounded-full blur-3xl" />
-
             <div className="relative flex gap-5 items-center">
               <div className="w-28 h-28 rounded-2xl bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shrink-0 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
-                <div
-                  className="h-full w-full"
-                  onClickCapture={(e) => {
-                    // so video controls/play don't open file picker
-                    if (effectivePreviewKind === "video") e.stopPropagation();
-                  }}
-                  onMouseDownCapture={(e) => {
-                    if (effectivePreviewKind === "video") e.stopPropagation();
-                  }}
-                >
-                  {effectivePreviewSrc ? (
-                    <NftMedia
-                      src={effectivePreviewSrc}
-                      kind={effectivePreviewKind}
-                      alt="Preview"
-                      poster={effectivePreviewKind === "video" ? effectivePoster : null}
-                      showControls={effectivePreviewKind === "video"}
-                      className="h-full w-full"
-                      roundedClass="rounded-2xl"
-                    />
-                  ) : (
-                    <div className="text-xs text-center text-white/60 px-3">
-                      {file ? "Preview" : "Click to upload"}
-                    </div>
-                  )}
-                </div>
+                {effectivePreviewSrc ? (
+                  <NftMedia
+                    src={effectivePreviewSrc}
+                    kind={effectivePreviewKind}
+                    alt="Preview"
+                    poster={effectivePreviewKind === "video" ? effectivePoster : null}
+                    showControls={effectivePreviewKind === "video"}
+                    className="h-full w-full"
+                    roundedClass="rounded-2xl"
+                  />
+                ) : (
+                  <div className="text-xs text-center text-white/60 px-3">{file ? "Preview" : "Click to upload"}</div>
+                )}
               </div>
 
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-extrabold mb-1">Premium media upload</p>
-                <p className="text-xs text-white/60 leading-relaxed">
-                  Click to upload. (We can add drag & drop + smart crop next.)
-                </p>
+                <p className="text-xs text-white/60 leading-relaxed">Click to upload. Video supported.</p>
 
                 {file && (
                   <p className="mt-3 text-xs font-semibold truncate">
@@ -1012,13 +879,77 @@ export default function MintForm() {
 
                 {tokenURI && (
                   <p className="mt-3 text-xs">
-                    ✅ Prepared tokenURI:{" "}
-                    <span className="text-white/70 break-all">{tokenURI}</span>
+                    ✅ Prepared tokenURI: <span className="text-white/70 break-all">{tokenURI}</span>
                   </p>
                 )}
               </div>
             </div>
           </div>
+
+          {/* ✅ POSTER upload (only if video) */}
+          {file?.type?.startsWith("video/") ? (
+            <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm font-extrabold">Poster (thumbnail)</div>
+                  <div className="mt-1 text-[11px] text-white/55">
+                    Optional but recommended. This is the image shown on marketplaces & in gallery grid.
+                  </div>
+                </div>
+                <Pill>
+                  <span className="h-2 w-2 rounded-full bg-white/60" />
+                  Optional
+                </Pill>
+              </div>
+
+              <input
+                ref={posterInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*"
+                onChange={(e) => onPickPoster(e.target.files?.[0] || null)}
+              />
+
+              <div className="mt-4 flex items-center gap-4">
+                <div className="h-16 w-16 rounded-2xl border border-white/10 bg-black/30 overflow-hidden flex items-center justify-center">
+                  {posterPreviewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={posterPreviewUrl} alt="Poster" className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-[10px] text-white/45">No poster</span>
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="text-xs text-white/60">
+                    {posterFile ? (
+                      <span className="font-semibold text-white/80 truncate block">{posterFile.name}</span>
+                    ) : (
+                      "Upload an image thumbnail for your video."
+                    )}
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={openPosterPicker}
+                      className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 transition text-xs font-extrabold"
+                    >
+                      Choose poster
+                    </button>
+                    {posterFile ? (
+                      <button
+                        type="button"
+                        onClick={() => onPickPoster(null)}
+                        className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.04] hover:bg-white/[0.06] transition text-xs font-extrabold text-white/70"
+                      >
+                        Remove
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </Card>
 
         {/* CATEGORIES */}
@@ -1026,9 +957,7 @@ export default function MintForm() {
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Category</div>
-              <div className="text-[11px] text-white/55 mt-1">
-                Choose one or more to enrich metadata.
-              </div>
+              <div className="text-[11px] text-white/55 mt-1">Choose one or more to enrich metadata.</div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-white/60" />
@@ -1053,12 +982,7 @@ export default function MintForm() {
                   ].join(" ")}
                 >
                   <span className="font-extrabold">{c}</span>
-                  <span
-                    className={[
-                      "w-5 h-5 rounded-md border flex items-center justify-center text-xs",
-                      active ? "border-black/35 bg-black/10" : "border-white/25",
-                    ].join(" ")}
-                  >
+                  <span className={["w-5 h-5 rounded-md border flex items-center justify-center text-xs", active ? "border-black/35 bg-black/10" : "border-white/25"].join(" ")}>
                     {active ? "✓" : ""}
                   </span>
                 </button>
@@ -1082,31 +1006,15 @@ export default function MintForm() {
                 <span
                   className={[
                     "h-2 w-2 rounded-full",
-                    !mounted || !connected
-                      ? "bg-white/30"
-                      : wrongNetwork
-                      ? "bg-rose-400"
-                      : "bg-emerald-400",
+                    !mounted || !connected ? "bg-white/30" : wrongNetwork ? "bg-rose-400" : "bg-emerald-400",
                     "shadow-[0_0_0_6px_rgba(255,255,255,0.06)]",
                   ].join(" ")}
                 />
-                {mounted
-                  ? connected
-                    ? wrongNetwork
-                      ? "Wrong network"
-                      : "Base Sepolia"
-                    : "Connect wallet"
-                  : "Connect wallet"}
+                {mounted ? (connected ? (wrongNetwork ? "Wrong network" : "Base Sepolia") : "Connect wallet") : "Connect wallet"}
               </Pill>
 
               <div className="mt-3 text-sm font-extrabold tracking-tight">
-                {mounted && connected
-                  ? wrongNetwork
-                    ? "Switch to Base Sepolia"
-                    : hasGas
-                    ? "Gas OK — ready to mint"
-                    : "No gas — request test ETH"
-                  : "Connect wallet to mint"}
+                {mounted && connected ? (wrongNetwork ? "Switch to Base Sepolia" : hasGas ? "Gas OK — ready to mint" : "No gas — request test ETH") : "Connect wallet to mint"}
               </div>
 
               <div className="mt-2 text-xs text-white/65">
@@ -1114,23 +1022,15 @@ export default function MintForm() {
               </div>
 
               <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
-                Mint an NFT and earn{" "}
-                <span className="text-amber-200 font-extrabold">+10 points</span>.
+                Mint an NFT and earn <span className="text-amber-200 font-extrabold">+10 points</span>.
                 <span className="text-white/45"> The more you mint — the higher your score.</span>
               </div>
 
               <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
                 {mounted && connected ? (
                   <>
-                    {wrongNetwork
-                      ? "One click switch, then mint."
-                      : hasGas
-                      ? "Prepare → sign → tx mined → success."
-                      : "Open faucet, claim test ETH, then refresh."}{" "}
-                    <Link
-                      href="/app/faucet"
-                      className="text-[#d4af37] font-semibold hover:brightness-110 transition"
-                    >
+                    {wrongNetwork ? "One click switch, then mint." : hasGas ? "Prepare → sign → tx mined → success." : "Open faucet, claim test ETH, then refresh."}{" "}
+                    <Link href="/app/faucet" className="text-[#d4af37] font-semibold hover:brightness-110 transition">
                       Faucet ↗
                     </Link>
                   </>
@@ -1233,10 +1133,6 @@ export default function MintForm() {
               "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
             ].join(" ")}
           />
-
-          <p className="mt-2 text-xs text-white/55">
-            Supply is stored in metadata for now (we can turn it into real mint logic later).
-          </p>
         </Card>
 
         {/* DESCRIPTION */}
@@ -1307,76 +1203,9 @@ export default function MintForm() {
             </GhostButton>
 
             <GoldButton disabled={busy || !canMint} onClick={handleOnchainMint}>
-              {step === "signing"
-                ? "Waiting for wallet signature…"
-                : step === "mining" || isMining
-                ? "Minting on-chain (mining)…"
-                : "2) Mint On-chain (Signature + Gas)"}
+              {step === "signing" ? "Waiting for wallet signature…" : step === "mining" || isMining ? "Minting on-chain (mining)…" : "2) Mint On-chain (Signature + Gas)"}
             </GoldButton>
-
-            <div className="flex items-center justify-between gap-3 text-xs text-white/55">
-              <span>prepare → signature → tx mined → success</span>
-              {txHash ? (
-                <a
-                  href={`https://sepolia.basescan.org/tx/${txHash}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[#d4af37] font-semibold hover:brightness-110 transition"
-                >
-                  View tx ↗
-                </a>
-              ) : null}
-            </div>
-
-            {txHash ? (
-              <p className="text-xs text-white/60 break-all">
-                txHash: <span className="font-semibold text-white">{txHash}</span>
-              </p>
-            ) : null}
           </div>
-        </Card>
-
-        {/* PREVIEW */}
-        <Card>
-          <div className="flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-white/60">Preview</div>
-              <div className="mt-1 text-sm font-extrabold truncate">{name.trim() || "Untitled NFT"}</div>
-              <div className="mt-1 text-xs text-white/60 truncate">
-                {project} • {selectedCategoryLabel} • Supply {clampSupply(supply)}
-              </div>
-            </div>
-
-            <div className="w-16 h-16 rounded-2xl bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
-              <div
-                className="h-full w-full"
-                onClickCapture={(e) => {
-                  if (effectivePreviewKind === "video") e.stopPropagation();
-                }}
-                onMouseDownCapture={(e) => {
-                  if (effectivePreviewKind === "video") e.stopPropagation();
-                }}
-              >
-                {effectivePreviewSrc ? (
-                  <NftMedia
-                    src={effectivePreviewSrc}
-                    kind={effectivePreviewKind}
-                    alt="NFT preview"
-                    poster={effectivePreviewKind === "video" ? effectivePoster : null}
-                    showControls={false}
-                    className="h-full w-full"
-                    roundedClass="rounded-2xl"
-                  />
-                ) : (
-                  <span className="text-[10px] text-white/45">NFT</span>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <p className="mt-3 text-[11px] text-white/45">
-            Tokenization = media + IPFS metadata + on-chain ownership.
-          </p>
         </Card>
       </div>
     </div>

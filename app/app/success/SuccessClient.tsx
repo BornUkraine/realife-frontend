@@ -145,7 +145,7 @@ function shortAddr(a?: string) {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
-const IPFS_GATEWAY = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud").replace(/\/$/, "");
+const IPFS_GATEWAY = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
 
 /** allow blob:, data:, ipfs:// and http(s) + /ipfs/... */
 function safeUrl(input?: string) {
@@ -236,7 +236,6 @@ function VideoPlayOverlay({
         className="absolute inset-0 h-full w-full object-cover"
         onClick={toggle}
       />
-      {/* overlay button */}
       <button
         type="button"
         onClick={toggle}
@@ -273,12 +272,14 @@ export default function SuccessClient() {
   const initialCategory = useMemo(() => (sp.get("category") || "Other").trim(), [sp]);
   const initialProject = useMemo(() => (sp.get("project") || "Realife").trim(), [sp]);
 
-  // ✅ support both: image (poster) + media (actual video/image) + kind
+  // ✅ support poster + media + kind
   const qpKind = useMemo(() => (sp.get("kind") || "").toLowerCase(), [sp]);
 
+  // poster lives in ?image=
   const rawPoster = useMemo(() => sp.get("image") || "", [sp]);
   const posterUrl = useMemo(() => safeUrl(rawPoster), [rawPoster]);
 
+  // real media lives in ?media= (fallback to image)
   const rawMedia = useMemo(() => sp.get("media") || sp.get("image") || "", [sp]);
   const initialMedia = useMemo(() => safeUrl(rawMedia), [rawMedia]);
 
@@ -317,7 +318,7 @@ export default function SuccessClient() {
   const basescanTx = tx ? `https://sepolia.basescan.org/tx/${tx}` : "";
   const [copied, setCopied] = useState<"" | "tx" | "link">("");
 
-  // ✅ Ensure mint is saved (idempotent). If earned/points not present, we fetch them here.
+  // ✅ Ensure mint is saved (idempotent) + pull earned/points if backend returns them
   useEffect(() => {
     const key = tokenId && tx ? `${tokenId}:${tx}` : "";
     if (!key) return;
@@ -326,7 +327,7 @@ export default function SuccessClient() {
     if (savedKeyRef.current === key) return;
     savedKeyRef.current = key;
 
-    // save a stable image for DB (poster for video, image for image)
+    // save stable image for DB: poster for video, media for image
     const posterToSave = posterUrl && !posterUrl.startsWith("blob:") ? posterUrl : null;
     const imageToSave =
       mediaKind === "image" && mediaUrl && !mediaUrl.startsWith("blob:")
@@ -356,26 +357,24 @@ export default function SuccessClient() {
           const add = Number(j?.add || 0) || 0;
           if (add > 0 && earned === 0) setEarned(add);
           if (typeof j?.points === "number") setPointsAfter(j.points);
-        } else if (!r.ok) {
-          const t = await r.text().catch(() => "");
-          console.error("SAVE_MINT_FAILED (SuccessClient)", r.status, t);
         }
-      } catch (e) {
-        console.error("SAVE_MINT_EXCEPTION (SuccessClient)", e);
+      } catch {
+        // ignore
       }
     })();
-  }, [tokenId, tx, name, mediaUrl, mediaKind, earned, posterUrl]);
+  }, [tokenId, tx, name, mediaUrl, mediaKind, posterUrl, earned]);
 
-  // ✅ Hydrate media/name from backend:
-  // - If we already have real VIDEO src -> skip.
-  // - If we only have poster/image -> still try to fetch animation_url.
+  // ✅ Hydrate from backend /metadata/:tokenId
+  // - fill missing media (animation_url)
+  // - fill missing poster (image)
+  // - fill name/category/project from attributes
   useEffect(() => {
     let alive = true;
 
     async function hydrateFromBackend() {
       if (!tokenId) return;
 
-      // if we already have video src, do nothing
+      // If we already have actual video url and kind=video — nothing to do
       if (mediaKind === "video" && mediaUrl) return;
 
       const base = (API_BASE || "").replace(/\/$/, "");
@@ -386,24 +385,23 @@ export default function SuccessClient() {
         if (!res.ok) return;
         const json = await res.json();
 
+        if (!alive) return;
+
         const img = safeUrl(json?.image);
         const anim = safeUrl(json?.animation_url || json?.animationUrl || json?.animation);
 
-        const chosen = anim || img;
-        if (!alive) return;
-
-        if (chosen) {
-          setMediaUrl(chosen);
-          // ✅ animation_url => video always
-          setMediaKind(anim ? "video" : isVideoUrl(chosen) ? "video" : "image");
+        // prefer animation_url (video)
+        if (anim) {
+          setMediaUrl(anim);
+          setMediaKind("video");
+        } else if (img && !mediaUrl) {
+          setMediaUrl(img);
+          setMediaKind(isVideoUrl(img) ? "video" : "image");
         }
 
         if (typeof json?.name === "string" && json.name.trim()) setName(json.name.trim());
 
-        const attrs: Array<{ trait_type?: string; value?: any }> = Array.isArray(json?.attributes)
-          ? json.attributes
-          : [];
-
+        const attrs: Array<{ trait_type?: string; value?: any }> = Array.isArray(json?.attributes) ? json.attributes : [];
         const cat = attrs.find((a) => (a.trait_type || "").toLowerCase() === "category")?.value;
         const proj = attrs.find((a) => (a.trait_type || "").toLowerCase() === "project")?.value;
 
@@ -520,9 +518,7 @@ export default function SuccessClient() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="text-xs font-semibold text-white/60">NFT preview</div>
-                      <div className="mt-1 text-lg font-black tracking-tight truncate">
-                        {name || "Untitled NFT"}
-                      </div>
+                      <div className="mt-1 text-lg font-black tracking-tight truncate">{name || "Untitled NFT"}</div>
                       <div className="mt-1 text-xs text-white/60 truncate">
                         {project} • {category}
                       </div>
@@ -548,9 +544,7 @@ export default function SuccessClient() {
                           />
                         )
                       ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-xs text-white/45">
-                          No preview media
-                        </div>
+                        <div className="absolute inset-0 flex items-center justify-center text-xs text-white/45">No preview media</div>
                       )}
                       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.55),transparent_55%)]" />
                     </div>
@@ -560,9 +554,7 @@ export default function SuccessClient() {
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
                       <div className="text-[11px] font-semibold text-white/55">Transaction</div>
                       <div className="mt-1 flex items-center justify-between gap-3">
-                        <div className="text-sm font-extrabold text-white/85 truncate">
-                          {tx ? shortAddr(tx) : "—"}
-                        </div>
+                        <div className="text-sm font-extrabold text-white/85 truncate">{tx ? shortAddr(tx) : "—"}</div>
                         <button
                           type="button"
                           onClick={() => copyText("tx")}
@@ -577,9 +569,7 @@ export default function SuccessClient() {
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
                       <div className="text-[11px] font-semibold text-white/55">Explorer link</div>
                       <div className="mt-1 flex items-center justify-between gap-3">
-                        <div className="text-sm font-extrabold text-white/85 truncate">
-                          {basescanTx ? "BaseScan /tx/…" : "—"}
-                        </div>
+                        <div className="text-sm font-extrabold text-white/85 truncate">{basescanTx ? "BaseScan /tx/…" : "—"}</div>
                         <button
                           type="button"
                           onClick={() => copyText("link")}
@@ -592,9 +582,7 @@ export default function SuccessClient() {
                     </div>
                   </div>
 
-                  <div className="mt-5 text-[11px] text-white/45">
-                    Proof = IPFS media + IPFS metadata + on-chain ownership.
-                  </div>
+                  <div className="mt-5 text-[11px] text-white/45">Proof = poster image + IPFS media + IPFS metadata + on-chain ownership.</div>
                 </Card>
               </div>
             </div>
@@ -607,9 +595,7 @@ export default function SuccessClient() {
           <Card>
             <div className="text-xs font-semibold text-white/60">Next</div>
             <div className="mt-2 text-lg font-black tracking-tight">Share proof</div>
-            <div className="mt-2 text-sm text-white/65 leading-relaxed">
-              Use the explorer link as public verification.
-            </div>
+            <div className="mt-2 text-sm text-white/65 leading-relaxed">Use the explorer link as public verification.</div>
             <div className="mt-4 flex gap-3">
               {basescanTx ? (
                 <a
@@ -631,9 +617,7 @@ export default function SuccessClient() {
           <Card>
             <div className="text-xs font-semibold text-white/60">Next</div>
             <div className="mt-2 text-lg font-black tracking-tight">Mint again</div>
-            <div className="mt-2 text-sm text-white/65 leading-relaxed">
-              Build your creator reputation with consistent mints.
-            </div>
+            <div className="mt-2 text-sm text-white/65 leading-relaxed">Build your creator reputation with consistent mints.</div>
             <div className="mt-4">
               <GoldButton href="/app/create" className="w-full">
                 Go to Mint
@@ -644,9 +628,7 @@ export default function SuccessClient() {
           <Card>
             <div className="text-xs font-semibold text-white/60">Next</div>
             <div className="mt-2 text-lg font-black tracking-tight">Get gas</div>
-            <div className="mt-2 text-sm text-white/65 leading-relaxed">
-              Keep a small Base Sepolia balance for smooth minting.
-            </div>
+            <div className="mt-2 text-sm text-white/65 leading-relaxed">Keep a small Base Sepolia balance for smooth minting.</div>
             <div className="mt-4">
               <GhostButton href="/app/faucet" className="w-full justify-center">
                 Open Faucet

@@ -26,19 +26,33 @@ function shortAddr(addr?: string | null) {
   return `${s.slice(0, 6)}…${s.slice(-4)}`;
 }
 
-/* ------------------------------- IPFS helpers ------------------------------ */
+/* ------------------------------- Config ------------------------------ */
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+
+const PRIMARY_IPFS_ORIGIN = (
+  process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link"
+).replace(/\/$/, "");
 
 const IPFS_GATEWAYS = [
-  "https://nftstorage.link/ipfs/",
+  `${PRIMARY_IPFS_ORIGIN}/ipfs/`,
+  "https://gateway.pinata.cloud/ipfs/",
   "https://cloudflare-ipfs.com/ipfs/",
   "https://ipfs.io/ipfs/",
-  "https://gateway.pinata.cloud/ipfs/",
 ] as const;
+
+const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
+
+/* ------------------------------- Helpers ------------------------------ */
 
 function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
-  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) return u;
+
+  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) {
+    return u;
+  }
 
   if (u.startsWith("ipfs://")) {
     let p = u.slice("ipfs://".length);
@@ -46,13 +60,12 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
     return `${gw}${p}`;
   }
 
-  // sometimes it can be CID/path
   if (u.startsWith("Qm") || u.startsWith("bafy")) return `${gw}${u}`;
 
   return u;
 }
 
-async function loadMetadata(tokenUri: string) {
+async function loadMetadataFromTokenUri(tokenUri: string) {
   for (const gw of IPFS_GATEWAYS) {
     const url = ipfsToHttp(tokenUri, gw);
     if (!url) continue;
@@ -63,22 +76,25 @@ async function loadMetadata(tokenUri: string) {
       const j = await r.json().catch(() => null);
       if (j && typeof j === "object") return j;
     } catch {
-      // try next gateway
+      // next gateway
     }
   }
   return null;
 }
 
-function isLikelyVideoUrl(u?: string | null) {
-  const s = (u || "").toLowerCase();
-  return (
-    s.includes(".mp4") ||
-    s.includes(".webm") ||
-    s.includes(".mov") ||
-    s.includes(".m4v") ||
-    s.includes("video") ||
-    s.includes("animation")
-  );
+async function loadMetadataFromBackend(tokenId: string) {
+  const base = String(API_BASE || "").replace(/\/$/, "");
+  if (!base || !tokenId) return null;
+
+  try {
+    const r = await fetch(`${base}/metadata/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
+    if (!r.ok) return null;
+    const j = await r.json().catch(() => null);
+    if (j && typeof j === "object") return j;
+  } catch {
+    // ignore
+  }
+  return null;
 }
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
@@ -145,25 +161,33 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
       chainId: true,
       contract: true,
       tokenId: true,
-      tokenUri: true, // ✅ нужен, чтобы понять video/image по metadata
+      tokenUri: true,
       name: true,
-      image: true, // poster (или image) из твоего mint flow
+      image: true, // poster/image fallback
       createdAt: true,
     },
     take: 200,
   });
 
-  // ✅ enrich: determine kind + media from tokenUri metadata
-  const enriched = await mapLimit(nfts, 10, async (x) => {
-    const fallbackImage = ipfsToHttp(x.image, IPFS_GATEWAYS[0]);
+  // ✅ Enrich:
+  // 1) prefer backend /metadata/:tokenId (animation_url + http)
+  // 2) fallback to tokenUri JSON only if backend missing / failed
+  const enriched = await mapLimit(nfts, 8, async (x) => {
+    const fallbackPoster = ipfsToHttp(x.image, IPFS_GATEWAYS[0]);
 
     let kind: "image" | "video" = "image";
-    let media: string | null = fallbackImage;
+    let media: string | null = fallbackPoster;
     let poster: string | null = null;
 
-    if (x.tokenUri) {
-      const meta = await loadMetadata(x.tokenUri);
+    const liveMeta = await loadMetadataFromBackend(String(x.tokenId));
+    let meta: any = liveMeta;
 
+    // fallback to tokenUri only if backend didn't return anything
+    if (!meta && x.tokenUri) {
+      meta = await loadMetadataFromTokenUri(x.tokenUri);
+    }
+
+    if (meta) {
       const metaImage =
         typeof meta?.image === "string"
           ? meta.image
@@ -182,14 +206,18 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
           ? meta.animation
           : null;
 
-      const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackImage;
-      const animHttp = ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
+      const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackPoster;
 
-      if (animHttp || isLikelyVideoUrl(media)) {
+      const animHttp =
+        ipfsToHttp(metaAnimation, PINATA_IPFS) ||
+        ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
+
+      if (metaAnimation) {
         kind = "video";
-        media = animHttp || null; // video src
-        poster = imgHttp || fallbackImage || null;
-        // если video src не удалось достать — покажем постер как image
+        media = animHttp || null;
+        poster = imgHttp || fallbackPoster || null;
+
+        // если видео url не получилось — покажем постер как картинку
         if (!media) {
           kind = "image";
           media = poster;
@@ -197,7 +225,7 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
         }
       } else {
         kind = "image";
-        media = imgHttp || fallbackImage;
+        media = imgHttp || fallbackPoster;
         poster = null;
       }
     }
@@ -218,7 +246,7 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
       </div>
 
       <div className="relative mx-auto max-w-7xl px-6 py-10">
-        {/* header like OpenSea */}
+        {/* header */}
         <div className="reveal flex items-center gap-4">
           <div className="h-14 w-14 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
             {avatar ? (
