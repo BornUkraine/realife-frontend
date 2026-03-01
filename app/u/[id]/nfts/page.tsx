@@ -26,14 +26,16 @@ function shortAddr(addr?: string | null) {
   return `${s.slice(0, 6)}…${s.slice(-4)}`;
 }
 
+function norm(a: string) {
+  return String(a || "").trim().toLowerCase();
+}
+
 /* ------------------------------- Config ------------------------------ */
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const REALIFE_1155_CONTRACT = (process.env.NEXT_PUBLIC_REALIFE_1155_CONTRACT || "").trim();
 
-const PRIMARY_IPFS_ORIGIN = (
-  process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link"
-).replace(/\/$/, "");
+const PRIMARY_IPFS_ORIGIN = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
 
 const IPFS_GATEWAYS = [
   `${PRIMARY_IPFS_ORIGIN}/ipfs/`,
@@ -82,12 +84,19 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
   return null;
 }
 
-async function loadMetadataFromBackend(tokenId: string) {
+function is1155ByContract(contract: string) {
+  if (!REALIFE_1155_CONTRACT) return false;
+  return norm(contract) === norm(REALIFE_1155_CONTRACT);
+}
+
+async function loadMetadataFromBackend(tokenId: string, is1155: boolean) {
   const base = String(API_BASE || "").replace(/\/$/, "");
   if (!base || !tokenId) return null;
 
+  const path = is1155 ? "metadata1155" : "metadata";
+
   try {
-    const r = await fetch(`${base}/metadata/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
+    const r = await fetch(`${base}/${path}/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
     if (!r.ok) return null;
     const j = await r.json().catch(() => null);
     if (j && typeof j === "object") return j;
@@ -95,6 +104,15 @@ async function loadMetadataFromBackend(tokenId: string) {
     // ignore
   }
   return null;
+}
+
+function pickAttrValue(meta: any, trait: string): string | null {
+  const attrs = Array.isArray(meta?.attributes) ? meta.attributes : [];
+  const t = trait.toLowerCase();
+  const hit = attrs.find((a: any) => String(a?.trait_type || "").toLowerCase() === t);
+  const v = hit?.value;
+  if (v === undefined || v === null) return null;
+  return String(v);
 }
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
@@ -163,26 +181,26 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
       tokenId: true,
       tokenUri: true,
       name: true,
-      image: true, // poster/image fallback
+      image: true,
       createdAt: true,
     },
     take: 200,
   });
 
-  // ✅ Enrich:
-  // 1) prefer backend /metadata/:tokenId (animation_url + http)
-  // 2) fallback to tokenUri JSON only if backend missing / failed
   const enriched = await mapLimit(nfts, 8, async (x) => {
+    const is1155 = is1155ByContract(String(x.contract || ""));
     const fallbackPoster = ipfsToHttp(x.image, IPFS_GATEWAYS[0]);
 
     let kind: "image" | "video" = "image";
     let media: string | null = fallbackPoster;
     let poster: string | null = null;
 
-    const liveMeta = await loadMetadataFromBackend(String(x.tokenId));
+    // supply badge for 1155
+    let supply: string | null = null;
+
+    const liveMeta = await loadMetadataFromBackend(String(x.tokenId), is1155);
     let meta: any = liveMeta;
 
-    // fallback to tokenUri only if backend didn't return anything
     if (!meta && x.tokenUri) {
       meta = await loadMetadataFromTokenUri(x.tokenUri);
     }
@@ -207,17 +225,13 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
           : null;
 
       const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackPoster;
-
-      const animHttp =
-        ipfsToHttp(metaAnimation, PINATA_IPFS) ||
-        ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
+      const animHttp = ipfsToHttp(metaAnimation, PINATA_IPFS) || ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
 
       if (metaAnimation) {
         kind = "video";
         media = animHttp || null;
         poster = imgHttp || fallbackPoster || null;
 
-        // если видео url не получилось — покажем постер как картинку
         if (!media) {
           kind = "image";
           media = poster;
@@ -228,14 +242,23 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
         media = imgHttp || fallbackPoster;
         poster = null;
       }
+
+      if (is1155) {
+        // from backend /metadata1155 attributes
+        supply = pickAttrValue(meta, "Total Supply");
+        if (!supply) {
+          const s = meta?.supply;
+          if (typeof s === "number") supply = String(s);
+          else if (typeof s === "string" && s.trim()) supply = s.trim();
+        }
+      }
     }
 
-    return { ...x, kind, media, poster };
+    return { ...x, kind, media, poster, is1155, supply };
   });
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
-      {/* Premium background */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
@@ -246,7 +269,6 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
       </div>
 
       <div className="relative mx-auto max-w-7xl px-6 py-10">
-        {/* header */}
         <div className="reveal flex items-center gap-4">
           <div className="h-14 w-14 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
             {avatar ? (
@@ -280,9 +302,8 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
           ) : null}
         </div>
 
-        {/* grid */}
         <div className="reveal mt-10 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" style={{ animationDelay: "90ms" }}>
-          {enriched.map((x) => (
+          {enriched.map((x: any) => (
             <Link
               key={x.id}
               href={`/nft/${x.chainId}/${x.contract}/${x.tokenId}`}
@@ -304,9 +325,25 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
                       className="h-full w-full"
                       roundedClass="rounded-none"
                     />
-                    {x.kind === "video" ? (
-                      <div className="absolute top-3 left-3 px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-amber-100">
-                        VIDEO
+
+                    {/* badges */}
+                    <div className="absolute top-3 left-3 flex gap-2">
+                      {x.kind === "video" ? (
+                        <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-amber-100">
+                          VIDEO
+                        </div>
+                      ) : null}
+
+                      {x.is1155 ? (
+                        <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-emerald-200">
+                          EDITION
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {x.is1155 && x.supply ? (
+                      <div className="absolute top-3 right-3 px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
+                        x{x.supply}
                       </div>
                     ) : null}
                   </>
@@ -335,15 +372,12 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
         </div>
 
         {enriched.length === 0 && (
-          <div
-            className="reveal mt-10 rounded-[26px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60"
-            style={{ animationDelay: "140ms" }}
-          >
+          <div className="reveal mt-10 rounded-[26px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60">
             This creator hasn&apos;t minted any NFTs yet.
           </div>
         )}
 
-        <footer className="reveal pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]" style={{ animationDelay: "180ms" }}>
+        <footer className="reveal pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]">
           Realife Ecosystem • Gallery
         </footer>
       </div>

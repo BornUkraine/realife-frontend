@@ -5,6 +5,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+type Standard = "ERC721" | "ERC1155";
+
 function safeDecode(v: string) {
   try {
     return decodeURIComponent(v);
@@ -22,6 +24,13 @@ function normalizeKey(raw: string) {
 function norm(a: string) {
   return String(a || "").trim().toLowerCase();
 }
+
+// ✅ One place to decide which contract is ERC-1155
+const ERC1155_CONTRACT = norm(
+  process.env.NEXT_PUBLIC_REALIFE_1155_CONTRACT ||
+    process.env.REALIFE_1155_CONTRACT ||
+    ""
+);
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: keyRaw } = await params;
@@ -70,13 +79,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
 
     const hasMore = items.length > take;
-
-    // ✅ ВАЖНО: сохраняем тип массива (чтобы x не был any)
     const data: typeof items = hasMore ? items.slice(0, take) : items;
-
     const nextCursor = hasMore ? data[data.length - 1]?.id ?? null : null;
 
-    const nfts = data.map((x: typeof items[number]) => ({ ...x, contract: norm(x.contract) }));
+    const nfts = data.map((x: typeof items[number]) => {
+      const c = norm(x.contract);
+      const standard: Standard = ERC1155_CONTRACT && c === ERC1155_CONTRACT ? "ERC1155" : "ERC721";
+      return { ...x, contract: c, standard };
+    });
 
     return NextResponse.json({ ok: true, nfts, nextCursor });
   } catch (e) {
