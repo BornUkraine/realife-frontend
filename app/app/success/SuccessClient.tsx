@@ -144,7 +144,8 @@ function shortAddr(a?: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
 const IPFS_GATEWAY = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
 
 /** allow blob:, data:, ipfs:// and http(s) + /ipfs/... */
@@ -182,8 +183,6 @@ function isVideoUrl(url: string) {
     u.startsWith("data:video/")
   );
 }
-
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as `0x${string}` | undefined;
 
 /** Premium play/pause overlay (no ugly controls) */
 function VideoPlayOverlay({
@@ -268,18 +267,30 @@ export default function SuccessClient() {
   const mounted = useMounted();
   const sp = useSearchParams();
 
+  const standard = useMemo(() => (sp.get("standard") || "ERC721").toUpperCase(), [sp]);
+  const is1155 = standard === "ERC1155";
+
+  // ✅ contract comes from query (set by MintForm). fallback to 721 env if missing.
+  const qpContract = useMemo(() => (sp.get("contract") || "").trim(), [sp]);
+  const contract = useMemo(() => {
+    if (qpContract && qpContract.startsWith("0x")) return qpContract;
+    // fallback: old links (erc721)
+    const fallback = process.env.NEXT_PUBLIC_REALIFE_CONTRACT || "";
+    return fallback;
+  }, [qpContract]);
+
   const initialName = useMemo(() => (sp.get("name") || "Untitled NFT").trim(), [sp]);
   const initialCategory = useMemo(() => (sp.get("category") || "Other").trim(), [sp]);
   const initialProject = useMemo(() => (sp.get("project") || "Realife").trim(), [sp]);
 
-  // ✅ support poster + media + kind
+  // ✅ poster + media + kind
   const qpKind = useMemo(() => (sp.get("kind") || "").toLowerCase(), [sp]);
 
-  // poster lives in ?image=
+  // poster in ?image=
   const rawPoster = useMemo(() => sp.get("image") || "", [sp]);
   const posterUrl = useMemo(() => safeUrl(rawPoster), [rawPoster]);
 
-  // real media lives in ?media= (fallback to image)
+  // media in ?media= (fallback to image)
   const rawMedia = useMemo(() => sp.get("media") || sp.get("image") || "", [sp]);
   const initialMedia = useMemo(() => safeUrl(rawMedia), [rawMedia]);
 
@@ -320,9 +331,8 @@ export default function SuccessClient() {
 
   // ✅ Ensure mint is saved (idempotent) + pull earned/points if backend returns them
   useEffect(() => {
-    const key = tokenId && tx ? `${tokenId}:${tx}` : "";
+    const key = tokenId && tx && contract ? `${contract}:${tokenId}:${tx}` : "";
     if (!key) return;
-    if (!CONTRACT_ADDRESS) return;
 
     if (savedKeyRef.current === key) return;
     savedKeyRef.current = key;
@@ -343,12 +353,13 @@ export default function SuccessClient() {
           cache: "no-store",
           body: JSON.stringify({
             chainId: baseSepolia.id,
-            contract: CONTRACT_ADDRESS,
+            contract: contract,
             tokenId,
             txHash: tx,
             name: name || null,
             image: imageToSave,
             verified: true,
+            standard, // ✅ so you can store it if you want
           }),
         });
 
@@ -362,17 +373,15 @@ export default function SuccessClient() {
         // ignore
       }
     })();
-  }, [tokenId, tx, name, mediaUrl, mediaKind, posterUrl, earned]);
+  }, [tokenId, tx, name, mediaUrl, mediaKind, posterUrl, earned, contract, standard]);
 
-  // ✅ Hydrate from backend /metadata/:tokenId
-  // - fill missing media (animation_url)
-  // - fill missing poster (image)
-  // - fill name/category/project from attributes
+  // ✅ Hydrate from backend /metadata/:tokenId ONLY for ERC-721 (your backend uses ownerOf)
   useEffect(() => {
     let alive = true;
 
     async function hydrateFromBackend() {
       if (!tokenId) return;
+      if (is1155) return; // ✅ don't call ERC-721 metadata endpoint for 1155
 
       // If we already have actual video url and kind=video — nothing to do
       if (mediaKind === "video" && mediaUrl) return;
@@ -416,7 +425,7 @@ export default function SuccessClient() {
     return () => {
       alive = false;
     };
-  }, [tokenId, mediaUrl, mediaKind]);
+  }, [tokenId, mediaUrl, mediaKind, is1155]);
 
   async function copyText(kind: "tx" | "link") {
     if (!mounted) return;
@@ -449,6 +458,18 @@ export default function SuccessClient() {
                   Mint confirmed • Base Sepolia • Explorer proof
                 </Pill>
 
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Pill>
+                    <span className="text-white/80 font-extrabold">{standard}</span>
+                  </Pill>
+                  {contract ? (
+                    <Pill>
+                      <span className="text-white/55">Contract:</span>
+                      <span className="text-white/80 font-extrabold">{shortAddr(contract)}</span>
+                    </Pill>
+                  ) : null}
+                </div>
+
                 <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
                   Success{" "}
                   <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
@@ -457,10 +478,10 @@ export default function SuccessClient() {
                 </h1>
 
                 <p className="mt-4 text-sm md:text-base text-white/70 max-w-2xl leading-relaxed">
-                  Your NFT is minted on-chain. Keep the transaction link as permanent proof.
+                  Your mint is on-chain. Keep the transaction link as permanent proof.
                 </p>
 
-                {/* ✅ Reward banner */}
+                {/* Reward banner */}
                 <div className="mt-6 flex flex-wrap gap-2">
                   {earned > 0 ? (
                     <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-100">
@@ -471,7 +492,7 @@ export default function SuccessClient() {
                     </div>
                   ) : (
                     <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70">
-                      Mint rewards: <span className="text-amber-200 font-black">+10 points</span> per NFT
+                      Mint rewards: <span className="text-amber-200 font-black">+10 points</span> per mint
                     </div>
                   )}
                 </div>
@@ -518,7 +539,9 @@ export default function SuccessClient() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="text-xs font-semibold text-white/60">NFT preview</div>
-                      <div className="mt-1 text-lg font-black tracking-tight truncate">{name || "Untitled NFT"}</div>
+                      <div className="mt-1 text-lg font-black tracking-tight truncate">
+                        {name || "Untitled NFT"}
+                      </div>
                       <div className="mt-1 text-xs text-white/60 truncate">
                         {project} • {category}
                       </div>
@@ -544,7 +567,9 @@ export default function SuccessClient() {
                           />
                         )
                       ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-xs text-white/45">No preview media</div>
+                        <div className="absolute inset-0 flex items-center justify-center text-xs text-white/45">
+                          No preview media
+                        </div>
                       )}
                       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.55),transparent_55%)]" />
                     </div>
@@ -554,7 +579,9 @@ export default function SuccessClient() {
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
                       <div className="text-[11px] font-semibold text-white/55">Transaction</div>
                       <div className="mt-1 flex items-center justify-between gap-3">
-                        <div className="text-sm font-extrabold text-white/85 truncate">{tx ? shortAddr(tx) : "—"}</div>
+                        <div className="text-sm font-extrabold text-white/85 truncate">
+                          {tx ? shortAddr(tx) : "—"}
+                        </div>
                         <button
                           type="button"
                           onClick={() => copyText("tx")}
@@ -569,7 +596,9 @@ export default function SuccessClient() {
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
                       <div className="text-[11px] font-semibold text-white/55">Explorer link</div>
                       <div className="mt-1 flex items-center justify-between gap-3">
-                        <div className="text-sm font-extrabold text-white/85 truncate">{basescanTx ? "BaseScan /tx/…" : "—"}</div>
+                        <div className="text-sm font-extrabold text-white/85 truncate">
+                          {basescanTx ? "BaseScan /tx/…" : "—"}
+                        </div>
                         <button
                           type="button"
                           onClick={() => copyText("link")}
@@ -582,71 +611,14 @@ export default function SuccessClient() {
                     </div>
                   </div>
 
-                  <div className="mt-5 text-[11px] text-white/45">Proof = poster image + IPFS media + IPFS metadata + on-chain ownership.</div>
+                  <div className="mt-5 text-[11px] text-white/45">
+                    Proof = poster + IPFS media + IPFS metadata + on-chain ownership.
+                  </div>
                 </Card>
               </div>
             </div>
           </div>
         </GoldEdgeWrap>
-      </Reveal>
-
-      <Reveal delayMs={120}>
-        <div className="mt-8 grid md:grid-cols-3 gap-4">
-          <Card>
-            <div className="text-xs font-semibold text-white/60">Next</div>
-            <div className="mt-2 text-lg font-black tracking-tight">Share proof</div>
-            <div className="mt-2 text-sm text-white/65 leading-relaxed">Use the explorer link as public verification.</div>
-            <div className="mt-4 flex gap-3">
-              {basescanTx ? (
-                <a
-                  href={basescanTx}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 inline-flex items-center justify-center px-4 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.25)] hover:bg-white/10 hover:-translate-y-px transition"
-                >
-                  Open ↗
-                </a>
-              ) : (
-                <div className="flex-1 inline-flex items-center justify-center px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] text-white/45 font-extrabold">
-                  —
-                </div>
-              )}
-            </div>
-          </Card>
-
-          <Card>
-            <div className="text-xs font-semibold text-white/60">Next</div>
-            <div className="mt-2 text-lg font-black tracking-tight">Mint again</div>
-            <div className="mt-2 text-sm text-white/65 leading-relaxed">Build your creator reputation with consistent mints.</div>
-            <div className="mt-4">
-              <GoldButton href="/app/create" className="w-full">
-                Go to Mint
-              </GoldButton>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="text-xs font-semibold text-white/60">Next</div>
-            <div className="mt-2 text-lg font-black tracking-tight">Get gas</div>
-            <div className="mt-2 text-sm text-white/65 leading-relaxed">Keep a small Base Sepolia balance for smooth minting.</div>
-            <div className="mt-4">
-              <GhostButton href="/app/faucet" className="w-full justify-center">
-                Open Faucet
-              </GhostButton>
-            </div>
-          </Card>
-        </div>
-      </Reveal>
-
-      <Reveal delayMs={200}>
-        <footer className="mt-12 pb-8 text-xs text-white/45 flex flex-wrap items-center justify-between gap-4">
-          <div>© {new Date().getFullYear()} Realife</div>
-          <div className="flex items-center gap-4">
-            <span className="opacity-60">Base Sepolia</span>
-            <span className="opacity-60">IPFS</span>
-            <span className="opacity-60">On-chain mint</span>
-          </div>
-        </footer>
       </Reveal>
     </div>
   );

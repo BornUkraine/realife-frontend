@@ -70,17 +70,22 @@ export default function CreatePage() {
                   <span className="text-amber-200 font-black">+10</span>
                   points per mint
                 </Pill>
+
+                <Pill>
+                  <span className="text-white/80 font-extrabold">ERC-721 & ERC-1155</span>
+                </Pill>
               </div>
 
               <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
                 Mint NFT{" "}
                 <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
                   proof
-                </span>
+                </span>{" "}
+                & Editions
               </h1>
 
               <p className="mt-4 text-sm md:text-base text-white/70 max-w-3xl leading-relaxed">
-                Prepare (IPFS) → Sign → Mint → Verify. One premium flow, no extra noise.
+                Prepare (IPFS) → Sign → Mint → Verify. Unique NFTs (ERC-721) and Editions (ERC-1155).
               </p>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
