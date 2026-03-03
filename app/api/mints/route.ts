@@ -5,20 +5,23 @@ import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 const REWARD_MINT = 10;
 
-// safe normalize
 const norm = (a: string) => String(a || "").trim().toLowerCase();
 
-function toPosInt(v: any, def = 1) {
-  const n = Number(v ?? def);
-  if (!Number.isFinite(n)) return null;
-  const i = Math.floor(n);
-  if (i <= 0) return null;
-  return i;
+function clampInt(n: any, min: number, max: number, fallback: number) {
+  const v = typeof n === "string" ? Number(n) : typeof n === "number" ? n : NaN;
+  if (!Number.isFinite(v)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(v)));
 }
+
+// ✅ Опционально: если хочешь жёстко принимать только твой новый контракт
+const ONLY_1155_CONTRACT = norm(
+  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT ||
+    process.env.REALIFE_1155_NEW_CONTRACT ||
+    ""
+);
 
 export async function GET() {
   return NextResponse.json({
@@ -31,7 +34,9 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   const userId = (session as any)?.user?.id || (session as any)?.userId;
 
-  if (!userId) return NextResponse.json({ ok: false, reason: "UNAUTHORIZED" }, { status: 401 });
+  if (!userId) {
+    return NextResponse.json({ ok: false, reason: "UNAUTHORIZED" }, { status: 401 });
+  }
 
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ ok: false, error: "bad_json" }, { status: 400 });
@@ -45,7 +50,8 @@ export async function POST(req: Request) {
     name,
     image,
     verified,
-    supply, // ✅ важно для 1155
+    standard, // optional: "ERC1155"
+    supply,   // optional: number (for 1155)
   } = body as any;
 
   if (!chainId || !contract || tokenId === undefined || tokenId === null) {
@@ -54,7 +60,7 @@ export async function POST(req: Request) {
 
   const cChainId = Number(chainId);
   const cContract = norm(String(contract));
-  const cTokenId = String(tokenId);
+  const cTokenId = String(tokenId).trim();
 
   if (!Number.isFinite(cChainId) || cChainId <= 0) {
     return NextResponse.json({ ok: false, error: "bad_chain" }, { status: 400 });
@@ -66,20 +72,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "bad_tokenId" }, { status: 400 });
   }
 
-  // ✅ 1155-only: принимаем только наш новый контракт из env
-  const allowed1155 = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
-  if (allowed1155 && cContract !== allowed1155) {
-    return NextResponse.json(
-      { ok: false, error: "wrong_contract", allowed: allowed1155, got: cContract },
-      { status: 400 }
-    );
+  // ✅ 1155-only: если задан env контракта — запрещаем писать другие контракты
+  if (ONLY_1155_CONTRACT && cContract !== ONLY_1155_CONTRACT) {
+    return NextResponse.json({ ok: false, error: "wrong_contract" }, { status: 400 });
   }
 
-  // ✅ supply для 1155 (default 1)
-  const sInt = toPosInt(supply, 1);
-  if (!sInt) return NextResponse.json({ ok: false, error: "bad_supply" }, { status: 400 });
-  if (sInt > 1_000_000) return NextResponse.json({ ok: false, error: "supply_too_big" }, { status: 400 });
-  const supplyBI = BigInt(sInt);
+  // ✅ standard: берём из body, иначе — ERC1155 (потому что 1155-only)
+  const std = String(standard || "ERC1155").toUpperCase() === "ERC721" ? "ERC721" : "ERC1155";
+
+  // ✅ amount для Holding:
+  // ERC1155 -> supply (по умолчанию 1..10000)
+  // ERC721 -> 1
+  const supplyInt = std === "ERC1155" ? clampInt(supply, 1, 10000, 1) : 1;
+  const amount = std === "ERC1155" ? BigInt(supplyInt) : 1n;
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -124,7 +129,7 @@ export async function POST(req: Request) {
       let mint: any = null;
       let created = false;
 
-      // create + catch unique (P2002)
+      // Mint (catalog)
       try {
         mint = await tx.mint.create({ data: dataCreate });
         created = true;
@@ -137,33 +142,32 @@ export async function POST(req: Request) {
         }
       }
 
-      // ✅ если это новый минт — создаём/обновляем Holding (1155-only)
-      if (created) {
-        await tx.holding.upsert({
-          where: {
-            userId_chainId_contract_tokenId: {
-              userId,
-              chainId: cChainId,
-              contract: cContract,
-              tokenId: cTokenId,
-            },
-          },
-          create: {
+      // ✅ Holding (ownership) — важно для ERC1155 галереи
+      // upsert: если уже есть — обновим amount/standard (на тестнете ок)
+      await tx.holding.upsert({
+        where: {
+          userId_chainId_contract_tokenId: {
             userId,
             chainId: cChainId,
             contract: cContract,
             tokenId: cTokenId,
-            standard: "ERC1155",
-            amount: supplyBI,
           },
-          update: {
-            standard: "ERC1155",
-            amount: supplyBI,
-          },
-        });
-      }
+        },
+        create: {
+          userId,
+          chainId: cChainId,
+          contract: cContract,
+          tokenId: cTokenId,
+          standard: std as any, // Prisma enum NftStandard
+          amount,
+        },
+        update: {
+          standard: std as any,
+          amount,
+        },
+      });
 
-      // начисляем points только если реально создали новый Mint
+      // ✅ points только если реально новый mint
       if (created) {
         const updatedUser = await tx.user.update({
           where: { id: userId },
@@ -181,20 +185,15 @@ export async function POST(req: Request) {
               contract: cContract,
               tokenId: cTokenId,
               txHash: txHash ? String(txHash) : null,
-              supply: sInt,
+              standard: std,
+              supply: supplyInt,
             },
           },
         });
 
         return {
           status: 200 as const,
-          body: {
-            ok: true,
-            mint,
-            created: true,
-            add: REWARD_MINT,
-            points: updatedUser.points ?? 0,
-          },
+          body: { ok: true, mint, created: true, add: REWARD_MINT, points: updatedUser.points ?? 0 },
         };
       }
 
