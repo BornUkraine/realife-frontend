@@ -7,25 +7,58 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/* ========================================================================== */
-/* USER                                                                       */
-/* ========================================================================== */
+/**
+ * ==========================================================================
+ */
+/**
+ * ENUMS (Trading)
+ */
+/**
+ * ==========================================================================
+ */
+
+enum NftStandard {
+  ERC721
+  ERC1155
+}
+
+enum ListingStatus {
+  ACTIVE
+  CANCELLED
+  SOLD_OUT
+}
+
+/**
+ * ==========================================================================
+ */
+/**
+ * USER
+ */
+/**
+ * ==========================================================================
+ */
 
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  /* ---------------- Public profile ---------------- */
+  /**
+   * ---------------- Public profile ----------------
+   */
   handle   String? @unique
   publicId String? @unique
 
-  /* ---------------- Wallet (primary identity) ---------------- */
+  /**
+   * ---------------- Wallet (primary identity) ----------------
+   */
   walletAddress String @unique
   walletChainId Int?
 
-  /* ---------------- Referrals ---------------- */
-  referralCode String? @unique
+  /**
+   * ---------------- Referrals ----------------
+   */
+  referralCode String?   @unique
   referredById String?
   referredAt   DateTime?
 
@@ -33,30 +66,46 @@ model User {
   referredBy User? @relation("UserReferrals", fields: [referredById], references: [id])
 
   // users I referred
-  referrals  User[] @relation("UserReferrals")
+  referrals User[] @relation("UserReferrals")
 
-  /* ---------------- X (Twitter) ---------------- */
-  twitterId       String?  @unique
+  /**
+   * ---------------- X (Twitter) ----------------
+   */
+  twitterId       String? @unique
   twitterName     String?
   twitterUser     String?
   twitterImage    String?
   twitterRewarded Boolean @default(false) // ⛔ anti-abuse
 
-  /* ---------------- Discord ---------------- */
-  discordId       String?  @unique
+  /**
+   * ---------------- Discord ----------------
+   */
+  discordId       String? @unique
   discordName     String?
   discordUser     String?
   discordImage    String?
   discordRewarded Boolean @default(false) // ⛔ anti-abuse
 
-  /* ---------------- Points & rewards ---------------- */
+  /**
+   * ---------------- Points & rewards ----------------
+   */
   points      Int       @default(0)
   lastDailyAt DateTime?
 
   events PointEvent[]
 
-  /* ---------------- Minted NFTs ---------------- */
+  /**
+   * ---------------- Minted NFTs (catalog entries minted via your site) ----
+   */
   mints Mint[]
+
+  /**
+   * ---------------- Trading (ownership + activity) ------------------------
+   */
+  holdings     Holding[]
+  listings     Listing[]
+  tradesSold   Trade[]   @relation("TradeSeller")
+  tradesBought Trade[]   @relation("TradeBuyer")
 
   @@index([twitterUser])
   @@index([discordUser])
@@ -64,12 +113,18 @@ model User {
   @@index([referredById])
 }
 
-/* ========================================================================== */
-/* WALLET NONCE (SIWE-like)                                                    */
-/* ========================================================================== */
+/**
+ * ==========================================================================
+ */
+/**
+ * WALLET NONCE (SIWE-like)
+ */
+/**
+ * ==========================================================================
+ */
 
 model WalletNonce {
-  address   String   @id // lowercased wallet (у тебя тут еще используется как ref:... key)
+  address   String   @id // lowercased wallet
   nonce     String
   expiresAt DateTime
 
@@ -79,36 +134,48 @@ model WalletNonce {
   @@index([expiresAt])
 }
 
-/* ========================================================================== */
-/* POINT EVENTS (ledger / history)                                             */
-/* ========================================================================== */
+/**
+ * ==========================================================================
+ */
+/**
+ * POINT EVENTS (ledger / history)
+ */
+/**
+ * ==========================================================================
+ */
 
 model PointEvent {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type   String   // "daily", "twitter_connect", "discord_connect", "REFERRAL_INVITER", "REFERRAL_JOINER", etc
+  type   String // "daily", "twitter_connect", "discord_connect", etc
   points Int
   meta   Json?
 
   // для idempotency рефералок (кто был “второй стороной”)
   refUserId String?
 
+  // idempotent начисления для referrals:
+  @@unique([userId, type, refUserId])
   @@index([userId])
   @@index([type])
-
-  // idempotent начисления для referrals:
-  // (userId + type + refUserId) уникальны
-  @@unique([userId, type, refUserId])
 }
 
-/* ========================================================================== */
-/* TEMP STORAGE FOR X OAUTH LINKING                                            */
-/* Prevents creating second user during OAuth callback                        */
-/* ========================================================================== */
+/**
+ * ==========================================================================
+ */
+/**
+ * TEMP STORAGE FOR X OAUTH LINKING
+ */
+/**
+ * Prevents creating second user during OAuth callback
+ */
+/**
+ * ==========================================================================
+ */
 
 model TwitterLinkAttempt {
   id        String   @id @default(cuid())
@@ -127,16 +194,23 @@ model TwitterLinkAttempt {
   @@index([twitterId])
 }
 
-/* ========================================================================== */
-/* MINTED NFT CACHE (for profile display)                                      */
-/* ========================================================================== */
+/**
+ * ==========================================================================
+ */
+/**
+ * NFT CATALOG ENTRY (your "known NFTs" cache)
+ */
+/**
+ * ==========================================================================
+ */
 
 model Mint {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
+  // who minted/created via your site (not necessarily current owner)
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   chainId  Int
   contract String
@@ -149,6 +223,148 @@ model Mint {
 
   verified Boolean @default(true)
 
+  /**
+   * -------- relations for trading --------
+   */
+  holdings Holding[]
+  listings Listing[]
+  trades   Trade[]
+
   @@unique([chainId, contract, tokenId])
   @@index([userId, createdAt])
+}
+
+/**
+ * ==========================================================================
+ */
+/**
+ * HOLDINGS (who owns what, and how many; critical for ERC-1155)
+ */
+/**
+ * ==========================================================================
+ */
+
+model Holding {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  chainId  Int
+  contract String
+  tokenId  String
+
+  // link to your NFT catalog entry
+  mint Mint @relation(fields: [chainId, contract, tokenId], references: [chainId, contract, tokenId], onDelete: Cascade)
+
+  standard NftStandard
+  amount   BigInt      @default(0) // 721: 0/1, 1155: any
+
+  @@unique([userId, chainId, contract, tokenId])
+  @@index([userId])
+  @@index([chainId, contract, tokenId])
+}
+
+/**
+ * ==========================================================================
+ */
+/**
+ * LISTINGS (market lots)
+ */
+/**
+ * ==========================================================================
+ */
+
+model Listing {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chainId  Int
+  contract String
+  tokenId  String
+
+  mint Mint @relation(fields: [chainId, contract, tokenId], references: [chainId, contract, tokenId], onDelete: Cascade)
+
+  standard NftStandard
+
+  sellerId String
+  seller   User   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  // duplicated for fast filtering + safety (store lowercase)
+  sellerWallet String
+
+  // uint256 listingId from Marketplace contract
+  marketplaceListingId BigInt
+
+  pricePerUnitWei BigInt
+
+  // for 721: total=1 remaining=1
+  // for 1155: total=N remaining decreases with partial buys
+  amountTotal     BigInt @default(1)
+  amountRemaining BigInt @default(1)
+
+  status      ListingStatus @default(ACTIVE)
+  cancelledAt DateTime?
+  soldOutAt   DateTime?
+
+  createdTxHash String?
+
+  @@unique([chainId, marketplaceListingId])
+  @@index([status])
+  @@index([sellerWallet])
+  @@index([sellerId])
+  @@index([chainId, contract, tokenId])
+}
+
+/**
+ * ==========================================================================
+ */
+/**
+ * TRADES (fills / sales history; base for activity + charts)
+ */
+/**
+ * ==========================================================================
+ */
+
+model Trade {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  chainId  Int
+  contract String
+  tokenId  String
+
+  mint Mint @relation(fields: [chainId, contract, tokenId], references: [chainId, contract, tokenId], onDelete: Cascade)
+
+  standard NftStandard
+
+  // on-chain idempotency
+  txHash   String
+  logIndex Int
+
+  blockNum  BigInt
+  blockTime DateTime
+
+  marketplaceListingId BigInt?
+
+  sellerWallet String
+  buyerWallet  String
+
+  sellerId String?
+  seller   User?   @relation("TradeSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+
+  buyerId String?
+  buyer   User?   @relation("TradeBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+
+  amount          BigInt @default(1)
+  pricePerUnitWei BigInt
+  totalPriceWei   BigInt
+
+  @@unique([chainId, txHash, logIndex])
+  @@index([chainId, contract, tokenId, blockTime])
+  @@index([sellerWallet])
+  @@index([buyerWallet])
 }
