@@ -5,16 +5,21 @@ import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const REWARD_MINT = 10;
 
-// 👇 Безопасная нормализация (не упадет на undefined/null)
+// safe normalize
 const norm = (a: string) => String(a || "").trim().toLowerCase();
 
-/**
- * ✅ Удобно для проверки в браузере:
- * GET /api/mints -> не 405, а подсказка
- */
+function toPosInt(v: any, def = 1) {
+  const n = Number(v ?? def);
+  if (!Number.isFinite(n)) return null;
+  const i = Math.floor(n);
+  if (i <= 0) return null;
+  return i;
+}
+
 export async function GET() {
   return NextResponse.json({
     ok: true,
@@ -31,7 +36,17 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ ok: false, error: "bad_json" }, { status: 400 });
 
-  const { chainId, contract, tokenId, txHash, tokenUri, name, image, verified } = body as any;
+  const {
+    chainId,
+    contract,
+    tokenId,
+    txHash,
+    tokenUri,
+    name,
+    image,
+    verified,
+    supply, // ✅ важно для 1155
+  } = body as any;
 
   if (!chainId || !contract || tokenId === undefined || tokenId === null) {
     return NextResponse.json({ ok: false, error: "missing_fields" }, { status: 400 });
@@ -50,6 +65,21 @@ export async function POST(req: Request) {
   if (!cTokenId) {
     return NextResponse.json({ ok: false, error: "bad_tokenId" }, { status: 400 });
   }
+
+  // ✅ 1155-only: принимаем только наш новый контракт из env
+  const allowed1155 = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
+  if (allowed1155 && cContract !== allowed1155) {
+    return NextResponse.json(
+      { ok: false, error: "wrong_contract", allowed: allowed1155, got: cContract },
+      { status: 400 }
+    );
+  }
+
+  // ✅ supply для 1155 (default 1)
+  const sInt = toPosInt(supply, 1);
+  if (!sInt) return NextResponse.json({ ok: false, error: "bad_supply" }, { status: 400 });
+  if (sInt > 1_000_000) return NextResponse.json({ ok: false, error: "supply_too_big" }, { status: 400 });
+  const supplyBI = BigInt(sInt);
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -83,7 +113,7 @@ export async function POST(req: Request) {
       };
 
       const dataUpdate = {
-        userId, // если вдруг user merge
+        userId,
         txHash: txHash ? String(txHash) : undefined,
         tokenUri: tokenUri ? String(tokenUri) : undefined,
         name: name ? String(name) : undefined,
@@ -94,7 +124,7 @@ export async function POST(req: Request) {
       let mint: any = null;
       let created = false;
 
-      // ✅ Надёжно определяем "новый минт" через create + catch P2002
+      // create + catch unique (P2002)
       try {
         mint = await tx.mint.create({ data: dataCreate });
         created = true;
@@ -107,7 +137,33 @@ export async function POST(req: Request) {
         }
       }
 
-      // ✅ начисляем points только если реально создали новый Mint
+      // ✅ если это новый минт — создаём/обновляем Holding (1155-only)
+      if (created) {
+        await tx.holding.upsert({
+          where: {
+            userId_chainId_contract_tokenId: {
+              userId,
+              chainId: cChainId,
+              contract: cContract,
+              tokenId: cTokenId,
+            },
+          },
+          create: {
+            userId,
+            chainId: cChainId,
+            contract: cContract,
+            tokenId: cTokenId,
+            standard: "ERC1155",
+            amount: supplyBI,
+          },
+          update: {
+            standard: "ERC1155",
+            amount: supplyBI,
+          },
+        });
+      }
+
+      // начисляем points только если реально создали новый Mint
       if (created) {
         const updatedUser = await tx.user.update({
           where: { id: userId },
@@ -125,13 +181,20 @@ export async function POST(req: Request) {
               contract: cContract,
               tokenId: cTokenId,
               txHash: txHash ? String(txHash) : null,
+              supply: sInt,
             },
           },
         });
 
         return {
           status: 200 as const,
-          body: { ok: true, mint, created: true, add: REWARD_MINT, points: updatedUser.points ?? 0 },
+          body: {
+            ok: true,
+            mint,
+            created: true,
+            add: REWARD_MINT,
+            points: updatedUser.points ?? 0,
+          },
         };
       }
 

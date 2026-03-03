@@ -32,8 +32,12 @@ function norm(a: string) {
 
 /* ------------------------------- Config ------------------------------ */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
-const REALIFE_1155_CONTRACT = (process.env.NEXT_PUBLIC_REALIFE_1155_CONTRACT || "").trim();
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app").replace(
+  /\/$/,
+  ""
+);
+
+const REALIFE_1155_NEW_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
 
 const PRIMARY_IPFS_ORIGIN = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
 
@@ -84,19 +88,12 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
   return null;
 }
 
-function is1155ByContract(contract: string) {
-  if (!REALIFE_1155_CONTRACT) return false;
-  return norm(contract) === norm(REALIFE_1155_CONTRACT);
-}
-
-async function loadMetadataFromBackend(tokenId: string, is1155: boolean) {
+async function loadMetadataFromBackend1155(tokenId: string) {
   const base = String(API_BASE || "").replace(/\/$/, "");
   if (!base || !tokenId) return null;
 
-  const path = is1155 ? "metadata1155" : "metadata";
-
   try {
-    const r = await fetch(`${base}/${path}/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
+    const r = await fetch(`${base}/metadata1155/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
     if (!r.ok) return null;
     const j = await r.json().catch(() => null);
     if (j && typeof j === "object") return j;
@@ -171,38 +168,49 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
   const publicKey = user.handle || user.publicId || null;
   const publicUrl = publicKey && publicKey !== "tmp" ? `/u/${publicKey}` : null;
 
-  const nfts = await prisma.mint.findMany({
-    where: { userId: user.id, verified: true },
-    orderBy: { createdAt: "desc" },
+  // ✅ 1155-only + ownership-correct: берем Holdings
+  const holdings = await prisma.holding.findMany({
+    where: {
+      userId: user.id,
+      amount: { gt: 0n },
+      mint: { verified: true },
+      ...(REALIFE_1155_NEW_CONTRACT ? { contract: REALIFE_1155_NEW_CONTRACT } : {}),
+    },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
     select: {
       id: true,
       chainId: true,
       contract: true,
       tokenId: true,
-      tokenUri: true,
-      name: true,
-      image: true,
-      createdAt: true,
+      amount: true,
+      updatedAt: true,
+      mint: {
+        select: {
+          name: true,
+          image: true,
+          tokenUri: true,
+          createdAt: true,
+        },
+      },
     },
     take: 200,
   });
 
-  const enriched = await mapLimit(nfts, 8, async (x) => {
-    const is1155 = is1155ByContract(String(x.contract || ""));
-    const fallbackPoster = ipfsToHttp(x.image, IPFS_GATEWAYS[0]);
+  const enriched = await mapLimit(holdings, 8, async (x) => {
+    const fallbackPoster = ipfsToHttp(x.mint?.image, IPFS_GATEWAYS[0]);
 
     let kind: "image" | "video" = "image";
     let media: string | null = fallbackPoster;
     let poster: string | null = null;
 
-    // supply badge for 1155
+    // total supply badge
     let supply: string | null = null;
 
-    const liveMeta = await loadMetadataFromBackend(String(x.tokenId), is1155);
+    const liveMeta = await loadMetadataFromBackend1155(String(x.tokenId));
     let meta: any = liveMeta;
 
-    if (!meta && x.tokenUri) {
-      meta = await loadMetadataFromTokenUri(x.tokenUri);
+    if (!meta && x.mint?.tokenUri) {
+      meta = await loadMetadataFromTokenUri(x.mint.tokenUri);
     }
 
     if (meta) {
@@ -243,18 +251,28 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
         poster = null;
       }
 
-      if (is1155) {
-        // from backend /metadata1155 attributes
-        supply = pickAttrValue(meta, "Total Supply");
-        if (!supply) {
-          const s = meta?.supply;
-          if (typeof s === "number") supply = String(s);
-          else if (typeof s === "string" && s.trim()) supply = s.trim();
-        }
+      supply = pickAttrValue(meta, "Total Supply");
+      if (!supply) {
+        const s = meta?.supply;
+        if (typeof s === "number") supply = String(s);
+        else if (typeof s === "string" && s.trim()) supply = s.trim();
       }
     }
 
-    return { ...x, kind, media, poster, is1155, supply };
+    return {
+      id: x.id,
+      chainId: x.chainId,
+      contract: String(x.contract || "").toLowerCase(),
+      tokenId: x.tokenId,
+      ownedAmount: x.amount.toString(),
+      updatedAt: x.updatedAt,
+      name: x.mint?.name ?? null,
+      tokenUri: x.mint?.tokenUri ?? null,
+      kind,
+      media,
+      poster,
+      supply,
+    };
   });
 
   return (
@@ -334,14 +352,12 @@ export default async function PublicNFTsPage({ params }: { params: Promise<{ id:
                         </div>
                       ) : null}
 
-                      {x.is1155 ? (
-                        <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-emerald-200">
-                          EDITION
-                        </div>
-                      ) : null}
+                      <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-emerald-200">
+                        EDITION
+                      </div>
                     </div>
 
-                    {x.is1155 && x.supply ? (
+                    {x.supply ? (
                       <div className="absolute top-3 right-3 px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
                         x{x.supply}
                       </div>

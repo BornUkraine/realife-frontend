@@ -1,0 +1,144 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function safeDecode(v: string) {
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return v;
+  }
+}
+
+/**
+ * Такая же мягкая нормализация как у тебя в /api/u/[id]
+ */
+function normalizeKey(raw: string) {
+  const key = safeDecode(raw || "").trim();
+  if (!key || key.length > 64) return null;
+  if (key.includes("/")) return null;
+  if (!/^[a-zA-Z0-9_.-]+$/.test(key)) return null;
+  return key;
+}
+
+function s(v: any) {
+  return typeof v === "bigint" ? v.toString() : v;
+}
+
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: keyRaw } = await params;
+  const key = normalizeKey(keyRaw);
+
+  if (!key) {
+    return NextResponse.json({ ok: false, error: "missing_id" }, { status: 400 });
+  }
+
+  const url = new URL(req.url);
+  const take = Math.min(Number(url.searchParams.get("take") || "50"), 200);
+
+  try {
+    // Находим пользователя так же, как ты делаешь в /api/u/[id]
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { handle: { equals: key, mode: "insensitive" } },
+          { publicId: { equals: key, mode: "insensitive" } },
+        ],
+      },
+      select: {
+        id: true,
+        handle: true,
+        publicId: true,
+        walletAddress: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json({ ok: false, reason: "USER_NOT_FOUND" }, { status: 404 });
+    }
+
+    const wallet = user.walletAddress.toLowerCase();
+
+    const [listings, purchases, sales] = await Promise.all([
+      prisma.listing.findMany({
+        where: { sellerWallet: wallet },
+        orderBy: { createdAt: "desc" },
+        take,
+        include: { mint: { select: { name: true, image: true } } },
+      }),
+      prisma.trade.findMany({
+        where: { buyerWallet: wallet },
+        orderBy: { blockTime: "desc" },
+        take,
+        include: { mint: { select: { name: true, image: true } } },
+      }),
+      prisma.trade.findMany({
+        where: { sellerWallet: wallet },
+        orderBy: { blockTime: "desc" },
+        take,
+        include: { mint: { select: { name: true, image: true } } },
+      }),
+    ]);
+
+    return NextResponse.json({
+      ok: true,
+      user: {
+        id: user.id,
+        handle: user.handle,
+        publicId: user.publicId,
+        walletAddress: user.walletAddress,
+      },
+      listings: listings.map((x) => ({
+        id: x.id,
+        chainId: x.chainId,
+        contract: x.contract,
+        tokenId: x.tokenId,
+        standard: x.standard,
+        status: x.status,
+        sellerWallet: x.sellerWallet,
+        marketplaceListingId: s(x.marketplaceListingId),
+        pricePerUnitWei: s(x.pricePerUnitWei),
+        amountTotal: s(x.amountTotal),
+        amountRemaining: s(x.amountRemaining),
+        createdAt: x.createdAt,
+        mint: x.mint,
+      })),
+      purchases: purchases.map((t) => ({
+        chainId: t.chainId,
+        contract: t.contract,
+        tokenId: t.tokenId,
+        standard: t.standard,
+        txHash: t.txHash,
+        logIndex: t.logIndex,
+        blockTime: t.blockTime,
+        sellerWallet: t.sellerWallet,
+        buyerWallet: t.buyerWallet,
+        amount: s(t.amount),
+        pricePerUnitWei: s(t.pricePerUnitWei),
+        totalPriceWei: s(t.totalPriceWei),
+        mint: t.mint,
+      })),
+      sales: sales.map((t) => ({
+        chainId: t.chainId,
+        contract: t.contract,
+        tokenId: t.tokenId,
+        standard: t.standard,
+        txHash: t.txHash,
+        logIndex: t.logIndex,
+        blockTime: t.blockTime,
+        sellerWallet: t.sellerWallet,
+        buyerWallet: t.buyerWallet,
+        amount: s(t.amount),
+        pricePerUnitWei: s(t.pricePerUnitWei),
+        totalPriceWei: s(t.totalPriceWei),
+        mint: t.mint,
+      })),
+    });
+  } catch (e) {
+    console.error("[API_U_ID_ACTIVITY_ERROR]", e);
+    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
+  }
+}

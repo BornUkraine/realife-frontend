@@ -1,28 +1,29 @@
-export const REALIFE_1155_ABI = [
+export const realife1155Abi = [
   {
     type: "function",
-    name: "isVerified",
+    name: "mintFeeWei",
     stateMutability: "view",
-    inputs: [{ name: "user", type: "address" }],
-    outputs: [{ type: "bool" }],
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
   },
   {
     type: "function",
     name: "createEdition",
-    stateMutability: "nonpayable",
+    stateMutability: "payable",
     inputs: [
       { name: "supply", type: "uint256" },
       { name: "tokenURI", type: "string" },
     ],
-    outputs: [{ type: "uint256" }],
+    outputs: [{ name: "tokenId", type: "uint256" }],
   },
   {
     type: "event",
     name: "EditionCreated",
     inputs: [
-      { name: "tokenId", type: "uint256", indexed: true },
-      { name: "supply", type: "uint256", indexed: false },
-      { name: "uri", type: "string", indexed: false },
+      { indexed: true, name: "tokenId", type: "uint256" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "supply", type: "uint256" },
+      { indexed: false, name: "uri", type: "string" },
     ],
     anonymous: false,
   },

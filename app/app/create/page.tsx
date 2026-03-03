@@ -72,24 +72,24 @@ export default function CreatePage() {
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">ERC-721 & ERC-1155</span>
+                  <span className="text-white/80 font-extrabold">ERC-1155 (Unique + Editions)</span>
                 </Pill>
               </div>
 
               <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
-                Mint NFT{" "}
+                Create{" "}
                 <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
-                  proof
-                </span>{" "}
-                & Editions
+                  Realife NFT
+                </span>
               </h1>
 
               <p className="mt-4 text-sm md:text-base text-white/70 max-w-3xl leading-relaxed">
-                Prepare (IPFS) → Sign → Mint → Verify. Unique NFTs (ERC-721) and Editions (ERC-1155).
+                Prepare (IPFS) → Sign → Create Edition → Verify. One contract for everything:
+                supply=1 (unique) or supply&gt;1 (edition).
               </p>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
-                Mint an NFT and earn{" "}
+                Mint and earn{" "}
                 <span className="text-amber-200 font-extrabold">+10 points</span>.{" "}
                 <span className="text-white/55">More mints → more points → stronger creator reputation.</span>
               </div>
@@ -137,9 +137,9 @@ export default function CreatePage() {
         <div className="pt-2 pb-6 text-xs text-white/45 flex flex-wrap items-center justify-between gap-4">
           <div>© {year} Realife</div>
           <div className="flex items-center gap-4">
-            <span className="opacity-60">Base Sepolia</span>
+            <span className="opacity-60">ERC-1155</span>
             <span className="opacity-60">IPFS</span>
-            <span className="opacity-60">On-chain mint</span>
+            <span className="opacity-60">On-chain createEdition</span>
           </div>
         </div>
       </Reveal>

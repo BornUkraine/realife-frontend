@@ -20,13 +20,7 @@ function Pill({ children }: { children: React.ReactNode }) {
   );
 }
 
-function GoldEdgeWrap({
-  className = "",
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
+function GoldEdgeWrap({ className = "", children }: { className?: string; children: React.ReactNode }) {
   return (
     <div
       className={[
@@ -53,13 +47,7 @@ function GoldEdgeWrap({
   );
 }
 
-function Card({
-  className = "",
-  children,
-}: {
-  className?: string;
-  children: React.ReactNode;
-}) {
+function Card({ className = "", children }: { className?: string; children: React.ReactNode }) {
   return (
     <div
       className={[
@@ -80,15 +68,7 @@ function Card({
   );
 }
 
-function GoldButton({
-  href,
-  children,
-  className = "",
-}: {
-  href: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
+function GoldButton({ href, children, className = "" }: { href: string; children: React.ReactNode; className?: string }) {
   return (
     <Link
       href={href}
@@ -111,15 +91,7 @@ function GoldButton({
   );
 }
 
-function GhostButton({
-  href,
-  children,
-  className = "",
-}: {
-  href: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
+function GhostButton({ href, children, className = "" }: { href: string; children: React.ReactNode; className?: string }) {
   return (
     <Link
       href={href}
@@ -144,8 +116,7 @@ function shortAddr(a?: string) {
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
 const IPFS_GATEWAY = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
 
 /** allow blob:, data:, ipfs:// and http(s) + /ipfs/... */
@@ -154,7 +125,6 @@ function safeUrl(input?: string) {
   if (!url) return "";
 
   if (url.startsWith("blob:") || url.startsWith("data:")) return url;
-
   if (url.startsWith("/ipfs/")) return `${IPFS_GATEWAY}${url}`;
 
   if (url.startsWith("ipfs://")) {
@@ -175,25 +145,10 @@ function safeUrl(input?: string) {
 function isVideoUrl(url: string) {
   const u = url.toLowerCase();
   const clean = u.split("?")[0].split("#")[0];
-  return (
-    clean.endsWith(".mp4") ||
-    clean.endsWith(".mov") ||
-    clean.endsWith(".webm") ||
-    clean.endsWith(".m4v") ||
-    u.startsWith("data:video/")
-  );
+  return clean.endsWith(".mp4") || clean.endsWith(".mov") || clean.endsWith(".webm") || clean.endsWith(".m4v") || u.startsWith("data:video/");
 }
 
-/** Premium play/pause overlay (no ugly controls) */
-function VideoPlayOverlay({
-  src,
-  poster,
-  className = "",
-}: {
-  src: string;
-  poster?: string;
-  className?: string;
-}) {
+function VideoPlayOverlay({ src, poster, className = "" }: { src: string; poster?: string; className?: string }) {
   const vref = useRef<HTMLVideoElement | null>(null);
   const [playing, setPlaying] = useState(false);
 
@@ -238,26 +193,13 @@ function VideoPlayOverlay({
       <button
         type="button"
         onClick={toggle}
-        className={[
-          "absolute inset-0 flex items-center justify-center",
-          "transition",
-          playing ? "opacity-0 pointer-events-none" : "opacity-100",
-        ].join(" ")}
+        className={["absolute inset-0 flex items-center justify-center", "transition", playing ? "opacity-0 pointer-events-none" : "opacity-100"].join(" ")}
         aria-label={playing ? "Pause" : "Play"}
       >
-        <span
-          className={[
-            "inline-flex items-center justify-center",
-            "h-14 w-14 rounded-2xl",
-            "border border-white/15 bg-black/35 backdrop-blur-md",
-            "shadow-[0_18px_70px_rgba(0,0,0,0.45)]",
-            "ring-1 ring-black/20",
-          ].join(" ")}
-        >
+        <span className={["inline-flex items-center justify-center", "h-14 w-14 rounded-2xl", "border border-white/15 bg-black/35 backdrop-blur-md", "shadow-[0_18px_70px_rgba(0,0,0,0.45)]", "ring-1 ring-black/20"].join(" ")}>
           <span className="text-amber-200 font-black text-xl">▶</span>
         </span>
       </button>
-
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.55),transparent_55%)]" />
     </div>
   );
@@ -267,30 +209,24 @@ export default function SuccessClient() {
   const mounted = useMounted();
   const sp = useSearchParams();
 
-  const standard = useMemo(() => (sp.get("standard") || "ERC721").toUpperCase(), [sp]);
-  const is1155 = standard === "ERC1155";
+  // 1155-only
+  const standard = "ERC1155";
 
-  // ✅ contract comes from query (set by MintForm). fallback to 721 env if missing.
   const qpContract = useMemo(() => (sp.get("contract") || "").trim(), [sp]);
   const contract = useMemo(() => {
     if (qpContract && qpContract.startsWith("0x")) return qpContract;
-    // fallback: old links (erc721)
-    const fallback = process.env.NEXT_PUBLIC_REALIFE_CONTRACT || "";
-    return fallback;
+    return (process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "").trim();
   }, [qpContract]);
 
   const initialName = useMemo(() => (sp.get("name") || "Untitled NFT").trim(), [sp]);
   const initialCategory = useMemo(() => (sp.get("category") || "Other").trim(), [sp]);
   const initialProject = useMemo(() => (sp.get("project") || "Realife").trim(), [sp]);
 
-  // ✅ poster + media + kind
   const qpKind = useMemo(() => (sp.get("kind") || "").toLowerCase(), [sp]);
 
-  // poster in ?image=
   const rawPoster = useMemo(() => sp.get("image") || "", [sp]);
   const posterUrl = useMemo(() => safeUrl(rawPoster), [rawPoster]);
 
-  // media in ?media= (fallback to image)
   const rawMedia = useMemo(() => sp.get("media") || sp.get("image") || "", [sp]);
   const initialMedia = useMemo(() => safeUrl(rawMedia), [rawMedia]);
 
@@ -302,18 +238,6 @@ export default function SuccessClient() {
   const tx = useMemo(() => (sp.get("tx") || "").trim(), [sp]);
   const tokenId = useMemo(() => (sp.get("tokenId") || "").trim(), [sp]);
 
-  const initialEarned = useMemo(() => {
-    const n = Number((sp.get("earned") || "0").trim());
-    return Number.isFinite(n) ? n : 0;
-  }, [sp]);
-
-  const initialPoints = useMemo(() => {
-    const raw = (sp.get("points") || "").trim();
-    if (!raw) return null;
-    const n = Number(raw);
-    return Number.isFinite(n) ? n : null;
-  }, [sp]);
-
   const [name, setName] = useState(initialName);
   const [category, setCategory] = useState(initialCategory);
   const [project, setProject] = useState(initialProject);
@@ -321,23 +245,18 @@ export default function SuccessClient() {
   const [mediaUrl, setMediaUrl] = useState(initialMedia);
   const [mediaKind, setMediaKind] = useState<"image" | "video">(initialKind);
 
-  const [earned, setEarned] = useState<number>(initialEarned);
-  const [pointsAfter, setPointsAfter] = useState<number | null>(initialPoints);
-
   const savedKeyRef = useRef<string>("");
 
   const basescanTx = tx ? `https://sepolia.basescan.org/tx/${tx}` : "";
   const [copied, setCopied] = useState<"" | "tx" | "link">("");
 
-  // ✅ Ensure mint is saved (idempotent) + pull earned/points if backend returns them
+  // ✅ idempotent save
   useEffect(() => {
     const key = tokenId && tx && contract ? `${contract}:${tokenId}:${tx}` : "";
     if (!key) return;
-
     if (savedKeyRef.current === key) return;
     savedKeyRef.current = key;
 
-    // save stable image for DB: poster for video, media for image
     const posterToSave = posterUrl && !posterUrl.startsWith("blob:") ? posterUrl : null;
     const imageToSave =
       mediaKind === "image" && mediaUrl && !mediaUrl.startsWith("blob:")
@@ -346,51 +265,39 @@ export default function SuccessClient() {
 
     (async () => {
       try {
-        const r = await fetch("/api/mints", {
+        await fetch("/api/mints", {
           method: "POST",
           headers: { "content-type": "application/json" },
           credentials: "include",
           cache: "no-store",
           body: JSON.stringify({
             chainId: baseSepolia.id,
-            contract: contract,
+            contract,
             tokenId,
             txHash: tx,
             name: name || null,
             image: imageToSave,
             verified: true,
-            standard, // ✅ so you can store it if you want
+            standard,
           }),
         });
-
-        const j = await r.json().catch(() => ({} as any));
-        if (r.ok && j?.ok) {
-          const add = Number(j?.add || 0) || 0;
-          if (add > 0 && earned === 0) setEarned(add);
-          if (typeof j?.points === "number") setPointsAfter(j.points);
-        }
       } catch {
         // ignore
       }
     })();
-  }, [tokenId, tx, name, mediaUrl, mediaKind, posterUrl, earned, contract, standard]);
+  }, [tokenId, tx, name, mediaUrl, mediaKind, posterUrl, contract]);
 
-  // ✅ Hydrate from backend /metadata/:tokenId ONLY for ERC-721 (your backend uses ownerOf)
+  // ✅ hydrate from backend 1155 metadata (NEW)
   useEffect(() => {
     let alive = true;
 
-    async function hydrateFromBackend() {
+    async function hydrateFromBackend1155() {
       if (!tokenId) return;
-      if (is1155) return; // ✅ don't call ERC-721 metadata endpoint for 1155
-
-      // If we already have actual video url and kind=video — nothing to do
-      if (mediaKind === "video" && mediaUrl) return;
-
       const base = (API_BASE || "").replace(/\/$/, "");
       if (!base) return;
 
       try {
-        const res = await fetch(`${base}/metadata/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
+        const res = await fetch(`${base}/metadata1155/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
         if (!res.ok) return;
         const json = await res.json();
 
@@ -399,11 +306,10 @@ export default function SuccessClient() {
         const img = safeUrl(json?.image);
         const anim = safeUrl(json?.animation_url || json?.animationUrl || json?.animation);
 
-        // prefer animation_url (video)
         if (anim) {
           setMediaUrl(anim);
           setMediaKind("video");
-        } else if (img && !mediaUrl) {
+        } else if (img) {
           setMediaUrl(img);
           setMediaKind(isVideoUrl(img) ? "video" : "image");
         }
@@ -421,11 +327,11 @@ export default function SuccessClient() {
       }
     }
 
-    hydrateFromBackend();
+    hydrateFromBackend1155();
     return () => {
       alive = false;
     };
-  }, [tokenId, mediaUrl, mediaKind, is1155]);
+  }, [tokenId]);
 
   async function copyText(kind: "tx" | "link") {
     if (!mounted) return;
@@ -478,24 +384,8 @@ export default function SuccessClient() {
                 </h1>
 
                 <p className="mt-4 text-sm md:text-base text-white/70 max-w-2xl leading-relaxed">
-                  Your mint is on-chain. Keep the transaction link as permanent proof.
+                  Your edition is on-chain. Keep the transaction link as permanent proof.
                 </p>
-
-                {/* Reward banner */}
-                <div className="mt-6 flex flex-wrap gap-2">
-                  {earned > 0 ? (
-                    <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold text-emerald-100">
-                      ✨ You earned <span className="font-black">+{earned}</span> points
-                      {typeof pointsAfter === "number" ? (
-                        <span className="text-emerald-200/90">• Balance: {pointsAfter}</span>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70">
-                      Mint rewards: <span className="text-amber-200 font-black">+10 points</span> per mint
-                    </div>
-                  )}
-                </div>
 
                 <div className="mt-6 flex flex-wrap gap-3">
                   <GoldButton href="/app/create">Mint another</GoldButton>
@@ -539,9 +429,7 @@ export default function SuccessClient() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <div className="text-xs font-semibold text-white/60">NFT preview</div>
-                      <div className="mt-1 text-lg font-black tracking-tight truncate">
-                        {name || "Untitled NFT"}
-                      </div>
+                      <div className="mt-1 text-lg font-black tracking-tight truncate">{name || "Untitled NFT"}</div>
                       <div className="mt-1 text-xs text-white/60 truncate">
                         {project} • {category}
                       </div>
@@ -559,12 +447,7 @@ export default function SuccessClient() {
                           <VideoPlayOverlay src={mediaUrl} poster={posterUrl || undefined} />
                         ) : (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={mediaUrl}
-                            alt="NFT media"
-                            className="absolute inset-0 h-full w-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
+                          <img src={mediaUrl} alt="NFT media" className="absolute inset-0 h-full w-full object-cover" referrerPolicy="no-referrer" />
                         )
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center text-xs text-white/45">
@@ -579,9 +462,7 @@ export default function SuccessClient() {
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
                       <div className="text-[11px] font-semibold text-white/55">Transaction</div>
                       <div className="mt-1 flex items-center justify-between gap-3">
-                        <div className="text-sm font-extrabold text-white/85 truncate">
-                          {tx ? shortAddr(tx) : "—"}
-                        </div>
+                        <div className="text-sm font-extrabold text-white/85 truncate">{tx ? shortAddr(tx) : "—"}</div>
                         <button
                           type="button"
                           onClick={() => copyText("tx")}
@@ -596,9 +477,7 @@ export default function SuccessClient() {
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
                       <div className="text-[11px] font-semibold text-white/55">Explorer link</div>
                       <div className="mt-1 flex items-center justify-between gap-3">
-                        <div className="text-sm font-extrabold text-white/85 truncate">
-                          {basescanTx ? "BaseScan /tx/…" : "—"}
-                        </div>
+                        <div className="text-sm font-extrabold text-white/85 truncate">{basescanTx ? "BaseScan /tx/…" : "—"}</div>
                         <button
                           type="button"
                           onClick={() => copyText("link")}
@@ -612,7 +491,7 @@ export default function SuccessClient() {
                   </div>
 
                   <div className="mt-5 text-[11px] text-white/45">
-                    Proof = poster + IPFS media + IPFS metadata + on-chain ownership.
+                    Proof = poster + IPFS media + IPFS metadata + on-chain mint.
                   </div>
                 </Card>
               </div>

@@ -32,9 +32,13 @@ function norm(a: string) {
 
 /* ------------------------------- Config ------------------------------ */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app").replace(
+  /\/$/,
+  ""
+);
 
-const REALIFE_1155_CONTRACT = (process.env.NEXT_PUBLIC_REALIFE_1155_CONTRACT || "").trim();
+// ✅ 1155-only: только NEW env
+const REALIFE_1155_NEW_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
 
 const PRIMARY_IPFS_ORIGIN = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
 
@@ -85,21 +89,14 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
   return null;
 }
 
-/* ----------------------------- Backend metadata ---------------------------- */
+/* ----------------------------- Backend metadata (1155-only) ---------------------------- */
 
-function is1155ByContract(contractLower: string) {
-  if (!REALIFE_1155_CONTRACT) return false;
-  return norm(contractLower) === norm(REALIFE_1155_CONTRACT);
-}
-
-async function loadMetadataFromBackend(tokenId: string, is1155: boolean) {
+async function loadMetadataFromBackend1155(tokenId: string) {
   const base = String(API_BASE || "").replace(/\/$/, "");
   if (!base || !tokenId) return null;
 
-  const path = is1155 ? "metadata1155" : "metadata";
-
   try {
-    const r = await fetch(`${base}/${path}/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
+    const r = await fetch(`${base}/metadata1155/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
     if (!r.ok) return null;
     const j = await r.json().catch(() => null);
     if (j && typeof j === "object") return j;
@@ -153,7 +150,10 @@ export default async function NftDetailsPage({
 
   if (!Number.isFinite(chainId) || !contract.startsWith("0x") || !tokenId) notFound();
 
-  const is1155 = is1155ByContract(contract);
+  // ✅ 1155-only: если env задан — не пускаем другие контракты
+  if (REALIFE_1155_NEW_CONTRACT && contract !== REALIFE_1155_NEW_CONTRACT) {
+    notFound();
+  }
 
   const nft = await prisma.mint.findFirst({
     where: { chainId, contract, tokenId, verified: true },
@@ -206,17 +206,15 @@ export default async function NftDetailsPage({
 
   const fallbackPoster = ipfsToHttp(nft.image, IPFS_GATEWAYS[0]);
 
-  // ✅ Prefer backend metadata route (721 vs 1155), fallback to tokenURI JSON
-  const liveMeta = await loadMetadataFromBackend(tokenId, is1155);
+  // ✅ 1155-only: всегда /metadata1155
+  const liveMeta = await loadMetadataFromBackend1155(tokenId);
   const meta = liveMeta || (nft.tokenUri ? await loadMetadataFromTokenUri(nft.tokenUri) : null);
 
-  // Supply (only meaningful for 1155)
+  // Supply label
   let supplyLabel: string | null = null;
-  if (is1155 && meta) {
-    // backend /metadata1155 gives Total Supply in attributes
+  if (meta) {
     supplyLabel = pickAttrValue(meta, "Total Supply");
     if (!supplyLabel) {
-      // fallback: original tokenURI metadata may contain supply field
       const s = meta?.supply;
       if (typeof s === "number") supplyLabel = String(s);
       else if (typeof s === "string" && s.trim()) supplyLabel = s.trim();
@@ -248,7 +246,6 @@ export default async function NftDetailsPage({
         : null;
 
     const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackPoster;
-
     const animHttp = ipfsToHttp(metaAnimation, PINATA_IPFS) || ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
 
     if (metaAnimation || isLikelyVideoUrl(animHttp)) {
@@ -268,7 +265,7 @@ export default async function NftDetailsPage({
     }
   }
 
-  const standardLabel = is1155 ? "ERC-1155" : "ERC-721";
+  const standardLabel = "ERC-1155";
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
@@ -354,7 +351,7 @@ export default async function NftDetailsPage({
               <div className="p-6 md:p-7 h-full flex flex-col">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                    {is1155 ? "Realife Edition" : "Realife NFT"}
+                    Realife Edition
                   </div>
 
                   <div className="px-3 py-1.5 rounded-full border border-white/15 bg-white/[0.06] text-[11px] font-black text-amber-100">
@@ -366,12 +363,12 @@ export default async function NftDetailsPage({
                   {nft.name || `Token #${nft.tokenId}`}
                 </div>
 
-                {/* Owner (для 1155 это “минтер/профиль”, не единственный владелец) */}
+                {/* Creator/Profile */}
                 <div className="mt-5 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                   <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
                     {avatar ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={avatar} alt="owner" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      <img src={avatar} alt="creator" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
                       <span className="text-white/35 text-xs font-black">RL</span>
                     )}
@@ -379,7 +376,7 @@ export default async function NftDetailsPage({
 
                   <div className="min-w-0 flex-1">
                     <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                      {is1155 ? "Creator / Profile" : "Owner"}
+                      Creator / Profile
                     </div>
                     <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
                       {ownerUrl ? (
@@ -423,12 +420,10 @@ export default async function NftDetailsPage({
                     </div>
                   </div>
 
-                  {is1155 ? (
-                    <div className="col-span-2 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Total Supply</div>
-                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">{supplyLabel || "—"}</div>
-                    </div>
-                  ) : null}
+                  <div className="col-span-2 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Total Supply</div>
+                    <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">{supplyLabel || "—"}</div>
+                  </div>
                 </div>
 
                 <div className="flex-1" />
@@ -479,7 +474,7 @@ export default async function NftDetailsPage({
                 </div>
 
                 <div className="mt-6 text-[11px] text-white/35">
-                  Media is resolved from backend {is1155 ? "/metadata1155" : "/metadata"} (animation_url), with IPFS tokenURI fallback.
+                  Media is resolved from backend <span className="font-mono">/metadata1155</span> (animation_url), with IPFS tokenURI fallback.
                 </div>
               </div>
             </div>

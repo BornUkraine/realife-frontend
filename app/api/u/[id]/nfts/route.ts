@@ -5,8 +5,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type Standard = "ERC721" | "ERC1155";
-
 function safeDecode(v: string) {
   try {
     return decodeURIComponent(v);
@@ -21,16 +19,9 @@ function normalizeKey(raw: string) {
   return key;
 }
 
-function norm(a: string) {
-  return String(a || "").trim().toLowerCase();
+function s(v: any) {
+  return typeof v === "bigint" ? v.toString() : v;
 }
-
-// ✅ One place to decide which contract is ERC-1155
-const ERC1155_CONTRACT = norm(
-  process.env.NEXT_PUBLIC_REALIFE_1155_CONTRACT ||
-    process.env.REALIFE_1155_CONTRACT ||
-    ""
-);
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: keyRaw } = await params;
@@ -42,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const url = new URL(req.url);
   const take = Math.max(1, Math.min(48, Number(url.searchParams.get("take") || "24")));
-  const cursor = url.searchParams.get("cursor"); // Mint.id
+  const cursor = url.searchParams.get("cursor"); // Holding.id
 
   try {
     const user = await prisma.user.findFirst({
@@ -59,34 +50,55 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ ok: false, reason: "USER_NOT_FOUND" }, { status: 404 });
     }
 
-    const items = await prisma.mint.findMany({
-      where: { userId: user.id, verified: true },
-      orderBy: { createdAt: "desc" },
+    const items = await prisma.holding.findMany({
+      where: {
+        userId: user.id,
+        amount: { gt: 0n },
+        mint: { verified: true },
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       select: {
         id: true,
-        createdAt: true,
+        updatedAt: true,
         chainId: true,
         contract: true,
         tokenId: true,
-        txHash: true,
-        tokenUri: true,
-        name: true,
-        image: true,
-        verified: true,
+        standard: true,
+        amount: true,
+        mint: {
+          select: {
+            name: true,
+            image: true,
+            tokenUri: true,
+            verified: true,
+            txHash: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
     const hasMore = items.length > take;
-    const data: typeof items = hasMore ? items.slice(0, take) : items;
+    const data = hasMore ? items.slice(0, take) : items;
     const nextCursor = hasMore ? data[data.length - 1]?.id ?? null : null;
 
-    const nfts = data.map((x: typeof items[number]) => {
-      const c = norm(x.contract);
-      const standard: Standard = ERC1155_CONTRACT && c === ERC1155_CONTRACT ? "ERC1155" : "ERC721";
-      return { ...x, contract: c, standard };
-    });
+    const nfts = data.map((x) => ({
+      id: x.id, // Holding.id
+      updatedAt: x.updatedAt,
+      chainId: x.chainId,
+      contract: String(x.contract || "").toLowerCase(),
+      tokenId: x.tokenId,
+      standard: x.standard,
+      amount: s(x.amount),
+      name: x.mint?.name ?? null,
+      image: x.mint?.image ?? null,
+      tokenUri: x.mint?.tokenUri ?? null,
+      verified: x.mint?.verified ?? false,
+      txHash: x.mint?.txHash ?? null,
+      mintedAt: x.mint?.createdAt ?? null,
+    }));
 
     return NextResponse.json({ ok: true, nfts, nextCursor });
   } catch (e) {

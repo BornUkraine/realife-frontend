@@ -7,8 +7,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function norm(a: string) {
-  return String(a || "").trim().toLowerCase();
+function s(v: any) {
+  return typeof v === "bigint" ? v.toString() : v;
 }
 
 export async function GET(req: Request) {
@@ -21,26 +21,36 @@ export async function GET(req: Request) {
 
   const url = new URL(req.url);
   const take = Math.max(1, Math.min(48, Number(url.searchParams.get("take") || "24")));
-  const cursor = url.searchParams.get("cursor"); // Mint.id
+  const cursor = url.searchParams.get("cursor"); // Holding.id
 
   try {
-    const items = await prisma.mint.findMany({
-      // 👇 Добавили фильтр verified: true
-      where: { userId: uid, verified: true },
-      orderBy: { createdAt: "desc" },
+    const items = await prisma.holding.findMany({
+      where: {
+        userId: uid,
+        amount: { gt: 0n },
+        mint: { verified: true },
+      },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       select: {
         id: true,
-        createdAt: true,
+        updatedAt: true,
         chainId: true,
         contract: true,
         tokenId: true,
-        txHash: true,
-        tokenUri: true,
-        name: true,
-        image: true,
-        verified: true,
+        standard: true,
+        amount: true,
+        mint: {
+          select: {
+            name: true,
+            image: true,
+            tokenUri: true,
+            verified: true,
+            txHash: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
@@ -48,8 +58,22 @@ export async function GET(req: Request) {
     const data = hasMore ? items.slice(0, take) : items;
     const nextCursor = hasMore ? data[data.length - 1]?.id ?? null : null;
 
-    // нормализуем contract на всякий (если старые записи)
-    const nfts = data.map((x) => ({ ...x, contract: norm(x.contract) }));
+    const nfts = data.map((x) => ({
+      id: x.id, // Holding.id
+      updatedAt: x.updatedAt,
+      chainId: x.chainId,
+      contract: String(x.contract || "").toLowerCase(),
+      tokenId: x.tokenId,
+      standard: x.standard,
+      amount: s(x.amount),
+      // metadata from Mint
+      name: x.mint?.name ?? null,
+      image: x.mint?.image ?? null,
+      tokenUri: x.mint?.tokenUri ?? null,
+      verified: x.mint?.verified ?? false,
+      txHash: x.mint?.txHash ?? null,
+      mintedAt: x.mint?.createdAt ?? null,
+    }));
 
     return NextResponse.json({ ok: true, nfts, nextCursor });
   } catch (e) {

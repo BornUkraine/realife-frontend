@@ -16,8 +16,7 @@ import { baseSepolia } from "wagmi/chains";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { decodeEventLog, formatUnits } from "viem";
 
-import { REALIFE_ABI } from "@/lib/realifeAbi";
-import { REALIFE_1155_ABI } from "@/lib/realife1155Abi";
+import { realife1155Abi } from "@/lib/realife1155Abi";
 import NftMedia from "@/components/NftMedia";
 
 const PROJECTS = ["Sentient", "Billions", "Rialo", "Neura", "Realife", "Other"] as const;
@@ -30,8 +29,6 @@ const CATEGORIES = [
   "Personal creative",
   "AI work",
 ] as const;
-
-type MintMode = "erc721" | "erc1155";
 
 function useMounted() {
   const [mounted, setMounted] = useState(false);
@@ -54,28 +51,15 @@ function fmtEth(value?: string) {
 }
 
 function prettyError(e: any) {
-  return (
-    e?.shortMessage ||
-    e?.cause?.shortMessage ||
-    e?.cause?.message ||
-    e?.message ||
-    "Something went wrong"
-  );
+  return e?.shortMessage || e?.cause?.shortMessage || e?.cause?.message || e?.message || "Something went wrong";
 }
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
 const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
 
-// ERC-721
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_REALIFE_CONTRACT as
-  | `0x${string}`
-  | undefined;
+const CONTRACT_1155_NEW = process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT as `0x${string}` | undefined;
 
-// ERC-1155
-const CONTRACT_1155 = process.env.NEXT_PUBLIC_REALIFE_1155_CONTRACT as
-  | `0x${string}`
-  | undefined;
+/* ---------------- UI kit ---------------- */
 
 function Pill({ children }: { children: React.ReactNode }) {
   return (
@@ -180,66 +164,8 @@ function GhostButton({
   );
 }
 
-/** Extract ERC-721 tokenId from Transfer event logs */
-function extractTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): string | null {
-  const logs = receipt?.logs ?? [];
-  for (const log of logs) {
-    try {
-      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) continue;
+/* ---------------- helpers ---------------- */
 
-      const decoded = decodeEventLog({
-        abi: REALIFE_ABI,
-        data: log.data,
-        topics: log.topics,
-      });
-
-      if (decoded?.eventName === "Transfer") {
-        const args: any = decoded.args;
-        const tokenId = args?.tokenId ?? args?.[2];
-
-        if (typeof tokenId === "bigint") return tokenId.toString();
-        if (typeof tokenId === "number") return String(tokenId);
-        if (typeof tokenId === "string") return tokenId;
-      }
-    } catch {
-      // ignore
-    }
-  }
-  return null;
-}
-
-/** Extract ERC-1155 tokenId from EditionCreated event */
-function extractEditionTokenIdFromReceipt(
-  receipt: any,
-  contract?: `0x${string}`
-): string | null {
-  const logs = receipt?.logs ?? [];
-  for (const log of logs) {
-    try {
-      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) continue;
-
-      const decoded = decodeEventLog({
-        abi: REALIFE_1155_ABI,
-        data: log.data,
-        topics: log.topics,
-      });
-
-      if (decoded?.eventName === "EditionCreated") {
-        const args: any = decoded.args;
-        const tokenId = args?.tokenId ?? args?.[0];
-
-        if (typeof tokenId === "bigint") return tokenId.toString();
-        if (typeof tokenId === "number") return String(tokenId);
-        if (typeof tokenId === "string") return tokenId;
-      }
-    } catch {
-      // ignore
-    }
-  }
-  return null;
-}
-
-/** only persist stable urls (not blob:) */
 function persistableUrl(input?: string | null) {
   const s = (input || "").trim();
   if (!s) return null;
@@ -247,7 +173,6 @@ function persistableUrl(input?: string | null) {
   return s;
 }
 
-/** IPFS helpers */
 const IPFS_GATEWAYS = [
   "https://nftstorage.link/ipfs/",
   "https://gateway.pinata.cloud/ipfs/",
@@ -293,6 +218,33 @@ async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
   return null;
 }
 
+/** Extract 1155 tokenId from EditionCreated */
+function extractEditionTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): string | null {
+  const logs = receipt?.logs ?? [];
+  for (const log of logs) {
+    try {
+      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) continue;
+
+      const decoded = decodeEventLog({
+        abi: realife1155Abi,
+        data: log.data,
+        topics: log.topics,
+      });
+
+      if (decoded?.eventName === "EditionCreated") {
+        const args: any = decoded.args;
+        const tokenId = args?.tokenId ?? args?.[0];
+        if (typeof tokenId === "bigint") return tokenId.toString();
+        if (typeof tokenId === "number") return String(tokenId);
+        if (typeof tokenId === "string") return tokenId;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
 function Stepper({
   mounted,
   connected,
@@ -303,8 +255,7 @@ function Stepper({
   step,
   isMining,
   isSuccess,
-  mode,
-  verified,
+  mintFeeWei,
 }: {
   mounted: boolean;
   connected: boolean;
@@ -315,8 +266,7 @@ function Stepper({
   step: "idle" | "preparing" | "signing" | "mining";
   isMining: boolean;
   isSuccess: boolean;
-  mode: MintMode;
-  verified: boolean;
+  mintFeeWei: bigint;
 }) {
   const stage = useMemo(() => {
     if (!mounted) return 0;
@@ -333,13 +283,11 @@ function Stepper({
   const items = [
     { k: "prepare", n: "01", t: "Prepare", d: "Upload → IPFS", ok: Boolean(tokenURI), active: stage === 1 && !isSuccess },
     { k: "sign", n: "02", t: "Sign", d: "Wallet signature", ok: step !== "idle" && (stage >= 2 || isMining || isSuccess), active: stage === 2 && !isSuccess },
-    { k: "mint", n: "03", t: mode === "erc1155" ? "Create Edition" : "Mint", d: "Tx mining", ok: Boolean(txHash) && (isMining || isSuccess || stage >= 3), active: stage === 3 && !isSuccess },
+    { k: "mint", n: "03", t: "Create Edition", d: "Tx mining", ok: Boolean(txHash) && (isMining || isSuccess || stage >= 3), active: stage === 3 && !isSuccess },
     { k: "verify", n: "04", t: "Verify", d: "Explorer proof", ok: isSuccess, active: stage === 4 || isSuccess },
   ] as const;
 
   const locked = !mounted || !connected || wrongNetwork;
-
-  const modeLabel = mode === "erc1155" ? "Edition (ERC-1155)" : "Unique (ERC-721)";
 
   return (
     <Card className="lg:col-span-2">
@@ -352,21 +300,15 @@ function Stepper({
             </Pill>
 
             <Pill>
-              <span className="text-white/80 font-extrabold">{modeLabel}</span>
+              <span className="text-white/80 font-extrabold">Edition (ERC-1155)</span>
             </Pill>
 
-            {mode === "erc1155" ? (
-              <Pill>
-                <span
-                  className={[
-                    "h-2 w-2 rounded-full",
-                    verified ? "bg-emerald-400" : "bg-rose-400",
-                    "shadow-[0_0_0_6px_rgba(255,255,255,0.06)]",
-                  ].join(" ")}
-                />
-                {verified ? "Verified Creator" : "Locked (Need 3 NFTs)"}
-              </Pill>
-            ) : null}
+            <Pill>
+              <span className="text-white/70">Fee:</span>
+              <span className="text-amber-200 font-extrabold">
+                {mintFeeWei > 0n ? `${fmtEth(formatUnits(mintFeeWei, 18))} ETH` : "0"}
+              </span>
+            </Pill>
           </div>
 
           <div className="mt-3 text-sm md:text-base font-extrabold tracking-tight">
@@ -377,55 +319,43 @@ function Stepper({
                 ? "Connect wallet to start"
                 : "Switch to Base Sepolia"
               : isSuccess
-              ? "Mint complete — verified on-chain"
+              ? "Created — verified on-chain"
               : step === "preparing"
               ? "Preparing metadata on IPFS…"
               : step === "signing"
               ? "Waiting for wallet signature…"
               : step === "mining" || isMining
-              ? "Minting on-chain (mining)…"
+              ? "Creating edition on-chain (mining)…"
               : tokenURI
               ? hasGas
-                ? "Ready to sign & mint"
-                : "Get test ETH to mint"
+                ? "Ready to sign & create edition"
+                : "Get test ETH to create"
               : "Prepare your NFT"}
           </div>
 
           <div className="mt-2 text-[11px] text-white/60 leading-relaxed">
-            Mint rewards: <span className="text-amber-200 font-extrabold">+10 points</span> per NFT.
-            <span className="text-white/45"> More mints → more points → higher reputation.</span>
+            Mint rewards: <span className="text-amber-200 font-extrabold">+10 points</span> per mint.
+            <span className="text-white/45"> Editions support supply 1..10000.</span>
           </div>
 
           <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
             {locked ? (
-              <>
-                {wrongNetwork ? (
-                  <>
-                    Wrong network — switch to <span className="text-white/75 font-semibold">Base Sepolia</span>.
-                  </>
-                ) : (
-                  <>Connect wallet and follow the flow: Prepare → Sign → Mint → Verify.</>
-                )}
-              </>
+              wrongNetwork ? (
+                <>
+                  Wrong network — switch to <span className="text-white/75 font-semibold">Base Sepolia</span>.
+                </>
+              ) : (
+                <>Connect wallet and follow the flow: Prepare → Sign → Create → Verify.</>
+              )
+            ) : hasGas ? (
+              <>Gas is OK. If you already prepared metadata — press <span className="text-white/75 font-semibold">Create Edition</span>.</>
             ) : (
               <>
-                {hasGas ? (
-                  <>
-                    Gas is OK. If you already prepared metadata — press{" "}
-                    <span className="text-white/75 font-semibold">
-                      {mode === "erc1155" ? "Create Edition" : "Mint"}
-                    </span>
-                    .
-                  </>
-                ) : (
-                  <>
-                    No gas on Base Sepolia.{" "}
-                    <Link href="/app/faucet" className="text-[#d4af37] font-semibold hover:brightness-110 transition">
-                      Faucet ↗
-                    </Link>{" "}
-                    then refresh.
-                  </>
-                )}
+                No gas on Base Sepolia.{" "}
+                <Link href="/app/faucet" className="text-[#d4af37] font-semibold hover:brightness-110 transition">
+                  Faucet ↗
+                </Link>{" "}
+                then refresh.
               </>
             )}
           </div>
@@ -558,24 +488,22 @@ export default function MintForm() {
   const wrongNetwork = connected && effectiveChainId !== baseSepolia.id;
   const hasGas = connected && !wrongNetwork && balanceEth > 0;
 
-  // ✅ mint mode
-  const [mode, setMode] = useState<MintMode>("erc721");
+  /* ---------- Contract read: mintFeeWei ---------- */
 
-  // ERC-1155 verified check (contract knows the rules)
-  const { data: isVerified1155 } = useReadContract({
-    address: CONTRACT_1155,
-    abi: REALIFE_1155_ABI,
-    functionName: "isVerified",
-    args: address ? [address] : undefined,
-    query: { enabled: Boolean(address && CONTRACT_1155) },
+  const { data: mintFeeWeiRaw } = useReadContract({
+    address: CONTRACT_1155_NEW,
+    abi: realife1155Abi,
+    functionName: "mintFeeWei",
+    query: { enabled: Boolean(CONTRACT_1155_NEW) },
   });
-  const verified = Boolean(isVerified1155);
 
-  // form state
+  const mintFeeWei = (typeof mintFeeWeiRaw === "bigint" ? mintFeeWeiRaw : 0n) as bigint;
+
+  /* ---------- form state ---------- */
+
   const [file, setFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
-  // ✅ poster upload (only for video)
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null);
 
@@ -583,7 +511,7 @@ export default function MintForm() {
   const [categories, setCategories] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [supply, setSupply] = useState<number>(1);
+  const [supply, setSupply] = useState<number>(20);
   const [proofUrl, setProofUrl] = useState("");
 
   const [step, setStep] = useState<"idle" | "preparing" | "signing" | "mining">("idle");
@@ -612,11 +540,9 @@ export default function MintForm() {
   function onPickFile(f: File | null) {
     setError("");
     setTokenURI(null);
-
     setPreparedMedia(null);
     setPreparedPoster(null);
 
-    // cleanup old blob URLs
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
 
@@ -632,13 +558,11 @@ export default function MintForm() {
     const url = URL.createObjectURL(f);
     setFilePreviewUrl(url);
 
-    // reset push guard if user re-starts flow
     pushedRef.current = false;
   }
 
   function onPickPoster(f: File | null) {
     setError("");
-
     if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
 
     setPosterFile(f);
@@ -650,7 +574,6 @@ export default function MintForm() {
     setPosterPreviewUrl(url);
   }
 
-  // cleanup object URLs
   useEffect(() => {
     return () => {
       if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
@@ -683,37 +606,28 @@ export default function MintForm() {
       const finalName = name.trim() || "Untitled NFT";
       const finalCategory = previewCategory || selectedCategoryLabel;
 
-      const usedContract = mode === "erc721" ? CONTRACT_ADDRESS : CONTRACT_1155;
+      const tokenId = extractEditionTokenIdFromReceipt(receipt, CONTRACT_1155_NEW);
 
-      const tokenId =
-        mode === "erc721"
-          ? extractTokenIdFromReceipt(receipt, CONTRACT_ADDRESS)
-          : extractEditionTokenIdFromReceipt(receipt, CONTRACT_1155);
-
-      // for DB & success query:
       const posterOrImage =
         effectivePreviewKind === "video" ? persistableUrl(preparedPoster) : persistableUrl(preparedMedia);
 
-      const mediaForQuery = persistableUrl(preparedMedia);
+      const mediaForQuery = persistableUrl(preparedMedia) || persistableUrl(filePreviewUrl);
 
       try {
-        if (usedContract && tokenId) {
+        if (CONTRACT_1155_NEW && tokenId) {
           await fetch("/api/mints", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               chainId: baseSepolia.id,
-              contract: usedContract,
+              contract: CONTRACT_1155_NEW,
               tokenId,
               txHash: txHash || "",
               tokenUri: tokenURI || "",
               name: finalName,
               image: posterOrImage || null,
               verified: true,
-
-              // optional (если API/БД пока не принимает — просто проигнорится из-за try/catch)
-              standard: mode === "erc721" ? "ERC721" : "ERC1155",
-              supply: mode === "erc1155" ? clampSupply(supply) : 1,
+              supply: clampSupply(supply),
             }),
           });
         }
@@ -730,8 +644,8 @@ export default function MintForm() {
       qp.set("project", project);
       qp.set("tx", txHash || "");
       qp.set("tokenId", tokenId || "");
-      qp.set("standard", mode === "erc721" ? "ERC721" : "ERC1155");
-      qp.set("contract", usedContract || "");
+      qp.set("standard", "ERC1155");
+      qp.set("contract", CONTRACT_1155_NEW || "");
 
       router.push(`/app/success?${qp.toString()}`);
     })();
@@ -748,8 +662,7 @@ export default function MintForm() {
     }
   }
 
-  const requiredContractOk = mode === "erc721" ? Boolean(CONTRACT_ADDRESS) : Boolean(CONTRACT_1155);
-
+  const requiredContractOk = Boolean(CONTRACT_1155_NEW);
   const canPrepare = Boolean(file) && Boolean(name.trim()) && requiredContractOk;
   const canMint = Boolean(tokenURI) && requiredContractOk;
 
@@ -758,14 +671,8 @@ export default function MintForm() {
   async function handlePrepare() {
     setError("");
 
-    // Prepare не требует контракта, но мы блокируем UX если env не задан,
-    // иначе юзер подготовит tokenURI и потом не сможет минтить.
-    if (mode === "erc721" && !CONTRACT_ADDRESS) {
-      setError("Missing NEXT_PUBLIC_REALIFE_CONTRACT in Railway/ENV");
-      return;
-    }
-    if (mode === "erc1155" && !CONTRACT_1155) {
-      setError("Missing NEXT_PUBLIC_REALIFE_1155_CONTRACT in Railway/ENV");
+    if (!CONTRACT_1155_NEW) {
+      setError("Missing NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT in Railway/ENV");
       return;
     }
 
@@ -784,7 +691,6 @@ export default function MintForm() {
       const formData = new FormData();
       formData.append("file", file);
 
-      // ✅ only send poster when video AND poster chosen
       if (file.type.startsWith("video/") && posterFile) {
         formData.append("poster", posterFile);
       }
@@ -805,7 +711,6 @@ export default function MintForm() {
 
       setTokenURI(uri);
 
-      // Prefer backend preview (it already knows poster/media)
       const pKind: "image" | "video" =
         data?.preview?.kind === "video" ? "video" : data?.preview?.kind === "image" ? "image" : pickedKind;
 
@@ -816,7 +721,7 @@ export default function MintForm() {
       setPreparedMedia(pMedia || filePreviewUrl);
       setPreparedPoster(pKind === "video" ? pPoster : null);
 
-      // optional: use tokenURI metadata to refine (marketplace style)
+      // optional refine from tokenURI JSON
       const meta = await loadMetadataFromTokenUri(uri);
       const metaImage = typeof meta?.image === "string" ? meta.image : null;
       const metaAnim = typeof meta?.animation_url === "string" ? meta.animation_url : null;
@@ -839,7 +744,7 @@ export default function MintForm() {
     }
   }
 
-  async function handleOnchainMint() {
+  async function handleOnchainCreate() {
     setError("");
 
     if (!tokenURI) {
@@ -847,54 +752,29 @@ export default function MintForm() {
       return;
     }
 
+    if (!CONTRACT_1155_NEW) {
+      setError("Missing NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT in Railway/ENV");
+      return;
+    }
+
     try {
       await ensureCorrectNetwork();
 
       if (balanceEth === 0) {
-        setError("No gas on Base Sepolia. Open Faucet, get test ETH, then mint.");
-        return;
-      }
-
-      // Extra gate for 1155
-      if (mode === "erc1155" && !verified) {
-        setError("Editions are locked. Mint 3 ERC-721 NFTs to become Verified Creator.");
+        setError("No gas on Base Sepolia. Open Faucet, get test ETH, then create.");
         return;
       }
 
       setStep("signing");
 
-      if (mode === "erc721") {
-        if (!CONTRACT_ADDRESS) {
-          setError("Missing NEXT_PUBLIC_REALIFE_CONTRACT in Railway/ENV");
-          setStep("idle");
-          return;
-        }
-
-        const hash = await writeContractAsync({
-          address: CONTRACT_ADDRESS,
-          abi: REALIFE_ABI,
-          functionName: "mint",
-          args: [tokenURI],
-        });
-
-        if (hash) setStep("mining");
-        return;
-      }
-
-      // mode === "erc1155"
-      if (!CONTRACT_1155) {
-        setError("Missing NEXT_PUBLIC_REALIFE_1155_CONTRACT in Railway/ENV");
-        setStep("idle");
-        return;
-      }
-
       const amount = BigInt(clampSupply(supply));
 
       const hash = await writeContractAsync({
-        address: CONTRACT_1155,
-        abi: REALIFE_1155_ABI,
+        address: CONTRACT_1155_NEW,
+        abi: realife1155Abi,
         functionName: "createEdition",
         args: [amount, tokenURI],
+        value: mintFeeWei > 0n ? mintFeeWei : undefined,
       });
 
       if (hash) setStep("mining");
@@ -918,80 +798,11 @@ export default function MintForm() {
         step={step}
         isMining={isMining}
         isSuccess={isSuccess}
-        mode={mode}
-        verified={verified}
+        mintFeeWei={mintFeeWei}
       />
 
       {/* LEFT */}
       <div className="space-y-8">
-        {/* MODE */}
-        <Card>
-          <div className="flex items-end justify-between mb-4">
-            <div>
-              <div className="text-sm font-extrabold tracking-tight">Mint type</div>
-              <div className="text-[11px] text-white/55 mt-1">
-                Unique = ERC-721. Editions = ERC-1155 (Verified creators only).
-              </div>
-            </div>
-
-            {mode === "erc1155" ? (
-              <Pill>
-                <span className={["h-2 w-2 rounded-full", verified ? "bg-emerald-400" : "bg-rose-400"].join(" ")} />
-                {verified ? "Verified" : "Locked"}
-              </Pill>
-            ) : (
-              <Pill>
-                <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
-                Open
-              </Pill>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setMode("erc721");
-                setSupply(1);
-                setError("");
-              }}
-              className={[
-                "px-4 py-2.5 rounded-2xl border text-sm font-extrabold transition",
-                "shadow-[0_16px_40px_rgba(0,0,0,0.35)]",
-                mode === "erc721"
-                  ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                  : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
-              ].join(" ")}
-            >
-              Unique (ERC-721)
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setMode("erc1155");
-                if (supply < 2) setSupply(20);
-                setError("");
-              }}
-              className={[
-                "px-4 py-2.5 rounded-2xl border text-sm font-extrabold transition",
-                "shadow-[0_16px_40px_rgba(0,0,0,0.35)]",
-                mode === "erc1155"
-                  ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                  : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
-              ].join(" ")}
-            >
-              Edition (ERC-1155)
-            </button>
-          </div>
-
-          {mode === "erc1155" && !verified ? (
-            <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-              Editions are locked. Mint <b>3</b> unique NFTs (ERC-721) to become Verified Creator.
-            </div>
-          ) : null}
-        </Card>
-
         {/* PROJECT */}
         <Card>
           <div className="flex items-end justify-between mb-4">
@@ -1099,15 +910,13 @@ export default function MintForm() {
             </div>
           </div>
 
-          {/* ✅ POSTER upload (only if video) */}
+          {/* POSTER upload (video only) */}
           {file?.type?.startsWith("video/") ? (
             <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-sm font-extrabold">Poster (thumbnail)</div>
-                  <div className="mt-1 text-[11px] text-white/55">
-                    Optional. If you skip it, backend may auto-generate poster.
-                  </div>
+                  <div className="mt-1 text-[11px] text-white/55">Optional. If you skip it, backend may auto-generate poster.</div>
                 </div>
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-white/60" />
@@ -1228,13 +1037,7 @@ export default function MintForm() {
                     "shadow-[0_0_0_6px_rgba(255,255,255,0.06)]",
                   ].join(" ")}
                 />
-                {mounted
-                  ? connected
-                    ? wrongNetwork
-                      ? "Wrong network"
-                      : "Base Sepolia"
-                    : "Connect wallet"
-                  : "Connect wallet"}
+                {mounted ? (connected ? (wrongNetwork ? "Wrong network" : "Base Sepolia") : "Connect wallet") : "Connect wallet"}
               </Pill>
 
               <div className="mt-3 text-sm font-extrabold tracking-tight">
@@ -1242,9 +1045,9 @@ export default function MintForm() {
                   ? wrongNetwork
                     ? "Switch to Base Sepolia"
                     : hasGas
-                    ? "Gas OK — ready to mint"
+                    ? "Gas OK — ready to create"
                     : "No gas — request test ETH"
-                  : "Connect wallet to mint"}
+                  : "Connect wallet to create"}
               </div>
 
               <div className="mt-2 text-xs text-white/65">
@@ -1252,15 +1055,15 @@ export default function MintForm() {
               </div>
 
               <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
-                Mint an NFT and earn <span className="text-amber-200 font-extrabold">+10 points</span>.
-                <span className="text-white/45"> The more you mint — the higher your score.</span>
+                Create edition and earn <span className="text-amber-200 font-extrabold">+10 points</span>.
+                <span className="text-white/45"> Your editions will show in your gallery.</span>
               </div>
 
               <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
                 {mounted && connected ? (
                   <>
                     {wrongNetwork
-                      ? "One click switch, then mint."
+                      ? "One click switch, then create."
                       : hasGas
                       ? "Prepare → sign → tx mined → success."
                       : "Open faucet, claim test ETH, then refresh."}{" "}
@@ -1270,7 +1073,7 @@ export default function MintForm() {
                   </>
                 ) : (
                   <>
-                    Connect wallet to enable switching, balance check and mint.{" "}
+                    Connect wallet to enable switching, balance check and create.{" "}
                     <span className="text-white/45">(VIP flow)</span>
                   </>
                 )}
@@ -1308,15 +1111,9 @@ export default function MintForm() {
             </div>
           </div>
 
-          {mode === "erc721" && !CONTRACT_ADDRESS && (
+          {!CONTRACT_1155_NEW && (
             <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-              Missing <b>NEXT_PUBLIC_REALIFE_CONTRACT</b> in Railway env
-            </div>
-          )}
-
-          {mode === "erc1155" && !CONTRACT_1155 && (
-            <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-              Missing <b>NEXT_PUBLIC_REALIFE_1155_CONTRACT</b> in Railway env
+              Missing <b>NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT</b> in Railway env
             </div>
           )}
         </Card>
@@ -1353,13 +1150,11 @@ export default function MintForm() {
           <div className="flex items-end justify-between mb-3">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Amount / Supply</div>
-              <div className="text-[11px] text-white/55 mt-1">
-                {mode === "erc721" ? "ERC-721 is always 1." : "ERC-1155 editions: set supply (e.g. 20)."}
-              </div>
+              <div className="text-[11px] text-white/55 mt-1">ERC-1155 editions: set supply (e.g. 20).</div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-white/60" />
-              Meta
+              Required
             </Pill>
           </div>
 
@@ -1369,12 +1164,10 @@ export default function MintForm() {
             max={10000}
             value={supply}
             onChange={(e) => setSupply(clampSupply(Number(e.target.value)))}
-            disabled={mode === "erc721"}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
               "bg-white/[0.04] border border-white/10 text-white",
               "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
-              mode === "erc721" ? "opacity-60 cursor-not-allowed" : "",
             ].join(" ")}
           />
         </Card>
@@ -1446,16 +1239,21 @@ export default function MintForm() {
               {step === "preparing" ? "Uploading → IPFS (prepare)…" : "1) Prepare (Upload → IPFS)"}
             </GhostButton>
 
-            <GoldButton disabled={busy || !canMint || (mode === "erc1155" && !verified)} onClick={handleOnchainMint}>
+            <GoldButton disabled={busy || !canMint} onClick={handleOnchainCreate}>
               {step === "signing"
                 ? "Waiting for wallet signature…"
                 : step === "mining" || isMining
-                ? "Minting on-chain (mining)…"
-                : mode === "erc1155"
-                ? "2) Create Edition (ERC-1155)"
-                : "2) Mint On-chain (ERC-721)"}
+                ? "Creating on-chain (mining)…"
+                : `2) Create Edition (ERC-1155)`}
             </GoldButton>
           </div>
+
+          {mintFeeWei > 0n ? (
+            <div className="mt-4 text-[11px] text-white/55">
+              This contract requires fee:{" "}
+              <span className="text-amber-200 font-extrabold">{fmtEth(formatUnits(mintFeeWei, 18))} ETH</span>
+            </div>
+          ) : null}
         </Card>
       </div>
     </div>
