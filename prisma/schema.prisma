@@ -368,3 +368,24 @@ model Trade {
   @@index([sellerWallet])
   @@index([buyerWallet])
 }
+
+/**
+ * ==========================================================================
+ */
+/**
+ * INDEXER STATE (cursor for on-chain logs)
+ */
+/**
+ * ==========================================================================
+ */
+
+model IndexerState {
+  id        String   @id @default(cuid())
+  chainId   Int
+  key       String // example: "marketplace:0xabc..."
+  lastBlock BigInt   @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([chainId, key])
+  @@index([chainId, key])
+}
