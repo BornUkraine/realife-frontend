@@ -290,8 +290,8 @@ model Listing {
 
   standard NftStandard
 
-  sellerId String
-  seller   User   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  sellerId String?
+  seller   User?   @relation(fields: [sellerId], references: [id], onDelete: SetNull)
 
   // duplicated for fast filtering + safety (store lowercase)
   sellerWallet String
