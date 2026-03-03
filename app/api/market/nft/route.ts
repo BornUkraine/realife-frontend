@@ -12,7 +12,8 @@ function s(v: any) {
 function toInt(v: string | null) {
   if (!v) return null;
   const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n)) return null;
+  return Math.trunc(n);
 }
 
 function normAddr(v: string | null) {
@@ -24,7 +25,9 @@ function normAddr(v: string | null) {
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
 
-  const chainId = toInt(url.searchParams.get("chainId"));
+  const chainIdRaw = toInt(url.searchParams.get("chainId"));
+  const chainId = chainIdRaw && chainIdRaw > 0 ? chainIdRaw : null;
+
   const contract = normAddr(url.searchParams.get("contract"));
   const tokenId = (url.searchParams.get("tokenId") || "").trim();
 
@@ -46,16 +49,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "NFT_NOT_FOUND_OR_NOT_VERIFIED" }, { status: 404 });
     }
 
-    // 2) active listings + trades
+    // 2) listings + trades
     const [listings, trades] = await Promise.all([
       prisma.listing.findMany({
-        where: { chainId, contract, tokenId, status: "ACTIVE" },
+        where: { chainId, contract, tokenId, status: "ACTIVE", mint: { verified: true } },
         orderBy: { createdAt: "desc" },
         take: listingsTake,
         include: { seller: { select: { handle: true, publicId: true } } },
       }),
       prisma.trade.findMany({
-        where: { chainId, contract, tokenId },
+        where: { chainId, contract, tokenId, mint: { verified: true } },
         orderBy: { blockTime: "desc" },
         take: tradesTake,
       }),
@@ -65,11 +68,13 @@ export async function GET(req: NextRequest) {
     const floorWei =
       listings.length === 0
         ? null
-        : listings.reduce((min, x) => (x.pricePerUnitWei < min ? x.pricePerUnitWei : min), listings[0].pricePerUnitWei);
+        : listings.reduce(
+            (min, x) => (x.pricePerUnitWei < min ? x.pricePerUnitWei : min),
+            listings[0].pricePerUnitWei
+          );
 
     const lastSaleWei = trades[0]?.pricePerUnitWei ?? null;
-
-    const volumeTotalWei = trades.reduce((acc, t) => acc + (t.totalPriceWei ?? 0n), 0n);
+    const volumeTotalWei = trades.reduce((acc, t) => acc + t.totalPriceWei, 0n);
 
     return NextResponse.json({
       ok: true,

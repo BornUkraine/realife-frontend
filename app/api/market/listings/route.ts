@@ -12,7 +12,8 @@ function s(v: any) {
 function toInt(v: string | null) {
   if (!v) return null;
   const n = Number(v);
-  return Number.isFinite(n) ? n : null;
+  if (!Number.isFinite(n)) return null;
+  return Math.trunc(n);
 }
 
 function normAddr(v: string | null) {
@@ -21,40 +22,52 @@ function normAddr(v: string | null) {
   return x.toLowerCase();
 }
 
+const ALLOWED_STATUS = new Set(["ACTIVE", "CANCELLED", "SOLD_OUT"]);
+const ALLOWED_STANDARD = new Set(["ERC721", "ERC1155"]);
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
 
-  const chainId = toInt(url.searchParams.get("chainId"));
+  const chainIdRaw = toInt(url.searchParams.get("chainId"));
+  const chainId = chainIdRaw && chainIdRaw > 0 ? chainIdRaw : null;
+
   const contract = normAddr(url.searchParams.get("contract"));
-  const standard = (url.searchParams.get("standard") || "").toUpperCase(); // ERC721 / ERC1155
   const seller = normAddr(url.searchParams.get("seller"));
 
-  const status = (url.searchParams.get("status") || "ACTIVE").toUpperCase(); // ACTIVE/CANCELLED/SOLD_OUT
+  const standardRaw = (url.searchParams.get("standard") || "").toUpperCase();
+  const standard = ALLOWED_STANDARD.has(standardRaw) ? standardRaw : null;
+
+  const statusRaw = (url.searchParams.get("status") || "ACTIVE").toUpperCase();
+  const status = ALLOWED_STATUS.has(statusRaw) ? statusRaw : "ACTIVE";
+
   const take = Math.min(toInt(url.searchParams.get("take")) ?? 30, 100);
   const skip = Math.max(toInt(url.searchParams.get("skip")) ?? 0, 0);
 
   // filters
-  const where: any = {};
-  if (status) where.status = status;
-  if (chainId) where.chainId = chainId;
+  const where: any = { status };
+
+  if (chainId !== null) where.chainId = chainId;
   if (contract) where.contract = contract;
   if (seller) where.sellerWallet = seller;
-  if (standard === "ERC721" || standard === "ERC1155") where.standard = standard;
+  if (standard) where.standard = standard;
+
+  // закрытый маркет: только то, что есть в Mint и verified=true
+  where.mint = { verified: true };
 
   try {
-    const rows = await prisma.listing.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take,
-      skip,
-      include: {
-        mint: { select: { name: true, image: true, tokenUri: true, verified: true } },
-        seller: { select: { handle: true, publicId: true } },
-      },
-    });
-
-    // optional: total count (для пагинации)
-    const total = await prisma.listing.count({ where });
+    const [rows, total] = await Promise.all([
+      prisma.listing.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take,
+        skip,
+        include: {
+          mint: { select: { name: true, image: true, tokenUri: true, verified: true } },
+          seller: { select: { handle: true, publicId: true } },
+        },
+      }),
+      prisma.listing.count({ where }),
+    ]);
 
     return NextResponse.json({
       ok: true,
