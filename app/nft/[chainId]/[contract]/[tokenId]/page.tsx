@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import NftMedia from "@/components/NftMedia";
 import TradingPanel1155 from "@/components/trading/TradingPanel1155";
+import { headers } from "next/headers";
+import { formatUnits } from "viem";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,6 +50,19 @@ const IPFS_GATEWAYS = [
 ] as const;
 
 const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
+
+/* ------------------------------- Request origin (SSR safe) ------------------------------ */
+
+async function getOrigin() {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto =
+    h.get("x-forwarded-proto") ??
+    (process.env.NODE_ENV === "development" ? "http" : "https");
+
+  if (!host) return null;
+  return `${proto}://${host}`;
+}
 
 /* ------------------------------- IPFS helpers ------------------------------ */
 
@@ -142,25 +157,33 @@ function toInt(v: any) {
   return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 
-async function loadMarketNft(chainId: number, contract: string, tokenId: string) {
-  const url =
-    `/api/market/nft?chainId=${encodeURIComponent(String(chainId))}` +
+async function loadMarketNft(origin: string | null, chainId: number, contract: string, tokenId: string) {
+  const qs =
+    `chainId=${encodeURIComponent(String(chainId))}` +
     `&contract=${encodeURIComponent(contract)}` +
     `&tokenId=${encodeURIComponent(tokenId)}` +
     `&listingsTake=50&tradesTake=50`;
 
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) return null;
-  return (await r.json().catch(() => null)) as any;
+  // ✅ absolute URL to avoid SSR "Invalid URL"
+  const url = origin ? `${origin}/api/market/nft?${qs}` : `/api/market/nft?${qs}`;
+
+  try {
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) return null;
+    return (await r.json().catch(() => null)) as any;
+  } catch {
+    return null;
+  }
 }
 
 function fmtEth(wei?: string | null) {
   try {
     if (!wei) return "—";
-    const v = BigInt(wei);
-    // display with 6 decimals
-    const s = (Number(v) / 1e18).toFixed(6);
-    return s.replace(/0+$/, "").replace(/\.$/, "");
+    const s = formatUnits(BigInt(wei), 18);
+    const [a, b] = s.split(".");
+    if (!b) return a;
+    const bb = b.slice(0, 6).replace(/0+$/, "");
+    return bb ? `${a}.${bb}` : a;
   } catch {
     return "—";
   }
@@ -296,8 +319,9 @@ export default async function NftDetailsPage({
 
   const standardLabel = "ERC-1155";
 
-  // market summary (server-side preview)
-  const market = await loadMarketNft(chainId, contract, tokenId);
+  // ✅ market summary (SSR safe) — FIXED
+  const origin = await getOrigin();
+  const market = await loadMarketNft(origin, chainId, contract, tokenId);
 
   const stats = market?.stats || null;
   const listings: any[] = Array.isArray(market?.listings) ? market.listings : [];
@@ -540,7 +564,7 @@ export default async function NftDetailsPage({
                   </div>
 
                   <div className="mt-6 text-[11px] text-white/35">
-                    Media is resolved from backend <span className="font-mono">/metadata1155</span> (animation_url), with IPFS tokenURI fallback.
+                    Market stats are loaded server-side; if market API is unavailable, page still renders.
                   </div>
                 </div>
               </div>
