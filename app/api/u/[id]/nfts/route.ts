@@ -16,7 +16,13 @@ function safeDecode(v: string) {
 function normalizeKey(raw: string) {
   const key = safeDecode(raw || "").trim();
   if (!key || key.length > 64) return null;
+  if (key.includes("/")) return null;
+  if (!/^[a-zA-Z0-9_.-]+$/.test(key)) return null;
   return key;
+}
+
+function norm(a: string) {
+  return String(a || "").trim().toLowerCase();
 }
 
 function s(v: any) {
@@ -34,6 +40,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const url = new URL(req.url);
   const take = Math.max(1, Math.min(48, Number(url.searchParams.get("take") || "24")));
   const cursor = url.searchParams.get("cursor"); // Holding.id
+
+  const REALIFE_1155_NEW_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
 
   try {
     const user = await prisma.user.findFirst({
@@ -55,6 +63,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         userId: user.id,
         amount: { gt: 0n },
         mint: { verified: true },
+        ...(REALIFE_1155_NEW_CONTRACT ? { contract: REALIFE_1155_NEW_CONTRACT } : {}),
       },
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: take + 1,

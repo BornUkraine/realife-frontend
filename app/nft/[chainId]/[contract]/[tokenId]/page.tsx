@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import NftMedia from "@/components/NftMedia";
+import TradingPanel1155 from "@/components/trading/TradingPanel1155";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,10 +33,7 @@ function norm(a: string) {
 
 /* ------------------------------- Config ------------------------------ */
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app").replace(
-  /\/$/,
-  ""
-);
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app").replace(/\/$/, "");
 
 // ✅ 1155-only: только NEW env
 const REALIFE_1155_NEW_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
@@ -135,6 +133,37 @@ function contractExplorerUrl(chainId: number, contract: string) {
   if (chainId === 84532) return `https://sepolia.basescan.org/address/${contract}`;
   if (chainId === 8453) return `https://basescan.org/address/${contract}`;
   return null;
+}
+
+/* ------------------------ market API helpers ------------------------ */
+
+function toInt(v: any) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : 0;
+}
+
+async function loadMarketNft(chainId: number, contract: string, tokenId: string) {
+  const url =
+    `/api/market/nft?chainId=${encodeURIComponent(String(chainId))}` +
+    `&contract=${encodeURIComponent(contract)}` +
+    `&tokenId=${encodeURIComponent(tokenId)}` +
+    `&listingsTake=50&tradesTake=50`;
+
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) return null;
+  return (await r.json().catch(() => null)) as any;
+}
+
+function fmtEth(wei?: string | null) {
+  try {
+    if (!wei) return "—";
+    const v = BigInt(wei);
+    // display with 6 decimals
+    const s = (Number(v) / 1e18).toFixed(6);
+    return s.replace(/0+$/, "").replace(/\.$/, "");
+  } catch {
+    return "—";
+  }
 }
 
 export default async function NftDetailsPage({
@@ -267,6 +296,13 @@ export default async function NftDetailsPage({
 
   const standardLabel = "ERC-1155";
 
+  // market summary (server-side preview)
+  const market = await loadMarketNft(chainId, contract, tokenId);
+
+  const stats = market?.stats || null;
+  const listings: any[] = Array.isArray(market?.listings) ? market.listings : [];
+  const trades: any[] = Array.isArray(market?.trades) ? market.trades : [];
+
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
       <div className="pointer-events-none fixed inset-0">
@@ -296,6 +332,8 @@ export default async function NftDetailsPage({
             ) : (
               <span>{ownerName}</span>
             )}
+            <span>›</span>
+            <span className="text-white/70 font-black">{nft.name || `Token #${nft.tokenId}`}</span>
           </div>
 
           {ownerNftsUrl ? (
@@ -339,150 +377,280 @@ export default async function NftDetailsPage({
           </div>
 
           {/* Meta */}
+          <div className="space-y-6">
+            {/* info card */}
+            <div
+              className={cx(
+                "reveal rounded-[34px] p-px overflow-hidden",
+                "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
+                "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
+              )}
+              style={{ animationDelay: "140ms" }}
+            >
+              <div className="rounded-[34px] h-full overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10">
+                <div className="p-6 md:p-7">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
+                      Realife Edition
+                    </div>
+
+                    <div className="px-3 py-1.5 rounded-full border border-white/15 bg-white/[0.06] text-[11px] font-black text-amber-100">
+                      {standardLabel}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight">
+                    {nft.name || `Token #${nft.tokenId}`}
+                  </div>
+
+                  {/* Creator/Profile */}
+                  <div className="mt-5 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
+                      {avatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={avatar} alt="creator" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="text-white/35 text-xs font-black">RL</span>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Creator / Profile
+                      </div>
+                      <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
+                        {ownerUrl ? (
+                          <Link className="hover:underline" href={ownerUrl}>
+                            {ownerName}
+                          </Link>
+                        ) : (
+                          ownerName
+                        )}
+                      </div>
+                    </div>
+
+                    {ownerNftsUrl ? (
+                      <Link href={ownerNftsUrl} className="shrink-0 text-[12px] font-extrabold text-amber-100/90 hover:text-amber-100">
+                        View NFTs →
+                      </Link>
+                    ) : null}
+                  </div>
+
+                  {/* Market quick stats */}
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Floor</div>
+                      <div className="mt-1 text-[13px] font-extrabold text-amber-100 truncate">
+                        {stats?.floorWei ? `${fmtEth(stats.floorWei)} ETH` : "—"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Last sale</div>
+                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
+                        {stats?.lastSaleWei ? `${fmtEth(stats.lastSaleWei)} ETH` : "—"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Active listings</div>
+                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
+                        {toInt(stats?.activeListings ?? 0)}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Volume</div>
+                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
+                        {stats?.volumeTotalWei ? `${fmtEth(stats.volumeTotalWei)} ETH` : "0"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Details */}
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Contract</div>
+                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">{shortAddr(nft.contract)}</div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Token ID</div>
+                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">#{nft.tokenId}</div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Chain ID</div>
+                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">{nft.chainId}</div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Minted</div>
+                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
+                        {new Date(nft.createdAt).toLocaleString("en-GB")}
+                      </div>
+                    </div>
+
+                    <div className="col-span-2 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Total Supply</div>
+                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">{supplyLabel || "—"}</div>
+                    </div>
+                  </div>
+
+                  {/* Links */}
+                  <div className="mt-7 flex flex-wrap gap-3">
+                    {tokenUriHttp ? (
+                      <a
+                        href={tokenUriHttp}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
+                      >
+                        Token URI ↗
+                      </a>
+                    ) : null}
+
+                    {txUrl ? (
+                      <a
+                        href={txUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
+                      >
+                        Tx ↗
+                      </a>
+                    ) : null}
+
+                    {contractUrl ? (
+                      <a
+                        href={contractUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
+                      >
+                        Contract ↗
+                      </a>
+                    ) : null}
+
+                    {ownerNftsUrl ? (
+                      <Link
+                        href={ownerNftsUrl}
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                      >
+                        Back to gallery
+                      </Link>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-6 text-[11px] text-white/35">
+                    Media is resolved from backend <span className="font-mono">/metadata1155</span> (animation_url), with IPFS tokenURI fallback.
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Trading panel (client) */}
+            <div className="reveal" style={{ animationDelay: "200ms" }}>
+              <TradingPanel1155 chainId={chainId} contract={contract} tokenId={tokenId} />
+            </div>
+          </div>
+        </div>
+
+        {/* Active listings + recent trades (server preview) */}
+        <div className="grid lg:grid-cols-2 gap-6">
           <div
             className={cx(
               "reveal rounded-[34px] p-px overflow-hidden",
-              "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
+              "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
               "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
             )}
-            style={{ animationDelay: "140ms" }}
+            style={{ animationDelay: "240ms" }}
           >
-            <div className="rounded-[34px] h-full overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10">
-              <div className="p-6 md:p-7 h-full flex flex-col">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                    Realife Edition
-                  </div>
-
-                  <div className="px-3 py-1.5 rounded-full border border-white/15 bg-white/[0.06] text-[11px] font-black text-amber-100">
-                    {standardLabel}
-                  </div>
-                </div>
-
-                <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight">
-                  {nft.name || `Token #${nft.tokenId}`}
-                </div>
-
-                {/* Creator/Profile */}
-                <div className="mt-5 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
-                    {avatar ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={avatar} alt="creator" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <span className="text-white/35 text-xs font-black">RL</span>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                      Creator / Profile
-                    </div>
-                    <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
-                      {ownerUrl ? (
-                        <Link className="hover:underline" href={ownerUrl}>
-                          {ownerName}
-                        </Link>
-                      ) : (
-                        ownerName
-                      )}
-                    </div>
-                  </div>
-
-                  {ownerNftsUrl ? (
-                    <Link href={ownerNftsUrl} className="shrink-0 text-[12px] font-extrabold text-amber-100/90 hover:text-amber-100">
-                      View NFTs →
-                    </Link>
-                  ) : null}
-                </div>
-
-                {/* Details */}
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Contract</div>
-                    <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">{shortAddr(nft.contract)}</div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Token ID</div>
-                    <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">#{nft.tokenId}</div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Chain ID</div>
-                    <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">{nft.chainId}</div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Minted</div>
-                    <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                      {new Date(nft.createdAt).toLocaleString("en-GB")}
-                    </div>
-                  </div>
-
-                  <div className="col-span-2 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Total Supply</div>
-                    <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">{supplyLabel || "—"}</div>
-                  </div>
-                </div>
-
-                <div className="flex-1" />
-
-                {/* Links */}
-                <div className="mt-8 flex flex-wrap gap-3">
-                  {tokenUriHttp ? (
-                    <a
-                      href={tokenUriHttp}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
-                    >
-                      Token URI ↗
-                    </a>
-                  ) : null}
-
-                  {txUrl ? (
-                    <a
-                      href={txUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
-                    >
-                      Tx ↗
-                    </a>
-                  ) : null}
-
-                  {contractUrl ? (
-                    <a
-                      href={contractUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
-                    >
-                      Contract ↗
-                    </a>
-                  ) : null}
-
-                  {ownerNftsUrl ? (
-                    <Link
-                      href={ownerNftsUrl}
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
-                    >
-                      Back to gallery
-                    </Link>
-                  ) : null}
-                </div>
-
-                <div className="mt-6 text-[11px] text-white/35">
-                  Media is resolved from backend <span className="font-mono">/metadata1155</span> (animation_url), with IPFS tokenURI fallback.
-                </div>
+            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">Active Listings</div>
+                <div className="text-[12px] text-white/55 font-semibold">{listings.length}</div>
               </div>
+
+              {listings.length === 0 ? (
+                <div className="mt-4 text-[12px] text-white/60">No active listings yet.</div>
+              ) : (
+                <div className="mt-4 space-y-2">
+                  {listings.slice(0, 10).map((l) => (
+                    <div key={l.marketplaceListingId} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-[13px] font-black text-amber-100">
+                          {fmtEth(l.pricePerUnitWei)} ETH{" "}
+                          <span className="text-white/35 text-[11px] font-black">/ unit</span>
+                        </div>
+                        <div className="text-[12px] text-white/70 font-semibold">
+                          Remaining: <span className="text-white/90 font-black">{l.amountRemaining}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-2 text-[12px] text-white/55 flex flex-wrap items-center gap-2">
+                        <span>Seller:</span>
+                        <span className="font-mono text-white/80">{shortAddr(l.sellerWallet)}</span>
+                        <span className="text-white/35">•</span>
+                        <span className="font-black text-white/70">Listing #{l.marketplaceListingId}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div
+            className={cx(
+              "reveal rounded-[34px] p-px overflow-hidden",
+              "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
+              "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
+            )}
+            style={{ animationDelay: "280ms" }}
+          >
+            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">Recent Trades</div>
+                <div className="text-[12px] text-white/55 font-semibold">{trades.length}</div>
+              </div>
+
+              {trades.length === 0 ? (
+                <div className="mt-4 text-[12px] text-white/60">No trades yet.</div>
+              ) : (
+                <div className="mt-4 space-y-2">
+                  {trades.slice(0, 10).map((t) => (
+                    <div key={`${t.txHash}:${t.logIndex}`} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-[13px] font-black text-amber-100">
+                          {fmtEth(t.totalPriceWei)} ETH{" "}
+                          <span className="text-white/35 text-[11px] font-black">•</span>
+                          <span className="ml-2 text-white/80 text-[12px] font-black">x{t.amount}</span>
+                        </div>
+                        <div className="text-[11px] text-white/40">
+                          {new Date(t.blockTime).toLocaleString("en-GB")}
+                        </div>
+                      </div>
+
+                      <div className="mt-2 text-[12px] text-white/55">
+                        {shortAddr(t.sellerWallet)} → {shortAddr(t.buyerWallet)}
+                        <span className="text-white/35"> • </span>
+                        <a
+                          className="text-amber-100/90 hover:text-amber-100 font-black"
+                          href={chainId === 84532 ? `https://sepolia.basescan.org/tx/${t.txHash}` : `https://basescan.org/tx/${t.txHash}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Tx ↗
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
         <footer className="reveal pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]">
-          Realife Ecosystem • NFT Verified
+          Realife Ecosystem • NFT Trading
         </footer>
       </div>
     </main>
