@@ -51,17 +51,51 @@ const IPFS_GATEWAYS = [
 
 const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
 
+/* ------------------------------- Market fetch tuning ------------------------------ */
+
+const MARKET_REVALIDATE_SECONDS = 5;
+const MARKET_FETCH_TIMEOUT_MS = 4500;
+
 /* ------------------------------- Request origin (SSR safe) ------------------------------ */
 
 async function getOrigin() {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto =
-    h.get("x-forwarded-proto") ??
-    (process.env.NODE_ENV === "development" ? "http" : "https");
-
+  const proto = h.get("x-forwarded-proto") ?? (process.env.NODE_ENV === "development" ? "http" : "https");
   if (!host) return null;
   return `${proto}://${host}`;
+}
+
+/* ------------------------------- Small fetch helper (timeout) ------------------------------ */
+
+async function fetchJsonWithTimeout(
+  url: string,
+  init: RequestInit & { next?: { revalidate?: number; tags?: string[] } },
+  timeoutMs: number
+): Promise<{ ok: boolean; status: number; json: any | null; error: string | null }> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const r = await fetch(url, { ...init, signal: controller.signal });
+    const j = await r.json().catch(() => null);
+    if (!r.ok) return { ok: false, status: r.status, json: j, error: j?.error || `http_${r.status}` };
+    return { ok: true, status: r.status, json: j, error: null };
+  } catch (e: any) {
+    const msg = e?.name === "AbortError" ? "timeout" : e?.message || "fetch_failed";
+    return { ok: false, status: 0, json: null, error: msg };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+/* ------------------------------- Cache tags ------------------------------ */
+
+function marketTagNft(chainId: number, contract: string, tokenId: string) {
+  return `market:nft:${chainId}:${contract}:${tokenId}`;
+}
+function marketTagContract(chainId: number, contract: string) {
+  return `market:contract:${chainId}:${contract}`;
 }
 
 /* ------------------------------- IPFS helpers ------------------------------ */
@@ -70,9 +104,7 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
 
-  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) {
-    return u;
-  }
+  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) return u;
 
   if (u.startsWith("ipfs://")) {
     let p = u.slice("ipfs://".length);
@@ -81,7 +113,6 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   }
 
   if (u.startsWith("Qm") || u.startsWith("bafy")) return `${gw}${u}`;
-
   return u;
 }
 
@@ -134,6 +165,30 @@ function pickAttrValue(meta: any, trait: string): string | null {
   return String(v);
 }
 
+function pickAttrAny(meta: any, traits: string[]): string | null {
+  for (const tr of traits) {
+    const v = pickAttrValue(meta, tr);
+    if (v && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+function pickAny(meta: any, keys: string[]): string | null {
+  for (const k of keys) {
+    const v = meta?.[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+function normalizeUrl(u?: string | null) {
+  const s = String(u || "").trim();
+  if (!s) return null;
+  if (/^https?:\/\//i.test(s)) return s;
+  if (s.startsWith("www.")) return `https://${s}`;
+  return null;
+}
+
 /* --------------------------- explorer url per chain ------------------------ */
 
 function txExplorerUrl(chainId: number, txHash: string) {
@@ -164,16 +219,21 @@ async function loadMarketNft(origin: string | null, chainId: number, contract: s
     `&tokenId=${encodeURIComponent(tokenId)}` +
     `&listingsTake=50&tradesTake=50`;
 
-  // ✅ absolute URL to avoid SSR "Invalid URL"
   const url = origin ? `${origin}/api/market/nft?${qs}` : `/api/market/nft?${qs}`;
 
-  try {
-    const r = await fetch(url, { cache: "no-store" });
-    if (!r.ok) return null;
-    return (await r.json().catch(() => null)) as any;
-  } catch {
-    return null;
-  }
+  const tags = [marketTagNft(chainId, contract, tokenId), marketTagContract(chainId, contract)];
+
+  const res = await fetchJsonWithTimeout(
+    url,
+    {
+      next: { revalidate: MARKET_REVALIDATE_SECONDS, tags },
+      headers: { accept: "application/json" },
+    },
+    MARKET_FETCH_TIMEOUT_MS
+  );
+
+  if (!res.ok) return { data: null as any, error: res.error || "market_unavailable" };
+  return { data: res.json, error: null as string | null };
 }
 
 function fmtEth(wei?: string | null) {
@@ -202,10 +262,7 @@ export default async function NftDetailsPage({
 
   if (!Number.isFinite(chainId) || !contract.startsWith("0x") || !tokenId) notFound();
 
-  // ✅ 1155-only: если env задан — не пускаем другие контракты
-  if (REALIFE_1155_NEW_CONTRACT && contract !== REALIFE_1155_NEW_CONTRACT) {
-    notFound();
-  }
+  if (REALIFE_1155_NEW_CONTRACT && contract !== REALIFE_1155_NEW_CONTRACT) notFound();
 
   const nft = await prisma.mint.findFirst({
     where: { chainId, contract, tokenId, verified: true },
@@ -258,7 +315,6 @@ export default async function NftDetailsPage({
 
   const fallbackPoster = ipfsToHttp(nft.image, IPFS_GATEWAYS[0]);
 
-  // ✅ 1155-only: всегда /metadata1155
   const liveMeta = await loadMetadataFromBackend1155(tokenId);
   const meta = liveMeta || (nft.tokenUri ? await loadMetadataFromTokenUri(nft.tokenUri) : null);
 
@@ -272,6 +328,25 @@ export default async function NftDetailsPage({
       else if (typeof s === "string" && s.trim()) supplyLabel = s.trim();
     }
   }
+
+  // MintForm-derived fields (from metadata)
+  const metaDescription = typeof meta?.description === "string" && meta.description.trim() ? meta.description.trim() : null;
+
+  const metaProject =
+    pickAttrAny(meta, ["Project", "project"]) ||
+    pickAny(meta, ["project"]) ||
+    null;
+
+  const metaCategory =
+    pickAttrAny(meta, ["Category", "category"]) ||
+    pickAny(meta, ["category"]) ||
+    null;
+
+  const metaProofRaw =
+    pickAny(meta, ["external_url", "externalUrl", "proofUrl", "proof_url", "url"]) ||
+    pickAttrAny(meta, ["Proof / X link", "Proof", "X", "X link", "Proof URL"]);
+
+  const metaProofUrl = normalizeUrl(metaProofRaw);
 
   // Media resolve
   let kind: "image" | "video" = "image";
@@ -319,9 +394,8 @@ export default async function NftDetailsPage({
 
   const standardLabel = "ERC-1155";
 
-  // ✅ market summary (SSR safe) — FIXED
   const origin = await getOrigin();
-  const market = await loadMarketNft(origin, chainId, contract, tokenId);
+  const { data: market, error: marketError } = await loadMarketNft(origin, chainId, contract, tokenId);
 
   const stats = market?.stats || null;
   const listings: any[] = Array.isArray(market?.listings) ? market.listings : [];
@@ -371,38 +445,95 @@ export default async function NftDetailsPage({
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Media */}
-          <div
-            className={cx(
-              "reveal rounded-[34px] p-px overflow-hidden",
-              "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
-              "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
-            )}
-            style={{ animationDelay: "80ms" }}
-          >
-            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/15 backdrop-blur-2xl ring-1 ring-black/10">
-              <div className="aspect-square bg-black/30 flex items-center justify-center relative">
-                {media ? (
-                  <NftMedia
-                    src={media}
-                    kind={kind}
-                    alt={nft.name || "NFT"}
-                    poster={kind === "video" ? poster : null}
-                    showControls={kind === "video"}
-                    className="h-full w-full"
-                    roundedClass="rounded-none"
-                  />
-                ) : (
-                  <div className="text-white/25 font-black">No media</div>
-                )}
-                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.35)_0%,transparent_35%)]" />
+          {/* Media + About */}
+          <div className="space-y-6">
+            {/* Media */}
+            <div
+              className={cx(
+                "reveal rounded-[34px] p-px overflow-hidden",
+                "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
+                "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
+              )}
+              style={{ animationDelay: "80ms" }}
+            >
+              <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/15 backdrop-blur-2xl ring-1 ring-black/10">
+                <div className="aspect-square bg-black/30 flex items-center justify-center relative">
+                  {media ? (
+                    <NftMedia
+                      src={media}
+                      kind={kind}
+                      alt={nft.name || "NFT"}
+                      poster={kind === "video" ? poster : null}
+                      showControls={kind === "video"}
+                      className="h-full w-full"
+                      roundedClass="rounded-none"
+                    />
+                  ) : (
+                    <div className="text-white/25 font-black">No media</div>
+                  )}
+                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.35)_0%,transparent_35%)]" />
+                </div>
               </div>
             </div>
+
+            {/* About (MintForm data from metadata) */}
+            {metaDescription || metaProject || metaCategory || metaProofUrl ? (
+              <div
+                className={cx(
+                  "reveal rounded-[34px] p-px overflow-hidden",
+                  "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
+                  "shadow-[0_34px_130px_rgba(0,0,0,0.55)]"
+                )}
+                style={{ animationDelay: "120ms" }}
+              >
+                <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">About</div>
+
+                  {metaDescription ? (
+                    <div className="mt-3 text-[13px] text-white/80 leading-relaxed whitespace-pre-wrap">
+                      {metaDescription}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {metaProject ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Project</div>
+                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">{metaProject}</div>
+                      </div>
+                    ) : null}
+
+                    {metaCategory ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Category</div>
+                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">{metaCategory}</div>
+                      </div>
+                    ) : null}
+                  </div>
+
+                  {metaProofUrl ? (
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <a
+                        href={metaProofUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
+                      >
+                        Proof / X ↗
+                      </a>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 text-[11px] text-white/35">
+                    This block is filled from token metadata created in MintForm (project/category/description/proof).
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {/* Meta */}
           <div className="space-y-6">
-            {/* info card */}
             <div
               className={cx(
                 "reveal rounded-[34px] p-px overflow-hidden",
@@ -414,20 +545,14 @@ export default async function NftDetailsPage({
               <div className="rounded-[34px] h-full overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10">
                 <div className="p-6 md:p-7">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                      Realife Edition
-                    </div>
-
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">Realife Edition</div>
                     <div className="px-3 py-1.5 rounded-full border border-white/15 bg-white/[0.06] text-[11px] font-black text-amber-100">
                       {standardLabel}
                     </div>
                   </div>
 
-                  <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight">
-                    {nft.name || `Token #${nft.tokenId}`}
-                  </div>
+                  <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight">{nft.name || `Token #${nft.tokenId}`}</div>
 
-                  {/* Creator/Profile */}
                   <div className="mt-5 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
                       {avatar ? (
@@ -439,9 +564,7 @@ export default async function NftDetailsPage({
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Creator / Profile
-                      </div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Creator / Profile</div>
                       <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
                         {ownerUrl ? (
                           <Link className="hover:underline" href={ownerUrl}>
@@ -460,7 +583,12 @@ export default async function NftDetailsPage({
                     ) : null}
                   </div>
 
-                  {/* Market quick stats */}
+                  {marketError ? (
+                    <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
+                      Market data temporarily unavailable ({marketError}). NFT details still work.
+                    </div>
+                  ) : null}
+
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                       <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Floor</div>
@@ -488,7 +616,6 @@ export default async function NftDetailsPage({
                     </div>
                   </div>
 
-                  {/* Details */}
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                       <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Contract</div>
@@ -518,7 +645,6 @@ export default async function NftDetailsPage({
                     </div>
                   </div>
 
-                  {/* Links */}
                   <div className="mt-7 flex flex-wrap gap-3">
                     {tokenUriHttp ? (
                       <a
@@ -564,20 +690,18 @@ export default async function NftDetailsPage({
                   </div>
 
                   <div className="mt-6 text-[11px] text-white/35">
-                    Market stats are loaded server-side; if market API is unavailable, page still renders.
+                    Market uses timeout + revalidate({MARKET_REVALIDATE_SECONDS}s) + tags. If market fails — page still renders.
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Trading panel (client) */}
             <div className="reveal" style={{ animationDelay: "200ms" }}>
               <TradingPanel1155 chainId={chainId} contract={contract} tokenId={tokenId} />
             </div>
           </div>
         </div>
 
-        {/* Active listings + recent trades (server preview) */}
         <div className="grid lg:grid-cols-2 gap-6">
           <div
             className={cx(
@@ -601,8 +725,7 @@ export default async function NftDetailsPage({
                     <div key={l.marketplaceListingId} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="text-[13px] font-black text-amber-100">
-                          {fmtEth(l.pricePerUnitWei)} ETH{" "}
-                          <span className="text-white/35 text-[11px] font-black">/ unit</span>
+                          {fmtEth(l.pricePerUnitWei)} ETH <span className="text-white/35 text-[11px] font-black">/ unit</span>
                         </div>
                         <div className="text-[12px] text-white/70 font-semibold">
                           Remaining: <span className="text-white/90 font-black">{l.amountRemaining}</span>
@@ -648,9 +771,7 @@ export default async function NftDetailsPage({
                           <span className="text-white/35 text-[11px] font-black">•</span>
                           <span className="ml-2 text-white/80 text-[12px] font-black">x{t.amount}</span>
                         </div>
-                        <div className="text-[11px] text-white/40">
-                          {new Date(t.blockTime).toLocaleString("en-GB")}
-                        </div>
+                        <div className="text-[11px] text-white/40">{new Date(t.blockTime).toLocaleString("en-GB")}</div>
                       </div>
 
                       <div className="mt-2 text-[12px] text-white/55">

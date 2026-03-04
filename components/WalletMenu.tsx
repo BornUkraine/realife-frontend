@@ -15,6 +15,16 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { formatUnits } from "viem";
 import { signIn } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import {
+  User as UserIcon,
+  Image as NftIcon,
+  Settings as SettingsIcon,
+  Droplet as FaucetIcon,
+  LogOut as DisconnectIcon,
+  ChevronDown,
+  ChevronRight,
+  ArrowUpRight,
+} from "lucide-react";
 
 function shortAddr(a?: `0x${string}` | string) {
   if (!a) return "";
@@ -77,6 +87,36 @@ function pickPublicKey(u?: MeUser | null) {
   return handle || publicId || null;
 }
 
+function IconBox({
+  children,
+  tone = "neutral",
+}: {
+  children: React.ReactNode;
+  tone?: "neutral" | "rose" | "gold" | "red";
+}) {
+  const toneCls =
+    tone === "rose"
+      ? "text-rose-300 border-rose-300/20 bg-rose-300/10"
+      : tone === "gold"
+        ? "text-[#d4af37] border-[#d4af37]/20 bg-[#d4af37]/10"
+        : tone === "red"
+          ? "text-red-300 border-red-300/20 bg-red-300/10"
+          : "text-white/80 border-white/10 bg-white/[0.04]";
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center justify-center",
+        "w-7 h-7 rounded-xl border",
+        "shadow-[0_10px_30px_rgba(0,0,0,0.25)]",
+        toneCls
+      )}
+    >
+      {children}
+    </span>
+  );
+}
+
 export default function WalletMenu() {
   const mounted = useMounted();
 
@@ -89,7 +129,6 @@ export default function WalletMenu() {
   const chainId = useChainId();
   const { disconnect } = useDisconnect();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
-
   const { signMessageAsync } = useSignMessage();
 
   const needsBaseSepolia = connected && chainId !== baseSepolia.id;
@@ -117,7 +156,6 @@ export default function WalletMenu() {
   }, [mounted, connected, balLoading, balanceData]);
 
   const [open, setOpen] = useState(false);
-
   const close = useCallback(() => setOpen(false), []);
   const wrapRef = useOnClickOutsideAndEsc(close);
 
@@ -137,7 +175,7 @@ export default function WalletMenu() {
   }, [mounted, connected, openConnectModal]);
 
   const itemBase = cn(
-    "w-full flex items-center justify-between gap-3 px-3 py-2 rounded-2xl",
+    "w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-2xl",
     "text-sm font-semibold text-white/85",
     "transition duration-200",
     "hover:bg-white/[0.06] hover:text-white",
@@ -284,7 +322,7 @@ export default function WalletMenu() {
             {verifying ? (
               <span className="text-[11px] text-white/60 ml-1">verifying…</span>
             ) : (
-              <div className="text-xs text-white/70 ml-1">▾</div>
+              <ChevronDown className="w-4 h-4 text-white/70 ml-1" />
             )}
           </div>
         </div>
@@ -348,28 +386,32 @@ export default function WalletMenu() {
               <div className="p-2">
                 <Link href="/app/profile" onClick={close} className={itemBase}>
                   <span className="flex items-center gap-3">
-                    <span className="text-lg">👤</span>
+                    <IconBox>
+                      <UserIcon className="w-4.5 h-4.5" />
+                    </IconBox>
                     <span>Profile</span>
                   </span>
-                  <span className="text-white/35">→</span>
+                  <ChevronRight className="w-4 h-4 text-white/35" />
                 </Link>
 
-                {/* ✅ NEW: My NFTs */}
                 <Link href={myNftsHref} onClick={close} className={itemBase}>
                   <span className="flex items-center gap-3">
-                    {/* реально красится через text-rose-300 */}
-                    <span className="text-lg leading-none text-rose-300">■</span>
+                    <IconBox tone="rose">
+                      <NftIcon className="w-4.5 h-4.5" />
+                    </IconBox>
                     <span>My NFTs</span>
                   </span>
-                  <span className="text-white/35">→</span>
+                  <ChevronRight className="w-4 h-4 text-white/35" />
                 </Link>
 
                 <Link href="/app/settings" onClick={close} className={itemBase}>
                   <span className="flex items-center gap-3">
-                    <span className="text-lg">⚙️</span>
+                    <IconBox>
+                      <SettingsIcon className="w-4.5 h-4.5" />
+                    </IconBox>
                     <span>Settings</span>
                   </span>
-                  <span className="text-white/35">→</span>
+                  <ChevronRight className="w-4 h-4 text-white/35" />
                 </Link>
 
                 <div className="my-2 h-px bg-white/10" />
@@ -380,10 +422,12 @@ export default function WalletMenu() {
                   className={cn(itemBase, "bg-white/[0.03]", "hover:bg-white/[0.07]")}
                 >
                   <span className="flex items-center gap-3">
-                    <span className="text-lg">⛽</span>
+                    <IconBox tone="gold">
+                      <FaucetIcon className="w-4.5 h-4.5" />
+                    </IconBox>
                     <span>Get test ETH</span>
                   </span>
-                  <span className="text-[#d4af37] font-extrabold">↗</span>
+                  <ArrowUpRight className="w-4 h-4 text-[#d4af37]" />
                 </Link>
 
                 <button
@@ -394,17 +438,26 @@ export default function WalletMenu() {
                     setMeUser(null);
                     close();
                   }}
-                  className={cn(itemBase, "mt-1", "hover:bg-red-500/12", "text-red-100 hover:text-red-50")}
+                  className={cn(
+                    itemBase,
+                    "mt-1",
+                    "hover:bg-red-500/12",
+                    "text-red-100 hover:text-red-50"
+                  )}
                 >
                   <span className="flex items-center gap-3">
-                    <span className="text-lg">↩</span>
+                    <IconBox tone="red">
+                      <DisconnectIcon className="w-4.5 h-4.5" />
+                    </IconBox>
                     <span>Disconnect</span>
                   </span>
                 </button>
 
                 {!myKey ? (
                   <div className="px-3 pt-2 text-[11px] text-white/40">
-                    {meLoading ? "Loading profile…" : "Tip: set handle/public id in Profile to get /u/<id>/nfts link."}
+                    {meLoading
+                      ? "Loading profile…"
+                      : "Tip: set handle/public id in Profile to get /u/<id>/nfts link."}
                   </div>
                 ) : null}
               </div>

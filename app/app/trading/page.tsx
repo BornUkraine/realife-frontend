@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -7,16 +8,25 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function norm(v?: string | null) {
+  const s = String(v || "").trim();
+  return s ? s.toLowerCase() : "";
+}
+
+function pickViewerKey(u?: { handle: string | null; publicId: string | null } | null) {
+  if (!u) return null;
+  if (u.handle && u.handle !== "tmp") return u.handle;
+  if (u.publicId && u.publicId !== "tmp") return u.publicId;
+  return null;
+}
+
 export default async function TradingPage() {
   const session = await getServerSession(authOptions);
 
   const viewerId = (session as any)?.user?.id || (session as any)?.userId || null;
-  const sessionWallet =
-    ((session as any)?.user?.walletAddress ||
-      (session as any)?.walletAddress ||
-      "")?.toLowerCase?.() || "";
+  const sessionWallet = norm((session as any)?.user?.walletAddress || (session as any)?.walletAddress || "");
 
-  let viewerKey: string | null = null; // handle/publicId for /api/u/[id]/activity
+  let viewerKey: string | null = null;
   let viewerWallet: string | null = sessionWallet || null;
 
   if (viewerId) {
@@ -25,10 +35,8 @@ export default async function TradingPage() {
       select: { handle: true, publicId: true, walletAddress: true },
     });
 
-    if (u) {
-      viewerKey = (u.handle && u.handle !== "tmp" ? u.handle : null) || (u.publicId && u.publicId !== "tmp" ? u.publicId : null);
-      viewerWallet = (viewerWallet || u.walletAddress || "").toLowerCase() || null;
-    }
+    viewerKey = pickViewerKey(u);
+    viewerWallet = norm(viewerWallet || u?.walletAddress || "") || null;
   }
 
   return (
@@ -54,12 +62,12 @@ export default async function TradingPage() {
           </div>
 
           <div className="shrink-0 flex items-center gap-2">
-            <a
+            <Link
               href="/"
               className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
             >
               Home
-            </a>
+            </Link>
           </div>
         </div>
 

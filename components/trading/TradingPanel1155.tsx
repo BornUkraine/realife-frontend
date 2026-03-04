@@ -1,8 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { useAccount, useChainId, useSwitchChain, usePublicClient, useWriteContract, useReadContract } from "wagmi";
+import { useRouter } from "next/navigation";
+import {
+  useAccount,
+  useChainId,
+  useSwitchChain,
+  usePublicClient,
+  useWriteContract,
+  useReadContract,
+} from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { formatUnits, parseUnits } from "viem";
 
@@ -102,6 +109,7 @@ export default function TradingPanel1155({
   contract: string;
   tokenId: string;
 }) {
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
@@ -120,6 +128,23 @@ export default function TradingPanel1155({
 
   const nftAddr = useMemo(() => toLower(contract), [contract]);
   const me = useMemo(() => toLower(address), [address]);
+
+  const hasMarketplace = Boolean(MARKETPLACE_ADDRESS && MARKETPLACE_ADDRESS.startsWith("0x"));
+
+  // ---------- revalidate tags (same tags as server page) ----------
+  const revalidateMarketTags = useCallback(async () => {
+    const tags = [`market:nft:${chainId}:${nftAddr}:${tokenId}`, `market:contract:${chainId}:${nftAddr}`];
+
+    try {
+      await fetch("/api/revalidate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tags }),
+      });
+    } catch {
+      // ignore
+    }
+  }, [chainId, nftAddr, tokenId]);
 
   // ---------- API market data ----------
   const [loading, setLoading] = useState(true);
@@ -157,8 +182,6 @@ export default function TradingPanel1155({
     }
   }, [tokenId]);
 
-  const hasMarketplace = Boolean(MARKETPLACE_ADDRESS && MARKETPLACE_ADDRESS.startsWith("0x"));
-
   const { data: balanceRaw, refetch: refetchBalance } = useReadContract({
     abi: erc1155CoreAbi,
     address: nftAddr as `0x${string}`,
@@ -194,15 +217,27 @@ export default function TradingPanel1155({
 
   // ---------- selection / forms ----------
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
-  const selectedListing = useMemo(() => {
-    if (!data?.listings?.length) return null;
-    if (!selectedListingId) return data.listings[0] || null;
-    return data.listings.find((x) => x.marketplaceListingId === selectedListingId) || data.listings[0] || null;
-  }, [data?.listings, selectedListingId]);
 
+  // ✅ если выбранный листинг исчез — переключаемся на первый
   useEffect(() => {
-    if (data?.listings?.length) setSelectedListingId((prev) => prev ?? data.listings[0]?.marketplaceListingId ?? null);
+    const list = data?.listings || [];
+    if (!list.length) {
+      setSelectedListingId(null);
+      return;
+    }
+    setSelectedListingId((prev) => {
+      if (!prev) return list[0]?.marketplaceListingId ?? null;
+      const exists = list.some((x) => x.marketplaceListingId === prev);
+      return exists ? prev : list[0]?.marketplaceListingId ?? null;
+    });
   }, [data?.listings]);
+
+  const selectedListing = useMemo(() => {
+    const list = data?.listings || [];
+    if (!list.length) return null;
+    if (!selectedListingId) return list[0] || null;
+    return list.find((x) => x.marketplaceListingId === selectedListingId) || list[0] || null;
+  }, [data?.listings, selectedListingId]);
 
   const maxBuy = useMemo(() => {
     try {
@@ -228,8 +263,7 @@ export default function TradingPanel1155({
   const [hint, setHint] = useState<string | null>(null);
 
   const pollAfterTx = useCallback(async () => {
-    // индексер у тебя с confirmations, поэтому поллим несколько раз
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 6; i++) {
       await new Promise((r) => setTimeout(r, 2200));
       await Promise.allSettled([refresh(), refetchBalance(), refetchApproved()]);
     }
@@ -239,6 +273,13 @@ export default function TradingPanel1155({
     if (!canTradeOnThisChain) {
       await switchChainAsync?.({ chainId });
     }
+  }
+
+  async function afterMarketTx() {
+    await revalidateMarketTags();
+    router.refresh();
+    await Promise.allSettled([refresh(), refetchBalance(), refetchApproved()]);
+    await pollAfterTx();
   }
 
   async function approveAll() {
@@ -262,8 +303,8 @@ export default function TradingPanel1155({
       setHint("Approval sent. Waiting for confirmation…");
       await publicClient?.waitForTransactionReceipt({ hash });
 
-      setHint("Approved ✅ Indexing…");
-      await pollAfterTx();
+      setHint("Approved ✅");
+      await Promise.allSettled([refetchApproved()]);
       setHint(null);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Approve failed");
@@ -296,8 +337,8 @@ export default function TradingPanel1155({
       setHint("Listing sent. Waiting for confirmation…");
       await publicClient?.waitForTransactionReceipt({ hash });
 
-      setHint("Listed ✅ Indexing…");
-      await pollAfterTx();
+      setHint("Listed ✅ Updating…");
+      await afterMarketTx();
       setHint(null);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Listing failed");
@@ -327,8 +368,8 @@ export default function TradingPanel1155({
       setHint("Cancel sent. Waiting for confirmation…");
       await publicClient?.waitForTransactionReceipt({ hash });
 
-      setHint("Cancelled ✅ Indexing…");
-      await pollAfterTx();
+      setHint("Cancelled ✅ Updating…");
+      await afterMarketTx();
       setHint(null);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Cancel failed");
@@ -364,8 +405,8 @@ export default function TradingPanel1155({
       setHint("Buy sent. Waiting for confirmation…");
       await publicClient?.waitForTransactionReceipt({ hash });
 
-      setHint("Bought ✅ Indexing…");
-      await pollAfterTx();
+      setHint("Bought ✅ Updating…");
+      await afterMarketTx();
       setHint(null);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Buy failed");
@@ -392,15 +433,9 @@ export default function TradingPanel1155({
         <div className="p-6 md:p-7">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                Trading • ERC-1155
-              </div>
-              <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">
-                Buy / Sell
-              </div>
-              <div className="mt-2 text-[12px] text-white/55">
-                Closed market: only verified Realife NFTs.
-              </div>
+              <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">Trading • ERC-1155</div>
+              <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">Buy / Sell</div>
+              <div className="mt-2 text-[12px] text-white/55">Closed market: only verified Realife NFTs.</div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -518,9 +553,7 @@ export default function TradingPanel1155({
                   className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                   placeholder="1"
                 />
-                <div className="mt-1 text-[11px] text-white/40">
-                  Max: {balance.toString()}
-                </div>
+                <div className="mt-1 text-[11px] text-white/40">Max: {balance.toString()}</div>
               </label>
 
               <label className="block">
@@ -532,22 +565,13 @@ export default function TradingPanel1155({
                   className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                   placeholder="0.01"
                 />
-                <div className="mt-1 text-[11px] text-white/40">
-                  Example: 0.01
-                </div>
+                <div className="mt-1 text-[11px] text-white/40">Example: 0.01</div>
               </label>
             </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <button
-                disabled={
-                  busy !== null ||
-                  !isConnected ||
-                  !hasMarketplace ||
-                  !canTradeOnThisChain ||
-                  !isApproved ||
-                  balance <= 0n
-                }
+                disabled={busy !== null || !isConnected || !hasMarketplace || !canTradeOnThisChain || !isApproved || balance <= 0n}
                 onClick={listNow}
                 className={cx(
                   "inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold transition",
@@ -559,9 +583,7 @@ export default function TradingPanel1155({
                 {busy === "list" ? "Listing…" : "List for sale"}
               </button>
 
-              <div className="text-[12px] text-white/55 font-semibold">
-                {balance <= 0n ? "You have 0 balance." : null}
-              </div>
+              <div className="text-[12px] text-white/55 font-semibold">{balance <= 0n ? "You have 0 balance." : null}</div>
             </div>
           </div>
 
@@ -583,14 +605,22 @@ export default function TradingPanel1155({
                 {data.listings.map((l) => {
                   const active = l.marketplaceListingId === (selectedListing?.marketplaceListingId || "");
                   const isMine = toLower(l.sellerWallet) === me;
+                  const isCancelling = busy === `cancel:${l.marketplaceListingId}`;
 
                   return (
-                    <button
+                    <div
                       key={l.marketplaceListingId}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setSelectedListingId(l.marketplaceListingId)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") setSelectedListingId(l.marketplaceListingId);
+                      }}
                       className={cx(
-                        "text-left rounded-2xl border p-4 transition",
-                        active ? "border-white/18 bg-white/[0.10]" : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
+                        "rounded-2xl border p-4 transition outline-none cursor-pointer",
+                        active
+                          ? "border-white/18 bg-white/[0.10]"
+                          : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
                       )}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -599,21 +629,45 @@ export default function TradingPanel1155({
                           <span className="text-white/35 text-[12px] font-black">per unit</span>
                         </div>
 
-                        <div className="text-[12px] font-black text-white/70">
-                          Remaining: <span className="text-white/90">{l.amountRemaining}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="text-[12px] font-black text-white/70">
+                            Remaining: <span className="text-white/90">{l.amountRemaining}</span>
+                          </div>
+
+                          {isMine ? (
+                            <button
+                              type="button"
+                              disabled={isCancelling || busy !== null || !isConnected || !hasMarketplace}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                cancelListing(l.marketplaceListingId);
+                              }}
+                              className={cx(
+                                "inline-flex items-center justify-center px-3 py-2 rounded-xl",
+                                "border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition",
+                                "text-[11px] font-black text-white/80",
+                                isCancelling || busy !== null ? "opacity-60 cursor-not-allowed" : ""
+                              )}
+                              title="Cancel this listing"
+                            >
+                              {isCancelling ? "Cancelling…" : "Cancel"}
+                            </button>
+                          ) : null}
                         </div>
                       </div>
 
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
                         <span>Seller:</span>
                         <span className="font-mono text-white/80">{shortAddr(l.sellerWallet)}</span>
+
                         {isMine ? (
                           <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-black/80 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15">
                             YOUR LISTING
                           </span>
                         ) : null}
                       </div>
-                    </button>
+                    </div>
                   );
                 })}
               </div>
@@ -636,13 +690,7 @@ export default function TradingPanel1155({
 
                 <div className="md:col-span-2 flex flex-wrap items-center gap-2">
                   <button
-                    disabled={
-                      busy !== null ||
-                      !isConnected ||
-                      !hasMarketplace ||
-                      !canTradeOnThisChain ||
-                      iAmSellerOfSelected
-                    }
+                    disabled={busy !== null || !isConnected || !hasMarketplace || !canTradeOnThisChain || iAmSellerOfSelected}
                     onClick={buyNow}
                     className={cx(
                       "inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold transition",
@@ -651,26 +699,14 @@ export default function TradingPanel1155({
                       busy ? "opacity-60 cursor-not-allowed" : ""
                     )}
                   >
-                    {busy === "buy" ? "Buying…" : `Buy for ~${fmtEth(String(BigInt(selectedListing.pricePerUnitWei) * BigInt(buyAmount || 1)))} ETH`}
+                    {busy === "buy"
+                      ? "Buying…"
+                      : `Buy for ~${fmtEth(
+                          String(BigInt(selectedListing.pricePerUnitWei) * BigInt(buyAmount || 1))
+                        )} ETH`}
                   </button>
 
-                  {iAmSellerOfSelected ? (
-                    <button
-                      disabled={busy !== null}
-                      onClick={() => cancelListing(selectedListing.marketplaceListingId)}
-                      className={cx(
-                        "inline-flex items-center justify-center px-5 py-3 rounded-2xl",
-                        "border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition",
-                        busy ? "opacity-60 cursor-not-allowed" : ""
-                      )}
-                    >
-                      {busy?.startsWith("cancel:") ? "Cancelling…" : "Cancel my listing"}
-                    </button>
-                  ) : null}
-
-                  <div className="text-[12px] text-white/55 font-semibold">
-                    Listing #{selectedListing.marketplaceListingId}
-                  </div>
+                  <div className="text-[12px] text-white/55 font-semibold">Listing #{selectedListing.marketplaceListingId}</div>
                 </div>
               </div>
             ) : null}
@@ -693,9 +729,7 @@ export default function TradingPanel1155({
                         <span className="ml-2 text-white/35 font-black">•</span>
                         <span className="ml-2 text-white/70 font-black">x{t.amount}</span>
                       </div>
-                      <div className="text-[11px] text-white/40">
-                        {new Date(t.blockTime).toLocaleString("en-GB")}
-                      </div>
+                      <div className="text-[11px] text-white/40">{new Date(t.blockTime).toLocaleString("en-GB")}</div>
                     </div>
 
                     <div className="mt-2 text-[12px] text-white/55">

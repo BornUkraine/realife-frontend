@@ -229,7 +229,9 @@ export default function TradingClient({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">My Activity</div>
-                <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">Listings • Purchases • Sales</div>
+                <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">
+                  Listings • Purchases • Sales
+                </div>
                 <div className="mt-2 text-[12px] text-white/55">
                   {isConnected ? (
                     <>
@@ -241,9 +243,7 @@ export default function TradingClient({
                       <span className="text-white/35"> (session)</span>
                     </>
                   ) : (
-                    <>
-                      Connect wallet to see personal activity.
-                    </>
+                    <>Connect wallet to see personal activity.</>
                   )}
                 </div>
               </div>
@@ -368,7 +368,6 @@ export default function TradingClient({
 
               const href = `/nft/${x.chainId}/${normAddr(x.contract)}/${encodeURIComponent(String(x.tokenId))}`;
               const img = ipfsToHttp(x?.mint?.image || null);
-
               const isMine = wallet && normAddr(x.sellerWallet) === wallet;
 
               return (
@@ -389,20 +388,23 @@ export default function TradingClient({
                       <div className="h-full w-full flex items-center justify-center text-white/25 font-black">No media</div>
                     )}
 
-                    <div className="absolute top-3 left-3 flex flex-col gap-2">
-                      <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-emerald-200">
+                    {/* ✅ badges only on hover (desktop) */}
+                    <div className="absolute top-3 left-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-emerald-200">
                         ACTIVE
                       </div>
 
                       {isMine ? (
-                        <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-amber-100">
+                        <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-amber-100">
                           YOUR LISTING
                         </div>
                       ) : null}
                     </div>
 
-                    <div className="absolute top-3 right-3 px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
-                      x{x.amountRemaining}
+                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-white/85">
+                        x{x.amountRemaining}
+                      </div>
                     </div>
 
                     <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.55)_0%,transparent_45%)]" />

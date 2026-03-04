@@ -63,7 +63,6 @@ function shortAddr(addr?: string | null) {
 function fmtEth(weiStr: string) {
   try {
     const v = formatUnits(BigInt(weiStr || "0"), 18);
-    // trim
     const [a, b] = v.split(".");
     if (!b) return a;
     const bb = b.slice(0, 6).replace(/0+$/, "");
@@ -80,6 +79,37 @@ function fmtInt(x: string) {
     return String(x || "0");
   }
 }
+
+/* ---------------- IPFS -> HTTP (for mint.image safety) ---------------- */
+
+const PRIMARY_IPFS_ORIGIN = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
+
+const IPFS_GATEWAYS = [
+  `${PRIMARY_IPFS_ORIGIN}/ipfs/`,
+  "https://gateway.pinata.cloud/ipfs/",
+  "https://cloudflare-ipfs.com/ipfs/",
+  "https://ipfs.io/ipfs/",
+] as const;
+
+function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
+  const u = String(uri || "").trim();
+  if (!u) return null;
+
+  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) return u;
+
+  if (u.startsWith("ipfs://")) {
+    let p = u.slice("ipfs://".length);
+    if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
+    return `${gw}${p}`;
+  }
+
+  if (u.startsWith("/ipfs/")) return `${PRIMARY_IPFS_ORIGIN}${u}`;
+  if (u.startsWith("Qm") || u.startsWith("bafy")) return `${gw}${u}`;
+
+  return u;
+}
+
+/* ---------------------------------------------------------------------- */
 
 async function fetchJSON(url: string, signal?: AbortSignal) {
   const r = await fetch(url, { signal, cache: "no-store" });
@@ -105,7 +135,11 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
   const [purchasesSkip, setPurchasesSkip] = useState(0);
   const [salesSkip, setSalesSkip] = useState(0);
 
-  const [loadingMore, setLoadingMore] = useState<{ l: boolean; p: boolean; s: boolean }>({ l: false, p: false, s: false });
+  const [loadingMore, setLoadingMore] = useState<{ l: boolean; p: boolean; s: boolean }>({
+    l: false,
+    p: false,
+    s: false,
+  });
 
   const canMoreListings = useMemo(() => {
     if (!totalCounts) return false;
@@ -161,15 +195,11 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
     setLoadingMore((x) => ({ ...x, [kind]: true }));
     setErr(null);
 
-    const lSkip = kind === "l" ? listingsSkip : listingsSkip;
-    const pSkip = kind === "p" ? purchasesSkip : purchasesSkip;
-    const sSkip = kind === "s" ? salesSkip : salesSkip;
-
     const url =
       `/api/u/${encodeURIComponent(userKey)}/activity?take=${take}` +
-      `&listingsSkip=${kind === "l" ? listingsSkip : lSkip}` +
-      `&purchasesSkip=${kind === "p" ? purchasesSkip : pSkip}` +
-      `&salesSkip=${kind === "s" ? salesSkip : sSkip}`;
+      `&listingsSkip=${kind === "l" ? listingsSkip : listingsSkip}` +
+      `&purchasesSkip=${kind === "p" ? purchasesSkip : purchasesSkip}` +
+      `&salesSkip=${kind === "s" ? salesSkip : salesSkip}`;
 
     try {
       const j = await fetchJSON(url);
@@ -198,8 +228,10 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
     }
   }
 
-  const wrap = "rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.18),rgba(212,175,55,0.08),rgba(184,135,10,0.06))] shadow-[0_34px_140px_rgba(0,0,0,0.60)]";
-  const card = "rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/40 backdrop-blur-2xl ring-1 ring-black/10";
+  const wrap =
+    "rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.18),rgba(212,175,55,0.08),rgba(184,135,10,0.06))] shadow-[0_34px_140px_rgba(0,0,0,0.60)]";
+  const card =
+    "rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/40 backdrop-blur-2xl ring-1 ring-black/10";
 
   return (
     <div className={wrap}>
@@ -211,9 +243,7 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
               <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90 truncate">
                 {user?.handle ? `@${user.handle}` : user?.publicId ? user.publicId : shortAddr(user?.walletAddress)}
               </div>
-              <div className="mt-2 text-[12px] text-white/55">
-                Listings, purchases and sales from on-chain indexer.
-              </div>
+              <div className="mt-2 text-[12px] text-white/55">Listings, purchases and sales from on-chain indexer.</div>
             </div>
 
             <button
@@ -234,9 +264,7 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
             </div>
           ) : null}
 
-          {loading ? (
-            <div className="mt-6 text-white/60 text-[12px] font-semibold">Loading…</div>
-          ) : null}
+          {loading ? <div className="mt-6 text-white/60 text-[12px] font-semibold">Loading…</div> : null}
 
           {/* Counters */}
           {totalCounts ? (
@@ -271,54 +299,52 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
             </div>
 
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {listings.map((x) => (
-                <Link
-                  key={x.id}
-                  href={`/nft/${x.chainId}/${x.contract}/${x.tokenId}`}
-                  className={cx(
-                    "group rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition",
-                    "p-4 flex gap-4"
-                  )}
-                >
-                  <div className="h-14 w-14 rounded-2xl border border-white/10 bg-black/30 overflow-hidden shrink-0 flex items-center justify-center">
-                    {x.mint?.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={x.mint.image} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="text-[10px] font-black text-white/30">RL</div>
+              {listings.map((x) => {
+                const img = ipfsToHttp(x.mint?.image) || null;
+
+                return (
+                  <Link
+                    key={x.id}
+                    href={`/nft/${x.chainId}/${x.contract}/${x.tokenId}`}
+                    className={cx(
+                      "group rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition",
+                      "p-4 flex gap-4"
                     )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-extrabold text-white/90 truncate">
-                      {x.mint?.name || `Token #${x.tokenId}`}
+                  >
+                    <div className="h-14 w-14 rounded-2xl border border-white/10 bg-black/30 overflow-hidden shrink-0 flex items-center justify-center">
+                      {img ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={img} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="text-[10px] font-black text-white/30">RL</div>
+                      )}
                     </div>
 
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
-                      <span className="font-mono">{shortAddr(x.contract)}</span>
-                      <span>•</span>
-                      <span className="font-mono">#{x.tokenId}</span>
-                      <span>•</span>
-                      <span className={cx("font-black", x.status === "ACTIVE" ? "text-emerald-200" : "text-white/55")}>
-                        {x.status}
-                      </span>
-                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-extrabold text-white/90 truncate">{x.mint?.name || `Token #${x.tokenId}`}</div>
 
-                    <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
-                      <div className="text-white/70">
-                        Price:{" "}
-                        <span className="font-black text-amber-100">
-                          {fmtEth(x.pricePerUnitWei)} ETH
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
+                        <span className="font-mono">{shortAddr(x.contract)}</span>
+                        <span>•</span>
+                        <span className="font-mono">#{x.tokenId}</span>
+                        <span>•</span>
+                        <span className={cx("font-black", x.status === "ACTIVE" ? "text-emerald-200" : "text-white/55")}>
+                          {x.status}
                         </span>
                       </div>
-                      <div className="text-white/70">
-                        Remaining:{" "}
-                        <span className="font-black text-white/90">{fmtInt(x.amountRemaining)}</span>
+
+                      <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
+                        <div className="text-white/70">
+                          Price: <span className="font-black text-amber-100">{fmtEth(x.pricePerUnitWei)} ETH</span>
+                        </div>
+                        <div className="text-white/70">
+                          Remaining: <span className="font-black text-white/90">{fmtInt(x.amountRemaining)}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
 
               {listings.length === 0 && !loading ? (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/60">
@@ -343,56 +369,52 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
             </div>
 
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {purchases.map((t) => (
-                <Link
-                  key={`${t.txHash}:${t.logIndex}`}
-                  href={`/nft/${t.chainId}/${t.contract}/${t.tokenId}`}
-                  className={cx(
-                    "group rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition",
-                    "p-4 flex gap-4"
-                  )}
-                >
-                  <div className="h-14 w-14 rounded-2xl border border-white/10 bg-black/30 overflow-hidden shrink-0 flex items-center justify-center">
-                    {t.mint?.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.mint.image} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="text-[10px] font-black text-white/30">RL</div>
+              {purchases.map((t) => {
+                const img = ipfsToHttp(t.mint?.image) || null;
+
+                return (
+                  <Link
+                    key={`${t.txHash}:${t.logIndex}`}
+                    href={`/nft/${t.chainId}/${t.contract}/${t.tokenId}`}
+                    className={cx(
+                      "group rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition",
+                      "p-4 flex gap-4"
                     )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-extrabold text-white/90 truncate">
-                      {t.mint?.name || `Token #${t.tokenId}`}
+                  >
+                    <div className="h-14 w-14 rounded-2xl border border-white/10 bg-black/30 overflow-hidden shrink-0 flex items-center justify-center">
+                      {img ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={img} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="text-[10px] font-black text-white/30">RL</div>
+                      )}
                     </div>
 
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
-                      <span className="font-mono">{shortAddr(t.contract)}</span>
-                      <span>•</span>
-                      <span className="font-mono">#{t.tokenId}</span>
-                      <span>•</span>
-                      <span className="font-black text-white/70">
-                        from {shortAddr(t.counterpartyWallet)}
-                      </span>
-                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-extrabold text-white/90 truncate">{t.mint?.name || `Token #${t.tokenId}`}</div>
 
-                    <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
-                      <div className="text-white/70">
-                        Total:{" "}
-                        <span className="font-black text-amber-100">{fmtEth(t.totalPriceWei)} ETH</span>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
+                        <span className="font-mono">{shortAddr(t.contract)}</span>
+                        <span>•</span>
+                        <span className="font-mono">#{t.tokenId}</span>
+                        <span>•</span>
+                        <span className="font-black text-white/70">from {shortAddr(t.counterpartyWallet)}</span>
                       </div>
-                      <div className="text-white/70">
-                        Amount:{" "}
-                        <span className="font-black text-white/90">{fmtInt(t.amount)}</span>
-                      </div>
-                    </div>
 
-                    <div className="mt-1 text-[11px] text-white/40">
-                      {new Date(t.blockTime).toLocaleString("en-GB")}
+                      <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
+                        <div className="text-white/70">
+                          Total: <span className="font-black text-amber-100">{fmtEth(t.totalPriceWei)} ETH</span>
+                        </div>
+                        <div className="text-white/70">
+                          Amount: <span className="font-black text-white/90">{fmtInt(t.amount)}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-1 text-[11px] text-white/40">{new Date(t.blockTime).toLocaleString("en-GB")}</div>
                     </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
 
               {purchases.length === 0 && !loading ? (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/60">
@@ -417,56 +439,52 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
             </div>
 
             <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {sales.map((t) => (
-                <Link
-                  key={`${t.txHash}:${t.logIndex}`}
-                  href={`/nft/${t.chainId}/${t.contract}/${t.tokenId}`}
-                  className={cx(
-                    "group rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition",
-                    "p-4 flex gap-4"
-                  )}
-                >
-                  <div className="h-14 w-14 rounded-2xl border border-white/10 bg-black/30 overflow-hidden shrink-0 flex items-center justify-center">
-                    {t.mint?.image ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={t.mint.image} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="text-[10px] font-black text-white/30">RL</div>
+              {sales.map((t) => {
+                const img = ipfsToHttp(t.mint?.image) || null;
+
+                return (
+                  <Link
+                    key={`${t.txHash}:${t.logIndex}`}
+                    href={`/nft/${t.chainId}/${t.contract}/${t.tokenId}`}
+                    className={cx(
+                      "group rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition",
+                      "p-4 flex gap-4"
                     )}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-extrabold text-white/90 truncate">
-                      {t.mint?.name || `Token #${t.tokenId}`}
+                  >
+                    <div className="h-14 w-14 rounded-2xl border border-white/10 bg-black/30 overflow-hidden shrink-0 flex items-center justify-center">
+                      {img ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={img} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="text-[10px] font-black text-white/30">RL</div>
+                      )}
                     </div>
 
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
-                      <span className="font-mono">{shortAddr(t.contract)}</span>
-                      <span>•</span>
-                      <span className="font-mono">#{t.tokenId}</span>
-                      <span>•</span>
-                      <span className="font-black text-white/70">
-                        to {shortAddr(t.counterpartyWallet)}
-                      </span>
-                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-extrabold text-white/90 truncate">{t.mint?.name || `Token #${t.tokenId}`}</div>
 
-                    <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
-                      <div className="text-white/70">
-                        Total:{" "}
-                        <span className="font-black text-amber-100">{fmtEth(t.totalPriceWei)} ETH</span>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
+                        <span className="font-mono">{shortAddr(t.contract)}</span>
+                        <span>•</span>
+                        <span className="font-mono">#{t.tokenId}</span>
+                        <span>•</span>
+                        <span className="font-black text-white/70">to {shortAddr(t.counterpartyWallet)}</span>
                       </div>
-                      <div className="text-white/70">
-                        Amount:{" "}
-                        <span className="font-black text-white/90">{fmtInt(t.amount)}</span>
-                      </div>
-                    </div>
 
-                    <div className="mt-1 text-[11px] text-white/40">
-                      {new Date(t.blockTime).toLocaleString("en-GB")}
+                      <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
+                        <div className="text-white/70">
+                          Total: <span className="font-black text-amber-100">{fmtEth(t.totalPriceWei)} ETH</span>
+                        </div>
+                        <div className="text-white/70">
+                          Amount: <span className="font-black text-white/90">{fmtInt(t.amount)}</span>
+                        </div>
+                      </div>
+
+                      <div className="mt-1 text-[11px] text-white/40">{new Date(t.blockTime).toLocaleString("en-GB")}</div>
                     </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
 
               {sales.length === 0 && !loading ? (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/60">

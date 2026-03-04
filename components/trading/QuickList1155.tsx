@@ -1,7 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useAccount, useChainId, useSwitchChain, usePublicClient, useWriteContract, useReadContract } from "wagmi";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  useAccount,
+  useChainId,
+  useSwitchChain,
+  usePublicClient,
+  useWriteContract,
+  useReadContract,
+} from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { parseUnits, formatUnits } from "viem";
 
@@ -52,9 +60,10 @@ export default function QuickList1155({
   chainId: number;
   contract: string;
   tokenId: string;
-  maxAmountHint?: string; // from DB holdings (string)
+  maxAmountHint?: string;
   name?: string | null;
 }) {
+  const router = useRouter();
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
@@ -72,7 +81,6 @@ export default function QuickList1155({
   }, []);
 
   const nftAddr = useMemo(() => toLower(contract), [contract]);
-  const me = useMemo(() => toLower(address), [address]);
 
   const hasMarketplace = Boolean(MARKETPLACE_ADDRESS && MARKETPLACE_ADDRESS.startsWith("0x"));
 
@@ -98,9 +106,7 @@ export default function QuickList1155({
     address: nftAddr as `0x${string}`,
     functionName: "balanceOf",
     args: [((address || "0x0000000000000000000000000000000000000000") as `0x${string}`), tokenIdBI],
-    query: {
-      enabled: Boolean(address && nftAddr.startsWith("0x")),
-    },
+    query: { enabled: Boolean(address && nftAddr.startsWith("0x")) },
   });
 
   const balance = useMemo(() => {
@@ -121,9 +127,7 @@ export default function QuickList1155({
       ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
       ((MARKETPLACE_ADDRESS || "0x0000000000000000000000000000000000000000") as `0x${string}`),
     ],
-    query: {
-      enabled: Boolean(address && hasMarketplace && nftAddr.startsWith("0x")),
-    },
+    query: { enabled: Boolean(address && hasMarketplace && nftAddr.startsWith("0x")) },
   });
 
   const isApproved = Boolean(approvedRaw);
@@ -140,10 +144,36 @@ export default function QuickList1155({
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
+  const title = name || `Token #${tokenId}`;
+
+  function closeModal() {
+    setOpen(false);
+    setBusy(null);
+    setErr(null);
+    setOk(null);
+  }
+
+  // ✅ ESC closes + lock scroll while open
+  useEffect(() => {
+    if (!open) return;
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeModal();
+    };
+
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   async function ensureChain() {
-    if (needSwitch) {
-      await switchChainAsync?.({ chainId });
-    }
+    if (needSwitch) await switchChainAsync?.({ chainId });
   }
 
   async function approveAll() {
@@ -173,6 +203,24 @@ export default function QuickList1155({
     }
   }
 
+  async function revalidateMarketTags() {
+    // tags match server-side tags in NFT details
+    const tags = [
+      `market:nft:${chainId}:${nftAddr}:${tokenId}`,
+      `market:contract:${chainId}:${nftAddr}`,
+    ];
+
+    try {
+      await fetch("/api/revalidate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ tags }),
+      });
+    } catch {
+      // ignore
+    }
+  }
+
   async function listNow() {
     if (!isConnected) return openConnectModal?.();
     if (!hasMarketplace) return;
@@ -197,9 +245,14 @@ export default function QuickList1155({
 
       await publicClient?.waitForTransactionReceipt({ hash });
 
-      setOk(`Listed ✅ (# pending indexer)`);
-      // закрываем модалку чуть позже — как хочешь
-      // setOpen(false);
+      setOk("Listed ✅ (updating…)");
+
+      await revalidateMarketTags();
+      router.refresh();
+
+      setTimeout(() => {
+        closeModal();
+      }, 600);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Listing failed");
     } finally {
@@ -215,11 +268,9 @@ export default function QuickList1155({
     maxAmount <= 0n ||
     busy !== null;
 
-  const title = name || `Token #${tokenId}`;
-
   return (
     <>
-      {/* Button (to place on card) */}
+      {/* Button (on card) */}
       <button
         onClick={(e) => {
           e.preventDefault();
@@ -247,11 +298,21 @@ export default function QuickList1155({
 
       {/* Modal */}
       {open ? (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center px-4"
-          onClick={() => setOpen(false)}
-        >
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" onClick={closeModal}>
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+
+          {/* OpenSea-like close (top-right of viewport) */}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              closeModal();
+            }}
+            className="absolute top-4 right-4 z-[101] h-10 w-10 rounded-full border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition flex items-center justify-center text-white/80 font-black"
+            title="Close (Esc)"
+          >
+            ✕
+          </button>
 
           <div
             className="relative w-full max-w-lg rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
@@ -267,24 +328,28 @@ export default function QuickList1155({
                     <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
                       Create listing
                     </div>
-                    <div className="mt-2 text-xl font-black tracking-tight text-white/90 truncate">
-                      {title}
-                    </div>
+                    <div className="mt-2 text-xl font-black tracking-tight text-white/90 truncate">{title}</div>
                     <div className="mt-2 text-[12px] text-white/55">
                       Contract: <span className="font-mono">{shortAddr(nftAddr)}</span> • Token:{" "}
                       <span className="font-mono">#{tokenId}</span>
                     </div>
+                    <div className="mt-2 text-[11px] text-white/35">
+                      Tip: press <span className="font-black text-white/60">Esc</span> to close
+                    </div>
                   </div>
 
+                  {/* inner close */}
                   <button
-                    onClick={() => setOpen(false)}
+                    onClick={closeModal}
                     className="shrink-0 px-3 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/80"
+                    title="Close"
                   >
                     ✕
                   </button>
                 </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-3">
+                {/* ✅ FIX: 1 col on mobile, 2 cols on md+ */}
+                <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">You own</div>
                     <div className="mt-1 text-[16px] font-black text-emerald-200">{maxAmount.toString()}</div>
@@ -344,9 +409,7 @@ export default function QuickList1155({
                   ) : null}
 
                   {isConnected && isApproved ? (
-                    <div className="text-[12px] text-white/55 font-semibold">
-                      Approved ✅
-                    </div>
+                    <div className="text-[12px] text-white/55 font-semibold">Approved ✅</div>
                   ) : null}
                 </div>
 
@@ -362,13 +425,13 @@ export default function QuickList1155({
                       max={maxAmount > 0n ? Number(maxAmount) : 1}
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                     />
-                    <div className="mt-1 text-[11px] text-white/40">
-                      Max: {maxAmount.toString()}
-                    </div>
+                    <div className="mt-1 text-[11px] text-white/40">Max: {maxAmount.toString()}</div>
                   </label>
 
                   <label className="block">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Price per unit (ETH)</div>
+                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                      Price per unit (ETH)
+                    </div>
                     <input
                       value={priceEth}
                       onChange={(e) => setPriceEth(e.target.value)}
@@ -376,19 +439,17 @@ export default function QuickList1155({
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                       placeholder="0.01"
                     />
-                    <div className="mt-1 text-[11px] text-white/40">
-                      Per-unit. Total = price * amount.
-                    </div>
+                    <div className="mt-1 text-[11px] text-white/40">Per-unit. Total = price * amount.</div>
                   </label>
                 </div>
 
-                {/* Action */}
-                <div className="mt-6 flex flex-wrap items-center gap-2">
+                {/* ✅ FIX: actions stack on mobile + full-width buttons */}
+                <div className="mt-6 flex flex-col md:flex-row md:items-center gap-2">
                   <button
                     disabled={disabledList}
                     onClick={listNow}
                     className={cx(
-                      "inline-flex items-center justify-center px-6 py-3 rounded-2xl text-black font-extrabold transition",
+                      "inline-flex items-center justify-center w-full md:w-auto px-6 py-3 rounded-2xl text-black font-extrabold transition",
                       "shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15",
                       "hover:brightness-110",
                       disabledList ? "opacity-60 cursor-not-allowed" : ""
@@ -397,7 +458,14 @@ export default function QuickList1155({
                     {busy === "list" ? "Listing…" : "Create listing"}
                   </button>
 
-                  <div className="text-[12px] text-white/55 font-semibold">
+                  <button
+                    onClick={closeModal}
+                    className="inline-flex items-center justify-center w-full md:w-auto px-5 py-3 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/80"
+                  >
+                    Cancel
+                  </button>
+
+                  <div className="text-[12px] text-white/55 font-semibold md:ml-2">
                     Total (est):{" "}
                     <span className="text-amber-100 font-black">
                       {fmtEthWei(
@@ -417,7 +485,7 @@ export default function QuickList1155({
                 </div>
 
                 <div className="mt-5 text-[11px] text-white/35">
-                  After listing, your indexer may take a few seconds (confirmations) to show it in Trading.
+                  After listing, indexer may take a few seconds. We auto-refresh market blocks.
                 </div>
               </div>
             </div>
