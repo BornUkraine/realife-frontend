@@ -61,6 +61,22 @@ function useOnClickOutsideAndEsc(onClose: () => void) {
   return ref;
 }
 
+type MeUser = {
+  id?: string;
+  walletAddress?: string | null;
+  handle?: string | null;
+  publicId?: string | null;
+  publicUrl?: string | null;
+};
+
+function pickPublicKey(u?: MeUser | null) {
+  const h = String(u?.handle || "").trim();
+  const p = String(u?.publicId || "").trim();
+  const handle = h && h !== "tmp" ? h : null;
+  const publicId = p && p !== "tmp" ? p : null;
+  return handle || publicId || null;
+}
+
 export default function WalletMenu() {
   const mounted = useMounted();
 
@@ -129,22 +145,54 @@ export default function WalletMenu() {
   );
 
   /* ---------------------------------------------------------------------- */
+  /* /api/me helper (to build /u/<key>/nfts link)                             */
+  /* ---------------------------------------------------------------------- */
+
+  const [meUser, setMeUser] = useState<MeUser | null>(null);
+  const [meLoading, setMeLoading] = useState(false);
+
+  async function serverMe(): Promise<MeUser | null> {
+    try {
+      const r = await fetch("/api/me", { cache: "no-store" });
+      if (!r.ok) return null;
+      const j = await r.json().catch(() => null);
+      return (j?.user as MeUser) || null;
+    } catch {
+      return null;
+    }
+  }
+
+  const myKey = useMemo(() => pickPublicKey(meUser), [meUser]);
+  const myNftsHref = useMemo(() => {
+    // ✅ твоя страница "app/u/[id]/nfts/page.tsx" доступна как /u/<id>/nfts
+    return myKey ? `/u/${myKey}/nfts` : "/app/profile";
+  }, [myKey]);
+
+  // when menu opens, preload me (non-blocking)
+  useEffect(() => {
+    if (!open) return;
+    if (meUser) return;
+    if (!mounted) return;
+    if (!connected) return;
+    if (meLoading) return;
+
+    (async () => {
+      setMeLoading(true);
+      try {
+        const u = await serverMe();
+        if (u) setMeUser(u);
+      } finally {
+        setMeLoading(false);
+      }
+    })();
+  }, [open, meUser, mounted, connected, meLoading]);
+
+  /* ---------------------------------------------------------------------- */
   /* WALLET-FIRST AUTO VERIFY                                                */
   /* ---------------------------------------------------------------------- */
 
   const triedVerifyRef = useRef(false);
   const [verifying, setVerifying] = useState(false);
-
-  async function serverMeHasWallet(): Promise<boolean> {
-    try {
-      const r = await fetch("/api/me", { cache: "no-store" });
-      if (!r.ok) return false;
-      const j = await r.json();
-      return Boolean(j?.user?.walletAddress);
-    } catch {
-      return false;
-    }
-  }
 
   useEffect(() => {
     if (!mounted) return;
@@ -153,8 +201,10 @@ export default function WalletMenu() {
     if (verifying) return;
 
     (async () => {
-      const okAlready = await serverMeHasWallet();
-      if (okAlready) {
+      // try to see if user already exists + has wallet + keys
+      const existing = await serverMe();
+      if (existing?.walletAddress) {
+        setMeUser(existing);
         triedVerifyRef.current = true;
         return;
       }
@@ -178,7 +228,8 @@ export default function WalletMenu() {
 
         if (res?.error) throw new Error(res.error);
 
-        await serverMeHasWallet();
+        const after = await serverMe();
+        if (after) setMeUser(after);
       } catch {
         triedVerifyRef.current = false; // allow retry
       } finally {
@@ -303,6 +354,16 @@ export default function WalletMenu() {
                   <span className="text-white/35">→</span>
                 </Link>
 
+                {/* ✅ NEW: My NFTs */}
+                <Link href={myNftsHref} onClick={close} className={itemBase}>
+                  <span className="flex items-center gap-3">
+                    {/* реально красится через text-rose-300 */}
+                    <span className="text-lg leading-none text-rose-300">■</span>
+                    <span>My NFTs</span>
+                  </span>
+                  <span className="text-white/35">→</span>
+                </Link>
+
                 <Link href="/app/settings" onClick={close} className={itemBase}>
                   <span className="flex items-center gap-3">
                     <span className="text-lg">⚙️</span>
@@ -330,6 +391,7 @@ export default function WalletMenu() {
                   onClick={() => {
                     disconnect();
                     triedVerifyRef.current = false;
+                    setMeUser(null);
                     close();
                   }}
                   className={cn(itemBase, "mt-1", "hover:bg-red-500/12", "text-red-100 hover:text-red-50")}
@@ -339,6 +401,12 @@ export default function WalletMenu() {
                     <span>Disconnect</span>
                   </span>
                 </button>
+
+                {!myKey ? (
+                  <div className="px-3 pt-2 text-[11px] text-white/40">
+                    {meLoading ? "Loading profile…" : "Tip: set handle/public id in Profile to get /u/<id>/nfts link."}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>
