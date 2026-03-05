@@ -176,51 +176,60 @@ export default function HomePage() {
   const year = useMemo(() => new Date().getFullYear(), []);
 
   return (
-    <main className="min-h-screen bg-[#060505] text-white overflow-hidden">
-      {/* Global keyframes */}
-      <style jsx global>{`
-        @keyframes fadeUp {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
+    <main className="min-h-screen bg-[#070606] text-white overflow-hidden relative">
+      {/* Global keyframes & Animations */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+          @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
           }
-          to {
-            opacity: 1;
-            transform: translateY(0);
+          @keyframes slow-float {
+            0%, 100% { transform: translate(0px, 0px) scale(1); opacity: 0.15; }
+            50% { transform: translate(-50px, 40px) scale(1.1); opacity: 0.35; }
           }
-        }
-      `}</style>
+          @keyframes slow-float-reverse {
+            0%, 100% { transform: translate(0px, 0px) scale(1); opacity: 0.10; }
+            50% { transform: translate(50px, -40px) scale(1.15); opacity: 0.30; }
+          }
+          @keyframes slow-pulse-top {
+            0%, 100% { opacity: 0.05; transform: scale(1) translateX(-50%); }
+            50% { opacity: 0.25; transform: scale(1.1) translateX(-48%); }
+          }
+          .animate-orb-1 { animation: slow-float 12s ease-in-out infinite; }
+          .animate-orb-2 { animation: slow-float-reverse 15s ease-in-out infinite; }
+          .animate-top-glow { animation: slow-pulse-top 10s ease-in-out infinite; left: 50%; }
+        `,
+        }}
+      />
 
-      {/* Ultra premium background */}
-      <div className="pointer-events-none fixed inset-0">
-        {/* deep vignette */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(212,175,55,0.10),transparent_50%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_90%_10%,rgba(212,175,55,0.08),transparent_55%)]" />
+      {/* VIP Premium Background with Animations */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_20%,#040303_100%)] z-10 opacity-90" />
+        
+        {/* Animated Gold Orbs */}
+        <div className="animate-orb-1 absolute -top-[20%] -left-[10%] h-[800px] w-[800px] rounded-full bg-[#d4af37] blur-[140px]" />
+        <div className="animate-orb-2 absolute -bottom-[20%] -right-[10%] h-[900px] w-[900px] rounded-full bg-[#d4af37] blur-[160px]" />
+        <div className="animate-top-glow absolute top-0 h-[400px] w-[600px] rounded-full bg-[#f7e7a7] blur-[120px]" />
 
-        {/* gold orbs */}
-        <div className="absolute -top-80 -left-80 h-96 w-96 rounded-full bg-[#d4af37]/14 blur-3xl animate-pulse" />
-        <div className="absolute -bottom-80 -right-80 h-96 w-96 rounded-full bg-[#d4af37]/10 blur-3xl animate-pulse" />
-
-        {/* premium grid */}
+        {/* Premium Grid */}
         <div
-          className="absolute inset-0 opacity-[0.06]"
+          className="absolute inset-0 z-0 opacity-[0.028]"
           style={{
             backgroundImage:
-              "linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px)",
-            backgroundSize: "56px 56px",
+              "linear-gradient(to right, rgba(212,175,55,0.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(212,175,55,0.18) 1px, transparent 1px)",
+            backgroundSize: "96px 96px",
+            maskImage: "radial-gradient(ellipse at 50% 42%, black 26%, transparent 78%)",
+            WebkitMaskImage: "radial-gradient(ellipse at 50% 42%, black 26%, transparent 78%)",
           }}
         />
 
-        {/* micro noise */}
-        <div className="absolute inset-0 opacity-[0.055] bg-[radial-gradient(circle,rgba(255,255,255,.18)_1px,transparent_1px)] bg-size-[18px_18px]" />
-
-        {/* top spotlight */}
-        <div className="absolute inset-x-0 top-0 h-48 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.65),transparent)]" />
+        {/* Micro-noise */}
+        <div className="absolute inset-0 opacity-[0.03] z-20 mix-blend-screen bg-[radial-gradient(circle,rgba(255,255,255,1)_1px,transparent_1px)] [background-size:12px_12px]" />
       </div>
 
-      <div className="relative mx-auto max-w-7xl px-6 py-10">
+      <div className="relative z-30 mx-auto max-w-7xl px-6 py-10">
         {/* HERO */}
         <Reveal>
           <section className="mt-6 grid lg:grid-cols-12 gap-10 items-center">
@@ -396,7 +405,7 @@ export default function HomePage() {
           </section>
         </Reveal>
 
-        {/* --- НОВАЯ СЕКЦИЯ: ВИТРИНА ТОВАРОВ (ВИДЕО) --- */}
+        {/* --- НОВАЯ СЕКЦИЯ: ВИТРИНА ТОВАРОВ (4 ВИДЕО) --- */}
         <Reveal className="mt-24">
           <section>
             <div className="flex flex-col items-center text-center mb-12">
@@ -408,24 +417,26 @@ export default function HomePage() {
                 Real items. On-chain ownership.
               </h2>
               <p className="mt-4 text-base text-white/60 max-w-xl">
-                Trade NFTs backed by physical products. Secure escrow, premium delivery.
+                Buy NFTs that include physical product delivery from crypto brands like Billions. Premium items straight to your door.
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
+            {/* Сетка из 4 колонок */}
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              
               {/* Карточка 1: Какао */}
               <TiltCard>
-                <GlassCard className="h-full flex flex-col justify-between overflow-hidden">
-                  <div className="p-8 relative z-10">
-                    <div className="text-xl font-black tracking-tight">Вкус Web3: Какао</div>
-                    <div className="mt-2 text-sm text-white/55">Согревающий напиток для холдеров</div>
+                <GlassCard className="h-full flex flex-col justify-between overflow-hidden before:bg-[linear-gradient(135deg,rgba(212,175,55,0.3),rgba(212,175,55,0.05))]">
+                  <div className="p-6 relative z-10">
+                    <div className="text-xl font-black tracking-tight text-[#f7e7a7]">Billions Cacao</div>
+                    <div className="mt-2 text-sm text-white/60">Buy NFT & get real cacao delivered.</div>
                   </div>
                   <div className="relative w-full flex justify-center -mb-8 mt-4">
                     <div className="absolute inset-0 bg-gradient-to-t from-[#060505]/90 via-[#060505]/20 to-transparent z-10 pointer-events-none" />
                     <video 
                       src="/videos/hero-cacao.mp4" 
                       autoPlay loop muted playsInline 
-                      className="w-full max-w-[280px] object-cover rounded-t-[2rem] border-t border-white/5 opacity-90"
+                      className="w-full max-w-[260px] object-cover rounded-t-[2rem] opacity-95"
                       style={{
                         WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
                         maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)"
@@ -435,19 +446,19 @@ export default function HomePage() {
                 </GlassCard>
               </TiltCard>
 
-              {/* Карточка 2: Маски (Главная) */}
-              <TiltCard className="md:-translate-y-4">
-                <GlassCard className="h-full flex flex-col justify-between overflow-hidden before:bg-[linear-gradient(135deg,rgba(212,175,55,0.4),rgba(212,175,55,0.1))]">
-                  <div className="p-8 relative z-10">
-                    <div className="text-xl font-black tracking-tight text-[#f7e7a7]">Billions Super Masks</div>
-                    <div className="mt-2 text-sm text-white/55">Реальный пак масок с доставкой</div>
+              {/* Карточка 2: Маски */}
+              <TiltCard className="lg:-translate-y-4">
+                <GlassCard className="h-full flex flex-col justify-between overflow-hidden">
+                  <div className="p-6 relative z-10">
+                    <div className="text-xl font-black tracking-tight">Super Masks Pack</div>
+                    <div className="mt-2 text-sm text-white/55">Physical masks tied to your token.</div>
                   </div>
                   <div className="relative w-full flex justify-center -mb-8 mt-4">
                     <div className="absolute inset-0 bg-gradient-to-t from-[#060505]/90 via-[#060505]/20 to-transparent z-10 pointer-events-none" />
                     <video 
                       src="/videos/hero-all-products.mp4" 
                       autoPlay loop muted playsInline 
-                      className="w-full max-w-[300px] object-cover rounded-t-[2rem] shadow-[0_-10px_40px_rgba(212,175,55,0.15)] opacity-95"
+                      className="w-full max-w-[260px] object-cover rounded-t-[2rem] opacity-90"
                       style={{
                         WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
                         maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)"
@@ -460,16 +471,16 @@ export default function HomePage() {
               {/* Карточка 3: Хлопья */}
               <TiltCard>
                 <GlassCard className="h-full flex flex-col justify-between overflow-hidden">
-                  <div className="p-8 relative z-10">
-                    <div className="text-xl font-black tracking-tight">Завтрак Холдера</div>
-                    <div className="mt-2 text-sm text-white/55">Крипто-хлопья. Лимитированная серия</div>
+                  <div className="p-6 relative z-10">
+                    <div className="text-xl font-black tracking-tight">Holder's Breakfast</div>
+                    <div className="mt-2 text-sm text-white/55">Exclusive crypto-flakes. Limited.</div>
                   </div>
                   <div className="relative w-full flex justify-center -mb-8 mt-4">
                     <div className="absolute inset-0 bg-gradient-to-t from-[#060505]/90 via-[#060505]/20 to-transparent z-10 pointer-events-none" />
                     <video 
                       src="/videos/hero-flakes.mp4" 
                       autoPlay loop muted playsInline 
-                      className="w-full max-w-[280px] object-cover rounded-t-[2rem] border-t border-white/5 opacity-90"
+                      className="w-full max-w-[260px] object-cover rounded-t-[2rem] opacity-90"
                       style={{
                         WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
                         maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)"
@@ -478,6 +489,29 @@ export default function HomePage() {
                   </div>
                 </GlassCard>
               </TiltCard>
+
+              {/* Карточка 4: Хлопья с молоком */}
+              <TiltCard className="lg:-translate-y-4">
+                <GlassCard className="h-full flex flex-col justify-between overflow-hidden">
+                  <div className="p-6 relative z-10">
+                    <div className="text-xl font-black tracking-tight">Morning Routine</div>
+                    <div className="mt-2 text-sm text-white/55">Complete your physical collection.</div>
+                  </div>
+                  <div className="relative w-full flex justify-center -mb-8 mt-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#060505]/90 via-[#060505]/20 to-transparent z-10 pointer-events-none" />
+                    <video 
+                      src="/videos/hero-milk-flakes.mp4" 
+                      autoPlay loop muted playsInline 
+                      className="w-full max-w-[260px] object-cover rounded-t-[2rem] opacity-90"
+                      style={{
+                        WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+                        maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)"
+                      }}
+                    />
+                  </div>
+                </GlassCard>
+              </TiltCard>
+
             </div>
           </section>
         </Reveal>
