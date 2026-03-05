@@ -248,7 +248,7 @@ export default function HomePage() {
 
               <div className="mt-8 flex flex-wrap gap-4">
                 <GoldButton href="/app/create">Mint your first NFT</GoldButton>
-                <GhostButton href="/app">Open the App</GhostButton>
+                <GhostButton href="/app/trading">Open the App</GhostButton>
 
                 <a
                   href="https://www.alchemy.com/faucets/base-sepolia"
@@ -396,8 +396,95 @@ export default function HomePage() {
           </section>
         </Reveal>
 
+        {/* --- НОВАЯ СЕКЦИЯ: ВИТРИНА ТОВАРОВ (ВИДЕО) --- */}
+        <Reveal className="mt-24">
+          <section>
+            <div className="flex flex-col items-center text-center mb-12">
+              <Pill>
+                <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_4px_rgba(212,175,55,0.12)]" />
+                Phygital Assets
+              </Pill>
+              <h2 className="mt-5 text-3xl md:text-5xl font-black tracking-tight text-transparent bg-clip-text bg-[linear-gradient(135deg,#fff,#a1a1aa)]">
+                Real items. On-chain ownership.
+              </h2>
+              <p className="mt-4 text-base text-white/60 max-w-xl">
+                Trade NFTs backed by physical products. Secure escrow, premium delivery.
+              </p>
+            </div>
+
+            <div className="grid md:grid-cols-3 gap-6">
+              {/* Карточка 1: Какао */}
+              <TiltCard>
+                <GlassCard className="h-full flex flex-col justify-between overflow-hidden">
+                  <div className="p-8 relative z-10">
+                    <div className="text-xl font-black tracking-tight">Вкус Web3: Какао</div>
+                    <div className="mt-2 text-sm text-white/55">Согревающий напиток для холдеров</div>
+                  </div>
+                  <div className="relative w-full flex justify-center -mb-8 mt-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#060505]/90 via-[#060505]/20 to-transparent z-10 pointer-events-none" />
+                    <video 
+                      src="/videos/hero-cacao.mp4" 
+                      autoPlay loop muted playsInline 
+                      className="w-full max-w-[280px] object-cover rounded-t-[2rem] border-t border-white/5 opacity-90"
+                      style={{
+                        WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+                        maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)"
+                      }}
+                    />
+                  </div>
+                </GlassCard>
+              </TiltCard>
+
+              {/* Карточка 2: Маски (Главная) */}
+              <TiltCard className="md:-translate-y-4">
+                <GlassCard className="h-full flex flex-col justify-between overflow-hidden before:bg-[linear-gradient(135deg,rgba(212,175,55,0.4),rgba(212,175,55,0.1))]">
+                  <div className="p-8 relative z-10">
+                    <div className="text-xl font-black tracking-tight text-[#f7e7a7]">Billions Super Masks</div>
+                    <div className="mt-2 text-sm text-white/55">Реальный пак масок с доставкой</div>
+                  </div>
+                  <div className="relative w-full flex justify-center -mb-8 mt-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#060505]/90 via-[#060505]/20 to-transparent z-10 pointer-events-none" />
+                    <video 
+                      src="/videos/hero-all-products.mp4" 
+                      autoPlay loop muted playsInline 
+                      className="w-full max-w-[300px] object-cover rounded-t-[2rem] shadow-[0_-10px_40px_rgba(212,175,55,0.15)] opacity-95"
+                      style={{
+                        WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+                        maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)"
+                      }}
+                    />
+                  </div>
+                </GlassCard>
+              </TiltCard>
+
+              {/* Карточка 3: Хлопья */}
+              <TiltCard>
+                <GlassCard className="h-full flex flex-col justify-between overflow-hidden">
+                  <div className="p-8 relative z-10">
+                    <div className="text-xl font-black tracking-tight">Завтрак Холдера</div>
+                    <div className="mt-2 text-sm text-white/55">Крипто-хлопья. Лимитированная серия</div>
+                  </div>
+                  <div className="relative w-full flex justify-center -mb-8 mt-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#060505]/90 via-[#060505]/20 to-transparent z-10 pointer-events-none" />
+                    <video 
+                      src="/videos/hero-flakes.mp4" 
+                      autoPlay loop muted playsInline 
+                      className="w-full max-w-[280px] object-cover rounded-t-[2rem] border-t border-white/5 opacity-90"
+                      style={{
+                        WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
+                        maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)"
+                      }}
+                    />
+                  </div>
+                </GlassCard>
+              </TiltCard>
+            </div>
+          </section>
+        </Reveal>
+        {/* --- КОНЕЦ НОВОЙ СЕКЦИИ --- */}
+
         {/* ROADMAP */}
-        <Reveal className="mt-14">
+        <Reveal className="mt-24">
           <section>
             <div className="flex items-end justify-between gap-6 flex-wrap">
               <div>
@@ -414,7 +501,7 @@ export default function HomePage() {
               </div>
 
               <Link
-                href="/app"
+                href="/app/trading"
                 className="px-5 py-3 rounded-2xl border border-white/15 bg-white/6 text-sm font-semibold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.25)] hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
               >
                 Enter App →
