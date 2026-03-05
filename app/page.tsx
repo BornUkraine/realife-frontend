@@ -157,12 +157,12 @@ function GlassCard({
         "backdrop-blur-2xl",
         "shadow-[0_28px_120px_rgba(0,0,0,0.38)]",
         "overflow-hidden",
-        // gold edge (premium border)
+        // gold edge
         "before:absolute before:inset-0 before:rounded-[28px] before:p-px",
         "before:bg-[linear-gradient(135deg,rgba(247,231,167,0.35),rgba(212,175,55,0.18),rgba(184,135,10,0.12))]",
         "before:[mask:linear-gradient(#000_0_0)_content-box,linear-gradient(#000_0_0)]",
         "before:[-webkit-mask-composite:xor] before:mask-exclude",
-        // subtle inner shine
+        // inner shine
         "after:absolute after:inset-0 after:bg-[radial-gradient(circle_at_25%_0%,rgba(212,175,55,0.14),transparent_45%)]",
         className,
       ].join(" ")}
@@ -204,16 +204,14 @@ export default function HomePage() {
         }}
       />
 
-      {/* VIP Premium Background with Animations */}
+      {/* VIP Premium Background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_20%,#040303_100%)] z-10 opacity-90" />
         
-        {/* Animated Gold Orbs */}
         <div className="animate-orb-1 absolute -top-[20%] -left-[10%] h-[800px] w-[800px] rounded-full bg-[#d4af37] blur-[140px]" />
         <div className="animate-orb-2 absolute -bottom-[20%] -right-[10%] h-[900px] w-[900px] rounded-full bg-[#d4af37] blur-[160px]" />
         <div className="animate-top-glow absolute top-0 h-[400px] w-[600px] rounded-full bg-[#f7e7a7] blur-[120px]" />
 
-        {/* Premium Grid */}
         <div
           className="absolute inset-0 z-0 opacity-[0.028]"
           style={{
@@ -224,8 +222,6 @@ export default function HomePage() {
             WebkitMaskImage: "radial-gradient(ellipse at 50% 42%, black 26%, transparent 78%)",
           }}
         />
-
-        {/* Micro-noise */}
         <div className="absolute inset-0 opacity-[0.03] z-20 mix-blend-screen bg-[radial-gradient(circle,rgba(255,255,255,1)_1px,transparent_1px)] [background-size:12px_12px]" />
       </div>
 
@@ -348,7 +344,6 @@ export default function HomePage() {
                       <div className="text-sm text-white/60">How it works</div>
                       <div className="text-xl font-black tracking-tight">Proof-first creator mint</div>
                     </div>
-
                     <div className="text-[11px] px-3 py-1.5 rounded-full bg-black/35 border border-white/10 text-white/70">
                       VIP UI
                     </div>
@@ -405,7 +400,7 @@ export default function HomePage() {
           </section>
         </Reveal>
 
-        {/* --- НОВАЯ СЕКЦИЯ: ВИТРИНА ТОВАРОВ (4 ВИДЕО) --- */}
+        {/* --- ВИТРИНА ТОВАРОВ (ОПТИМИЗИРОВАННАЯ И ВЫРОВНЕННАЯ) --- */}
         <Reveal className="mt-24">
           <section>
             <div className="flex flex-col items-center text-center mb-12">
@@ -417,52 +412,45 @@ export default function HomePage() {
                 Real items. On-chain ownership.
               </h2>
               <p className="mt-4 text-base text-white/60 max-w-xl">
-                Buy NFTs that include physical product delivery from crypto brands like Billions. Premium items straight to your door.
+                Buy NFTs backed by real-world physical products. Premium items delivered straight to your door.
               </p>
             </div>
 
-            {/* Сетка из 4 колонок */}
+            {/* Сетка из 4 колонок (Ровная линия!) */}
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
               
               {/* Карточка 1: Какао */}
               <TiltCard>
-                <GlassCard className="h-full flex flex-col justify-between overflow-hidden before:bg-[linear-gradient(135deg,rgba(212,175,55,0.3),rgba(212,175,55,0.05))]">
+                <GlassCard className="h-full flex flex-col justify-between overflow-hidden">
                   <div className="p-6 relative z-10">
-                    <div className="text-xl font-black tracking-tight text-[#f7e7a7]">Billions Cacao</div>
+                    <div className="text-xl font-black tracking-tight">Billions Cacao</div>
                     <div className="mt-2 text-sm text-white/60">Buy NFT & get real cacao delivered.</div>
                   </div>
-                  <div className="relative w-full flex justify-center -mb-8 mt-4">
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#060505]/90 via-[#060505]/20 to-transparent z-10 pointer-events-none" />
+                  {/* Увеличенная высота h-[280px] и класс object-bottom */}
+                  <div className="relative w-full h-[280px] flex justify-center mt-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#151414] via-[#151414]/40 to-transparent z-10 pointer-events-none" />
                     <video 
                       src="/videos/hero-cacao.mp4" 
                       autoPlay loop muted playsInline 
-                      className="w-full max-w-[260px] object-cover rounded-t-[2rem] opacity-95"
-                      style={{
-                        WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
-                        maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)"
-                      }}
+                      className="w-full h-full object-cover object-bottom rounded-t-[2rem] opacity-90"
                     />
                   </div>
                 </GlassCard>
               </TiltCard>
 
               {/* Карточка 2: Маски */}
-              <TiltCard className="lg:-translate-y-4">
-                <GlassCard className="h-full flex flex-col justify-between overflow-hidden">
+              <TiltCard>
+                <GlassCard className="h-full flex flex-col justify-between overflow-hidden before:bg-[linear-gradient(135deg,rgba(212,175,55,0.3),rgba(212,175,55,0.05))]">
                   <div className="p-6 relative z-10">
-                    <div className="text-xl font-black tracking-tight">Super Masks Pack</div>
-                    <div className="mt-2 text-sm text-white/55">Physical masks tied to your token.</div>
+                    <div className="text-xl font-black tracking-tight text-[#f7e7a7]">Billions "Super Masks"</div>
+                    <div className="mt-2 text-sm text-white/55">Exclusive branded packaging representing your NFT.</div>
                   </div>
-                  <div className="relative w-full flex justify-center -mb-8 mt-4">
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#060505]/90 via-[#060505]/20 to-transparent z-10 pointer-events-none" />
+                  <div className="relative w-full h-[280px] flex justify-center mt-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#151414] via-[#151414]/40 to-transparent z-10 pointer-events-none" />
                     <video 
                       src="/videos/hero-all-products.mp4" 
                       autoPlay loop muted playsInline 
-                      className="w-full max-w-[260px] object-cover rounded-t-[2rem] opacity-90"
-                      style={{
-                        WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
-                        maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)"
-                      }}
+                      className="w-full h-full object-cover object-bottom rounded-t-[2rem] opacity-90"
                     />
                   </div>
                 </GlassCard>
@@ -473,40 +461,32 @@ export default function HomePage() {
                 <GlassCard className="h-full flex flex-col justify-between overflow-hidden">
                   <div className="p-6 relative z-10">
                     <div className="text-xl font-black tracking-tight">Holder's Breakfast</div>
-                    <div className="mt-2 text-sm text-white/55">Exclusive crypto-flakes. Limited.</div>
+                    <div className="mt-2 text-sm text-white/55">Premium crypto-flakes. Limited edition.</div>
                   </div>
-                  <div className="relative w-full flex justify-center -mb-8 mt-4">
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#060505]/90 via-[#060505]/20 to-transparent z-10 pointer-events-none" />
+                  <div className="relative w-full h-[280px] flex justify-center mt-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#151414] via-[#151414]/40 to-transparent z-10 pointer-events-none" />
                     <video 
                       src="/videos/hero-flakes.mp4" 
                       autoPlay loop muted playsInline 
-                      className="w-full max-w-[260px] object-cover rounded-t-[2rem] opacity-90"
-                      style={{
-                        WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
-                        maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)"
-                      }}
+                      className="w-full h-full object-cover object-bottom rounded-t-[2rem] opacity-90"
                     />
                   </div>
                 </GlassCard>
               </TiltCard>
 
               {/* Карточка 4: Хлопья с молоком */}
-              <TiltCard className="lg:-translate-y-4">
+              <TiltCard>
                 <GlassCard className="h-full flex flex-col justify-between overflow-hidden">
                   <div className="p-6 relative z-10">
                     <div className="text-xl font-black tracking-tight">Morning Routine</div>
                     <div className="mt-2 text-sm text-white/55">Complete your physical collection.</div>
                   </div>
-                  <div className="relative w-full flex justify-center -mb-8 mt-4">
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#060505]/90 via-[#060505]/20 to-transparent z-10 pointer-events-none" />
+                  <div className="relative w-full h-[280px] flex justify-center mt-4">
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#151414] via-[#151414]/40 to-transparent z-10 pointer-events-none" />
                     <video 
                       src="/videos/hero-milk-flakes.mp4" 
                       autoPlay loop muted playsInline 
-                      className="w-full max-w-[260px] object-cover rounded-t-[2rem] opacity-90"
-                      style={{
-                        WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
-                        maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)"
-                      }}
+                      className="w-full h-full object-cover object-bottom rounded-t-[2rem] opacity-90"
                     />
                   </div>
                 </GlassCard>
@@ -515,7 +495,6 @@ export default function HomePage() {
             </div>
           </section>
         </Reveal>
-        {/* --- КОНЕЦ НОВОЙ СЕКЦИИ --- */}
 
         {/* ROADMAP */}
         <Reveal className="mt-24">
