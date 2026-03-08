@@ -121,7 +121,7 @@ export default function RealMarketingPage() {
 
               <div className="mt-7 flex flex-wrap gap-3">
                 <Link
-                  href="/app/real-market/cafe"
+                  href="/app/real-marketing/realife-cafe"
                   className="px-6 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
                 >
                   Open Realife Cafe
