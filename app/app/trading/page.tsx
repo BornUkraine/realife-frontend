@@ -54,14 +54,29 @@ export default async function TradingPage() {
       <div className="relative mx-auto max-w-7xl px-6 py-10">
         <div className="reveal flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.26em] text-white/45 font-black">Realife Market</div>
-            <div className="mt-2 text-3xl md:text-4xl font-black tracking-tight">Trading</div>
-            <div className="mt-2 text-[13px] text-white/55 max-w-2xl">
-              Closed marketplace for verified Realife NFTs. List, buy, cancel — indexed on-chain.
+            <div className="text-[11px] uppercase tracking-[0.26em] text-white/45 font-black">
+              Realife Market
+            </div>
+
+            <div className="mt-2 text-3xl md:text-4xl font-black tracking-tight">
+              Trading
+            </div>
+
+            <div className="mt-2 text-[13px] text-white/55 max-w-3xl leading-relaxed">
+              Unified trading hub for verified Realife NFTs. Browse the full market, switch into the
+              dedicated <span className="text-amber-100 font-extrabold">Realife Cafe NFT</span> view,
+              and manage your own activity from one place.
             </div>
           </div>
 
           <div className="shrink-0 flex items-center gap-2">
+            <Link
+              href="/app/real-marketing"
+              className="px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/10 font-extrabold transition text-amber-100/95 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+            >
+              Real Marketing
+            </Link>
+
             <Link
               href="/"
               className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"

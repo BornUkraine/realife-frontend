@@ -60,6 +60,10 @@ const IPFS_GATEWAYS = [
   "https://ipfs.io/ipfs/",
 ] as const;
 
+const CAFE_CONTRACT = String(process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT || "")
+  .trim()
+  .toLowerCase();
+
 function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
@@ -95,8 +99,8 @@ export default function TradingClient({
   const wallet = useMemo(() => normAddr(address) || normAddr(viewerWallet), [address, viewerWallet]);
 
   const [tab, setTab] = useState<"market" | "my">("market");
+  const [marketView, setMarketView] = useState<"all" | "cafe">("all");
 
-  // market state
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
@@ -104,7 +108,6 @@ export default function TradingClient({
   const [skip, setSkip] = useState(0);
   const take = 24;
 
-  // filters
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<"new" | "priceAsc" | "priceDesc">("new");
 
@@ -133,7 +136,7 @@ export default function TradingClient({
         const bb = BigInt(b.pricePerUnitWei || "0");
         return aa > bb ? -1 : aa < bb ? 1 : 0;
       });
-    } // "new" already server-ordered by createdAt desc
+    }
 
     return out;
   }, [rows, q, sort]);
@@ -143,11 +146,21 @@ export default function TradingClient({
     return filtered.filter((x) => normAddr(x.sellerWallet) === wallet);
   }, [filtered, wallet]);
 
-  async function loadPage(nextSkip: number, append: boolean) {
+  async function loadPage(nextSkip: number, append: boolean, view: "all" | "cafe" = marketView) {
     setErr(null);
     setLoading(true);
+
     try {
-      const url = `/api/market/listings?status=ACTIVE&take=${take}&skip=${nextSkip}`;
+      const params = new URLSearchParams();
+      params.set("status", "ACTIVE");
+      params.set("take", String(take));
+      params.set("skip", String(nextSkip));
+
+      if (view === "cafe" && CAFE_CONTRACT) {
+        params.set("contract", CAFE_CONTRACT);
+      }
+
+      const url = `/api/market/listings?${params.toString()}`;
       const j = await fetchJSON(url);
 
       const items = (j?.listings || []) as MarketListing[];
@@ -164,7 +177,14 @@ export default function TradingClient({
   }
 
   useEffect(() => {
-    loadPage(0, false);
+    if (tab !== "market") return;
+    loadPage(0, false, marketView);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marketView, tab]);
+
+  useEffect(() => {
+    if (tab !== "market") return;
+    loadPage(0, false, marketView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -175,9 +195,14 @@ export default function TradingClient({
   const goldCard =
     "rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10";
 
+  const marketTitle = marketView === "cafe" ? "Realife Cafe NFT" : "Market";
+  const marketSubtitle =
+    marketView === "cafe"
+      ? "Secondary market for Realife Cafe products and branded NFTs."
+      : "All verified Realife NFTs across supported contracts.";
+
   return (
     <div className="space-y-6">
-      {/* Tabs */}
       <div className={goldWrap}>
         <div className={cx(goldCard, "p-4 md:p-5")}>
           <div className="flex flex-wrap items-center gap-2">
@@ -192,7 +217,7 @@ export default function TradingClient({
             >
               Market
               <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-white/80 bg-black/25 ring-1 ring-white/10">
-                {total}
+                {tab === "market" && marketView === "all" ? total : "ALL"}
               </span>
             </button>
 
@@ -213,12 +238,45 @@ export default function TradingClient({
 
             <div className="flex-1" />
 
-            <button
-              onClick={() => loadPage(0, false)}
-              className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100"
-            >
-              Refresh
-            </button>
+            {tab === "market" ? (
+              <>
+                <button
+                  onClick={() => setMarketView("all")}
+                  className={cx(
+                    "px-4 py-2 rounded-2xl border text-[12px] font-black transition",
+                    marketView === "all"
+                      ? "border-white/15 bg-white/[0.10] text-white"
+                      : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
+                  )}
+                >
+                  All NFTs
+                </button>
+
+                <button
+                  onClick={() => {
+                    setMarketView("cafe");
+                    setTab("market");
+                  }}
+                  disabled={!CAFE_CONTRACT}
+                  className={cx(
+                    "inline-flex items-center justify-center px-4 py-2 rounded-2xl text-[12px] font-black transition ring-1",
+                    marketView === "cafe"
+                      ? "text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.18)]"
+                      : "text-amber-100/95 border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] ring-white/10",
+                    !CAFE_CONTRACT ? "opacity-50 cursor-not-allowed" : ""
+                  )}
+                >
+                  Realife Cafe NFT
+                </button>
+
+                <button
+                  onClick={() => loadPage(0, false, marketView)}
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100"
+                >
+                  Refresh
+                </button>
+              </>
+            ) : null}
           </div>
         </div>
       </div>
@@ -262,12 +320,43 @@ export default function TradingClient({
         </div>
       ) : (
         <>
-          {/* Filters */}
+          {marketView === "cafe" ? (
+            <div className={goldWrap}>
+              <div className={cx(goldCard, "p-6 md:p-7")}>
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.24em] text-white/45 font-black">
+                      Realife Cafe Collection
+                    </div>
+                    <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">
+                      Premium cafe goods in one contract
+                    </div>
+                    <div className="mt-2 text-[13px] text-white/55 max-w-3xl">
+                      This view isolates listings from the Realife Cafe storefront contract so users do not get lost
+                      inside the broader market.
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Link
+                      href="/app/real-marketing"
+                      className="px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
+                    >
+                      Real Marketing
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className={goldWrap}>
             <div className={cx(goldCard, "p-6 md:p-7")}>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="min-w-[220px] flex-1">
-                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Search</div>
+                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    Search • {marketTitle}
+                  </div>
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
@@ -302,7 +391,6 @@ export default function TradingClient({
                     {wallet ? (
                       <button
                         onClick={() => {
-                          // only client-side filter
                           setQ(wallet);
                         }}
                         className="px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100"
@@ -313,6 +401,8 @@ export default function TradingClient({
                   </div>
                 </div>
               </div>
+
+              <div className="mt-4 text-[12px] text-white/55">{marketSubtitle}</div>
 
               {err ? (
                 <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100">
@@ -334,14 +424,15 @@ export default function TradingClient({
                   <div className="mt-1 text-lg font-black text-amber-100">{myRows.length}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Status</div>
-                  <div className="mt-1 text-lg font-black text-emerald-200">ACTIVE</div>
+                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">View</div>
+                  <div className="mt-1 text-lg font-black text-emerald-200">
+                    {marketView === "cafe" ? "CAFE" : "ALL"}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {(loading && rows.length === 0 ? Array.from({ length: 8 }) : filtered).map((x: any, idx: number) => {
               const isSkeleton = !x || typeof x !== "object" || !x.marketplaceListingId;
@@ -369,6 +460,7 @@ export default function TradingClient({
               const href = `/nft/${x.chainId}/${normAddr(x.contract)}/${encodeURIComponent(String(x.tokenId))}`;
               const img = ipfsToHttp(x?.mint?.image || null);
               const isMine = wallet && normAddr(x.sellerWallet) === wallet;
+              const isCafe = CAFE_CONTRACT && normAddr(x.contract) === CAFE_CONTRACT;
 
               return (
                 <Link
@@ -388,11 +480,16 @@ export default function TradingClient({
                       <div className="h-full w-full flex items-center justify-center text-white/25 font-black">No media</div>
                     )}
 
-                    {/* ✅ badges only on hover (desktop) */}
                     <div className="absolute top-3 left-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-emerald-200">
                         ACTIVE
                       </div>
+
+                      {isCafe ? (
+                        <div className="px-2 py-1 rounded-full border border-black/10 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-[10px] font-black text-black">
+                          CAFE
+                        </div>
+                      ) : null}
 
                       {isMine ? (
                         <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-amber-100">
@@ -442,11 +539,10 @@ export default function TradingClient({
             })}
           </div>
 
-          {/* Load more */}
           <div className="flex justify-center pt-2">
             <button
               disabled={loading || !canLoadMore}
-              onClick={() => loadPage(skip + take, true)}
+              onClick={() => loadPage(skip + take, true, marketView)}
               className={cx(
                 "mt-4 inline-flex items-center justify-center px-6 py-3 rounded-2xl text-black font-extrabold transition",
                 "shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15",
