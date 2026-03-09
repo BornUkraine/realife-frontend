@@ -32,10 +32,9 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 const ZERO_BYTES32 = `0x${"0".repeat(64)}` as const;
 
 const STORE_CATEGORIES = [
-  "Coffee",
-  "Cacao",
   "Drink",
   "Food",
+  "Packaged Goods",
   "Merch",
   "Perfume",
   "Chocolate",
@@ -44,11 +43,6 @@ const STORE_CATEGORIES = [
 
 const RARITIES = ["Common", "Rare", "Epic", "Legendary"] as const;
 
-/**
- * Оставил переменную drink, как ты и хотел,
- * но список сделал шире, чтобы в будущем сюда нормально ложились:
- * кофе, мерч, пакеты, духи, шоколад и т.д.
- */
 const ITEM_OPTIONS = [
   "Cappuccino",
   "Frappuccino",
@@ -60,13 +54,36 @@ const ITEM_OPTIONS = [
   "Flat White",
   "Cold Brew",
   "Genesis Coffee",
+  "Hot Chocolate",
+  "Cacao Drink",
+
+  "Pancakes",
+  "Pancake Stack",
+  "Blini",
+  "Crepes",
+  "Waffles",
+  "Cheesecake",
+  "Croissant",
+  "Dessert Box",
+  "Cheese Pack",
+
+  "Coffee Pack",
   "Coffee Beans",
+  "Ground Coffee",
   "Cacao Pack",
+  "Oatmeal Pack",
+  "Cereal Pack",
   "Chocolate Box",
+
   "Perfume",
+  "Gift Box",
+
   "T-Shirt",
   "Hoodie",
   "Mug",
+  "Tote Bag",
+  "Cap",
+
   "Other",
 ] as const;
 
@@ -430,7 +447,7 @@ export default function AdminMintForm() {
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null);
 
-  const [category, setCategory] = useState<(typeof STORE_CATEGORIES)[number]>("Coffee");
+  const [category, setCategory] = useState<(typeof STORE_CATEGORIES)[number]>("Drink");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [supply, setSupply] = useState<number>(100);
@@ -594,7 +611,7 @@ export default function AdminMintForm() {
             setManageNotice("Product created and saved to local catalog cache.");
           }
         } catch {
-          // ignore cache/db save errors in UI flow
+          // ignore
         } finally {
           setPendingTxHash(undefined);
           setTxMode(null);
@@ -1099,7 +1116,7 @@ export default function AdminMintForm() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-extrabold mb-1">Premium product upload</p>
                 <p className="text-xs text-white/60 leading-relaxed">
-                  Coffee, merch, perfume, cacao, food or video poster.
+                  Coffee, packaged goods, merch, perfume, food or video poster.
                 </p>
 
                 {file ? (
@@ -1228,7 +1245,11 @@ export default function AdminMintForm() {
             </div>
 
             <Pill>
-              <span className={`h-2 w-2 rounded-full ${manageTokenExists ? (manageIsActive ? "bg-emerald-400" : "bg-rose-400") : "bg-white/40"}`} />
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  manageTokenExists ? (manageIsActive ? "bg-emerald-400" : "bg-rose-400") : "bg-white/40"
+                }`}
+              />
               {manageTokenExists ? (manageIsActive ? "Active" : "Disabled") : "Unknown"}
             </Pill>
           </div>
@@ -1399,7 +1420,7 @@ export default function AdminMintForm() {
               <div className="flex items-end justify-between mb-3">
                 <div>
                   <div className="text-sm font-extrabold tracking-tight">Drink / Item</div>
-                  <div className="text-[11px] text-white/55 mt-1">Coffee now, merch/perfume later.</div>
+                  <div className="text-[11px] text-white/55 mt-1">Universal item type for cafe products.</div>
                 </div>
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1666,7 +1687,7 @@ export default function AdminMintForm() {
                     setSupply(100);
                     setPrice("5");
                     setExternalUrl("");
-                    setCategory("Coffee");
+                    setCategory("Drink");
                     setCollection("Realife Crypto Cafe");
                     setDrink("Cappuccino");
                     setRarity("Common");

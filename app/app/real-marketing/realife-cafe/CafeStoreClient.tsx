@@ -61,7 +61,9 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
 
-  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) return u;
+  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) {
+    return u;
+  }
 
   if (u.startsWith("ipfs://")) {
     let p = u.slice("ipfs://".length);
@@ -102,7 +104,7 @@ async function loadMetadata(tokenUri?: string | null): Promise<ProductMeta | nul
 }
 
 function getAttr(meta: ProductMeta | null, trait: string) {
-  const attrs = Array.isArray(meta?.attributes) ? meta!.attributes! : [];
+  const attrs = Array.isArray(meta?.attributes) ? meta.attributes : [];
   const found = attrs.find((x) => String(x?.trait_type || "").toLowerCase() === trait.toLowerCase());
   return found?.value != null ? String(found.value) : null;
 }
@@ -134,7 +136,7 @@ export default function CafeStoreClient() {
 
       try {
         const j = await fetchJSON("/api/cafe/products?take=80");
-        const items = ((j?.items || []) as CafeProduct[]);
+        const items = (j?.items || []) as CafeProduct[];
 
         const enriched = await Promise.all(
           items.map(async (item) => {
@@ -145,7 +147,7 @@ export default function CafeStoreClient() {
               metaImage: ipfsToHttp(meta?.image || null),
               metaDescription: meta?.description || null,
               collection: getAttr(meta, "Collection"),
-              drink: getAttr(meta, "Drink"),
+              drink: getAttr(meta, "Drink") || getAttr(meta, "Item"),
               rarity: getAttr(meta, "Rarity"),
             } satisfies EnrichedCafeProduct;
           })
@@ -344,7 +346,7 @@ export default function CafeStoreClient() {
           }
 
           const href = `/nft/${x.chainId}/${x.contract}/${encodeURIComponent(String(x.tokenId))}`;
-          const img = x?.image ? ipfsToHttp(x.image) : x?.metaImage || null;
+          const img = x?.metaImage || ipfsToHttp(x?.image || null) || null;
           const remaining = x?.remaining ?? "—";
 
           return (

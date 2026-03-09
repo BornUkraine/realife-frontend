@@ -41,7 +41,6 @@ export default async function TradingPage() {
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
-      {/* background */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />

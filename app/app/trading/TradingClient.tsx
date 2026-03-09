@@ -23,6 +23,21 @@ type MarketListing = {
   mint?: { name?: string | null; image?: string | null; tokenUri?: string | null; verified?: boolean };
 };
 
+type ProductMeta = {
+  image?: string | null;
+  name?: string | null;
+  description?: string | null;
+  attributes?: Array<{ trait_type?: string; value?: string | number | null }>;
+};
+
+type EnrichedMarketListing = MarketListing & {
+  metaImage?: string | null;
+  metaDescription?: string | null;
+  collection?: string | null;
+  item?: string | null;
+  rarity?: string | null;
+};
+
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
@@ -68,7 +83,9 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
 
-  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) return u;
+  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) {
+    return u;
+  }
 
   if (u.startsWith("ipfs://")) {
     let p = u.slice("ipfs://".length);
@@ -88,6 +105,32 @@ async function fetchJSON(url: string) {
   return j;
 }
 
+async function loadMetadata(tokenUri?: string | null): Promise<ProductMeta | null> {
+  if (!tokenUri) return null;
+
+  for (const gw of IPFS_GATEWAYS) {
+    const url = ipfsToHttp(tokenUri, gw);
+    if (!url) continue;
+
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) continue;
+      const j = await r.json().catch(() => null);
+      if (j && typeof j === "object") return j as ProductMeta;
+    } catch {
+      // next gateway
+    }
+  }
+
+  return null;
+}
+
+function getAttr(meta: ProductMeta | null, trait: string) {
+  const attrs = Array.isArray(meta?.attributes) ? meta.attributes : [];
+  const found = attrs.find((x) => String(x?.trait_type || "").toLowerCase() === trait.toLowerCase());
+  return found?.value != null ? String(found.value) : null;
+}
+
 export default function TradingClient({
   viewerKey,
   viewerWallet,
@@ -104,7 +147,7 @@ export default function TradingClient({
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
-  const [rows, setRows] = useState<MarketListing[]>([]);
+  const [rows, setRows] = useState<EnrichedMarketListing[]>([]);
   const [skip, setSkip] = useState(0);
   const take = 24;
 
@@ -120,7 +163,18 @@ export default function TradingClient({
         const name = String(x.mint?.name || "").toLowerCase();
         const seller = String(x.sellerWallet || "").toLowerCase();
         const tokenId = String(x.tokenId || "");
-        return name.includes(qq) || seller.includes(qq) || tokenId.includes(qq);
+        const collection = String(x.collection || "").toLowerCase();
+        const item = String(x.item || "").toLowerCase();
+        const rarity = String(x.rarity || "").toLowerCase();
+
+        return (
+          name.includes(qq) ||
+          seller.includes(qq) ||
+          tokenId.includes(qq) ||
+          collection.includes(qq) ||
+          item.includes(qq) ||
+          rarity.includes(qq)
+        );
       });
     }
 
@@ -166,9 +220,27 @@ export default function TradingClient({
       const items = (j?.listings || []) as MarketListing[];
       const t = Number(j?.total || 0);
 
+      const enriched = await Promise.all(
+        items.map(async (item) => {
+          const isCafe = !!CAFE_CONTRACT && normAddr(item.contract) === CAFE_CONTRACT;
+          if (!isCafe) return item as EnrichedMarketListing;
+
+          const meta = await loadMetadata(item.mint?.tokenUri || null);
+
+          return {
+            ...item,
+            metaImage: ipfsToHttp(meta?.image || null),
+            metaDescription: meta?.description || null,
+            collection: getAttr(meta, "Collection"),
+            item: getAttr(meta, "Item") || getAttr(meta, "Drink"),
+            rarity: getAttr(meta, "Rarity"),
+          } satisfies EnrichedMarketListing;
+        })
+      );
+
       setTotal(t);
       setSkip(nextSkip);
-      setRows((prev) => (append ? [...prev, ...items] : items));
+      setRows((prev) => (append ? [...prev, ...enriched] : enriched));
     } catch (e: any) {
       setErr(e?.message || "Failed to load market");
     } finally {
@@ -360,7 +432,7 @@ export default function TradingClient({
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="name / token id / seller…"
+                    placeholder="name / token id / seller / rarity / item…"
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                   />
                 </div>
@@ -369,7 +441,7 @@ export default function TradingClient({
                   <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Sort</div>
                   <select
                     value={sort}
-                    onChange={(e) => setSort(e.target.value as any)}
+                    onChange={(e) => setSort(e.target.value as "new" | "priceAsc" | "priceDesc")}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                   >
                     <option value="new">Newest</option>
@@ -458,9 +530,9 @@ export default function TradingClient({
               }
 
               const href = `/nft/${x.chainId}/${normAddr(x.contract)}/${encodeURIComponent(String(x.tokenId))}`;
-              const img = ipfsToHttp(x?.mint?.image || null);
               const isMine = wallet && normAddr(x.sellerWallet) === wallet;
               const isCafe = CAFE_CONTRACT && normAddr(x.contract) === CAFE_CONTRACT;
+              const img = x?.metaImage || ipfsToHttp(x?.mint?.image || null) || null;
 
               return (
                 <Link
@@ -487,7 +559,7 @@ export default function TradingClient({
 
                       {isCafe ? (
                         <div className="px-2 py-1 rounded-full border border-black/10 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-[10px] font-black text-black">
-                          CAFE
+                          {x.collection || "CAFE"}
                         </div>
                       ) : null}
 
@@ -512,7 +584,23 @@ export default function TradingClient({
                       {x.mint?.name || `Token #${x.tokenId}`}
                     </div>
 
-                    <div className="mt-2 flex items-center justify-between gap-2 text-[12px] text-white/55">
+                    {isCafe ? (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {x.item ? (
+                          <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                            {x.item}
+                          </span>
+                        ) : null}
+
+                        {x.rarity ? (
+                          <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                            {x.rarity}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div className="mt-3 flex items-center justify-between gap-2 text-[12px] text-white/55">
                       <span className="truncate font-mono">{shortAddr(x.contract)}</span>
                       <span className="font-mono">#{x.tokenId}</span>
                     </div>
@@ -528,6 +616,10 @@ export default function TradingClient({
                         <span className="font-mono font-black text-white/75">{shortAddr(x.sellerWallet)}</span>
                       </div>
                     </div>
+
+                    {isCafe && x.metaDescription ? (
+                      <div className="mt-3 line-clamp-2 text-[12px] text-white/50">{x.metaDescription}</div>
+                    ) : null}
 
                     <div className="mt-4 text-[12px] font-extrabold text-amber-100/90 group-hover:text-amber-100 flex items-center justify-between">
                       <span>Open</span>
