@@ -23,7 +23,8 @@ export default function RealifeCafePage() {
             <div className="text-[11px] uppercase tracking-[0.26em] text-white/45 font-black">Real Marketing</div>
             <div className="mt-2 text-3xl md:text-4xl font-black tracking-tight">Realife Cafe</div>
             <div className="mt-2 text-[13px] text-white/55 max-w-2xl">
-              Premium cafe storefront for coffee, cacao, merch, food and special Realife product NFTs created through the admin store contract.
+              Premium cafe storefront for coffee, cacao, merch, food, perfume and special Realife product NFTs created
+              through the admin store contract.
             </div>
           </div>
 

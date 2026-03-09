@@ -23,6 +23,21 @@ type CafeProduct = {
   remaining: string | null;
 };
 
+type ProductMeta = {
+  image?: string | null;
+  name?: string | null;
+  description?: string | null;
+  attributes?: Array<{ trait_type?: string; value?: string | number | null }>;
+};
+
+type EnrichedCafeProduct = CafeProduct & {
+  metaImage?: string | null;
+  metaDescription?: string | null;
+  collection?: string | null;
+  drink?: string | null;
+  rarity?: string | null;
+};
+
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
@@ -66,6 +81,32 @@ async function fetchJSON(url: string) {
   return j;
 }
 
+async function loadMetadata(tokenUri?: string | null): Promise<ProductMeta | null> {
+  if (!tokenUri) return null;
+
+  for (const gw of IPFS_GATEWAYS) {
+    const url = ipfsToHttp(tokenUri, gw);
+    if (!url) continue;
+
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) continue;
+      const j = await r.json().catch(() => null);
+      if (j && typeof j === "object") return j as ProductMeta;
+    } catch {
+      // next gateway
+    }
+  }
+
+  return null;
+}
+
+function getAttr(meta: ProductMeta | null, trait: string) {
+  const attrs = Array.isArray(meta?.attributes) ? meta!.attributes! : [];
+  const found = attrs.find((x) => String(x?.trait_type || "").toLowerCase() === trait.toLowerCase());
+  return found?.value != null ? String(found.value) : null;
+}
+
 function fmtUsdt(v?: string | null) {
   if (!v) return "—";
   const n = Number(v);
@@ -78,7 +119,7 @@ function fmtUsdt(v?: string | null) {
 export default function CafeStoreClient() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [rows, setRows] = useState<CafeProduct[]>([]);
+  const [rows, setRows] = useState<EnrichedCafeProduct[]>([]);
 
   const [q, setQ] = useState("");
   const [mode, setMode] = useState<"all" | "active">("active");
@@ -93,8 +134,25 @@ export default function CafeStoreClient() {
 
       try {
         const j = await fetchJSON("/api/cafe/products?take=80");
+        const items = ((j?.items || []) as CafeProduct[]);
+
+        const enriched = await Promise.all(
+          items.map(async (item) => {
+            const meta = await loadMetadata(item.tokenUri);
+
+            return {
+              ...item,
+              metaImage: ipfsToHttp(meta?.image || null),
+              metaDescription: meta?.description || null,
+              collection: getAttr(meta, "Collection"),
+              drink: getAttr(meta, "Drink"),
+              rarity: getAttr(meta, "Rarity"),
+            } satisfies EnrichedCafeProduct;
+          })
+        );
+
         if (dead) return;
-        setRows((j?.items || []) as CafeProduct[]);
+        setRows(enriched);
       } catch (e: any) {
         if (dead) return;
         setErr(e?.message || "Failed to load cafe products");
@@ -121,7 +179,17 @@ export default function CafeStoreClient() {
       out = out.filter((x) => {
         const name = String(x.name || "").toLowerCase();
         const tokenId = String(x.tokenId || "");
-        return name.includes(qq) || tokenId.includes(qq);
+        const drink = String(x.drink || "").toLowerCase();
+        const collection = String(x.collection || "").toLowerCase();
+        const rarity = String(x.rarity || "").toLowerCase();
+
+        return (
+          name.includes(qq) ||
+          tokenId.includes(qq) ||
+          drink.includes(qq) ||
+          collection.includes(qq) ||
+          rarity.includes(qq)
+        );
       });
     }
 
@@ -224,7 +292,7 @@ export default function CafeStoreClient() {
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="cappuccino / token id…"
+                placeholder="cappuccino / legendary / perfume / token id…"
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
               />
             </div>
@@ -233,7 +301,7 @@ export default function CafeStoreClient() {
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Sort</div>
               <select
                 value={sort}
-                onChange={(e) => setSort(e.target.value as any)}
+                onChange={(e) => setSort(e.target.value as "new" | "priceAsc" | "priceDesc")}
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
               >
                 <option value="new">Newest</option>
@@ -276,7 +344,7 @@ export default function CafeStoreClient() {
           }
 
           const href = `/nft/${x.chainId}/${x.contract}/${encodeURIComponent(String(x.tokenId))}`;
-          const img = ipfsToHttp(x?.image || null);
+          const img = x?.image ? ipfsToHttp(x.image) : x?.metaImage || null;
           const remaining = x?.remaining ?? "—";
 
           return (
@@ -310,7 +378,7 @@ export default function CafeStoreClient() {
                   </div>
 
                   <div className="px-2 py-1 rounded-full border border-black/10 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-[10px] font-black text-black">
-                    REALIFE CAFE
+                    {x.collection || "REALIFE CAFE"}
                   </div>
                 </div>
 
@@ -326,7 +394,21 @@ export default function CafeStoreClient() {
               <div className="p-5">
                 <div className="text-sm font-extrabold text-white/90 truncate">{x.name || `Cafe Product #${x.tokenId}`}</div>
 
-                <div className="mt-2 flex items-center justify-between gap-2 text-[12px] text-white/55">
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {x.drink ? (
+                    <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                      {x.drink}
+                    </span>
+                  ) : null}
+
+                  {x.rarity ? (
+                    <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                      {x.rarity}
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-2 text-[12px] text-white/55">
                   <span className="truncate font-mono">{shortAddr(x.contract)}</span>
                   <span className="font-mono">#{x.tokenId}</span>
                 </div>
@@ -344,6 +426,12 @@ export default function CafeStoreClient() {
                     </span>
                   </div>
                 </div>
+
+                {x.metaDescription ? (
+                  <div className="mt-3 line-clamp-2 text-[12px] text-white/50">
+                    {x.metaDescription}
+                  </div>
+                ) : null}
 
                 <div className="mt-4 text-[12px] font-extrabold text-amber-100/90 group-hover:text-amber-100 flex items-center justify-between">
                   <span>Open product</span>

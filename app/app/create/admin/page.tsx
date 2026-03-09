@@ -96,9 +96,15 @@ export default function AdminCreatePage() {
 
               <p className="mt-4 text-sm md:text-base text-white/70 max-w-3xl leading-relaxed">
                 Hidden control panel for the <span className="text-white font-semibold">RealifeCafeStore</span>.
-                Upload premium metadata to IPFS, create new products on-chain, and manage storefront visibility for
-                existing items.
+                Upload premium metadata to IPFS, create new store products on-chain, and manage storefront visibility
+                for existing items.
               </p>
+
+              <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
+                This admin page supports not only <span className="text-white font-semibold">coffee NFTs</span>, but
+                also future product lines like <span className="text-white font-semibold">merch, cacao, perfume,
+                chocolate, apparel and other cafe goods</span>.
+              </div>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
                 Access is granted only to the connected wallet that matches your front-end allowlist and has{" "}

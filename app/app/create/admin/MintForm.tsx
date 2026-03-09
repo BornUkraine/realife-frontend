@@ -42,6 +42,34 @@ const STORE_CATEGORIES = [
   "Other",
 ] as const;
 
+const RARITIES = ["Common", "Rare", "Epic", "Legendary"] as const;
+
+/**
+ * Оставил переменную drink, как ты и хотел,
+ * но список сделал шире, чтобы в будущем сюда нормально ложились:
+ * кофе, мерч, пакеты, духи, шоколад и т.д.
+ */
+const ITEM_OPTIONS = [
+  "Cappuccino",
+  "Frappuccino",
+  "Mochaccino",
+  "Americano",
+  "Doppio",
+  "Espresso",
+  "Latte",
+  "Flat White",
+  "Cold Brew",
+  "Genesis Coffee",
+  "Coffee Beans",
+  "Cacao Pack",
+  "Chocolate Box",
+  "Perfume",
+  "T-Shirt",
+  "Hoodie",
+  "Mug",
+  "Other",
+] as const;
+
 const cafeStoreAbi = [
   {
     type: "function",
@@ -409,6 +437,10 @@ export default function AdminMintForm() {
   const [price, setPrice] = useState("5");
   const [externalUrl, setExternalUrl] = useState("");
 
+  const [collection, setCollection] = useState("Realife Crypto Cafe");
+  const [drink, setDrink] = useState<(typeof ITEM_OPTIONS)[number]>("Cappuccino");
+  const [rarity, setRarity] = useState<(typeof RARITIES)[number]>("Common");
+
   const [step, setStep] = useState<"idle" | "preparing" | "signing" | "mining">("idle");
   const [error, setError] = useState<string>("");
 
@@ -479,8 +511,26 @@ export default function AdminMintForm() {
 
   const manageIsActive = Boolean(manageIsActiveRaw);
 
-  const canPrepare = Boolean(file && name.trim() && priceParsed !== null && requiredContractOk && isAuthorized);
-  const canCreate = Boolean(tokenURI && priceParsed !== null && requiredContractOk && isAuthorized);
+  const canPrepare = Boolean(
+    file &&
+      name.trim() &&
+      collection.trim() &&
+      drink &&
+      rarity &&
+      priceParsed !== null &&
+      requiredContractOk &&
+      isAuthorized
+  );
+
+  const canCreate = Boolean(
+    tokenURI &&
+      collection.trim() &&
+      drink &&
+      rarity &&
+      priceParsed !== null &&
+      requiredContractOk &&
+      isAuthorized
+  );
 
   const canManageToggle = Boolean(
     requiredContractOk &&
@@ -677,6 +727,18 @@ export default function AdminMintForm() {
       setError("Product name is required.");
       return;
     }
+    if (!collection.trim()) {
+      setError("Collection is required.");
+      return;
+    }
+    if (!drink) {
+      setError("Drink / item is required.");
+      return;
+    }
+    if (!rarity) {
+      setError("Rarity is required.");
+      return;
+    }
     if (!priceParsed || priceParsed < 0n) {
       setError("Enter a valid USDT price.");
       return;
@@ -697,11 +759,15 @@ export default function AdminMintForm() {
       }
 
       formData.append("name", name.trim());
-      formData.append("description", description.trim() || `${name.trim()} • Realife Crypto Cafe`);
-      formData.append("project", "Realife Crypto Cafe");
+      formData.append("description", description.trim() || `${name.trim()} • ${collection.trim()}`);
+      formData.append("project", collection.trim());
       formData.append("category", category);
+      formData.append("collection", collection.trim());
+      formData.append("drink", drink);
+      formData.append("rarity", rarity);
       formData.append("supply", String(clampSupply(supply)));
       formData.append("proofUrl", externalUrl.trim());
+      formData.append("externalUrl", externalUrl.trim());
 
       const res = await fetch(PREPARE_URL, { method: "POST", body: formData });
       const data = await res.json().catch(() => ({}));
@@ -752,6 +818,18 @@ export default function AdminMintForm() {
     }
     if (!CAFE_CONTRACT) {
       setError("Missing NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT in Railway/ENV");
+      return;
+    }
+    if (!collection.trim()) {
+      setError("Collection is required.");
+      return;
+    }
+    if (!drink) {
+      setError("Drink / item is required.");
+      return;
+    }
+    if (!rarity) {
+      setError("Rarity is required.");
       return;
     }
     if (!priceParsed || priceParsed < 0n) {
@@ -1287,6 +1365,103 @@ export default function AdminMintForm() {
         </Card>
 
         <Card>
+          <div className="flex items-end justify-between mb-3">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">Collection</div>
+              <div className="text-[11px] text-white/55 mt-1">Main collection name for metadata.</div>
+            </div>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+              Required
+            </Pill>
+          </div>
+
+          <input
+            type="text"
+            placeholder="Example: Realife Crypto Cafe"
+            value={collection}
+            onChange={(e) => {
+              setCollection(e.target.value);
+              resetPreparedState();
+            }}
+            className={[
+              "w-full rounded-2xl px-4 py-3 text-sm",
+              "bg-white/[0.04] border border-white/10 text-white",
+              "placeholder:text-white/35",
+              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+            ].join(" ")}
+          />
+        </Card>
+
+        <Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-end justify-between mb-3">
+                <div>
+                  <div className="text-sm font-extrabold tracking-tight">Drink / Item</div>
+                  <div className="text-[11px] text-white/55 mt-1">Coffee now, merch/perfume later.</div>
+                </div>
+                <Pill>
+                  <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+                  Required
+                </Pill>
+              </div>
+
+              <select
+                value={drink}
+                onChange={(e) => {
+                  setDrink(e.target.value as (typeof ITEM_OPTIONS)[number]);
+                  resetPreparedState();
+                }}
+                className={[
+                  "w-full rounded-2xl px-4 py-3 text-sm",
+                  "bg-white/[0.04] border border-white/10 text-white",
+                  "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+                ].join(" ")}
+              >
+                {ITEM_OPTIONS.map((item) => (
+                  <option key={item} value={item} className="bg-[#111] text-white">
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <div className="flex items-end justify-between mb-3">
+                <div>
+                  <div className="text-sm font-extrabold tracking-tight">Rarity</div>
+                  <div className="text-[11px] text-white/55 mt-1">Metadata rarity level.</div>
+                </div>
+                <Pill>
+                  <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+                  Required
+                </Pill>
+              </div>
+
+              <select
+                value={rarity}
+                onChange={(e) => {
+                  setRarity(e.target.value as (typeof RARITIES)[number]);
+                  resetPreparedState();
+                }}
+                className={[
+                  "w-full rounded-2xl px-4 py-3 text-sm",
+                  "bg-white/[0.04] border border-white/10 text-white",
+                  "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+                ].join(" ")}
+              >
+                {RARITIES.map((item) => (
+                  <option key={item} value={item} className="bg-[#111] text-white">
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </Card>
+
+        <Card>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <div className="flex items-end justify-between mb-3">
@@ -1440,6 +1615,15 @@ export default function AdminMintForm() {
 
                 <div className="mt-4 space-y-2 text-xs text-white/60">
                   <div>
+                    Collection: <span className="font-semibold text-white">{collection}</span>
+                  </div>
+                  <div>
+                    Drink / Item: <span className="font-semibold text-white">{drink}</span>
+                  </div>
+                  <div>
+                    Rarity: <span className="font-semibold text-white">{rarity}</span>
+                  </div>
+                  <div>
                     Supply: <span className="font-semibold text-white">{clampSupply(supply)}</span>
                   </div>
                   <div>
@@ -1483,6 +1667,9 @@ export default function AdminMintForm() {
                     setPrice("5");
                     setExternalUrl("");
                     setCategory("Coffee");
+                    setCollection("Realife Crypto Cafe");
+                    setDrink("Cappuccino");
+                    setRarity("Common");
                     setFile(null);
                     setPosterFile(null);
                     setTokenURI(null);
