@@ -20,13 +20,6 @@ function toLower(a?: string | null) {
   return String(a || "").trim().toLowerCase();
 }
 
-function shortAddr(addr?: string | null) {
-  if (!addr) return "—";
-  const s = String(addr);
-  if (s.length <= 12) return s;
-  return `${s.slice(0, 6)}…${s.slice(-4)}`;
-}
-
 function toBigIntSafe(v?: string | number | bigint | null) {
   try {
     if (typeof v === "bigint") return v;
@@ -41,15 +34,6 @@ function toBigIntSafe(v?: string | number | bigint | null) {
 function clampInt(n: number, min: number, max: number) {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, n));
-}
-
-function fmtInt(v?: string | null) {
-  try {
-    if (!v) return "—";
-    return BigInt(v).toString();
-  } catch {
-    return String(v || "—");
-  }
 }
 
 const erc20Abi = [
@@ -92,7 +76,6 @@ export default function StorefrontQuickBuy1155({
 
   remaining,
   title,
-  subtitle,
 
   functionName = "buyProduct",
   defaultAmount = 1,
@@ -115,7 +98,6 @@ export default function StorefrontQuickBuy1155({
 
   remaining?: string | null;
   title?: string | null;
-  subtitle?: string | null;
 
   functionName?: string;
   defaultAmount?: number;
@@ -174,9 +156,7 @@ export default function StorefrontQuickBuy1155({
     if (!open) return;
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setOpen(false);
-      }
+      if (e.key === "Escape") setOpen(false);
     };
 
     const prev = document.body.style.overflow;
@@ -240,7 +220,7 @@ export default function StorefrontQuickBuy1155({
         body: JSON.stringify({ tags }),
       });
     } catch {
-      // ignore
+      //
     }
   }
 
@@ -308,17 +288,7 @@ export default function StorefrontQuickBuy1155({
   }
 
   const disabledOpen = !active || isSoldOut;
-  const disabledBuy =
-    busy !== null ||
-    !isConnected ||
-    needSwitch ||
-    !active ||
-    isSoldOut ||
-    !hasStorefront ||
-    !hasPaymentToken ||
-    needsApproval;
-
-  const buttonLabel = isSoldOut ? "Sold out" : active ? "Buy now" : "Inactive";
+  const buttonLabel = isSoldOut ? "Sold out" : active ? "Buy" : "Inactive";
 
   return (
     <>
@@ -346,273 +316,154 @@ export default function StorefrontQuickBuy1155({
 
       {open ? (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center px-4"
           onClick={() => setOpen(false)}
         >
-          <div className="absolute inset-0 bg-black/75 backdrop-blur-md" />
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setOpen(false);
+            }}
+            className="absolute top-4 right-4 z-[101] h-11 w-11 rounded-full border border-white/12 bg-white/[0.08] hover:bg-white/[0.12] transition flex items-center justify-center text-white/85 text-lg font-black"
+            title="Close"
+          >
+            ✕
+          </button>
 
           <div
-            className="relative w-full max-w-2xl rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
+            className="relative w-full max-w-[420px] rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
             }}
           >
-            <div className="rounded-[34px] border border-white/10 bg-[#0b0a09]/85 backdrop-blur-2xl ring-1 ring-black/10">
-              <div className="max-h-[85vh] overflow-y-auto">
-                <div className="p-5 sm:p-6 md:p-7">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="text-[11px] uppercase tracking-[0.24em] text-white/45 font-black">
-                        Quick Buy
-                      </div>
+            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/82 backdrop-blur-2xl ring-1 ring-black/10">
+              <div className="p-5">
+                <div className="text-center">
+                  <div className="text-[18px] font-black text-white/95">
+                    {title || `Token #${tokenId}`}
+                  </div>
+                  <div className="mt-2 text-[15px] font-black text-amber-100">{priceLabel}</div>
+                </div>
 
-                      <div className="mt-2 text-xl sm:text-2xl font-black tracking-tight text-white/95 break-words">
-                        {title || `Token #${tokenId}`}
-                      </div>
+                {err ? (
+                  <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-[12px] text-rose-100 text-center">
+                    {err}
+                  </div>
+                ) : null}
 
-                      <div className="mt-2 text-[12px] sm:text-[13px] text-white/55 break-words">
-                        {subtitle || "Primary storefront purchase"}
-                      </div>
+                {ok ? (
+                  <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-[12px] text-emerald-100 text-center">
+                    {ok}
+                  </div>
+                ) : null}
 
-                      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-white/55">
-                        <span>
-                          Store:{" "}
-                          <span className="font-mono text-white/80">{shortAddr(storefrontAddr)}</span>
-                        </span>
-                        <span className="text-white/25">•</span>
-                        <span>
-                          Token: <span className="font-mono text-white/80">#{tokenId}</span>
-                        </span>
-                      </div>
-                    </div>
+                {!isConnected ? (
+                  <button
+                    onClick={() => openConnectModal?.()}
+                    className="mt-4 w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                  >
+                    Connect Wallet
+                  </button>
+                ) : null}
 
+                {needSwitch ? (
+                  <button
+                    onClick={() => switchChainAsync?.({ chainId })}
+                    className="mt-4 w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition text-white"
+                  >
+                    Switch Chain
+                  </button>
+                ) : null}
+
+                <div className="mt-5">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => setOpen(false)}
-                      className="shrink-0 h-10 w-10 rounded-full border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition flex items-center justify-center text-white/80 font-black"
-                      title="Close"
-                    >
-                      ✕
-                    </button>
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Store price
-                      </div>
-                      <div className="mt-1 text-[16px] sm:text-[18px] font-black text-amber-100 break-words">
-                        {priceLabel}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Remaining
-                      </div>
-                      <div className="mt-1 text-[16px] sm:text-[18px] font-black text-white/90 break-words">
-                        {fmtInt(remaining)}
-                      </div>
-                    </div>
-                  </div>
-
-                  {err ? (
-                    <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100 break-words">
-                      {err}
-                    </div>
-                  ) : null}
-
-                  {ok ? (
-                    <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100 break-words">
-                      {ok}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-5 flex flex-wrap items-center gap-2">
-                    {!isConnected ? (
-                      <button
-                        onClick={() => openConnectModal?.()}
-                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
-                      >
-                        Connect Wallet
-                      </button>
-                    ) : null}
-
-                    {needSwitch ? (
-                      <button
-                        onClick={() => switchChainAsync?.({ chainId })}
-                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition text-white"
-                      >
-                        Switch Chain ({chainId})
-                      </button>
-                    ) : null}
-
-                    {isConnected ? (
-                      <div className="text-[12px] text-white/55 font-semibold">
-                        Wallet: <span className="font-mono text-white/80">{shortAddr(address || "")}</span>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Amount
-                      </div>
-
-                      <div className="mt-3 flex items-stretch gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAmount((v) => clampInt(v - 1, 1, Math.max(1, maxBuyAmount)))}
-                          className="h-12 w-12 rounded-2xl border border-white/10 bg-black/20 text-white/85 text-lg font-black hover:bg-white/10 transition"
-                        >
-                          −
-                        </button>
-
-                        <input
-                          value={amount}
-                          onChange={(e) =>
-                            setAmount(
-                              clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxBuyAmount))
-                            )
-                          }
-                          type="number"
-                          min={1}
-                          max={Math.max(1, maxBuyAmount)}
-                          className="h-12 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-center text-base font-black text-white/90 outline-none focus:border-white/20"
-                        />
-
-                        <button
-                          type="button"
-                          onClick={() => setAmount((v) => clampInt(v + 1, 1, Math.max(1, maxBuyAmount)))}
-                          className="h-12 w-12 rounded-2xl border border-white/10 bg-black/20 text-white/85 text-lg font-black hover:bg-white/10 transition"
-                        >
-                          +
-                        </button>
-                      </div>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setAmount(1)}
-                          className="inline-flex items-center justify-center px-3 py-2 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-[11px] font-black text-white/75 transition"
-                        >
-                          1
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setAmount(Math.max(1, maxBuyAmount))}
-                          className="inline-flex items-center justify-center px-3 py-2 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-[11px] font-black text-white/75 transition"
-                        >
-                          Max
-                        </button>
-                        <div className="text-[11px] text-white/40">Max: {Math.max(1, maxBuyAmount)}</div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Approval / Total
-                      </div>
-
-                      <div className="mt-3 space-y-3">
-                        <div>
-                          <div className="text-[11px] text-white/40">Total</div>
-                          <div className="mt-1 text-[16px] sm:text-[18px] font-black text-amber-100 break-all leading-snug">
-                            {totalPriceRawBI.toString()} raw {paymentSymbol}
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-[11px] text-white/40">Payment mode</div>
-                          <div className="mt-1 text-[12px] text-white/70">
-                            ERC20 storefront payment
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0">
-                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                          ERC20 Approval
-                        </div>
-
-                        <div className="mt-2 grid gap-2 text-[12px] text-white/65">
-                          <div className="break-all">
-                            Token: <span className="font-mono text-white/80">{paymentToken}</span>
-                          </div>
-                          <div className="break-all">
-                            Spender: <span className="font-mono text-white/80">{storefrontAddr}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="lg:text-right">
-                        <div className="text-[11px] text-white/40 uppercase tracking-wider">Allowance</div>
-                        <div className="mt-1 text-[13px] sm:text-[14px] font-black text-white/85 break-all leading-snug">
-                          {allowance.toString()}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      {needsApproval ? (
-                        <button
-                          disabled={busy !== null || !isConnected || needSwitch}
-                          onClick={approveToken}
-                          className={cx(
-                            "inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition text-white",
-                            busy ? "opacity-60 cursor-not-allowed" : ""
-                          )}
-                        >
-                          {busy === "approve" ? `Approving ${paymentSymbol}…` : `Approve ${paymentSymbol}`}
-                        </button>
-                      ) : (
-                        <div className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-[12px] text-emerald-200 font-black">
-                          Approved ✅
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-6 flex flex-col lg:flex-row lg:items-center gap-2">
-                    <button
-                      disabled={disabledBuy}
-                      onClick={buyNow}
+                      type="button"
+                      onClick={() => setAmount(1)}
                       className={cx(
-                        "inline-flex items-center justify-center w-full lg:w-auto px-6 py-3 rounded-2xl text-black font-extrabold transition",
-                        "shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15",
-                        "hover:brightness-110",
-                        disabledBuy ? "opacity-60 cursor-not-allowed" : ""
+                        "h-11 rounded-2xl border text-sm font-black transition",
+                        amount === 1
+                          ? "border-amber-300/40 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black"
+                          : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]"
                       )}
                     >
-                      {busy === "buy" ? "Buying…" : "Buy now"}
+                      1
                     </button>
 
                     <button
-                      onClick={() => setOpen(false)}
-                      className="inline-flex items-center justify-center w-full lg:w-auto px-5 py-3 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/80"
+                      type="button"
+                      onClick={() => setAmount(clampInt(10, 1, Math.max(1, maxBuyAmount)))}
+                      className={cx(
+                        "h-11 rounded-2xl border text-sm font-black transition",
+                        amount === clampInt(10, 1, Math.max(1, maxBuyAmount))
+                          ? "border-amber-300/40 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black"
+                          : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]"
+                      )}
                     >
-                      Cancel
+                      10
                     </button>
-
-                    <div className="text-[12px] text-white/55 font-semibold lg:ml-2">
-                      {!active
-                        ? "Storefront inactive."
-                        : isSoldOut
-                        ? "Sold out."
-                        : needsApproval
-                        ? "Approval required before buy."
-                        : "Ready to buy."}
-                    </div>
                   </div>
 
-                  <div className="mt-5 text-[11px] text-white/35 leading-relaxed">
-                    Quick buy is for primary storefront sales. Secondary trading stays on the NFT detail page.
-                  </div>
+                  <input
+                    value={amount}
+                    onChange={(e) =>
+                      setAmount(clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxBuyAmount)))
+                    }
+                    type="number"
+                    min={1}
+                    max={Math.max(1, maxBuyAmount)}
+                    className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-center text-base font-black text-white/95 outline-none focus:border-white/20"
+                  />
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                  <button
+                    disabled={busy !== null || !isConnected || needSwitch || !needsApproval}
+                    onClick={approveToken}
+                    className={cx(
+                      "h-12 rounded-2xl font-extrabold transition border",
+                      needsApproval
+                        ? "border-white/15 bg-white/[0.06] text-white hover:bg-white/10"
+                        : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
+                      busy !== null || !isConnected || needSwitch ? "opacity-60 cursor-not-allowed" : ""
+                    )}
+                  >
+                    {needsApproval ? (busy === "approve" ? "Approving..." : "Approve") : "Approved"}
+                  </button>
+
+                  <button
+                    disabled={
+                      busy !== null ||
+                      !isConnected ||
+                      needSwitch ||
+                      !active ||
+                      isSoldOut ||
+                      !hasStorefront ||
+                      !hasPaymentToken ||
+                      needsApproval
+                    }
+                    onClick={buyNow}
+                    className={cx(
+                      "h-12 rounded-2xl font-extrabold transition text-black",
+                      "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] hover:brightness-110",
+                      busy !== null ||
+                        !isConnected ||
+                        needSwitch ||
+                        !active ||
+                        isSoldOut ||
+                        !hasStorefront ||
+                        !hasPaymentToken ||
+                        needsApproval
+                        ? "opacity-60 cursor-not-allowed"
+                        : ""
+                    )}
+                  >
+                    {busy === "buy" ? "Buying..." : "Buy"}
+                  </button>
                 </div>
               </div>
             </div>
