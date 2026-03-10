@@ -415,21 +415,81 @@ export default async function NftDetailsPage({
 
   if (!nft) notFound();
 
-  const u = nft.user;
+  const creator = nft.user;
 
-  const publicKey = u?.handle || u?.publicId || null;
-  const ownerUrl = publicKey && publicKey !== "tmp" ? `/u/${publicKey}` : null;
-  const ownerNftsUrl = ownerUrl ? `${ownerUrl}/nfts` : null;
+  const creatorPublicKey = creator?.handle || creator?.publicId || null;
+  const creatorUrl = creatorPublicKey && creatorPublicKey !== "tmp" ? `/u/${creatorPublicKey}` : null;
+  const creatorNftsUrl = creatorUrl ? `${creatorUrl}/nfts` : null;
 
-  const ownerName =
-    u?.twitterName ||
-    u?.discordName ||
-    (u?.twitterUser ? `@${u.twitterUser}` : null) ||
-    (u?.discordUser ? `@${u.discordUser}` : null) ||
-    (u?.handle ? `@${u.handle}` : null) ||
-    shortAddr(u?.walletAddress || null);
+  const creatorName =
+    creator?.twitterName ||
+    creator?.discordName ||
+    (creator?.twitterUser ? `@${creator.twitterUser}` : null) ||
+    (creator?.discordUser ? `@${creator.discordUser}` : null) ||
+    (creator?.handle ? `@${creator.handle}` : null) ||
+    shortAddr(creator?.walletAddress || null);
 
-  const avatar = u?.twitterImage || u?.discordImage || null;
+  const creatorAvatar = creator?.twitterImage || creator?.discordImage || null;
+
+  const holdersCount = await prisma.holding.count({
+    where: {
+      chainId,
+      contract,
+      tokenId,
+      amount: { gt: 0n },
+    },
+  });
+
+  const topHolder = await prisma.holding.findFirst({
+    where: {
+      chainId,
+      contract,
+      tokenId,
+      amount: { gt: 0n },
+    },
+    orderBy: [{ amount: "desc" }, { updatedAt: "desc" }, { id: "desc" }],
+    select: {
+      amount: true,
+      user: {
+        select: {
+          handle: true,
+          publicId: true,
+          twitterName: true,
+          twitterUser: true,
+          twitterImage: true,
+          discordName: true,
+          discordUser: true,
+          discordImage: true,
+          walletAddress: true,
+        },
+      },
+    },
+  });
+
+  const currentOwnerUser = topHolder?.user || creator || null;
+
+  const currentOwnerPublicKey =
+    currentOwnerUser?.handle || currentOwnerUser?.publicId || null;
+
+  const currentOwnerUrl =
+    currentOwnerPublicKey && currentOwnerPublicKey !== "tmp"
+      ? `/u/${currentOwnerPublicKey}`
+      : null;
+
+  const currentOwnerNftsUrl = currentOwnerUrl ? `${currentOwnerUrl}/nfts` : null;
+
+  const currentOwnerName =
+    currentOwnerUser?.twitterName ||
+    currentOwnerUser?.discordName ||
+    (currentOwnerUser?.twitterUser ? `@${currentOwnerUser.twitterUser}` : null) ||
+    (currentOwnerUser?.discordUser ? `@${currentOwnerUser.discordUser}` : null) ||
+    (currentOwnerUser?.handle ? `@${currentOwnerUser.handle}` : null) ||
+    shortAddr(currentOwnerUser?.walletAddress || null);
+
+  const currentOwnerAvatar =
+    currentOwnerUser?.twitterImage || currentOwnerUser?.discordImage || null;
+
+  const ownershipLabel = holdersCount > 1 ? "Top holder" : "Current owner";
 
   const tokenUriHttp = nft.tokenUri ? ipfsToHttp(nft.tokenUri, IPFS_GATEWAYS[0]) : null;
   const txUrl = nft.txHash ? txExplorerUrl(nft.chainId, nft.txHash) : null;
@@ -542,20 +602,20 @@ export default async function NftDetailsPage({
       <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
         <div className="reveal flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 text-[12px] text-white/55">
-            {ownerNftsUrl ? (
-              <Link className="hover:underline" href={ownerNftsUrl}>
+            {creatorNftsUrl ? (
+              <Link className="hover:underline" href={creatorNftsUrl}>
                 NFTs
               </Link>
             ) : (
               <span>NFTs</span>
             )}
             <span>›</span>
-            {ownerUrl ? (
-              <Link className="hover:underline" href={ownerUrl}>
-                {ownerName}
+            {creatorUrl ? (
+              <Link className="hover:underline" href={creatorUrl}>
+                {creatorName}
               </Link>
             ) : (
-              <span>{ownerName}</span>
+              <span>{creatorName}</span>
             )}
             <span>›</span>
             <span className="text-white/70 font-black">{nft.name || `Token #${nft.tokenId}`}</span>
@@ -571,9 +631,9 @@ export default async function NftDetailsPage({
               </Link>
             ) : null}
 
-            {ownerNftsUrl ? (
+            {creatorNftsUrl ? (
               <Link
-                href={ownerNftsUrl}
+                href={creatorNftsUrl}
                 className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
                 Back to gallery
@@ -693,9 +753,44 @@ export default async function NftDetailsPage({
 
                   <div className="mt-5 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
-                      {avatar ? (
+                      {currentOwnerAvatar ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={avatar} alt="creator" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        <img src={currentOwnerAvatar} alt="owner" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <span className="text-white/35 text-xs font-black">RL</span>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        {ownershipLabel}
+                      </div>
+                      <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
+                        {currentOwnerUrl ? (
+                          <Link className="hover:underline" href={currentOwnerUrl}>
+                            {currentOwnerName}
+                          </Link>
+                        ) : (
+                          currentOwnerName
+                        )}
+                      </div>
+                    </div>
+
+                    {currentOwnerNftsUrl ? (
+                      <Link
+                        href={currentOwnerNftsUrl}
+                        className="shrink-0 text-[12px] font-extrabold text-amber-100/90 hover:text-amber-100"
+                      >
+                        View NFTs →
+                      </Link>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
+                      {creatorAvatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={creatorAvatar} alt="creator" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
                         <span className="text-white/35 text-xs font-black">RL</span>
                       )}
@@ -706,18 +801,21 @@ export default async function NftDetailsPage({
                         Creator / Profile
                       </div>
                       <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
-                        {ownerUrl ? (
-                          <Link className="hover:underline" href={ownerUrl}>
-                            {ownerName}
+                        {creatorUrl ? (
+                          <Link className="hover:underline" href={creatorUrl}>
+                            {creatorName}
                           </Link>
                         ) : (
-                          ownerName
+                          creatorName
                         )}
                       </div>
                     </div>
 
-                    {ownerNftsUrl ? (
-                      <Link href={ownerNftsUrl} className="shrink-0 text-[12px] font-extrabold text-amber-100/90 hover:text-amber-100">
+                    {creatorNftsUrl ? (
+                      <Link
+                        href={creatorNftsUrl}
+                        className="shrink-0 text-[12px] font-extrabold text-amber-100/90 hover:text-amber-100"
+                      >
                         View NFTs →
                       </Link>
                     ) : null}
@@ -830,9 +928,9 @@ export default async function NftDetailsPage({
                       </Link>
                     ) : null}
 
-                    {ownerNftsUrl ? (
+                    {creatorNftsUrl ? (
                       <Link
-                        href={ownerNftsUrl}
+                        href={creatorNftsUrl}
                         className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
                       >
                         Back to gallery

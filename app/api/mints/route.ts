@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     verified,
     supply,
     standard,
-    catalogOnly, // ✅ new: for RealifeCafeStore createProduct()
+    catalogOnly, // for RealifeCafeStore createProduct()
   } = body as any;
 
   if (!chainId || !contract || tokenId === undefined || tokenId === null) {
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "bad_tokenId" }, { status: 400 });
   }
 
-  // ✅ allow BOTH:
+  // allow BOTH:
   // 1) public Realife1155New mint flow
   // 2) cafe catalog entries from RealifeCafeStore
   const allowedContracts = uniqueStrings([
@@ -106,8 +106,8 @@ export async function POST(req: Request) {
 
   const isCatalogOnly = toBool(catalogOnly);
 
-  // ✅ old public mint flow => ownership exists immediately
-  // ✅ cafe admin flow => catalogOnly=true => no holding, no points
+  // old public mint flow => ownership exists immediately
+  // cafe admin flow => catalogOnly=true => no holding, no points
   const shouldCreateHolding = !isCatalogOnly;
   const shouldReward = !isCatalogOnly;
 
@@ -159,8 +159,9 @@ export async function POST(req: Request) {
         verified: typeof verified === "boolean" ? verified : true,
       };
 
+      // IMPORTANT:
+      // do not overwrite original creator on repeated update/upsert
       const dataUpdate = {
-        userId,
         txHash: txHash ? String(txHash) : undefined,
         tokenUri: tokenUri ? String(tokenUri) : undefined,
         name: name ? String(name) : undefined,
@@ -183,7 +184,7 @@ export async function POST(req: Request) {
         }
       }
 
-      // ✅ Holding only for real ownership mint flow
+      // Holding only for real ownership mint flow
       if (shouldCreateHolding) {
         await tx.holding.upsert({
           where: {
@@ -208,7 +209,7 @@ export async function POST(req: Request) {
         });
       }
 
-      // ✅ reward only for public mint flow
+      // reward only for public mint flow
       if (created && shouldReward) {
         const updatedUser = await tx.user.update({
           where: { id: userId },
