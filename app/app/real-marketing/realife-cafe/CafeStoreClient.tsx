@@ -42,7 +42,10 @@ function shortAddr(addr?: string | null) {
   return `${s.slice(0, 6)}…${s.slice(-4)}`;
 }
 
-const PRIMARY_IPFS_ORIGIN = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
+const PRIMARY_IPFS_ORIGIN = (
+  process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link"
+).replace(/\/$/, "");
+
 const CAFE_STOREFRONT_CONTRACT = String(
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT || ""
 )
@@ -66,7 +69,12 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
 
-  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) {
+  if (
+    u.startsWith("http://") ||
+    u.startsWith("https://") ||
+    u.startsWith("data:") ||
+    u.startsWith("blob:")
+  ) {
     return u;
   }
 
@@ -91,10 +99,7 @@ async function fetchJSON(url: string) {
 function fmtUsdt(v?: string | null) {
   if (!v) return "—";
   const n = Number(v);
-  if (!Number.isFinite(n)) return v;
-  if (n === 0) return "0";
-  if (n < 0.0001) return "<0.0001";
-  return n.toFixed(2).replace(/\.00$/, "");
+  return Number.isFinite(n) ? n.toFixed(2).replace(/\.00$/, "") : v;
 }
 
 function toSafeNumber(v?: string | null) {
@@ -163,11 +168,17 @@ export default function CafeStoreClient() {
     }
 
     if (sort === "priceAsc") {
-      out = [...out].sort((a, b) => Number(a.priceUsdt || "0") - Number(b.priceUsdt || "0"));
+      out = [...out].sort(
+        (a, b) => Number(a.priceUsdt || "0") - Number(b.priceUsdt || "0")
+      );
     } else if (sort === "priceDesc") {
-      out = [...out].sort((a, b) => Number(b.priceUsdt || "0") - Number(a.priceUsdt || "0"));
+      out = [...out].sort(
+        (a, b) => Number(b.priceUsdt || "0") - Number(a.priceUsdt || "0")
+      );
     } else {
-      out = [...out].sort((a, b) => +new Date(b.createdAt) - +new Date(a.createdAt));
+      out = [...out].sort(
+        (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+      );
     }
 
     return out;
@@ -186,12 +197,15 @@ export default function CafeStoreClient() {
         <div className={cx(goldCard, "p-6 md:p-7")}>
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">Primary Storefront</div>
+              <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
+                Primary Storefront
+              </div>
               <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">
                 Realife Cafe Collection
               </div>
               <div className="mt-2 text-[12px] text-white/55 max-w-2xl">
-                All products created through the admin cafe mint form appear here as the primary Realife Cafe catalog.
+                All products created through the admin cafe mint form appear here as the
+                primary Realife Cafe catalog.
               </div>
             </div>
 
@@ -231,23 +245,33 @@ export default function CafeStoreClient() {
 
           <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Total</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Total
+              </div>
               <div className="mt-1 text-lg font-black text-white/90">{rows.length}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Active</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Active
+              </div>
               <div className="mt-1 text-lg font-black text-emerald-200">{activeCount}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Visible</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Visible
+              </div>
               <div className="mt-1 text-lg font-black text-white/90">{filtered.length}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Mode</div>
-              <div className="mt-1 text-lg font-black text-amber-100">{mode === "active" ? "ACTIVE" : "ALL"}</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Mode
+              </div>
+              <div className="mt-1 text-lg font-black text-amber-100">
+                {mode === "active" ? "ACTIVE" : "ALL"}
+              </div>
             </div>
           </div>
         </div>
@@ -257,7 +281,9 @@ export default function CafeStoreClient() {
         <div className={cx(goldCard, "p-6 md:p-7")}>
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[220px] flex-1">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Search</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Search
+              </div>
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
@@ -267,7 +293,9 @@ export default function CafeStoreClient() {
             </div>
 
             <div className="min-w-[220px]">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Sort</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Sort
+              </div>
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value as "new" | "priceAsc" | "priceDesc")}
@@ -312,7 +340,9 @@ export default function CafeStoreClient() {
             );
           }
 
-          const href = `/nft/${x.chainId}/${x.contract}/${encodeURIComponent(String(x.tokenId))}`;
+          const href = `/nft/${x.chainId}/${x.contract}/${encodeURIComponent(
+            String(x.tokenId)
+          )}`;
           const img = x?.metaImage || ipfsToHttp(x?.image || null) || null;
           const remaining = x?.remaining ?? "—";
           const remainingNum = toSafeNumber(x?.remaining);
@@ -337,9 +367,15 @@ export default function CafeStoreClient() {
                 <div className="aspect-square w-full bg-black/30 relative">
                   {img ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={img} alt={x.name || "Cafe NFT"} className="h-full w-full object-cover" />
+                    <img
+                      src={img}
+                      alt={x.name || "Cafe NFT"}
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
-                    <div className="h-full w-full flex items-center justify-center text-white/25 font-black">No media</div>
+                    <div className="h-full w-full flex items-center justify-center text-white/25 font-black">
+                      No media
+                    </div>
                   )}
 
                   <div className="absolute top-3 left-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -376,7 +412,7 @@ export default function CafeStoreClient() {
                   </div>
                 </Link>
 
-                {(x.item || x.rarity) ? (
+                {x.item || x.rarity ? (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {x.item ? (
                       <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
@@ -400,7 +436,9 @@ export default function CafeStoreClient() {
                 <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-[12px] text-white/55 font-semibold">Store price</div>
-                    <div className="text-[13px] font-black text-amber-100">{fmtUsdt(x.priceUsdt)} USDT</div>
+                    <div className="text-[13px] font-black text-amber-100">
+                      {fmtUsdt(x.priceUsdt)} USDT
+                    </div>
                   </div>
 
                   <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
@@ -439,7 +477,6 @@ export default function CafeStoreClient() {
                       paymentSymbol="USDT"
                       remaining={x.remaining}
                       title={x.name || `Cafe Product #${x.tokenId}`}
-                      subtitle="Primary storefront purchase"
                       functionName="buyProduct"
                       defaultAmount={1}
                       maxBuyPerTx={remainingNum && remainingNum > 0 ? remainingNum : 1}
