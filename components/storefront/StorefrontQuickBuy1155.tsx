@@ -346,204 +346,273 @@ export default function StorefrontQuickBuy1155({
 
       {open ? (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center px-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4"
           onClick={() => setOpen(false)}
         >
-          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setOpen(false);
-            }}
-            className="absolute top-4 right-4 z-[101] h-10 w-10 rounded-full border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition flex items-center justify-center text-white/80 font-black"
-            title="Close (Esc)"
-          >
-            ✕
-          </button>
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-md" />
 
           <div
-            className="relative w-full max-w-lg rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
+            className="relative w-full max-w-2xl rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
             }}
           >
-            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/70 backdrop-blur-2xl ring-1 ring-black/10">
-              <div className="p-6 md:p-7">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                      Quick Buy
+            <div className="rounded-[34px] border border-white/10 bg-[#0b0a09]/85 backdrop-blur-2xl ring-1 ring-black/10">
+              <div className="max-h-[85vh] overflow-y-auto">
+                <div className="p-5 sm:p-6 md:p-7">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="text-[11px] uppercase tracking-[0.24em] text-white/45 font-black">
+                        Quick Buy
+                      </div>
+
+                      <div className="mt-2 text-xl sm:text-2xl font-black tracking-tight text-white/95 break-words">
+                        {title || `Token #${tokenId}`}
+                      </div>
+
+                      <div className="mt-2 text-[12px] sm:text-[13px] text-white/55 break-words">
+                        {subtitle || "Primary storefront purchase"}
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-white/55">
+                        <span>
+                          Store:{" "}
+                          <span className="font-mono text-white/80">{shortAddr(storefrontAddr)}</span>
+                        </span>
+                        <span className="text-white/25">•</span>
+                        <span>
+                          Token: <span className="font-mono text-white/80">#{tokenId}</span>
+                        </span>
+                      </div>
                     </div>
-                    <div className="mt-2 text-xl font-black tracking-tight text-white/90 truncate">
-                      {title || `Token #${tokenId}`}
-                    </div>
-                    <div className="mt-2 text-[12px] text-white/55">
-                      {subtitle || "Primary storefront purchase"}
-                    </div>
-                    <div className="mt-2 text-[12px] text-white/55">
-                      Store: <span className="font-mono text-white/80">{shortAddr(storefrontAddr)}</span>
-                      <span className="text-white/30"> • </span>
-                      Token: <span className="font-mono text-white/80">#{tokenId}</span>
-                    </div>
-                  </div>
 
-                  <button
-                    onClick={() => setOpen(false)}
-                    className="shrink-0 px-3 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/80"
-                    title="Close"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Price</div>
-                    <div className="mt-1 text-[16px] font-black text-amber-100">{priceLabel}</div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Remaining</div>
-                    <div className="mt-1 text-[16px] font-black text-white/90">{fmtInt(remaining)}</div>
-                  </div>
-                </div>
-
-                {err ? (
-                  <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100">
-                    {err}
-                  </div>
-                ) : null}
-
-                {ok ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100">
-                    {ok}
-                  </div>
-                ) : null}
-
-                <div className="mt-5 flex flex-wrap items-center gap-2">
-                  {!isConnected ? (
                     <button
-                      onClick={() => openConnectModal?.()}
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                      onClick={() => setOpen(false)}
+                      className="shrink-0 h-10 w-10 rounded-full border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition flex items-center justify-center text-white/80 font-black"
+                      title="Close"
                     >
-                      Connect Wallet
+                      ✕
                     </button>
-                  ) : null}
-
-                  {needSwitch ? (
-                    <button
-                      onClick={() => switchChainAsync?.({ chainId })}
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition"
-                    >
-                      Switch Chain ({chainId})
-                    </button>
-                  ) : null}
-
-                  {isConnected ? (
-                    <div className="text-[12px] text-white/55 font-semibold">
-                      Wallet: <span className="font-mono text-white/80">{shortAddr(address || "")}</span>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="mt-6 grid md:grid-cols-2 gap-3">
-                  <label className="block">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Amount</div>
-                    <input
-                      value={amount}
-                      onChange={(e) =>
-                        setAmount(clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxBuyAmount)))
-                      }
-                      type="number"
-                      min={1}
-                      max={Math.max(1, maxBuyAmount)}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
-                    />
-                    <div className="mt-1 text-[11px] text-white/40">Max: {Math.max(1, maxBuyAmount)}</div>
-                  </label>
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Approval / Total</div>
-                    <div className="mt-2 text-[13px] font-extrabold text-amber-100">
-                      {totalPriceRawBI.toString()} raw {paymentSymbol}
-                    </div>
-                    <div className="mt-1 text-[11px] text-white/40">ERC20 storefront payment</div>
                   </div>
-                </div>
 
-                <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
+                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                       <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        ERC20 Approval
+                        Store price
                       </div>
-                      <div className="mt-1 text-[12px] text-white/65">
-                        Token: <span className="font-mono text-white/80">{shortAddr(paymentToken)}</span>
-                        <span className="text-white/30"> • </span>
-                        Spender: <span className="font-mono text-white/80">{shortAddr(storefrontAddr)}</span>
+                      <div className="mt-1 text-[16px] sm:text-[18px] font-black text-amber-100 break-words">
+                        {priceLabel}
                       </div>
                     </div>
 
-                    <div className="text-[12px] text-white/55 font-semibold">
-                      Allowance: <span className="font-black text-white/85">{allowance.toString()}</span>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Remaining
+                      </div>
+                      <div className="mt-1 text-[16px] sm:text-[18px] font-black text-white/90 break-words">
+                        {fmtInt(remaining)}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {needsApproval ? (
+                  {err ? (
+                    <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100 break-words">
+                      {err}
+                    </div>
+                  ) : null}
+
+                  {ok ? (
+                    <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100 break-words">
+                      {ok}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-5 flex flex-wrap items-center gap-2">
+                    {!isConnected ? (
                       <button
-                        disabled={busy !== null || !isConnected || needSwitch}
-                        onClick={approveToken}
-                        className={cx(
-                          "inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition",
-                          busy ? "opacity-60 cursor-not-allowed" : ""
-                        )}
+                        onClick={() => openConnectModal?.()}
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
                       >
-                        {busy === "approve" ? `Approving ${paymentSymbol}…` : `Approve ${paymentSymbol}`}
+                        Connect Wallet
                       </button>
-                    ) : (
-                      <div className="text-[12px] text-emerald-200 font-black">Approved ✅</div>
-                    )}
+                    ) : null}
+
+                    {needSwitch ? (
+                      <button
+                        onClick={() => switchChainAsync?.({ chainId })}
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition text-white"
+                      >
+                        Switch Chain ({chainId})
+                      </button>
+                    ) : null}
+
+                    {isConnected ? (
+                      <div className="text-[12px] text-white/55 font-semibold">
+                        Wallet: <span className="font-mono text-white/80">{shortAddr(address || "")}</span>
+                      </div>
+                    ) : null}
                   </div>
-                </div>
 
-                <div className="mt-6 flex flex-col md:flex-row md:items-center gap-2">
-                  <button
-                    disabled={disabledBuy}
-                    onClick={buyNow}
-                    className={cx(
-                      "inline-flex items-center justify-center w-full md:w-auto px-6 py-3 rounded-2xl text-black font-extrabold transition",
-                      "shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15",
-                      "hover:brightness-110",
-                      disabledBuy ? "opacity-60 cursor-not-allowed" : ""
-                    )}
-                  >
-                    {busy === "buy" ? "Buying…" : "Buy now"}
-                  </button>
+                  <div className="mt-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Amount
+                      </div>
 
-                  <button
-                    onClick={() => setOpen(false)}
-                    className="inline-flex items-center justify-center w-full md:w-auto px-5 py-3 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/80"
-                  >
-                    Cancel
-                  </button>
+                      <div className="mt-3 flex items-stretch gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAmount((v) => clampInt(v - 1, 1, Math.max(1, maxBuyAmount)))}
+                          className="h-12 w-12 rounded-2xl border border-white/10 bg-black/20 text-white/85 text-lg font-black hover:bg-white/10 transition"
+                        >
+                          −
+                        </button>
 
-                  <div className="text-[12px] text-white/55 font-semibold md:ml-2">
-                    {!active
-                      ? "Storefront inactive."
-                      : isSoldOut
-                      ? "Sold out."
-                      : needsApproval
-                      ? "Approval required before buy."
-                      : "Ready to buy."}
+                        <input
+                          value={amount}
+                          onChange={(e) =>
+                            setAmount(
+                              clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxBuyAmount))
+                            )
+                          }
+                          type="number"
+                          min={1}
+                          max={Math.max(1, maxBuyAmount)}
+                          className="h-12 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-center text-base font-black text-white/90 outline-none focus:border-white/20"
+                        />
+
+                        <button
+                          type="button"
+                          onClick={() => setAmount((v) => clampInt(v + 1, 1, Math.max(1, maxBuyAmount)))}
+                          className="h-12 w-12 rounded-2xl border border-white/10 bg-black/20 text-white/85 text-lg font-black hover:bg-white/10 transition"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setAmount(1)}
+                          className="inline-flex items-center justify-center px-3 py-2 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-[11px] font-black text-white/75 transition"
+                        >
+                          1
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAmount(Math.max(1, maxBuyAmount))}
+                          className="inline-flex items-center justify-center px-3 py-2 rounded-xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] text-[11px] font-black text-white/75 transition"
+                        >
+                          Max
+                        </button>
+                        <div className="text-[11px] text-white/40">Max: {Math.max(1, maxBuyAmount)}</div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Approval / Total
+                      </div>
+
+                      <div className="mt-3 space-y-3">
+                        <div>
+                          <div className="text-[11px] text-white/40">Total</div>
+                          <div className="mt-1 text-[16px] sm:text-[18px] font-black text-amber-100 break-all leading-snug">
+                            {totalPriceRawBI.toString()} raw {paymentSymbol}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="text-[11px] text-white/40">Payment mode</div>
+                          <div className="mt-1 text-[12px] text-white/70">
+                            ERC20 storefront payment
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
 
-                <div className="mt-5 text-[11px] text-white/35">
-                  Quick buy is for primary storefront sales. Secondary trading stays on the NFT detail page.
+                  <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                          ERC20 Approval
+                        </div>
+
+                        <div className="mt-2 grid gap-2 text-[12px] text-white/65">
+                          <div className="break-all">
+                            Token: <span className="font-mono text-white/80">{paymentToken}</span>
+                          </div>
+                          <div className="break-all">
+                            Spender: <span className="font-mono text-white/80">{storefrontAddr}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="lg:text-right">
+                        <div className="text-[11px] text-white/40 uppercase tracking-wider">Allowance</div>
+                        <div className="mt-1 text-[13px] sm:text-[14px] font-black text-white/85 break-all leading-snug">
+                          {allowance.toString()}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      {needsApproval ? (
+                        <button
+                          disabled={busy !== null || !isConnected || needSwitch}
+                          onClick={approveToken}
+                          className={cx(
+                            "inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition text-white",
+                            busy ? "opacity-60 cursor-not-allowed" : ""
+                          )}
+                        >
+                          {busy === "approve" ? `Approving ${paymentSymbol}…` : `Approve ${paymentSymbol}`}
+                        </button>
+                      ) : (
+                        <div className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 text-[12px] text-emerald-200 font-black">
+                          Approved ✅
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 flex flex-col lg:flex-row lg:items-center gap-2">
+                    <button
+                      disabled={disabledBuy}
+                      onClick={buyNow}
+                      className={cx(
+                        "inline-flex items-center justify-center w-full lg:w-auto px-6 py-3 rounded-2xl text-black font-extrabold transition",
+                        "shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15",
+                        "hover:brightness-110",
+                        disabledBuy ? "opacity-60 cursor-not-allowed" : ""
+                      )}
+                    >
+                      {busy === "buy" ? "Buying…" : "Buy now"}
+                    </button>
+
+                    <button
+                      onClick={() => setOpen(false)}
+                      className="inline-flex items-center justify-center w-full lg:w-auto px-5 py-3 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/80"
+                    >
+                      Cancel
+                    </button>
+
+                    <div className="text-[12px] text-white/55 font-semibold lg:ml-2">
+                      {!active
+                        ? "Storefront inactive."
+                        : isSoldOut
+                        ? "Sold out."
+                        : needsApproval
+                        ? "Approval required before buy."
+                        : "Ready to buy."}
+                    </div>
+                  </div>
+
+                  <div className="mt-5 text-[11px] text-white/35 leading-relaxed">
+                    Quick buy is for primary storefront sales. Secondary trading stays on the NFT detail page.
+                  </div>
                 </div>
               </div>
             </div>
