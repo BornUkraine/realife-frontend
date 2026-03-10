@@ -253,7 +253,7 @@ export default function HomePage() {
 
               <div className="mt-8 flex flex-wrap gap-4">
                 <GoldButton href="/app/create">Mint your first NFT</GoldButton>
-                <GhostButton href="/app/trading">Open the App</GhostButton>
+                <GhostButton href="/app/app">Open the App</GhostButton>
 
                 <a
                   href="https://www.alchemy.com/faucets/base-sepolia"
