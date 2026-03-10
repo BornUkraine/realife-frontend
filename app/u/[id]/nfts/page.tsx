@@ -41,7 +41,12 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-prod
   ""
 );
 
-const REALIFE_1155_NEW_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
+const USER_1155_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
+const CAFE_1155_CONTRACT = norm(
+  process.env.REALIFE_CAFE_STORE_CONTRACT || process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT || ""
+);
+
+const ALLOWED_1155_CONTRACTS = [USER_1155_CONTRACT, CAFE_1155_CONTRACT].filter(Boolean);
 
 const PRIMARY_IPFS_ORIGIN = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
 
@@ -71,7 +76,6 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   }
 
   if (u.startsWith("Qm") || u.startsWith("bafy")) return `${gw}${u}`;
-
   return u;
 }
 
@@ -188,37 +192,33 @@ export default async function PublicNFTsPage({
   const publicUrl = publicKey && publicKey !== "tmp" ? `/u/${publicKey}` : null;
   const pageBase = publicKey && publicKey !== "tmp" ? `/u/${publicKey}/nfts` : `/u/${key}/nfts`;
 
-  // ✅ owner check (only owner can see activity + list buttons)
   const session = await getServerSession(authOptions);
   const viewerId = (session as any)?.user?.id || (session as any)?.userId || null;
-  const viewerWallet = ((session as any)?.user?.walletAddress || (session as any)?.walletAddress || "")?.toLowerCase?.() || "";
-  const isOwner = Boolean(
-    (viewerId && viewerId === user.id) || (viewerWallet && viewerWallet === user.walletAddress.toLowerCase())
-  );
+  const viewerWallet =
+    ((session as any)?.user?.walletAddress || (session as any)?.walletAddress || "")?.toLowerCase?.() || "";
+  const ownerWallet = String(user.walletAddress || "").toLowerCase();
+  const isOwner = Boolean((viewerId && viewerId === user.id) || (viewerWallet && ownerWallet && viewerWallet === ownerWallet));
 
-  // quick count (always cheap)
+  const holdingWhere: any = {
+    userId: user.id,
+    amount: { gt: 0n },
+    mint: { verified: true },
+  };
+
+  if (ALLOWED_1155_CONTRACTS.length > 0) {
+    holdingWhere.contract = { in: ALLOWED_1155_CONTRACTS };
+  }
+
   const itemsCount = await prisma.holding.count({
-    where: {
-      userId: user.id,
-      amount: { gt: 0n },
-      mint: { verified: true },
-      ...(REALIFE_1155_NEW_CONTRACT ? { contract: REALIFE_1155_NEW_CONTRACT } : {}),
-    },
+    where: holdingWhere,
   });
 
-  // If activity tab but not owner -> force NFTs
   const effectiveTab = tab === "activity" && !isOwner ? "nfts" : tab;
 
-  // For NFT tab: load holdings + heavy metadata
   let enriched: any[] = [];
   if (effectiveTab === "nfts") {
     const holdings = await prisma.holding.findMany({
-      where: {
-        userId: user.id,
-        amount: { gt: 0n },
-        mint: { verified: true },
-        ...(REALIFE_1155_NEW_CONTRACT ? { contract: REALIFE_1155_NEW_CONTRACT } : {}),
-      },
+      where: holdingWhere,
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       select: {
         id: true,
@@ -240,15 +240,18 @@ export default async function PublicNFTsPage({
     });
 
     enriched = await mapLimit(holdings, 8, async (x) => {
+      const contract = String(x.contract || "").toLowerCase();
+      const isCafeNft = !!CAFE_1155_CONTRACT && contract === CAFE_1155_CONTRACT;
+      const isUser1155Nft = !!USER_1155_CONTRACT && contract === USER_1155_CONTRACT;
+
       const fallbackPoster = ipfsToHttp(x.mint?.image, IPFS_GATEWAYS[0]);
 
       let kind: "image" | "video" = "image";
       let media: string | null = fallbackPoster;
       let poster: string | null = null;
-
       let supply: string | null = null;
 
-      const liveMeta = await loadMetadataFromBackend1155(String(x.tokenId));
+      const liveMeta = isUser1155Nft ? await loadMetadataFromBackend1155(String(x.tokenId)) : null;
       let meta: any = liveMeta;
 
       if (!meta && x.mint?.tokenUri) {
@@ -304,7 +307,7 @@ export default async function PublicNFTsPage({
       return {
         id: x.id,
         chainId: x.chainId,
-        contract: String(x.contract || "").toLowerCase(),
+        contract,
         tokenId: x.tokenId,
         ownedAmount: x.amount.toString(),
         updatedAt: x.updatedAt,
@@ -314,6 +317,7 @@ export default async function PublicNFTsPage({
         media,
         poster,
         supply,
+        isCafeNft,
       };
     });
   }
@@ -363,7 +367,6 @@ export default async function PublicNFTsPage({
           ) : null}
         </div>
 
-        {/* Tabs */}
         <div className="reveal mt-8 flex flex-wrap items-center gap-2" style={{ animationDelay: "60ms" }}>
           <Link
             href={tabHref(pageBase, "nfts")}
@@ -410,7 +413,6 @@ export default async function PublicNFTsPage({
           </Link>
         </div>
 
-        {/* Content */}
         {effectiveTab === "activity" ? (
           <div className="reveal mt-8" style={{ animationDelay: "90ms" }}>
             <ActivityPanel userKey={key} />
@@ -424,7 +426,7 @@ export default async function PublicNFTsPage({
               {enriched.map((x: any) => (
                 <Link
                   key={x.id}
-                  href={`/nft/${x.chainId}/${x.contract}/${x.tokenId}`}
+                  href={`/nft/${x.chainId}/${x.contract}/${encodeURIComponent(String(x.tokenId))}`}
                   className={cx(
                     "group rounded-[26px] overflow-hidden border border-white/10 bg-white/[0.04]",
                     "backdrop-blur-xl",
@@ -432,7 +434,6 @@ export default async function PublicNFTsPage({
                   )}
                 >
                   <div className="aspect-square w-full bg-black/30 relative">
-                    {/* ✅ OpenSea-like quick list (owner only). Appears on hover */}
                     {isOwner ? (
                       <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
                         <QuickList1155
@@ -457,7 +458,6 @@ export default async function PublicNFTsPage({
                           roundedClass="rounded-none"
                         />
 
-                        {/* badges */}
                         <div className="absolute top-3 left-3 flex flex-col gap-2">
                           {x.kind === "video" ? (
                             <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-amber-100">
@@ -465,8 +465,13 @@ export default async function PublicNFTsPage({
                             </div>
                           ) : null}
 
-                          <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-emerald-200">
-                            EDITION
+                          <div
+                            className={cx(
+                              "px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black",
+                              x.isCafeNft ? "text-amber-100" : "text-emerald-200"
+                            )}
+                          >
+                            {x.isCafeNft ? "CAFE" : "EDITION"}
                           </div>
 
                           <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
@@ -506,7 +511,7 @@ export default async function PublicNFTsPage({
 
             {enriched.length === 0 && (
               <div className="reveal mt-10 rounded-[26px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60">
-                This creator hasn&apos;t minted any NFTs yet.
+                This user doesn&apos;t own any NFTs yet.
               </div>
             )}
           </>
