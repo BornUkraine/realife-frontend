@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createPublicClient, formatUnits, http } from "viem";
 import { baseSepolia } from "viem/chains";
+import { realifeCafeStoreAbi } from "@/lib/realifeCafeStoreAbi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,37 +27,6 @@ const IPFS_GATEWAYS = [
   "https://ipfs.io/ipfs/",
 ] as const;
 
-const cafeAbi = [
-  {
-    type: "function",
-    name: "productPrices",
-    stateMutability: "view",
-    inputs: [{ name: "", type: "uint256" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "maxSupply",
-    stateMutability: "view",
-    inputs: [{ name: "", type: "uint256" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "isActive",
-    stateMutability: "view",
-    inputs: [{ name: "", type: "uint256" }],
-    outputs: [{ name: "", type: "bool" }],
-  },
-  {
-    type: "function",
-    name: "totalSupply",
-    stateMutability: "view",
-    inputs: [{ name: "id", type: "uint256" }],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-] as const;
-
 type ProductMeta = {
   image?: string | null;
   name?: string | null;
@@ -75,6 +45,10 @@ const client = createPublicClient({
 
 function s(v: any) {
   return typeof v === "bigint" ? v.toString() : v;
+}
+
+function normAddr(v?: string | null) {
+  return String(v || "").trim().toLowerCase();
 }
 
 function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
@@ -126,11 +100,14 @@ function getAttr(meta: ProductMeta | null, trait: string) {
   return found?.value != null ? String(found.value) : null;
 }
 
-async function safeReadBigInt(functionName: "productPrices" | "maxSupply" | "totalSupply", tokenId: bigint) {
+async function safeReadBigInt(
+  functionName: "productPrices" | "maxSupply" | "totalSupply",
+  tokenId: bigint
+) {
   try {
     return (await client.readContract({
       address: CAFE_CONTRACT as `0x${string}`,
-      abi: cafeAbi,
+      abi: realifeCafeStoreAbi,
       functionName,
       args: [tokenId],
     })) as bigint;
@@ -143,10 +120,25 @@ async function safeReadBool(functionName: "isActive", tokenId: bigint) {
   try {
     return (await client.readContract({
       address: CAFE_CONTRACT as `0x${string}`,
-      abi: cafeAbi,
+      abi: realifeCafeStoreAbi,
       functionName,
       args: [tokenId],
     })) as boolean;
+  } catch {
+    return null;
+  }
+}
+
+async function safeReadAddress(functionName: "paymentToken" | "treasury") {
+  try {
+    return normAddr(
+      (await client.readContract({
+        address: CAFE_CONTRACT as `0x${string}`,
+        abi: realifeCafeStoreAbi,
+        functionName,
+        args: [],
+      })) as string
+    );
   } catch {
     return null;
   }
@@ -161,26 +153,30 @@ export async function GET(req: Request) {
   const take = Math.max(1, Math.min(100, Number(url.searchParams.get("take") || "48")));
 
   try {
-    const rows = await prisma.mint.findMany({
-      where: {
-        chainId: CHAIN_ID,
-        contract: CAFE_CONTRACT,
-        verified: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take,
-      select: {
-        id: true,
-        createdAt: true,
-        chainId: true,
-        contract: true,
-        tokenId: true,
-        tokenUri: true,
-        name: true,
-        image: true,
-        verified: true,
-      },
-    });
+    const [paymentTokenAddress, treasuryAddress, rows] = await Promise.all([
+      safeReadAddress("paymentToken"),
+      safeReadAddress("treasury"),
+      prisma.mint.findMany({
+        where: {
+          chainId: CHAIN_ID,
+          contract: CAFE_CONTRACT,
+          verified: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take,
+        select: {
+          id: true,
+          createdAt: true,
+          chainId: true,
+          contract: true,
+          tokenId: true,
+          tokenUri: true,
+          name: true,
+          image: true,
+          verified: true,
+        },
+      }),
+    ]);
 
     const items = await Promise.all(
       rows.map(async (row) => {
@@ -202,12 +198,14 @@ export async function GET(req: Request) {
           meta?.collection ||
           getAttr(meta, "Collection") ||
           null;
+
         const item =
           meta?.item ||
           meta?.drink ||
           getAttr(meta, "Item") ||
           getAttr(meta, "Drink") ||
           null;
+
         const rarity =
           meta?.rarity ||
           getAttr(meta, "Rarity") ||
@@ -244,7 +242,11 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
+      storefrontType: "cafe",
+      chainId: CHAIN_ID,
       contract: CAFE_CONTRACT,
+      paymentTokenAddress,
+      treasuryAddress,
       total: items.length,
       items,
     });

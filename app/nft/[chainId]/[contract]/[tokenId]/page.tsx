@@ -3,8 +3,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import NftMedia from "@/components/NftMedia";
 import TradingPanel1155 from "@/components/trading/TradingPanel1155";
+import StorefrontBuyPanel1155 from "@/components/storefront/StorefrontBuyPanel1155";
+import { realifeCafeStoreAbi } from "@/lib/realifeCafeStoreAbi";
 import { headers } from "next/headers";
-import { formatUnits } from "viem";
+import { createPublicClient, formatUnits, http } from "viem";
+import { baseSepolia } from "viem/chains";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,8 +40,20 @@ function norm(a: string) {
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app").replace(/\/$/, "");
 
-// ✅ 1155-only: только NEW env
-const REALIFE_1155_NEW_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
+const USER_1155_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
+const CAFE_1155_CONTRACT = norm(
+  process.env.REALIFE_CAFE_STORE_CONTRACT ||
+    process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
+    ""
+);
+
+const PAYMENT_TOKEN_FALLBACK = norm(
+  process.env.PAYMENT_TOKEN_ADDRESS ||
+    process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS ||
+    ""
+);
+
+const ALLOWED_1155_CONTRACTS = [USER_1155_CONTRACT, CAFE_1155_CONTRACT].filter(Boolean);
 
 const PRIMARY_IPFS_ORIGIN = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
 
@@ -50,11 +65,112 @@ const IPFS_GATEWAYS = [
 ] as const;
 
 const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
+const CAFE_STOREFRONT_HREF = "/app/real-marketing/realife-cafe";
 
 /* ------------------------------- Market fetch tuning ------------------------------ */
 
 const MARKET_REVALIDATE_SECONDS = 5;
 const MARKET_FETCH_TIMEOUT_MS = 4500;
+
+/* ------------------------------- Cafe on-chain reads ------------------------------ */
+
+const RPC_URL = process.env.RPC_URL || process.env.BASE_SEPOLIA_RPC || "https://sepolia.base.org";
+
+const cafeClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(RPC_URL),
+});
+
+type CafeStoreState = {
+  active: boolean | null;
+  priceRaw: string | null;
+  priceUsdt: string | null;
+  maxSupply: string | null;
+  totalSupply: string | null;
+  remaining: string | null;
+  paymentTokenAddress: string | null;
+};
+
+async function safeReadCafeBigInt(
+  functionName: "productPrices" | "maxSupply" | "totalSupply",
+  tokenId: bigint
+) {
+  if (!CAFE_1155_CONTRACT) return null;
+
+  try {
+    return (await cafeClient.readContract({
+      address: CAFE_1155_CONTRACT as `0x${string}`,
+      abi: realifeCafeStoreAbi,
+      functionName,
+      args: [tokenId],
+    })) as bigint;
+  } catch {
+    return null;
+  }
+}
+
+async function safeReadCafeBool(functionName: "isActive", tokenId: bigint) {
+  if (!CAFE_1155_CONTRACT) return null;
+
+  try {
+    return (await cafeClient.readContract({
+      address: CAFE_1155_CONTRACT as `0x${string}`,
+      abi: realifeCafeStoreAbi,
+      functionName,
+      args: [tokenId],
+    })) as boolean;
+  } catch {
+    return null;
+  }
+}
+
+async function safeReadCafeAddress(functionName: "paymentToken") {
+  if (!CAFE_1155_CONTRACT) return null;
+
+  try {
+    return norm(
+      (await cafeClient.readContract({
+        address: CAFE_1155_CONTRACT as `0x${string}`,
+        abi: realifeCafeStoreAbi,
+        functionName,
+        args: [],
+      })) as string
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function loadCafeStoreState(contract: string, tokenId: string): Promise<CafeStoreState | null> {
+  if (!CAFE_1155_CONTRACT || contract !== CAFE_1155_CONTRACT) return null;
+
+  try {
+    const tokenIdBI = BigInt(tokenId);
+
+    const [priceRaw, maxSupplyRaw, totalSupplyRaw, active, paymentTokenAddressRaw] = await Promise.all([
+      safeReadCafeBigInt("productPrices", tokenIdBI),
+      safeReadCafeBigInt("maxSupply", tokenIdBI),
+      safeReadCafeBigInt("totalSupply", tokenIdBI),
+      safeReadCafeBool("isActive", tokenIdBI),
+      safeReadCafeAddress("paymentToken"),
+    ]);
+
+    const remainingRaw =
+      maxSupplyRaw !== null && totalSupplyRaw !== null ? maxSupplyRaw - totalSupplyRaw : null;
+
+    return {
+      active: active ?? null,
+      priceRaw: priceRaw !== null ? priceRaw.toString() : null,
+      priceUsdt: priceRaw !== null ? formatUnits(priceRaw, 6) : null,
+      maxSupply: maxSupplyRaw !== null ? maxSupplyRaw.toString() : null,
+      totalSupply: totalSupplyRaw !== null ? totalSupplyRaw.toString() : null,
+      remaining: remainingRaw !== null ? remainingRaw.toString() : null,
+      paymentTokenAddress: paymentTokenAddressRaw || PAYMENT_TOKEN_FALLBACK || null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 /* ------------------------------- Request origin (SSR safe) ------------------------------ */
 
@@ -133,7 +249,7 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
   return null;
 }
 
-/* ----------------------------- Backend metadata (1155-only) ---------------------------- */
+/* ----------------------------- Backend metadata (legacy 1155-only) ---------------------------- */
 
 async function loadMetadataFromBackend1155(tokenId: string) {
   const base = String(API_BASE || "").replace(/\/$/, "");
@@ -262,7 +378,12 @@ export default async function NftDetailsPage({
 
   if (!Number.isFinite(chainId) || !contract.startsWith("0x") || !tokenId) notFound();
 
-  if (REALIFE_1155_NEW_CONTRACT && contract !== REALIFE_1155_NEW_CONTRACT) notFound();
+  if (ALLOWED_1155_CONTRACTS.length > 0 && !ALLOWED_1155_CONTRACTS.includes(contract)) {
+    notFound();
+  }
+
+  const isCafeNft = !!CAFE_1155_CONTRACT && contract === CAFE_1155_CONTRACT;
+  const isUser1155Nft = !!USER_1155_CONTRACT && contract === USER_1155_CONTRACT;
 
   const nft = await prisma.mint.findFirst({
     where: { chainId, contract, tokenId, verified: true },
@@ -295,19 +416,20 @@ export default async function NftDetailsPage({
   if (!nft) notFound();
 
   const u = nft.user;
-  const publicKey = u.handle || u.publicId || null;
+
+  const publicKey = u?.handle || u?.publicId || null;
   const ownerUrl = publicKey && publicKey !== "tmp" ? `/u/${publicKey}` : null;
   const ownerNftsUrl = ownerUrl ? `${ownerUrl}/nfts` : null;
 
   const ownerName =
-    u.twitterName ||
-    u.discordName ||
-    (u.twitterUser ? `@${u.twitterUser}` : null) ||
-    (u.discordUser ? `@${u.discordUser}` : null) ||
-    (u.handle ? `@${u.handle}` : null) ||
-    shortAddr(u.walletAddress);
+    u?.twitterName ||
+    u?.discordName ||
+    (u?.twitterUser ? `@${u.twitterUser}` : null) ||
+    (u?.discordUser ? `@${u.discordUser}` : null) ||
+    (u?.handle ? `@${u.handle}` : null) ||
+    shortAddr(u?.walletAddress || null);
 
-  const avatar = u.twitterImage || u.discordImage || null;
+  const avatar = u?.twitterImage || u?.discordImage || null;
 
   const tokenUriHttp = nft.tokenUri ? ipfsToHttp(nft.tokenUri, IPFS_GATEWAYS[0]) : null;
   const txUrl = nft.txHash ? txExplorerUrl(nft.chainId, nft.txHash) : null;
@@ -315,22 +437,28 @@ export default async function NftDetailsPage({
 
   const fallbackPoster = ipfsToHttp(nft.image, IPFS_GATEWAYS[0]);
 
-  const liveMeta = await loadMetadataFromBackend1155(tokenId);
+  const liveMeta = isUser1155Nft ? await loadMetadataFromBackend1155(tokenId) : null;
   const meta = liveMeta || (nft.tokenUri ? await loadMetadataFromTokenUri(nft.tokenUri) : null);
 
-  // Supply label
+  const cafeStore = isCafeNft ? await loadCafeStoreState(contract, tokenId) : null;
+
   let supplyLabel: string | null = null;
   if (meta) {
     supplyLabel = pickAttrValue(meta, "Total Supply");
+    if (!supplyLabel && cafeStore?.maxSupply) {
+      supplyLabel = cafeStore.maxSupply;
+    }
     if (!supplyLabel) {
       const s = meta?.supply;
       if (typeof s === "number") supplyLabel = String(s);
       else if (typeof s === "string" && s.trim()) supplyLabel = s.trim();
     }
+  } else if (cafeStore?.maxSupply) {
+    supplyLabel = cafeStore.maxSupply;
   }
 
-  // MintForm-derived fields (from metadata)
-  const metaDescription = typeof meta?.description === "string" && meta.description.trim() ? meta.description.trim() : null;
+  const metaDescription =
+    typeof meta?.description === "string" && meta.description.trim() ? meta.description.trim() : null;
 
   const metaProject =
     pickAttrAny(meta, ["Project", "project"]) ||
@@ -348,7 +476,6 @@ export default async function NftDetailsPage({
 
   const metaProofUrl = normalizeUrl(metaProofRaw);
 
-  // Media resolve
   let kind: "image" | "video" = "image";
   let media: string | null = fallbackPoster;
   let poster: string | null = null;
@@ -392,7 +519,7 @@ export default async function NftDetailsPage({
     }
   }
 
-  const standardLabel = "ERC-1155";
+  const standardLabel = isCafeNft ? "ERC-1155 • CAFE" : "ERC-1155";
 
   const origin = await getOrigin();
   const { data: market, error: marketError } = await loadMarketNft(origin, chainId, contract, tokenId);
@@ -434,20 +561,29 @@ export default async function NftDetailsPage({
             <span className="text-white/70 font-black">{nft.name || `Token #${nft.tokenId}`}</span>
           </div>
 
-          {ownerNftsUrl ? (
-            <Link
-              href={ownerNftsUrl}
-              className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
-            >
-              Back to gallery
-            </Link>
-          ) : null}
+          <div className="flex items-center gap-3">
+            {isCafeNft ? (
+              <Link
+                href={CAFE_STOREFRONT_HREF}
+                className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+              >
+                Cafe storefront
+              </Link>
+            ) : null}
+
+            {ownerNftsUrl ? (
+              <Link
+                href={ownerNftsUrl}
+                className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+              >
+                Back to gallery
+              </Link>
+            ) : null}
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          {/* Media + About */}
           <div className="space-y-6">
-            {/* Media */}
             <div
               className={cx(
                 "reveal rounded-[34px] p-px overflow-hidden",
@@ -476,7 +612,6 @@ export default async function NftDetailsPage({
               </div>
             </div>
 
-            {/* About (MintForm data from metadata) */}
             {metaDescription || metaProject || metaCategory || metaProofUrl ? (
               <div
                 className={cx(
@@ -525,14 +660,13 @@ export default async function NftDetailsPage({
                   ) : null}
 
                   <div className="mt-4 text-[11px] text-white/35">
-                    This block is filled from token metadata created in MintForm (project/category/description/proof).
+                    This block is filled from token metadata created in MintForm.
                   </div>
                 </div>
               </div>
             ) : null}
           </div>
 
-          {/* Meta */}
           <div className="space-y-6">
             <div
               className={cx(
@@ -545,13 +679,17 @@ export default async function NftDetailsPage({
               <div className="rounded-[34px] h-full overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10">
                 <div className="p-6 md:p-7">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">Realife Edition</div>
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
+                      {isCafeNft ? "Realife Cafe Edition" : "Realife Edition"}
+                    </div>
                     <div className="px-3 py-1.5 rounded-full border border-white/15 bg-white/[0.06] text-[11px] font-black text-amber-100">
                       {standardLabel}
                     </div>
                   </div>
 
-                  <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight">{nft.name || `Token #${nft.tokenId}`}</div>
+                  <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight">
+                    {nft.name || `Token #${nft.tokenId}`}
+                  </div>
 
                   <div className="mt-5 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
@@ -564,7 +702,9 @@ export default async function NftDetailsPage({
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Creator / Profile</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Creator / Profile
+                      </div>
                       <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
                         {ownerUrl ? (
                           <Link className="hover:underline" href={ownerUrl}>
@@ -619,7 +759,9 @@ export default async function NftDetailsPage({
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                       <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Contract</div>
-                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">{shortAddr(nft.contract)}</div>
+                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
+                        {shortAddr(nft.contract)}
+                      </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
@@ -679,6 +821,15 @@ export default async function NftDetailsPage({
                       </a>
                     ) : null}
 
+                    {isCafeNft ? (
+                      <Link
+                        href={CAFE_STOREFRONT_HREF}
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                      >
+                        Open cafe storefront
+                      </Link>
+                    ) : null}
+
                     {ownerNftsUrl ? (
                       <Link
                         href={ownerNftsUrl}
@@ -695,6 +846,43 @@ export default async function NftDetailsPage({
                 </div>
               </div>
             </div>
+
+            {isCafeNft ? (
+              <div className="reveal" style={{ animationDelay: "180ms" }}>
+                <StorefrontBuyPanel1155
+                  chainId={chainId}
+                  nftContract={contract}
+                  tokenId={tokenId}
+                  storefrontLabel="Realife Cafe"
+                  title="Cafe Primary Sale"
+                  subtitle="Buy directly from Realife Cafe storefront contract"
+                  active={Boolean(cafeStore?.active)}
+                  priceLabel={`${cafeStore?.priceUsdt ?? "—"} USDT`}
+                  paymentTokenLabel="USDT"
+                  remaining={cafeStore?.remaining}
+                  totalSupply={cafeStore?.totalSupply}
+                  maxSupply={cafeStore?.maxSupply}
+                  buyButtonLabel="Buy from cafe"
+                  buyConfig={{
+                    contract: CAFE_1155_CONTRACT,
+                    abi: realifeCafeStoreAbi,
+                    functionName: "buyProduct",
+                    args: [tokenId, 1],
+                    bigintArgIndices: [0, 1],
+                  }}
+                  erc20Payment={{
+                    tokenAddress:
+                      cafeStore?.paymentTokenAddress ||
+                      PAYMENT_TOKEN_FALLBACK ||
+                      "",
+                    spender: CAFE_1155_CONTRACT,
+                    amountRaw: cafeStore?.priceRaw || "0",
+                    symbol: "USDT",
+                    approveUnlimited: true,
+                  }}
+                />
+              </div>
+            ) : null}
 
             <div className="reveal" style={{ animationDelay: "200ms" }}>
               <TradingPanel1155 chainId={chainId} contract={contract} tokenId={tokenId} />

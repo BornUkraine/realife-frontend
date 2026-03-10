@@ -222,7 +222,7 @@ export default function TradingClient({
 
       const enriched = await Promise.all(
         items.map(async (item) => {
-          const isCafe = !!CAFE_CONTRACT && normAddr(item.contract) === CAFE_CONTRACT;
+          const isCafe = Boolean(CAFE_CONTRACT) && normAddr(item.contract) === CAFE_CONTRACT;
           if (!isCafe) return item as EnrichedMarketListing;
 
           const meta = await loadMetadata(item.mint?.tokenUri || null);
@@ -253,12 +253,6 @@ export default function TradingClient({
     loadPage(0, false, marketView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [marketView, tab]);
-
-  useEffect(() => {
-    if (tab !== "market") return;
-    loadPage(0, false, marketView);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const canLoadMore = rows.length < total;
 
@@ -530,8 +524,8 @@ export default function TradingClient({
               }
 
               const href = `/nft/${x.chainId}/${normAddr(x.contract)}/${encodeURIComponent(String(x.tokenId))}`;
-              const isMine = wallet && normAddr(x.sellerWallet) === wallet;
-              const isCafe = CAFE_CONTRACT && normAddr(x.contract) === CAFE_CONTRACT;
+              const isMine = Boolean(wallet && normAddr(x.sellerWallet) === wallet);
+              const isCafe = Boolean(CAFE_CONTRACT) && normAddr(x.contract) === CAFE_CONTRACT;
               const img = x?.metaImage || ipfsToHttp(x?.mint?.image || null) || null;
 
               return (
