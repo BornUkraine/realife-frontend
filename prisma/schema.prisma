@@ -389,3 +389,52 @@ model IndexerState {
   @@unique([chainId, key])
   @@index([chainId, key])
 }
+
+/**
+ * ==========================================================================
+ */
+/**
+ * REAL MARKETING PRODUCTS (Cafe + Store + future verticals)
+ */
+/**
+ * ==========================================================================
+ */
+
+model RealMarketingProduct {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chainId  Int
+  contract String
+  tokenId  String
+
+  // cafe | store | travel | concert | etc
+  vertical String
+
+  creatorWallet       String?
+  primarySellerWallet String?
+  paymentToken        String?
+
+  tokenUri String?
+  name     String?
+  image    String?
+
+  maxSupply    BigInt @default(0)
+  mintedSupply BigInt @default(0)
+  price        BigInt @default(0)
+
+  isActive             Boolean @default(true)
+  deliveryEnabled      Boolean @default(false)
+  physicalItemIncluded Boolean @default(false)
+  officialItem         Boolean @default(false)
+
+  lastTxHash String?
+
+  @@unique([chainId, contract, tokenId])
+  @@index([vertical, isActive])
+  @@index([contract, tokenId])
+  @@index([primarySellerWallet])
+  @@index([creatorWallet])
+  @@map("real_marketing_products")
+}
