@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const metadata = {
-  title: "Realife Cafe Admin",
+  title: "Realife Admin Control",
   robots: {
     index: false,
     follow: false,
@@ -58,6 +58,7 @@ function GoldEdgeWrap({
 export default function AdminCreatePage() {
   const year = new Date().getFullYear();
   const cafeContract = process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT || "not-set";
+  const storeContract = process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT || "not-set";
 
   return (
     <div className="space-y-6">
@@ -71,11 +72,11 @@ export default function AdminCreatePage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                  Private Admin Route • Base Sepolia • Realife Crypto Cafe
+                  Private Admin Route • Base Sepolia
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">ERC-1155 Store Products</span>
+                  <span className="text-white/80 font-extrabold">Realife Cafe + Realife NFT Store</span>
                 </Pill>
 
                 <Pill>
@@ -88,31 +89,36 @@ export default function AdminCreatePage() {
               </div>
 
               <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
-                Realife Cafe{" "}
+                Realife{" "}
                 <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
                   Admin Control
                 </span>
               </h1>
 
               <p className="mt-4 text-sm md:text-base text-white/70 max-w-3xl leading-relaxed">
-                Hidden control panel for the <span className="text-white font-semibold">RealifeCafeStore</span>.
-                Upload premium metadata to IPFS, create new store products on-chain, and manage storefront visibility
-                for existing items.
+                Hidden control panel for both <span className="text-white font-semibold">RealifeCafeStore</span> and{" "}
+                <span className="text-white font-semibold">RealifeStore1155</span>. Upload premium metadata to IPFS,
+                create new storefront products on-chain, and manage visibility for existing items.
               </p>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
-                This admin page supports not only <span className="text-white font-semibold">coffee NFTs</span>, but
-                also future product lines like <span className="text-white font-semibold">merch, cacao, perfume,
-                chocolate, apparel and other cafe goods</span>.
+                This private page supports <span className="text-white font-semibold">cafe products</span> and{" "}
+                <span className="text-white font-semibold">curated store goods</span> like art, collectibles, merch,
+                perfume, fashion, antiques, packaged goods and other approved items.
               </div>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
                 Access is granted only to the connected wallet that matches your front-end allowlist and has{" "}
-                <span className="text-amber-200 font-extrabold">MODERATOR_ROLE</span> in the contract.
+                <span className="text-amber-200 font-extrabold">MODERATOR_ROLE</span> in the selected contract.
               </div>
 
-              <div className="mt-4 rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60 max-w-3xl">
-                Contract: <span className="font-semibold text-white break-all">{cafeContract}</span>
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 max-w-4xl">
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
+                  Cafe contract: <span className="font-semibold text-white break-all">{cafeContract}</span>
+                </div>
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
+                  Store contract: <span className="font-semibold text-white break-all">{storeContract}</span>
+                </div>
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -164,10 +170,10 @@ export default function AdminCreatePage() {
           <div>© {year} Realife</div>
           <div className="flex items-center gap-4">
             <span className="opacity-60">Private route</span>
-            <span className="opacity-60">ERC-1155 Store</span>
+            <span className="opacity-60">ERC-1155 Storefronts</span>
             <span className="opacity-60">AccessControl</span>
             <span className="opacity-60">IPFS metadata</span>
-            <span className="opacity-60">Storefront control</span>
+            <span className="opacity-60">Cafe + Store control</span>
           </div>
         </div>
       </Reveal>

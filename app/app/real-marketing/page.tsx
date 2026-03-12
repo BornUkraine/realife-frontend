@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ function GoldCard({
   children,
 }: {
   className?: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div
@@ -36,7 +37,7 @@ function GoldCard({
   );
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
+function Pill({ children }: { children: ReactNode }) {
   return (
     <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-[11px] font-semibold text-white/70">
       {children}
@@ -70,17 +71,19 @@ export default function RealMarketingPage() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-sm md:text-base text-white/60 leading-relaxed">
-              Main storefront hub for Realife verticals. Right now the first live direction is{" "}
-              <span className="text-amber-200 font-extrabold">Realife Crypto Cafe</span>. Later you can add
-              delivery, travel, concerts, and other branded contracts here.
+              Main storefront hub for Realife verticals. The first live directions are{" "}
+              <span className="text-amber-200 font-extrabold">Realife Crypto Cafe</span> and{" "}
+              <span className="text-amber-200 font-extrabold">Realife NFT Store</span>. Later you can add
+              travel, concerts, delivery services and other branded verticals here.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
               <Pill>
                 <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
-                Live direction
+                Live directions
               </Pill>
               <Pill>Realife Crypto Cafe</Pill>
+              <Pill>Realife NFT Store</Pill>
               <Pill>More verticals soon</Pill>
             </div>
           </div>
@@ -102,8 +105,8 @@ export default function RealMarketingPage() {
           </div>
         </div>
 
-        <div className="mt-12 grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <GoldCard className="lg:col-span-2">
+        <div className="mt-12 grid grid-cols-1 xl:grid-cols-3 gap-6">
+          <GoldCard className="xl:col-span-2">
             <div className="p-8 md:p-10">
               <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 text-[11px] font-black text-black ring-1 ring-black/15">
                 <span className="h-2 w-2 rounded-full bg-black/70" />
@@ -115,8 +118,8 @@ export default function RealMarketingPage() {
               </div>
 
               <div className="mt-4 max-w-2xl text-sm md:text-base text-white/55 leading-relaxed">
-                Products created through the admin cafe mint form should live inside the public cafe storefront.
-                Trading stays separate for secondary listings, while this section works as the primary catalog.
+                Products created through the admin cafe mint form live inside the public cafe storefront.
+                Trading stays separate for secondary listings, while this section works as the primary cafe catalog.
               </div>
 
               <div className="mt-7 flex flex-wrap gap-3">
@@ -138,6 +141,76 @@ export default function RealMarketingPage() {
           </GoldCard>
 
           <GoldCard>
+            <div className="p-8 md:p-10">
+              <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 text-[11px] font-black text-black ring-1 ring-black/15">
+                <span className="h-2 w-2 rounded-full bg-black/70" />
+                Realife NFT Store
+              </div>
+
+              <div className="mt-5 text-2xl md:text-3xl font-black tracking-tight text-white/95">
+                Curated storefront for real-world items connected to NFTs
+              </div>
+
+              <div className="mt-4 text-sm md:text-base text-white/55 leading-relaxed">
+                A curated storefront for art, collectibles, fashion, food, branded goods and other approved products.
+                Delivery and escrow are handled through the site UI while NFTs stay tradable inside the Realife ecosystem.
+              </div>
+
+              <div className="mt-7 flex flex-wrap gap-3">
+                <Link
+                  href="/app/real-marketing/realife-store"
+                  className="px-6 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                >
+                  Open NFT Store
+                </Link>
+
+                <Link
+                  href="/app/trading"
+                  className="px-6 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-semibold hover:bg-white/10 transition backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                >
+                  Open Trading →
+                </Link>
+              </div>
+            </div>
+          </GoldCard>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <GoldCard className="lg:col-span-2">
+            <div className="p-8">
+              <div className="text-[11px] uppercase tracking-[0.24em] text-white/45 font-black">
+                Live directions
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-base font-extrabold text-white/90">Realife Crypto Cafe</div>
+                    <div className="px-2.5 py-1 rounded-full text-[10px] font-black border border-emerald-500/20 bg-emerald-500/10 text-emerald-200">
+                      LIVE
+                    </div>
+                  </div>
+                  <div className="mt-3 text-sm text-white/55 leading-relaxed">
+                    Primary cafe storefront with product NFTs, merch, cacao, food, perfumes and branded drops.
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-base font-extrabold text-white/90">Realife NFT Store</div>
+                    <div className="px-2.5 py-1 rounded-full text-[10px] font-black border border-emerald-500/20 bg-emerald-500/10 text-emerald-200">
+                      LIVE
+                    </div>
+                  </div>
+                  <div className="mt-3 text-sm text-white/55 leading-relaxed">
+                    Curated real-world items connected to NFTs with delivery-ready storefront logic and secondary trading support.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </GoldCard>
+
+          <GoldCard>
             <div className="p-8">
               <div className="text-[11px] uppercase tracking-[0.24em] text-white/45 font-black">
                 Roadmap
@@ -145,26 +218,26 @@ export default function RealMarketingPage() {
 
               <div className="mt-4 space-y-3">
                 {[
-                  "Realife Crypto Cafe",
-                  "Delivery",
-                  "Travel Tours",
-                  "Concerts",
-                ].map((item, idx) => (
+                  { label: "Realife Crypto Cafe", live: true },
+                  { label: "Realife NFT Store", live: true },
+                  { label: "Travel Tours", live: false },
+                  { label: "Concerts", live: false },
+                ].map((item) => (
                   <div
-                    key={item}
+                    key={item.label}
                     className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-extrabold text-white/90">{item}</div>
+                      <div className="text-sm font-extrabold text-white/90">{item.label}</div>
                       <div
                         className={cx(
                           "px-2.5 py-1 rounded-full text-[10px] font-black border",
-                          idx === 0
+                          item.live
                             ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
                             : "border-white/10 bg-white/[0.05] text-white/55"
                         )}
                       >
-                        {idx === 0 ? "LIVE" : "SOON"}
+                        {item.live ? "LIVE" : "SOON"}
                       </div>
                     </div>
                   </div>

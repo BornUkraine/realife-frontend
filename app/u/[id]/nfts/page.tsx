@@ -42,13 +42,33 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-prod
 );
 
 const USER_1155_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
+
 const CAFE_1155_CONTRACT = norm(
-  process.env.REALIFE_CAFE_STORE_CONTRACT || process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT || ""
+  process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
+    process.env.REALIFE_CAFE_STORE_CONTRACT ||
+    ""
 );
 
-const ALLOWED_1155_CONTRACTS = [USER_1155_CONTRACT, CAFE_1155_CONTRACT].filter(Boolean);
+const STORE_1155_CONTRACT = norm(
+  process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT ||
+    process.env.REALIFE_STORE_CONTRACT ||
+    ""
+);
 
-const PRIMARY_IPFS_ORIGIN = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
+const ALLOWED_1155_CONTRACTS = [
+  USER_1155_CONTRACT,
+  CAFE_1155_CONTRACT,
+  STORE_1155_CONTRACT,
+].filter(Boolean);
+
+const CAFE_STOREFRONT_HREF = "/app/real-marketing/realife-cafe";
+const STORE_STOREFRONT_HREF = "/app/real-marketing/realife-store";
+
+const PRIMARY_IPFS_ORIGIN = (
+  process.env.NEXT_PUBLIC_IPFS_GATEWAY ||
+  process.env.IPFS_GATEWAY_ORIGIN ||
+  "https://nftstorage.link"
+).replace(/\/$/, "");
 
 const IPFS_GATEWAYS = [
   `${PRIMARY_IPFS_ORIGIN}/ipfs/`,
@@ -65,7 +85,12 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
 
-  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) {
+  if (
+    u.startsWith("http://") ||
+    u.startsWith("https://") ||
+    u.startsWith("data:") ||
+    u.startsWith("blob:")
+  ) {
     return u;
   }
 
@@ -101,7 +126,9 @@ async function loadMetadataFromBackend1155(tokenId: string) {
   if (!base || !tokenId) return null;
 
   try {
-    const r = await fetch(`${base}/metadata1155/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
+    const r = await fetch(`${base}/metadata1155/${encodeURIComponent(tokenId)}`, {
+      cache: "no-store",
+    });
     if (!r.ok) return null;
     const j = await r.json().catch(() => null);
     if (j && typeof j === "object") return j;
@@ -120,7 +147,11 @@ function pickAttrValue(meta: any, trait: string): string | null {
   return String(v);
 }
 
-async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (x: T) => Promise<R>
+): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let i = 0;
 
@@ -138,6 +169,19 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R
 
 function tabHref(base: string, tab: string) {
   return tab === "nfts" ? base : `${base}?tab=${encodeURIComponent(tab)}`;
+}
+
+function isLikelyVideoMeta(meta: any) {
+  const anim =
+    typeof meta?.animation_url === "string"
+      ? meta.animation_url
+      : typeof meta?.animationUrl === "string"
+      ? meta.animationUrl
+      : typeof meta?.animation === "string"
+      ? meta.animation
+      : null;
+
+  return Boolean(anim);
 }
 
 export default async function PublicNFTsPage({
@@ -197,7 +241,11 @@ export default async function PublicNFTsPage({
   const viewerWallet =
     ((session as any)?.user?.walletAddress || (session as any)?.walletAddress || "")?.toLowerCase?.() || "";
   const ownerWallet = String(user.walletAddress || "").toLowerCase();
-  const isOwner = Boolean((viewerId && viewerId === user.id) || (viewerWallet && ownerWallet && viewerWallet === ownerWallet));
+
+  const isOwner = Boolean(
+    (viewerId && viewerId === user.id) ||
+      (viewerWallet && ownerWallet && viewerWallet === ownerWallet)
+  );
 
   const holdingWhere: any = {
     userId: user.id,
@@ -216,6 +264,7 @@ export default async function PublicNFTsPage({
   const effectiveTab = tab === "activity" && !isOwner ? "nfts" : tab;
 
   let enriched: any[] = [];
+
   if (effectiveTab === "nfts") {
     const holdings = await prisma.holding.findMany({
       where: holdingWhere,
@@ -242,6 +291,7 @@ export default async function PublicNFTsPage({
     enriched = await mapLimit(holdings, 8, async (x) => {
       const contract = String(x.contract || "").toLowerCase();
       const isCafeNft = !!CAFE_1155_CONTRACT && contract === CAFE_1155_CONTRACT;
+      const isStoreNft = !!STORE_1155_CONTRACT && contract === STORE_1155_CONTRACT;
       const isUser1155Nft = !!USER_1155_CONTRACT && contract === USER_1155_CONTRACT;
 
       const fallbackPoster = ipfsToHttp(x.mint?.image, IPFS_GATEWAYS[0]);
@@ -278,9 +328,10 @@ export default async function PublicNFTsPage({
             : null;
 
         const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackPoster;
-        const animHttp = ipfsToHttp(metaAnimation, PINATA_IPFS) || ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
+        const animHttp =
+          ipfsToHttp(metaAnimation, PINATA_IPFS) || ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
 
-        if (metaAnimation) {
+        if (isLikelyVideoMeta(meta)) {
           kind = "video";
           media = animHttp || null;
           poster = imgHttp || fallbackPoster || null;
@@ -318,6 +369,7 @@ export default async function PublicNFTsPage({
         poster,
         supply,
         isCafeNft,
+        isStoreNft,
       };
     });
   }
@@ -338,14 +390,23 @@ export default async function PublicNFTsPage({
           <div className="h-14 w-14 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
             {avatar ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={avatar} alt="avatar" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+              <img
+                src={avatar}
+                alt="avatar"
+                className="h-full w-full object-cover"
+                referrerPolicy="no-referrer"
+              />
             ) : (
-              <div className="h-full w-full flex items-center justify-center text-white/35 font-black text-xs">RL</div>
+              <div className="h-full w-full flex items-center justify-center text-white/35 font-black text-xs">
+                RL
+              </div>
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-            <div className="text-3xl md:text-4xl font-black tracking-tight truncate">{displayName}</div>
+            <div className="text-3xl md:text-4xl font-black tracking-tight truncate">
+              {displayName}
+            </div>
             <div className="mt-2 flex items-center gap-2 text-[12px] text-white/55">
               {publicUrl ? (
                 <Link className="hover:underline" href={publicUrl}>
@@ -423,90 +484,123 @@ export default async function PublicNFTsPage({
               className="reveal mt-10 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
               style={{ animationDelay: "90ms" }}
             >
-              {enriched.map((x: any) => (
-                <Link
-                  key={x.id}
-                  href={`/nft/${x.chainId}/${x.contract}/${encodeURIComponent(String(x.tokenId))}`}
-                  className={cx(
-                    "group rounded-[26px] overflow-hidden border border-white/10 bg-white/[0.04]",
-                    "backdrop-blur-xl",
-                    "shadow-[0_24px_90px_rgba(0,0,0,0.55)] hover:-translate-y-1 transition-all duration-300 hover:bg-white/[0.08]"
-                  )}
-                >
-                  <div className="aspect-square w-full bg-black/30 relative">
-                    {isOwner ? (
-                      <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <QuickList1155
-                          chainId={x.chainId}
-                          contract={x.contract}
-                          tokenId={String(x.tokenId)}
-                          maxAmountHint={String(x.ownedAmount)}
-                          name={x.name}
-                        />
-                      </div>
-                    ) : null}
+              {enriched.map((x: any) => {
+                const storefrontHref = x.isCafeNft
+                  ? CAFE_STOREFRONT_HREF
+                  : x.isStoreNft
+                  ? STORE_STOREFRONT_HREF
+                  : null;
 
-                    {x.media ? (
-                      <>
-                        <NftMedia
-                          src={x.media}
-                          kind={x.kind}
-                          alt={x.name || "NFT"}
-                          poster={x.kind === "video" ? x.poster : null}
-                          showControls={false}
-                          className="h-full w-full"
-                          roundedClass="rounded-none"
-                        />
+                return (
+                  <Link
+                    key={x.id}
+                    href={`/nft/${x.chainId}/${x.contract}/${encodeURIComponent(String(x.tokenId))}`}
+                    className={cx(
+                      "group rounded-[26px] overflow-hidden border border-white/10 bg-white/[0.04]",
+                      "backdrop-blur-xl",
+                      "shadow-[0_24px_90px_rgba(0,0,0,0.55)] hover:-translate-y-1 transition-all duration-300 hover:bg-white/[0.08]"
+                    )}
+                  >
+                    <div className="aspect-square w-full bg-black/30 relative">
+                      {isOwner ? (
+                        <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <QuickList1155
+                            chainId={x.chainId}
+                            contract={x.contract}
+                            tokenId={String(x.tokenId)}
+                            maxAmountHint={String(x.ownedAmount)}
+                            name={x.name}
+                          />
+                        </div>
+                      ) : null}
 
-                        <div className="absolute top-3 left-3 flex flex-col gap-2">
-                          {x.kind === "video" ? (
-                            <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-amber-100">
-                              VIDEO
+                      {x.media ? (
+                        <>
+                          <NftMedia
+                            src={x.media}
+                            kind={x.kind}
+                            alt={x.name || "NFT"}
+                            poster={x.kind === "video" ? x.poster : null}
+                            showControls={false}
+                            className="h-full w-full"
+                            roundedClass="rounded-none"
+                          />
+
+                          <div className="absolute top-3 left-3 flex flex-col gap-2">
+                            {x.kind === "video" ? (
+                              <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-amber-100">
+                                VIDEO
+                              </div>
+                            ) : null}
+
+                            <div
+                              className={cx(
+                                "px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black",
+                                x.isCafeNft
+                                  ? "text-amber-100"
+                                  : x.isStoreNft
+                                  ? "text-sky-200"
+                                  : "text-emerald-200"
+                              )}
+                            >
+                              {x.isCafeNft ? "CAFE" : x.isStoreNft ? "STORE" : "EDITION"}
+                            </div>
+
+                            <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
+                              Owned x{x.ownedAmount}
+                            </div>
+                          </div>
+
+                          {x.supply ? (
+                            <div className="absolute bottom-3 right-3 px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
+                              Supply x{x.supply}
                             </div>
                           ) : null}
+                        </>
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-white/25 font-black">
+                          No media
+                        </div>
+                      )}
 
-                          <div
+                      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.4)_0%,transparent_40%)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </div>
+
+                    <div className="p-5">
+                      <div className="text-sm font-extrabold text-white/90 truncate">
+                        {x.name || `Token #${x.tokenId}`}
+                      </div>
+
+                      <div className="mt-1.5 text-[12px] text-white/55 flex items-center justify-between gap-2">
+                        <span className="truncate">{shortAddr(x.contract)}</span>
+                        <span className="font-mono">#{x.tokenId}</span>
+                      </div>
+
+                      {storefrontHref ? (
+                        <div className="mt-3">
+                          <span
                             className={cx(
-                              "px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black",
-                              x.isCafeNft ? "text-amber-100" : "text-emerald-200"
+                              "inline-flex items-center px-2.5 py-1 rounded-full border text-[10px] font-black",
+                              x.isCafeNft
+                                ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
+                                : "border-sky-500/20 bg-sky-500/10 text-sky-200"
                             )}
                           >
-                            {x.isCafeNft ? "CAFE" : "EDITION"}
-                          </div>
-
-                          <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
-                            Owned x{x.ownedAmount}
-                          </div>
+                            {x.isCafeNft ? "Cafe storefront" : "NFT Store"}
+                          </span>
                         </div>
+                      ) : null}
 
-                        {x.supply ? (
-                          <div className="absolute top-3 right-3 px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
-                            Supply x{x.supply}
-                          </div>
-                        ) : null}
-                      </>
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center text-white/25 font-black">No media</div>
-                    )}
+                      <div className="mt-4 h-[1px] bg-white/10" />
 
-                    <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.4)_0%,transparent_40%)] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-
-                  <div className="p-5">
-                    <div className="text-sm font-extrabold text-white/90 truncate">{x.name || `Token #${x.tokenId}`}</div>
-                    <div className="mt-1.5 text-[12px] text-white/55 flex items-center justify-between gap-2">
-                      <span className="truncate">{shortAddr(x.contract)}</span>
-                      <span className="font-mono">#{x.tokenId}</span>
+                      <div className="mt-4 text-[12px] font-extrabold text-amber-100/90 group-hover:text-amber-100 flex items-center justify-between">
+                        <span>View Details</span>
+                        <span>→</span>
+                      </div>
                     </div>
-
-                    <div className="mt-4 h-[1px] bg-white/10" />
-                    <div className="mt-4 text-[12px] font-extrabold text-amber-100/90 group-hover:text-amber-100 flex items-center justify-between">
-                      <span>View Details</span>
-                      <span>→</span>
-                    </div>
-                  </div>
-                </Link>
-              ))}
+                  </Link>
+                );
+              })}
             </div>
 
             {enriched.length === 0 && (

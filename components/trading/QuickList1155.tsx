@@ -24,6 +24,22 @@ function toLower(a?: string | null) {
   return String(a || "").trim().toLowerCase();
 }
 
+function toBigIntSafe(v?: string | number | bigint | null) {
+  try {
+    if (typeof v === "bigint") return v;
+    if (typeof v === "number") return BigInt(Math.trunc(v));
+    if (typeof v === "string" && v.trim()) return BigInt(v);
+    return 0n;
+  } catch {
+    return 0n;
+  }
+}
+
+function clampInt(n: number, min: number, max: number) {
+  if (!Number.isFinite(n)) return min;
+  return Math.max(min, Math.min(max, n));
+}
+
 function shortAddr(addr?: string | null) {
   if (!addr) return "—";
   const s = String(addr);
@@ -44,10 +60,13 @@ function fmtEthWei(wei?: bigint | null) {
   }
 }
 
-function clampBigint(x: bigint, min: bigint, max: bigint) {
-  if (x < min) return min;
-  if (x > max) return max;
-  return x;
+function parsePriceWeiSafe(v: string) {
+  try {
+    const x = parseUnits(String(v || "0"), 18);
+    return x > 0n ? x : null;
+  } catch {
+    return null;
+  }
 }
 
 export default function QuickList1155({
@@ -64,6 +83,7 @@ export default function QuickList1155({
   name?: string | null;
 }) {
   const router = useRouter();
+
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
@@ -72,17 +92,12 @@ export default function QuickList1155({
   const { writeContractAsync } = useWriteContract();
 
   const MARKETPLACE_ADDRESS = useMemo(() => {
-    const a =
-      (process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS ||
-        process.env.NEXT_PUBLIC_MARKETPLACE ||
-        process.env.NEXT_PUBLIC_MARKETPLACE_SPOT1155 ||
-        "") as string;
-    return toLower(a);
+    return toLower(process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS || "");
   }, []);
 
   const nftAddr = useMemo(() => toLower(contract), [contract]);
-
-  const hasMarketplace = Boolean(MARKETPLACE_ADDRESS && MARKETPLACE_ADDRESS.startsWith("0x"));
+  const hasMarketplace = MARKETPLACE_ADDRESS.startsWith("0x");
+  const needSwitch = isConnected && currentChainId !== chainId;
 
   const tokenIdBI = useMemo(() => {
     try {
@@ -92,18 +107,11 @@ export default function QuickList1155({
     }
   }, [tokenId]);
 
-  const hintMax = useMemo(() => {
-    try {
-      return BigInt(maxAmountHint || "0");
-    } catch {
-      return 0n;
-    }
-  }, [maxAmountHint]);
+  const hintMax = useMemo(() => toBigIntSafe(maxAmountHint), [maxAmountHint]);
 
-  // on-chain balance (truth)
   const { data: balanceRaw } = useReadContract({
     abi: erc1155CoreAbi,
-    address: nftAddr as `0x${string}`,
+    address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
     functionName: "balanceOf",
     args: [((address || "0x0000000000000000000000000000000000000000") as `0x${string}`), tokenIdBI],
     query: { enabled: Boolean(address && nftAddr.startsWith("0x")) },
@@ -117,11 +125,17 @@ export default function QuickList1155({
     }
   }, [balanceRaw]);
 
-  const maxAmount = balance > 0n ? balance : hintMax;
+  const maxAmountBI = balance > 0n ? balance : hintMax;
+
+  const maxAmount = useMemo(() => {
+    if (maxAmountBI <= 0n) return 1;
+    if (maxAmountBI > 999999n) return 999999;
+    return Number(maxAmountBI);
+  }, [maxAmountBI]);
 
   const { data: approvedRaw, refetch: refetchApproved } = useReadContract({
     abi: erc1155CoreAbi,
-    address: nftAddr as `0x${string}`,
+    address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
     functionName: "isApprovedForAll",
     args: [
       ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
@@ -131,29 +145,38 @@ export default function QuickList1155({
   });
 
   const isApproved = Boolean(approvedRaw);
-  const needSwitch = isConnected && currentChainId !== chainId;
 
-  // modal
   const [open, setOpen] = useState(false);
-
-  // form
-  const [amountStr, setAmountStr] = useState("1");
+  const [amount, setAmount] = useState(1);
   const [priceEth, setPriceEth] = useState("0.01");
-
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"approve" | "list" | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
   const title = name || `Token #${tokenId}`;
 
+  const priceWei = useMemo(() => parsePriceWeiSafe(priceEth), [priceEth]);
+
+  const totalPriceWei = useMemo(() => {
+    try {
+      if (!priceWei) return null;
+      return priceWei * BigInt(amount || 1);
+    } catch {
+      return null;
+    }
+  }, [priceWei, amount]);
+
+  useEffect(() => {
+    setAmount((prev) => clampInt(prev, 1, Math.max(1, maxAmount)));
+  }, [maxAmount]);
+
   function closeModal() {
     setOpen(false);
-    setBusy(null);
     setErr(null);
     setOk(null);
+    setBusy(null);
   }
 
-  // ✅ ESC closes + lock scroll while open
   useEffect(() => {
     if (!open) return;
 
@@ -163,48 +186,21 @@ export default function QuickList1155({
 
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-
     window.addEventListener("keydown", onKey);
+
     return () => {
-      window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   async function ensureChain() {
-    if (needSwitch) await switchChainAsync?.({ chainId });
-  }
-
-  async function approveAll() {
-    if (!isConnected) return openConnectModal?.();
-    if (!hasMarketplace) return;
-
-    setErr(null);
-    setOk(null);
-    setBusy("approve");
-    try {
-      await ensureChain();
-
-      const hash = await writeContractAsync({
-        abi: erc1155CoreAbi,
-        address: nftAddr as `0x${string}`,
-        functionName: "setApprovalForAll",
-        args: [MARKETPLACE_ADDRESS as `0x${string}`, true],
-      });
-
-      await publicClient?.waitForTransactionReceipt({ hash });
-      await refetchApproved();
-      setOk("Approved ✅");
-    } catch (e: any) {
-      setErr(e?.shortMessage || e?.message || "Approve failed");
-    } finally {
-      setBusy(null);
+    if (needSwitch) {
+      await switchChainAsync?.({ chainId });
     }
   }
 
-  async function revalidateMarketTags() {
-    // tags match server-side tags in NFT details
+  async function revalidateAfterList() {
     const tags = [
       `market:nft:${chainId}:${nftAddr}:${tokenId}`,
       `market:contract:${chainId}:${nftAddr}`,
@@ -217,13 +213,46 @@ export default function QuickList1155({
         body: JSON.stringify({ tags }),
       });
     } catch {
-      // ignore
+      //
+    }
+  }
+
+  async function approveAll() {
+    if (!isConnected) return openConnectModal?.();
+    if (!hasMarketplace) return;
+
+    setErr(null);
+    setOk(null);
+    setBusy("approve");
+
+    try {
+      await ensureChain();
+
+      const hash = await writeContractAsync({
+        abi: erc1155CoreAbi,
+        address: nftAddr as `0x${string}`,
+        functionName: "setApprovalForAll",
+        args: [MARKETPLACE_ADDRESS as `0x${string}`, true],
+      });
+
+      await publicClient?.waitForTransactionReceipt({ hash });
+      await refetchApproved();
+
+      setOk("Marketplace approved ✅");
+    } catch (e: any) {
+      setErr(e?.shortMessage || e?.message || "Approve failed");
+    } finally {
+      setBusy(null);
     }
   }
 
   async function listNow() {
     if (!isConnected) return openConnectModal?.();
     if (!hasMarketplace) return;
+    if (!priceWei) {
+      setErr("Enter valid price");
+      return;
+    }
 
     setErr(null);
     setOk(null);
@@ -232,9 +261,7 @@ export default function QuickList1155({
     try {
       await ensureChain();
 
-      const amtRaw = BigInt(String(amountStr || "0"));
-      const amt = clampBigint(amtRaw, 1n, maxAmount > 0n ? maxAmount : 1n);
-      const priceWei = parseUnits(String(priceEth || "0"), 18);
+      const amt = BigInt(clampInt(amount, 1, Math.max(1, maxAmount)));
 
       const hash = await writeContractAsync({
         abi: marketplaceSpot1155Abi,
@@ -245,14 +272,14 @@ export default function QuickList1155({
 
       await publicClient?.waitForTransactionReceipt({ hash });
 
-      setOk("Listed ✅ (updating…)");
-
-      await revalidateMarketTags();
+      await revalidateAfterList();
       router.refresh();
+
+      setOk("Listed ✅");
 
       setTimeout(() => {
         closeModal();
-      }, 600);
+      }, 700);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Listing failed");
     } finally {
@@ -260,232 +287,214 @@ export default function QuickList1155({
     }
   }
 
+  const disabledOpen = maxAmountBI <= 0n;
+  const disabledApprove = busy !== null || !isConnected || needSwitch || !hasMarketplace || isApproved;
   const disabledList =
+    busy !== null ||
     !isConnected ||
-    !hasMarketplace ||
     needSwitch ||
+    !hasMarketplace ||
     !isApproved ||
-    maxAmount <= 0n ||
-    busy !== null;
+    maxAmountBI <= 0n ||
+    !priceWei;
 
   return (
     <>
-      {/* Button (on card) */}
       <button
         onClick={(e) => {
           e.preventDefault();
           e.stopPropagation();
+          if (disabledOpen) return;
           setErr(null);
           setOk(null);
           setOpen(true);
         }}
+        disabled={disabledOpen}
         className={cx(
-          "inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl",
-          "text-[12px] font-extrabold",
-          "text-black",
-          "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-          "shadow-[0_18px_60px_rgba(212,175,55,0.16)]",
-          "ring-1 ring-black/15",
-          "hover:brightness-110 hover:-translate-y-px active:translate-y-0 transition"
+          "inline-flex items-center justify-center px-3 py-2 rounded-xl",
+          "text-[12px] font-extrabold transition",
+          disabledOpen
+            ? "border border-white/10 bg-white/[0.04] text-white/45 cursor-not-allowed"
+            : "text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 hover:brightness-110"
         )}
-        title="List item"
+        title="List"
       >
         List
-        <span className="inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-black/80 bg-black/10 ring-1 ring-black/10">
-          ↗
-        </span>
       </button>
 
-      {/* Modal */}
       {open ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4" onClick={closeModal}>
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center px-4"
+          onClick={closeModal}
+        >
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
 
-          {/* OpenSea-like close (top-right of viewport) */}
           <button
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               closeModal();
             }}
-            className="absolute top-4 right-4 z-[101] h-10 w-10 rounded-full border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition flex items-center justify-center text-white/80 font-black"
-            title="Close (Esc)"
+            className="absolute top-4 right-4 z-[101] h-11 w-11 rounded-full border border-white/12 bg-white/[0.08] hover:bg-white/[0.12] transition flex items-center justify-center text-white/85 text-lg font-black"
+            title="Close"
           >
             ✕
           </button>
 
           <div
-            className="relative w-full max-w-lg rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
+            className="relative w-full max-w-[420px] rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
             }}
           >
-            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/70 backdrop-blur-2xl ring-1 ring-black/10">
-              <div className="p-6 md:p-7">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                      Create listing
-                    </div>
-                    <div className="mt-2 text-xl font-black tracking-tight text-white/90 truncate">{title}</div>
-                    <div className="mt-2 text-[12px] text-white/55">
-                      Contract: <span className="font-mono">{shortAddr(nftAddr)}</span> • Token:{" "}
-                      <span className="font-mono">#{tokenId}</span>
-                    </div>
-                    <div className="mt-2 text-[11px] text-white/35">
-                      Tip: press <span className="font-black text-white/60">Esc</span> to close
-                    </div>
-                  </div>
-
-                  {/* inner close */}
-                  <button
-                    onClick={closeModal}
-                    className="shrink-0 px-3 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/80"
-                    title="Close"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* ✅ FIX: 1 col on mobile, 2 cols on md+ */}
-                <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">You own</div>
-                    <div className="mt-1 text-[16px] font-black text-emerald-200">{maxAmount.toString()}</div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Marketplace</div>
-                    <div className="mt-1 text-[12px] font-mono font-black text-white/80 truncate">
-                      {hasMarketplace ? shortAddr(MARKETPLACE_ADDRESS) : "missing env"}
-                    </div>
+            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/82 backdrop-blur-2xl ring-1 ring-black/10">
+              <div className="p-5">
+                <div className="text-center">
+                  <div className="text-[18px] font-black text-white/95">{title}</div>
+                  <div className="mt-2 text-[12px] text-white/55">
+                    {shortAddr(nftAddr)} • #{tokenId}
                   </div>
                 </div>
 
                 {err ? (
-                  <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100">
+                  <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-[12px] text-rose-100 text-center">
                     {err}
                   </div>
                 ) : null}
 
                 {ok ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100">
+                  <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-[12px] text-emerald-100 text-center">
                     {ok}
                   </div>
                 ) : null}
 
-                {/* Connect / Switch / Approve */}
-                <div className="mt-5 flex flex-wrap items-center gap-2">
-                  {!isConnected ? (
-                    <button
-                      onClick={() => openConnectModal?.()}
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
-                    >
-                      Connect Wallet
-                    </button>
-                  ) : null}
+                {!isConnected ? (
+                  <button
+                    onClick={() => openConnectModal?.()}
+                    className="mt-4 w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                  >
+                    Connect Wallet
+                  </button>
+                ) : null}
 
-                  {needSwitch ? (
-                    <button
-                      onClick={() => switchChainAsync?.({ chainId })}
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition"
-                    >
-                      Switch Chain ({chainId})
-                    </button>
-                  ) : null}
+                {needSwitch ? (
+                  <button
+                    onClick={() => switchChainAsync?.({ chainId })}
+                    className="mt-4 w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition text-white"
+                  >
+                    Switch Chain
+                  </button>
+                ) : null}
 
-                  {isConnected && hasMarketplace && !isApproved ? (
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                      You own
+                    </div>
+                    <div className="mt-1 text-[15px] font-black text-emerald-200">
+                      {maxAmountBI.toString()}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
+                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                      Approval
+                    </div>
+                    <div className="mt-1 text-[15px] font-black text-white/90">
+                      {isApproved ? "Approved" : "Required"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
-                      disabled={busy !== null}
-                      onClick={approveAll}
+                      type="button"
+                      onClick={() => setAmount(1)}
                       className={cx(
-                        "inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition",
-                        busy ? "opacity-60 cursor-not-allowed" : ""
+                        "h-11 rounded-2xl border text-sm font-black transition",
+                        amount === 1
+                          ? "border-amber-300/40 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black"
+                          : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]"
                       )}
                     >
-                      {busy === "approve" ? "Approving…" : "Approve marketplace"}
+                      1
                     </button>
-                  ) : null}
 
-                  {isConnected && isApproved ? (
-                    <div className="text-[12px] text-white/55 font-semibold">Approved ✅</div>
-                  ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setAmount(Math.max(1, maxAmount))}
+                      className={cx(
+                        "h-11 rounded-2xl border text-sm font-black transition",
+                        amount === Math.max(1, maxAmount)
+                          ? "border-amber-300/40 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black"
+                          : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]"
+                      )}
+                    >
+                      Max
+                    </button>
+                  </div>
+
+                  <input
+                    value={amount}
+                    onChange={(e) =>
+                      setAmount(clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxAmount)))
+                    }
+                    type="number"
+                    min={1}
+                    max={Math.max(1, maxAmount)}
+                    className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-center text-base font-black text-white/95 outline-none focus:border-white/20"
+                  />
                 </div>
 
-                {/* Form */}
-                <div className="mt-6 grid md:grid-cols-2 gap-3">
-                  <label className="block">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Amount</div>
-                    <input
-                      value={amountStr}
-                      onChange={(e) => setAmountStr(e.target.value)}
-                      type="number"
-                      min={1}
-                      max={maxAmount > 0n ? Number(maxAmount) : 1}
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
-                    />
-                    <div className="mt-1 text-[11px] text-white/40">Max: {maxAmount.toString()}</div>
-                  </label>
-
-                  <label className="block">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                      Price per unit (ETH)
-                    </div>
-                    <input
-                      value={priceEth}
-                      onChange={(e) => setPriceEth(e.target.value)}
-                      type="text"
-                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
-                      placeholder="0.01"
-                    />
-                    <div className="mt-1 text-[11px] text-white/40">Per-unit. Total = price * amount.</div>
-                  </label>
+                <div className="mt-4">
+                  <input
+                    value={priceEth}
+                    onChange={(e) => setPriceEth(e.target.value)}
+                    type="text"
+                    placeholder="0.01"
+                    className="h-12 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-center text-base font-black text-white/95 outline-none focus:border-white/20"
+                  />
+                  <div className="mt-2 text-center text-[12px] text-white/45">
+                    Price per unit in ETH
+                  </div>
                 </div>
 
-                {/* ✅ FIX: actions stack on mobile + full-width buttons */}
-                <div className="mt-6 flex flex-col md:flex-row md:items-center gap-2">
+                <div className="mt-4 text-center text-[13px] font-black text-amber-100">
+                  Total: {fmtEthWei(totalPriceWei)} ETH
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                  <button
+                    disabled={disabledApprove}
+                    onClick={approveAll}
+                    className={cx(
+                      "h-12 rounded-2xl font-extrabold transition border",
+                      isApproved
+                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+                        : "border-white/15 bg-white/[0.06] text-white hover:bg-white/10",
+                      disabledApprove ? "opacity-60 cursor-not-allowed" : ""
+                    )}
+                  >
+                    {busy === "approve" ? "Approving..." : isApproved ? "Approved" : "Approve"}
+                  </button>
+
                   <button
                     disabled={disabledList}
                     onClick={listNow}
                     className={cx(
-                      "inline-flex items-center justify-center w-full md:w-auto px-6 py-3 rounded-2xl text-black font-extrabold transition",
-                      "shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15",
-                      "hover:brightness-110",
+                      "h-12 rounded-2xl font-extrabold transition text-black",
+                      "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] hover:brightness-110",
                       disabledList ? "opacity-60 cursor-not-allowed" : ""
                     )}
                   >
-                    {busy === "list" ? "Listing…" : "Create listing"}
+                    {busy === "list" ? "Listing..." : "List"}
                   </button>
-
-                  <button
-                    onClick={closeModal}
-                    className="inline-flex items-center justify-center w-full md:w-auto px-5 py-3 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/80"
-                  >
-                    Cancel
-                  </button>
-
-                  <div className="text-[12px] text-white/55 font-semibold md:ml-2">
-                    Total (est):{" "}
-                    <span className="text-amber-100 font-black">
-                      {fmtEthWei(
-                        (() => {
-                          try {
-                            const amt = BigInt(String(amountStr || "0"));
-                            const p = parseUnits(String(priceEth || "0"), 18);
-                            return p * (amt > 0n ? amt : 1n);
-                          } catch {
-                            return null;
-                          }
-                        })()
-                      )}{" "}
-                      ETH
-                    </span>
-                  </div>
                 </div>
 
-                <div className="mt-5 text-[11px] text-white/35">
-                  After listing, indexer may take a few seconds. We auto-refresh market blocks.
+                <div className="mt-5 text-[11px] text-white/35 text-center">
+                  After listing, indexer may take a few seconds. Market data refreshes automatically.
                 </div>
               </div>
             </div>

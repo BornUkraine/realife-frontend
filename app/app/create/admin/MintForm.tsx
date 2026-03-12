@@ -21,6 +21,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-produ
 const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
 
 const CAFE_CONTRACT = process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT as `0x${string}` | undefined;
+const STORE_CONTRACT = process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT as `0x${string}` | undefined;
+
 const ADMIN_WALLETS = (process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
   process.env.NEXT_PUBLIC_ADMIN_WALLETS ||
   "")
@@ -31,7 +33,7 @@ const ADMIN_WALLETS = (process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 const ZERO_BYTES32 = `0x${"0".repeat(64)}` as const;
 
-const STORE_CATEGORIES = [
+const CAFE_CATEGORIES = [
   "Drink",
   "Food",
   "Packaged Goods",
@@ -41,9 +43,22 @@ const STORE_CATEGORIES = [
   "Other",
 ] as const;
 
+const STORE_CATEGORIES = [
+  "Art",
+  "Collectibles",
+  "Fashion",
+  "Food",
+  "Packaged Goods",
+  "Merch",
+  "Perfume",
+  "Antique",
+  "Home Decor",
+  "Other",
+] as const;
+
 const RARITIES = ["Common", "Rare", "Epic", "Legendary"] as const;
 
-const ITEM_OPTIONS = [
+const CAFE_ITEMS = [
   "Cappuccino",
   "Frappuccino",
   "Mochaccino",
@@ -56,7 +71,6 @@ const ITEM_OPTIONS = [
   "Genesis Coffee",
   "Hot Chocolate",
   "Cacao Drink",
-
   "Pancakes",
   "Pancake Stack",
   "Blini",
@@ -66,7 +80,6 @@ const ITEM_OPTIONS = [
   "Croissant",
   "Dessert Box",
   "Cheese Pack",
-
   "Coffee Pack",
   "Coffee Beans",
   "Ground Coffee",
@@ -74,16 +87,36 @@ const ITEM_OPTIONS = [
   "Oatmeal Pack",
   "Cereal Pack",
   "Chocolate Box",
-
   "Perfume",
   "Gift Box",
-
   "T-Shirt",
   "Hoodie",
   "Mug",
   "Tote Bag",
   "Cap",
+  "Other",
+] as const;
 
+const STORE_ITEMS = [
+  "Art Piece",
+  "Painting",
+  "Print",
+  "Collectible",
+  "Antique",
+  "Vintage Item",
+  "Fashion Item",
+  "T-Shirt",
+  "Hoodie",
+  "Cap",
+  "Bag",
+  "Mug",
+  "Perfume",
+  "Chocolate Box",
+  "Coffee Pack",
+  "Cacao Pack",
+  "Gift Box",
+  "Decor Item",
+  "Home Object",
   "Other",
 ] as const;
 
@@ -149,6 +182,79 @@ const cafeStoreAbi = [
     ],
   },
 ] as const;
+
+const storeAdminAbi = [
+  {
+    type: "function",
+    name: "MODERATOR_ROLE",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32" }],
+  },
+  {
+    type: "function",
+    name: "hasRole",
+    stateMutability: "view",
+    inputs: [
+      { name: "role", type: "bytes32" },
+      { name: "account", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "createProduct",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "supply", type: "uint256" },
+      { name: "price", type: "uint256" },
+      { name: "tokenURI", type: "string" },
+      { name: "deliveryEnabled", type: "bool" },
+      { name: "physicalItemIncluded", type: "bool" },
+      { name: "officialItem", type: "bool" },
+    ],
+    outputs: [{ name: "tokenId", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "toggleProductStatus",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "isActive",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }],
+  },
+  {
+    type: "function",
+    name: "nextTokenId",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "event",
+    name: "ProductCreated",
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: "tokenId", type: "uint256" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: true, name: "seller", type: "address" },
+      { indexed: false, name: "maxSupply", type: "uint256" },
+      { indexed: false, name: "price", type: "uint256" },
+      { indexed: false, name: "uri", type: "string" },
+      { indexed: false, name: "deliveryEnabled", type: "bool" },
+      { indexed: false, name: "physicalItemIncluded", type: "bool" },
+      { indexed: false, name: "officialItem", type: "bool" },
+    ],
+  },
+] as const;
+
+type ProductMode = "cafe" | "store";
 
 function useMounted() {
   const [mounted, setMounted] = useState(false);
@@ -231,14 +337,14 @@ async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
   return null;
 }
 
-function extractProductTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): string | null {
+function extractProductTokenIdFromReceipt(receipt: any, abi: readonly any[], contract?: `0x${string}`): string | null {
   const logs = receipt?.logs ?? [];
   for (const log of logs) {
     try {
       if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) continue;
 
       const decoded = decodeEventLog({
-        abi: cafeStoreAbi,
+        abi,
         data: log.data,
         topics: log.topics,
       });
@@ -405,11 +511,22 @@ export default function AdminMintForm() {
 
   const hasGas = connected && !wrongNetwork && balanceEth > 0;
 
+  const [productMode, setProductMode] = useState<ProductMode>("cafe");
+
+  const selectedContract = productMode === "cafe" ? CAFE_CONTRACT : STORE_CONTRACT;
+  const selectedAbi = productMode === "cafe" ? cafeStoreAbi : storeAdminAbi;
+  const selectedLabel = productMode === "cafe" ? "Realife Cafe" : "Realife NFT Store";
+  const selectedCollectionDefault = productMode === "cafe" ? "Realife Crypto Cafe" : "Realife NFT Store";
+  const selectedStorefrontHref =
+    productMode === "cafe" ? "/app/real-marketing/realife-cafe" : "/app/real-marketing/realife-store";
+  const selectedCategories = productMode === "cafe" ? CAFE_CATEGORIES : STORE_CATEGORIES;
+  const selectedItems = productMode === "cafe" ? CAFE_ITEMS : STORE_ITEMS;
+
   const { data: moderatorRoleRaw } = useReadContract({
-    address: CAFE_CONTRACT,
-    abi: cafeStoreAbi,
+    address: selectedContract,
+    abi: selectedAbi as any,
     functionName: "MODERATOR_ROLE",
-    query: { enabled: Boolean(CAFE_CONTRACT) },
+    query: { enabled: Boolean(selectedContract) },
   });
 
   const moderatorRole =
@@ -418,18 +535,18 @@ export default function AdminMintForm() {
       : ZERO_BYTES32;
 
   const { data: hasModeratorRoleRaw } = useReadContract({
-    address: CAFE_CONTRACT,
-    abi: cafeStoreAbi,
+    address: selectedContract,
+    abi: selectedAbi as any,
     functionName: "hasRole",
     args: [moderatorRole, (address || ZERO_ADDRESS) as `0x${string}`],
-    query: { enabled: Boolean(CAFE_CONTRACT && address && moderatorRole !== ZERO_BYTES32) },
+    query: { enabled: Boolean(selectedContract && address && moderatorRole !== ZERO_BYTES32) },
   });
 
   const { data: nextTokenIdRaw, refetch: refetchNextTokenId } = useReadContract({
-    address: CAFE_CONTRACT,
-    abi: cafeStoreAbi,
+    address: selectedContract,
+    abi: selectedAbi as any,
     functionName: "nextTokenId",
-    query: { enabled: Boolean(CAFE_CONTRACT) },
+    query: { enabled: Boolean(selectedContract) },
   });
 
   const allowlistOk = useMemo(() => {
@@ -447,16 +564,20 @@ export default function AdminMintForm() {
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null);
 
-  const [category, setCategory] = useState<(typeof STORE_CATEGORIES)[number]>("Drink");
+  const [category, setCategory] = useState<string>(CAFE_CATEGORIES[0]);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [supply, setSupply] = useState<number>(100);
   const [price, setPrice] = useState("5");
   const [externalUrl, setExternalUrl] = useState("");
 
-  const [collection, setCollection] = useState("Realife Crypto Cafe");
-  const [drink, setDrink] = useState<(typeof ITEM_OPTIONS)[number]>("Cappuccino");
+  const [collection, setCollection] = useState(selectedCollectionDefault);
+  const [item, setItem] = useState<string>(CAFE_ITEMS[0]);
   const [rarity, setRarity] = useState<(typeof RARITIES)[number]>("Common");
+
+  const [deliveryEnabled, setDeliveryEnabled] = useState(true);
+  const [physicalItemIncluded, setPhysicalItemIncluded] = useState(true);
+  const [officialItem, setOfficialItem] = useState(true);
 
   const [step, setStep] = useState<"idle" | "preparing" | "signing" | "mining">("idle");
   const [error, setError] = useState<string>("");
@@ -468,8 +589,10 @@ export default function AdminMintForm() {
 
   const [createdTokenId, setCreatedTokenId] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<string | null>(null);
+  const [createdMode, setCreatedMode] = useState<ProductMode | null>(null);
 
   const [txMode, setTxMode] = useState<"create" | "toggle" | null>(null);
+  const [txTarget, setTxTarget] = useState<ProductMode | null>(null);
   const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | undefined>(undefined);
 
   const [manageTokenId, setManageTokenId] = useState("");
@@ -486,7 +609,7 @@ export default function AdminMintForm() {
   const effectivePoster = tokenURI ? preparedPoster : posterPreviewUrl;
 
   const refreshLabel = !mounted ? "Refresh" : isBalanceFetching ? "Refreshing…" : "Refresh";
-  const requiredContractOk = Boolean(CAFE_CONTRACT);
+  const requiredContractOk = Boolean(selectedContract);
 
   const priceParsed = useMemo(() => {
     const raw = price.trim().replace(",", ".");
@@ -514,17 +637,14 @@ export default function AdminMintForm() {
     manageTokenIdBI && nextTokenId && manageTokenIdBI > 0n && manageTokenIdBI < nextTokenId
   );
 
-  const {
-    data: manageIsActiveRaw,
-    isFetching: isManageStatusFetching,
-    refetch: refetchManageStatus,
-  } = useReadContract({
-    address: CAFE_CONTRACT,
-    abi: cafeStoreAbi,
-    functionName: "isActive",
-    args: [manageTokenIdBI ?? 0n],
-    query: { enabled: Boolean(CAFE_CONTRACT && manageTokenIdBI && manageTokenExists) },
-  });
+  const { data: manageIsActiveRaw, isFetching: isManageStatusFetching, refetch: refetchManageStatus } =
+    useReadContract({
+      address: selectedContract,
+      abi: selectedAbi as any,
+      functionName: "isActive",
+      args: [manageTokenIdBI ?? 0n],
+      query: { enabled: Boolean(selectedContract && manageTokenIdBI && manageTokenExists) },
+    });
 
   const manageIsActive = Boolean(manageIsActiveRaw);
 
@@ -532,7 +652,7 @@ export default function AdminMintForm() {
     file &&
       name.trim() &&
       collection.trim() &&
-      drink &&
+      item &&
       rarity &&
       priceParsed !== null &&
       requiredContractOk &&
@@ -542,7 +662,7 @@ export default function AdminMintForm() {
   const canCreate = Boolean(
     tokenURI &&
       collection.trim() &&
-      drink &&
+      item &&
       rarity &&
       priceParsed !== null &&
       requiredContractOk &&
@@ -571,16 +691,49 @@ export default function AdminMintForm() {
   const isMiningToggle = txMode === "toggle" && isReceiptLoading;
 
   useEffect(() => {
-    if (!isSuccess || !receipt || !txMode) return;
+    if (productMode === "cafe") {
+      setCollection("Realife Crypto Cafe");
+      setCategory(CAFE_CATEGORIES[0]);
+      setItem(CAFE_ITEMS[0]);
+      setDeliveryEnabled(false);
+      setPhysicalItemIncluded(true);
+      setOfficialItem(true);
+    } else {
+      setCollection("Realife NFT Store");
+      setCategory(STORE_CATEGORIES[0]);
+      setItem(STORE_ITEMS[0]);
+      setDeliveryEnabled(true);
+      setPhysicalItemIncluded(true);
+      setOfficialItem(true);
+    }
+
+    setManageTokenId("");
+    setManageNotice("");
+    setError("");
+    setCreatedTokenId(null);
+    setCreatedAt(null);
+    setCreatedMode(null);
+    savedRef.current = false;
+    setTokenURI(null);
+    setPreparedMedia(null);
+    setPreparedPoster(null);
+  }, [productMode]);
+
+  useEffect(() => {
+    if (!isSuccess || !receipt || !txMode || !txTarget) return;
 
     if (txMode === "create") {
       if (savedRef.current) return;
       savedRef.current = true;
 
       (async () => {
-        const tokenId = extractProductTokenIdFromReceipt(receipt, CAFE_CONTRACT);
+        const targetAbi = txTarget === "cafe" ? cafeStoreAbi : storeAdminAbi;
+        const targetContract = txTarget === "cafe" ? CAFE_CONTRACT : STORE_CONTRACT;
+
+        const tokenId = extractProductTokenIdFromReceipt(receipt, targetAbi, targetContract);
         setCreatedTokenId(tokenId);
         setCreatedAt(new Date().toLocaleString());
+        setCreatedMode(txTarget);
         setStep("idle");
 
         try {
@@ -589,17 +742,17 @@ export default function AdminMintForm() {
             persistableUrl(preparedMedia) ||
             null;
 
-          if (CAFE_CONTRACT && tokenId) {
+          if (targetContract && tokenId) {
             await fetch("/api/mints", {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({
                 chainId: baseSepolia.id,
-                contract: CAFE_CONTRACT,
+                contract: targetContract,
                 tokenId,
                 txHash: pendingTxHash || "",
                 tokenUri: tokenURI || "",
-                name: name.trim() || "Realife Cafe Product",
+                name: name.trim() || `${txTarget === "cafe" ? "Realife Cafe" : "Realife Store"} Product`,
                 image: finalImage,
                 verified: true,
                 standard: "ERC1155",
@@ -608,13 +761,16 @@ export default function AdminMintForm() {
             });
 
             setManageTokenId(tokenId);
-            setManageNotice("Product created and saved to local catalog cache.");
+            setManageNotice(
+              `${txTarget === "cafe" ? "Cafe" : "Store"} product created and saved to local catalog cache.`
+            );
           }
         } catch {
           // ignore
         } finally {
           setPendingTxHash(undefined);
           setTxMode(null);
+          setTxTarget(null);
           setToggleIntent(null);
           void refetchNextTokenId();
           void refetchManageStatus();
@@ -626,11 +782,12 @@ export default function AdminMintForm() {
     if (txMode === "toggle") {
       setManageNotice(
         toggleIntent === "disable"
-          ? "Product successfully disabled in Cafe storefront."
-          : "Product successfully enabled in Cafe storefront."
+          ? `${txTarget === "cafe" ? "Cafe" : "Store"} product successfully disabled.`
+          : `${txTarget === "cafe" ? "Cafe" : "Store"} product successfully enabled.`
       );
       setPendingTxHash(undefined);
       setTxMode(null);
+      setTxTarget(null);
       setToggleIntent(null);
       void refetchNextTokenId();
       void refetchManageStatus();
@@ -639,6 +796,7 @@ export default function AdminMintForm() {
     isSuccess,
     receipt,
     txMode,
+    txTarget,
     toggleIntent,
     pendingTxHash,
     tokenURI,
@@ -666,6 +824,7 @@ export default function AdminMintForm() {
     setTokenURI(null);
     setCreatedTokenId(null);
     setCreatedAt(null);
+    setCreatedMode(null);
     setPreparedMedia(null);
     setPreparedPoster(null);
     savedRef.current = false;
@@ -726,14 +885,19 @@ export default function AdminMintForm() {
     setPreparedPoster(null);
     setCreatedTokenId(null);
     setCreatedAt(null);
+    setCreatedMode(null);
     savedRef.current = false;
   }
 
   async function handlePrepare() {
     setError("");
 
-    if (!CAFE_CONTRACT) {
-      setError("Missing NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT in Railway/ENV");
+    if (!selectedContract) {
+      setError(
+        productMode === "cafe"
+          ? "Missing NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT in Railway/ENV"
+          : "Missing NEXT_PUBLIC_REALIFE_STORE_CONTRACT in Railway/ENV"
+      );
       return;
     }
     if (!file) {
@@ -748,8 +912,8 @@ export default function AdminMintForm() {
       setError("Collection is required.");
       return;
     }
-    if (!drink) {
-      setError("Drink / item is required.");
+    if (!item) {
+      setError("Item is required.");
       return;
     }
     if (!rarity) {
@@ -780,11 +944,16 @@ export default function AdminMintForm() {
       formData.append("project", collection.trim());
       formData.append("category", category);
       formData.append("collection", collection.trim());
-      formData.append("drink", drink);
+      formData.append("item", item);
+      formData.append("drink", item);
       formData.append("rarity", rarity);
       formData.append("supply", String(clampSupply(supply)));
       formData.append("proofUrl", externalUrl.trim());
       formData.append("externalUrl", externalUrl.trim());
+      formData.append("vertical", productMode);
+      formData.append("deliveryEnabled", String(deliveryEnabled));
+      formData.append("physicalItemIncluded", String(physicalItemIncluded));
+      formData.append("officialItem", String(officialItem));
 
       const res = await fetch(PREPARE_URL, { method: "POST", body: formData });
       const data = await res.json().catch(() => ({}));
@@ -833,16 +1002,20 @@ export default function AdminMintForm() {
       setError("First click: Prepare (Upload → IPFS).");
       return;
     }
-    if (!CAFE_CONTRACT) {
-      setError("Missing NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT in Railway/ENV");
+    if (!selectedContract) {
+      setError(
+        productMode === "cafe"
+          ? "Missing NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT in Railway/ENV"
+          : "Missing NEXT_PUBLIC_REALIFE_STORE_CONTRACT in Railway/ENV"
+      );
       return;
     }
     if (!collection.trim()) {
       setError("Collection is required.");
       return;
     }
-    if (!drink) {
-      setError("Drink / item is required.");
+    if (!item) {
+      setError("Item is required.");
       return;
     }
     if (!rarity) {
@@ -868,25 +1041,43 @@ export default function AdminMintForm() {
 
       savedRef.current = false;
       setTxMode("create");
+      setTxTarget(productMode);
       setStep("signing");
 
-      const hash = await writeContractAsync({
-        address: CAFE_CONTRACT,
-        abi: cafeStoreAbi,
-        functionName: "createProduct",
-        args: [BigInt(clampSupply(supply)), priceParsed, tokenURI],
-      });
+      const hash =
+        productMode === "cafe"
+          ? await writeContractAsync({
+              address: selectedContract,
+              abi: cafeStoreAbi,
+              functionName: "createProduct",
+              args: [BigInt(clampSupply(supply)), priceParsed, tokenURI],
+            })
+          : await writeContractAsync({
+              address: selectedContract,
+              abi: storeAdminAbi,
+              functionName: "createProduct",
+              args: [
+                BigInt(clampSupply(supply)),
+                priceParsed,
+                tokenURI,
+                deliveryEnabled,
+                physicalItemIncluded,
+                officialItem,
+              ],
+            });
 
       if (hash) {
         setPendingTxHash(hash);
         setStep("mining");
       } else {
         setTxMode(null);
+        setTxTarget(null);
         setStep("idle");
       }
     } catch (e: any) {
       setError(prettyError(e));
       setTxMode(null);
+      setTxTarget(null);
       setPendingTxHash(undefined);
       setStep("idle");
     }
@@ -896,8 +1087,12 @@ export default function AdminMintForm() {
     setError("");
     setManageNotice("");
 
-    if (!CAFE_CONTRACT) {
-      setError("Missing NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT in Railway/ENV");
+    if (!selectedContract) {
+      setError(
+        productMode === "cafe"
+          ? "Missing NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT in Railway/ENV"
+          : "Missing NEXT_PUBLIC_REALIFE_STORE_CONTRACT in Railway/ENV"
+      );
       return;
     }
     if (!manageTokenIdBI) {
@@ -905,7 +1100,7 @@ export default function AdminMintForm() {
       return;
     }
     if (!manageTokenExists) {
-      setError("This tokenId does not exist in the cafe contract.");
+      setError("This tokenId does not exist in the selected contract.");
       return;
     }
     if (!isAuthorized) {
@@ -922,11 +1117,12 @@ export default function AdminMintForm() {
       }
 
       setTxMode("toggle");
+      setTxTarget(productMode);
       setToggleIntent(manageIsActive ? "disable" : "enable");
 
       const hash = await writeContractAsync({
-        address: CAFE_CONTRACT,
-        abi: cafeStoreAbi,
+        address: selectedContract,
+        abi: selectedAbi as any,
         functionName: "toggleProductStatus",
         args: [manageTokenIdBI],
       });
@@ -935,11 +1131,13 @@ export default function AdminMintForm() {
         setPendingTxHash(hash);
       } else {
         setTxMode(null);
+        setTxTarget(null);
         setToggleIntent(null);
       }
     } catch (e: any) {
       setError(prettyError(e));
       setTxMode(null);
+      setTxTarget(null);
       setToggleIntent(null);
       setPendingTxHash(undefined);
     }
@@ -960,9 +1158,13 @@ export default function AdminMintForm() {
                   <span className="text-white/80 font-extrabold">Base Sepolia</span>
                 </Pill>
                 <Pill>
+                  <span className="text-white/70">Mode:</span>
+                  <span className="text-amber-200 font-extrabold">{selectedLabel}</span>
+                </Pill>
+                <Pill>
                   <span className="text-white/70">Contract:</span>
                   <span className="text-amber-200 font-extrabold">
-                    {CAFE_CONTRACT ? shortAddr(CAFE_CONTRACT) : "missing"}
+                    {selectedContract ? shortAddr(selectedContract) : "missing"}
                   </span>
                 </Pill>
               </div>
@@ -978,8 +1180,9 @@ export default function AdminMintForm() {
               </div>
 
               <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
-                This route is hidden from navigation and is intended only for the wallet that owns admin/moderator
-                access in <span className="text-white/75 font-semibold">RealifeCafeStore</span>.
+                One private admin route for both{" "}
+                <span className="text-white/75 font-semibold">Realife Cafe</span> and{" "}
+                <span className="text-white/75 font-semibold">Realife NFT Store</span>.
               </div>
 
               <div className="mt-3 space-y-2 text-xs text-white/65">
@@ -1043,9 +1246,43 @@ export default function AdminMintForm() {
             </div>
           </div>
 
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setProductMode("cafe")}
+              className={[
+                "px-4 py-3 rounded-2xl border text-sm font-extrabold transition",
+                productMode === "cafe"
+                  ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                  : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+              ].join(" ")}
+            >
+              Realife Cafe
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setProductMode("store")}
+              className={[
+                "px-4 py-3 rounded-2xl border text-sm font-extrabold transition",
+                productMode === "store"
+                  ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                  : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+              ].join(" ")}
+            >
+              Realife NFT Store
+            </button>
+          </div>
+
           {!requiredContractOk ? (
             <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-              Missing <b>NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT</b> in Railway env
+              Missing{" "}
+              <b>
+                {productMode === "cafe"
+                  ? "NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT"
+                  : "NEXT_PUBLIC_REALIFE_STORE_CONTRACT"}
+              </b>{" "}
+              in Railway env
             </div>
           ) : null}
 
@@ -1057,7 +1294,7 @@ export default function AdminMintForm() {
 
           {!hasModeratorRole && connected && !wrongNetwork ? (
             <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-              Connected wallet does not have <b>MODERATOR_ROLE</b> in the cafe contract.
+              Connected wallet does not have <b>MODERATOR_ROLE</b> in the selected contract.
             </div>
           ) : null}
         </Card>
@@ -1116,7 +1353,9 @@ export default function AdminMintForm() {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-extrabold mb-1">Premium product upload</p>
                 <p className="text-xs text-white/60 leading-relaxed">
-                  Coffee, packaged goods, merch, perfume, food or video poster.
+                  {productMode === "cafe"
+                    ? "Coffee, packaged goods, merch, perfume, food or video poster."
+                    : "Art, collectibles, fashion, antiques, packaged goods, merch or video poster."}
                 </p>
 
                 {file ? (
@@ -1158,7 +1397,6 @@ export default function AdminMintForm() {
               <div className="mt-4 flex items-center gap-4">
                 <div className="h-16 w-16 rounded-2xl border border-white/10 bg-black/30 overflow-hidden flex items-center justify-center">
                   {posterPreviewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={posterPreviewUrl} alt="Poster" className="h-full w-full object-cover" />
                   ) : (
                     <span className="text-[10px] text-white/45">No poster</span>
@@ -1200,8 +1438,10 @@ export default function AdminMintForm() {
         <Card>
           <div className="flex items-end justify-between mb-4">
             <div>
-              <div className="text-sm font-extrabold tracking-tight">Store category</div>
-              <div className="text-[11px] text-white/55 mt-1">Used inside metadata for the cafe storefront.</div>
+              <div className="text-sm font-extrabold tracking-tight">
+                {productMode === "cafe" ? "Cafe category" : "Store category"}
+              </div>
+              <div className="text-[11px] text-white/55 mt-1">Used inside metadata for the selected storefront.</div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1210,14 +1450,14 @@ export default function AdminMintForm() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {STORE_CATEGORIES.map((item) => {
-              const active = category === item;
+            {selectedCategories.map((cat) => {
+              const active = category === cat;
               return (
                 <button
-                  key={item}
+                  key={cat}
                   type="button"
                   onClick={() => {
-                    setCategory(item);
+                    setCategory(cat);
                     resetPreparedState();
                   }}
                   className={[
@@ -1228,7 +1468,7 @@ export default function AdminMintForm() {
                       : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
                   ].join(" ")}
                 >
-                  {item}
+                  {cat}
                 </button>
               );
             })}
@@ -1240,7 +1480,7 @@ export default function AdminMintForm() {
             <div>
               <div className="text-sm font-extrabold tracking-tight">Manage existing product</div>
               <div className="mt-1 text-[11px] text-white/55">
-                Enable or disable a Cafe storefront item by token ID.
+                Enable or disable a {selectedLabel} item by token ID.
               </div>
             </div>
 
@@ -1300,7 +1540,7 @@ export default function AdminMintForm() {
             </div>
           </div>
 
-          {createdTokenId ? (
+          {createdTokenId && createdMode === productMode ? (
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
@@ -1370,7 +1610,7 @@ export default function AdminMintForm() {
 
           <input
             type="text"
-            placeholder="Example: Cappuccino"
+            placeholder={productMode === "cafe" ? "Example: Cappuccino" : "Example: Vintage Realife Tee"}
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -1399,7 +1639,7 @@ export default function AdminMintForm() {
 
           <input
             type="text"
-            placeholder="Example: Realife Crypto Cafe"
+            placeholder={selectedCollectionDefault}
             value={collection}
             onChange={(e) => {
               setCollection(e.target.value);
@@ -1419,8 +1659,8 @@ export default function AdminMintForm() {
             <div>
               <div className="flex items-end justify-between mb-3">
                 <div>
-                  <div className="text-sm font-extrabold tracking-tight">Drink / Item</div>
-                  <div className="text-[11px] text-white/55 mt-1">Universal item type for cafe products.</div>
+                  <div className="text-sm font-extrabold tracking-tight">Item</div>
+                  <div className="text-[11px] text-white/55 mt-1">Universal product type for metadata.</div>
                 </div>
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1429,9 +1669,9 @@ export default function AdminMintForm() {
               </div>
 
               <select
-                value={drink}
+                value={item}
                 onChange={(e) => {
-                  setDrink(e.target.value as (typeof ITEM_OPTIONS)[number]);
+                  setItem(e.target.value);
                   resetPreparedState();
                 }}
                 className={[
@@ -1440,9 +1680,9 @@ export default function AdminMintForm() {
                   "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
                 ].join(" ")}
               >
-                {ITEM_OPTIONS.map((item) => (
-                  <option key={item} value={item} className="bg-[#111] text-white">
-                    {item}
+                {selectedItems.map((it) => (
+                  <option key={it} value={it} className="bg-[#111] text-white">
+                    {it}
                   </option>
                 ))}
               </select>
@@ -1472,15 +1712,82 @@ export default function AdminMintForm() {
                   "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
                 ].join(" ")}
               >
-                {RARITIES.map((item) => (
-                  <option key={item} value={item} className="bg-[#111] text-white">
-                    {item}
+                {RARITIES.map((r) => (
+                  <option key={r} value={r} className="bg-[#111] text-white">
+                    {r}
                   </option>
                 ))}
               </select>
             </div>
           </div>
         </Card>
+
+        {productMode === "store" ? (
+          <Card>
+            <div className="flex items-end justify-between mb-4">
+              <div>
+                <div className="text-sm font-extrabold tracking-tight">Store delivery flags</div>
+                <div className="text-[11px] text-white/55 mt-1">
+                  These flags shape the Store storefront only. Delivery and escrow flow stay in site UI/backend.
+                </div>
+              </div>
+              <Pill>
+                <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+                Store only
+              </Pill>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeliveryEnabled((v) => !v);
+                  resetPreparedState();
+                }}
+                className={[
+                  "px-4 py-3 rounded-2xl border text-sm font-extrabold transition",
+                  deliveryEnabled
+                    ? "bg-emerald-500/12 border-emerald-500/20 text-emerald-100"
+                    : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+                ].join(" ")}
+              >
+                Delivery: {deliveryEnabled ? "ON" : "OFF"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPhysicalItemIncluded((v) => !v);
+                  resetPreparedState();
+                }}
+                className={[
+                  "px-4 py-3 rounded-2xl border text-sm font-extrabold transition",
+                  physicalItemIncluded
+                    ? "bg-amber-500/12 border-amber-500/20 text-amber-100"
+                    : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+                ].join(" ")}
+              >
+                Physical item: {physicalItemIncluded ? "ON" : "OFF"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setOfficialItem((v) => !v);
+                  resetPreparedState();
+                }}
+                className={[
+                  "px-4 py-3 rounded-2xl border text-sm font-extrabold transition",
+                  officialItem
+                    ? "bg-white/[0.12] border-white/15 text-white"
+                    : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+                ].join(" ")}
+              >
+                Official: {officialItem ? "ON" : "OFF"}
+              </button>
+            </div>
+          </Card>
+        ) : null}
 
         <Card>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1565,7 +1872,11 @@ export default function AdminMintForm() {
           </div>
 
           <textarea
-            placeholder="Premium product description for the Realife cafe storefront..."
+            placeholder={
+              productMode === "cafe"
+                ? "Premium product description for the Realife cafe storefront..."
+                : "Curated description for the Realife NFT Store product..."
+            }
             value={description}
             onChange={(e) => {
               setDescription(e.target.value);
@@ -1585,7 +1896,7 @@ export default function AdminMintForm() {
           <div className="flex items-end justify-between mb-3">
             <div>
               <div className="text-sm font-extrabold tracking-tight">External / proof link</div>
-              <div className="text-[11px] text-white/55 mt-1">Optional website, menu, post or landing page.</div>
+              <div className="text-[11px] text-white/55 mt-1">Optional website, post, landing page or proof link.</div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-white/60" />
@@ -1626,12 +1937,13 @@ export default function AdminMintForm() {
                 </Pill>
 
                 <div className="mt-4 text-lg font-black tracking-tight">
-                  Token ID <span className="text-amber-200">#{createdTokenId}</span>
+                  {createdMode === "cafe" ? "Cafe" : "Store"} token ID{" "}
+                  <span className="text-amber-200">#{createdTokenId}</span>
                 </div>
 
                 <div className="mt-2 text-sm text-white/65 leading-relaxed">
                   <span className="text-white font-semibold">{name || "Unnamed product"}</span> is now registered in the
-                  store contract and cached in your local mint database.
+                  selected contract and cached in your local mint database.
                 </div>
 
                 <div className="mt-4 space-y-2 text-xs text-white/60">
@@ -1639,7 +1951,7 @@ export default function AdminMintForm() {
                     Collection: <span className="font-semibold text-white">{collection}</span>
                   </div>
                   <div>
-                    Drink / Item: <span className="font-semibold text-white">{drink}</span>
+                    Item: <span className="font-semibold text-white">{item}</span>
                   </div>
                   <div>
                     Rarity: <span className="font-semibold text-white">{rarity}</span>
@@ -1653,6 +1965,20 @@ export default function AdminMintForm() {
                   <div>
                     Category: <span className="font-semibold text-white">{category}</span>
                   </div>
+                  {createdMode === "store" ? (
+                    <>
+                      <div>
+                        Delivery enabled: <span className="font-semibold text-white">{deliveryEnabled ? "Yes" : "No"}</span>
+                      </div>
+                      <div>
+                        Physical item included:{" "}
+                        <span className="font-semibold text-white">{physicalItemIncluded ? "Yes" : "No"}</span>
+                      </div>
+                      <div>
+                        Official item: <span className="font-semibold text-white">{officialItem ? "Yes" : "No"}</span>
+                      </div>
+                    </>
+                  ) : null}
                   <div>
                     Prepared URI: <span className="font-semibold text-white break-all">{tokenURI || "—"}</span>
                   </div>
@@ -1662,7 +1988,7 @@ export default function AdminMintForm() {
                 </div>
 
                 <div className="mt-4 text-[11px] text-white/50">
-                  This action creates a product entry only. NFT ownership is minted later to the buyer through{" "}
+                  This action creates a catalog product entry only. NFT ownership is minted later to the buyer through{" "}
                   <span className="text-white/75">buyProduct()</span>.
                 </div>
               </div>
@@ -1687,10 +2013,13 @@ export default function AdminMintForm() {
                     setSupply(100);
                     setPrice("5");
                     setExternalUrl("");
-                    setCategory("Drink");
-                    setCollection("Realife Crypto Cafe");
-                    setDrink("Cappuccino");
+                    setCategory(productMode === "cafe" ? CAFE_CATEGORIES[0] : STORE_CATEGORIES[0]);
+                    setCollection(productMode === "cafe" ? "Realife Crypto Cafe" : "Realife NFT Store");
+                    setItem(productMode === "cafe" ? CAFE_ITEMS[0] : STORE_ITEMS[0]);
                     setRarity("Common");
+                    setDeliveryEnabled(productMode === "store");
+                    setPhysicalItemIncluded(true);
+                    setOfficialItem(true);
                     setFile(null);
                     setPosterFile(null);
                     setTokenURI(null);
@@ -1698,6 +2027,7 @@ export default function AdminMintForm() {
                     setPreparedPoster(null);
                     setCreatedTokenId(null);
                     setCreatedAt(null);
+                    setCreatedMode(null);
                     setError("");
                     savedRef.current = false;
 
@@ -1727,19 +2057,33 @@ export default function AdminMintForm() {
                 ? "Waiting for wallet signature…"
                 : step === "mining" || isMiningCreate
                 ? "Creating product on-chain…"
-                : "2) Create Product (Admin)"}
+                : `2) Create ${productMode === "cafe" ? "Cafe" : "Store"} Product`}
             </GoldButton>
           </div>
 
           <div className="mt-4 text-[11px] text-white/55 leading-relaxed">
             Flow: upload media → prepare IPFS metadata → sign admin tx → product appears in{" "}
-            <span className="text-white/75 font-semibold">RealifeCafeStore</span>.
+            <span className="text-white/75 font-semibold">{selectedLabel}</span>.
           </div>
+
+          {productMode === "store" ? (
+            <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
+              Delivery and escrow are not hardcoded here. This admin flow only creates the product catalog entry and
+              storefront NFT configuration.
+            </div>
+          ) : null}
 
           <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
             Need gas?{" "}
             <Link href="/app/faucet" className="text-[#d4af37] font-semibold hover:brightness-110 transition">
               Open faucet ↗
+            </Link>
+          </div>
+
+          <div className="mt-3 text-[11px] text-white/55 leading-relaxed">
+            Storefront:{" "}
+            <Link href={selectedStorefrontHref} className="text-amber-200 font-semibold hover:brightness-110 transition">
+              Open {selectedLabel} →
             </Link>
           </div>
         </Card>

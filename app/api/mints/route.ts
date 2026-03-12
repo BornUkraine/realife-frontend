@@ -33,7 +33,7 @@ function uniqueStrings(values: Array<string | null | undefined>) {
 export async function GET() {
   return NextResponse.json({
     ok: true,
-    hint: "Use POST /api/mints to save mint/cache entry (requires auth session).",
+    hint: "Use POST /api/mints to save mint/cache entry (requires auth session). Supports public mint flow and catalog-only cafe/store entries.",
   });
 }
 
@@ -61,7 +61,7 @@ export async function POST(req: Request) {
     verified,
     supply,
     standard,
-    catalogOnly, // for RealifeCafeStore createProduct()
+    catalogOnly, // for Cafe/Store product creation via admin form
   } = body as any;
 
   if (!chainId || !contract || tokenId === undefined || tokenId === null) {
@@ -85,11 +85,17 @@ export async function POST(req: Request) {
   // allow BOTH:
   // 1) public Realife1155New mint flow
   // 2) cafe catalog entries from RealifeCafeStore
+  // 3) store catalog entries from RealifeStore1155
   const allowedContracts = uniqueStrings([
     process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT,
     process.env.REALIFE_1155_NEW_CONTRACT,
+
     process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT,
     process.env.REALIFE_CAFE_STORE_CONTRACT,
+
+    process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT,
+    process.env.REALIFE_STORE_CONTRACT,
+    process.env.STORE_CONTRACT_ADDRESS,
   ]);
 
   if (allowedContracts.length > 0 && !allowedContracts.includes(cContract)) {
@@ -106,8 +112,8 @@ export async function POST(req: Request) {
 
   const isCatalogOnly = toBool(catalogOnly);
 
-  // old public mint flow => ownership exists immediately
-  // cafe admin flow => catalogOnly=true => no holding, no points
+  // public mint flow => ownership exists immediately
+  // cafe/store admin flow => catalogOnly=true => no holding, no points
   const shouldCreateHolding = !isCatalogOnly;
   const shouldReward = !isCatalogOnly;
 
@@ -126,7 +132,8 @@ export async function POST(req: Request) {
     supplyBI = BigInt(parsedSupply);
   }
 
-  const std = String(standard || "ERC1155").toUpperCase() === "ERC721" ? "ERC721" : "ERC1155";
+  const std =
+    String(standard || "ERC1155").toUpperCase() === "ERC721" ? "ERC721" : "ERC1155";
 
   try {
     const result = await prisma.$transaction(async (tx) => {

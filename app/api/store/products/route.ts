@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createPublicClient, formatUnits, http } from "viem";
 import { baseSepolia } from "viem/chains";
-import { realifeCafeStoreAbi } from "@/lib/realifeCafeStoreAbi";
+import { realifeStoreAbi } from "@/lib/realifeStoreAbi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,9 +15,10 @@ const RPC_URL =
   process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC ||
   "https://sepolia.base.org";
 
-const CAFE_CONTRACT = String(
-  process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
-    process.env.REALIFE_CAFE_STORE_CONTRACT ||
+const STORE_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT ||
+    process.env.REALIFE_STORE_CONTRACT ||
+    process.env.STORE_CONTRACT_ADDRESS ||
     ""
 )
   .trim()
@@ -41,7 +42,7 @@ type ProductMeta = {
   name?: string | null;
   description?: string | null;
   collection?: string | null;
-  drink?: string | null;
+  category?: string | null;
   item?: string | null;
   rarity?: string | null;
   attributes?: Array<{ trait_type?: string; value?: string | number | null }>;
@@ -120,8 +121,8 @@ async function safeReadAddress(functionName: "paymentToken" | "treasury") {
   try {
     return normAddr(
       (await client.readContract({
-        address: CAFE_CONTRACT as `0x${string}`,
-        abi: realifeCafeStoreAbi,
+        address: STORE_CONTRACT as `0x${string}`,
+        abi: realifeStoreAbi,
         functionName,
         args: [],
       })) as string
@@ -132,15 +133,16 @@ async function safeReadAddress(functionName: "paymentToken" | "treasury") {
 }
 
 export async function GET(req: Request) {
-  if (!CAFE_CONTRACT) {
+  if (!STORE_CONTRACT) {
     return NextResponse.json(
-      { ok: false, error: "NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT_MISSING" },
+      { ok: false, error: "NEXT_PUBLIC_REALIFE_STORE_CONTRACT_MISSING" },
       { status: 500 }
     );
   }
 
   const url = new URL(req.url);
   const take = Math.max(1, Math.min(100, Number(url.searchParams.get("take") || "48")));
+  const mode = String(url.searchParams.get("mode") || "all").toLowerCase();
 
   try {
     const [paymentTokenAddressOnchain, treasuryAddress, rows] = await Promise.all([
@@ -149,8 +151,9 @@ export async function GET(req: Request) {
       prisma.realMarketingProduct.findMany({
         where: {
           chainId: CHAIN_ID,
-          contract: CAFE_CONTRACT,
-          vertical: "cafe",
+          contract: STORE_CONTRACT,
+          vertical: "store",
+          ...(mode === "active" ? { isActive: true } : {}),
         },
         orderBy: { createdAt: "desc" },
         take,
@@ -186,15 +189,9 @@ export async function GET(req: Request) {
             : null;
 
         const metaImage = ipfsToHttp(meta?.image || null);
-        const collection = meta?.collection || getAttr(meta, "Collection") || null;
-
-        const item =
-          meta?.item ||
-          meta?.drink ||
-          getAttr(meta, "Item") ||
-          getAttr(meta, "Drink") ||
-          null;
-
+        const collection = meta?.collection || getAttr(meta, "Collection") || "REALIFE STORE";
+        const category = meta?.category || getAttr(meta, "Category") || null;
+        const item = meta?.item || getAttr(meta, "Item") || null;
         const rarity = meta?.rarity || getAttr(meta, "Rarity") || null;
 
         const paymentTokenAddress =
@@ -227,13 +224,14 @@ export async function GET(req: Request) {
           creatorWallet: row.creatorWallet || null,
           primarySellerWallet: row.primarySellerWallet || null,
           deliveryEnabled: row.deliveryEnabled ?? false,
-          physicalItemIncluded: row.physicalItemIncluded ?? true,
-          officialItem: row.officialItem ?? true,
+          physicalItemIncluded: row.physicalItemIncluded ?? false,
+          officialItem: row.officialItem ?? false,
           paymentTokenAddress,
 
           metaImage,
           metaDescription: meta?.description || null,
           collection,
+          category,
           item,
           rarity,
         };
@@ -242,9 +240,9 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      storefrontType: "cafe",
+      storefrontType: "store",
       chainId: CHAIN_ID,
-      contract: CAFE_CONTRACT,
+      contract: STORE_CONTRACT,
       paymentTokenAddress:
         paymentTokenAddressOnchain ||
         normAddr(process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS) ||
@@ -255,7 +253,7 @@ export async function GET(req: Request) {
       items,
     });
   } catch (e) {
-    console.error("[API_CAFE_PRODUCTS_ERROR]", e);
+    console.error("[API_STORE_PRODUCTS_ERROR]", e);
     return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
   }
 }

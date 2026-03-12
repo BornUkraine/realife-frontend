@@ -5,6 +5,7 @@ import NftMedia from "@/components/NftMedia";
 import TradingPanel1155 from "@/components/trading/TradingPanel1155";
 import StorefrontBuyPanel1155 from "@/components/storefront/StorefrontBuyPanel1155";
 import { realifeCafeStoreAbi } from "@/lib/realifeCafeStoreAbi";
+import { realifeStoreAbi } from "@/lib/realifeStoreAbi";
 import { headers } from "next/headers";
 import { createPublicClient, formatUnits, http } from "viem";
 import { baseSepolia } from "viem/chains";
@@ -41,21 +42,36 @@ function norm(a: string) {
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app").replace(/\/$/, "");
 
 const USER_1155_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
+
 const CAFE_1155_CONTRACT = norm(
-  process.env.REALIFE_CAFE_STORE_CONTRACT ||
-    process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
+  process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
+    process.env.REALIFE_CAFE_STORE_CONTRACT ||
+    ""
+);
+
+const STORE_1155_CONTRACT = norm(
+  process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT ||
+    process.env.REALIFE_STORE_CONTRACT ||
     ""
 );
 
 const PAYMENT_TOKEN_FALLBACK = norm(
-  process.env.PAYMENT_TOKEN_ADDRESS ||
-    process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS ||
+  process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS ||
+    process.env.PAYMENT_TOKEN_ADDRESS ||
     ""
 );
 
-const ALLOWED_1155_CONTRACTS = [USER_1155_CONTRACT, CAFE_1155_CONTRACT].filter(Boolean);
+const ALLOWED_1155_CONTRACTS = [
+  USER_1155_CONTRACT,
+  CAFE_1155_CONTRACT,
+  STORE_1155_CONTRACT,
+].filter(Boolean);
 
-const PRIMARY_IPFS_ORIGIN = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
+const PRIMARY_IPFS_ORIGIN = (
+  process.env.NEXT_PUBLIC_IPFS_GATEWAY ||
+  process.env.IPFS_GATEWAY_ORIGIN ||
+  "https://nftstorage.link"
+).replace(/\/$/, "");
 
 const IPFS_GATEWAYS = [
   `${PRIMARY_IPFS_ORIGIN}/ipfs/`,
@@ -66,17 +82,22 @@ const IPFS_GATEWAYS = [
 
 const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
 const CAFE_STOREFRONT_HREF = "/app/real-marketing/realife-cafe";
+const STORE_STOREFRONT_HREF = "/app/real-marketing/realife-store";
 
 /* ------------------------------- Market fetch tuning ------------------------------ */
 
 const MARKET_REVALIDATE_SECONDS = 5;
 const MARKET_FETCH_TIMEOUT_MS = 4500;
 
-/* ------------------------------- Cafe on-chain reads ------------------------------ */
+/* ------------------------------- On-chain reads ------------------------------ */
 
-const RPC_URL = process.env.RPC_URL || process.env.BASE_SEPOLIA_RPC || "https://sepolia.base.org";
+const RPC_URL =
+  process.env.RPC_URL ||
+  process.env.BASE_SEPOLIA_RPC ||
+  process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC ||
+  "https://sepolia.base.org";
 
-const cafeClient = createPublicClient({
+const storefrontClient = createPublicClient({
   chain: baseSepolia,
   transport: http(RPC_URL),
 });
@@ -91,6 +112,20 @@ type CafeStoreState = {
   paymentTokenAddress: string | null;
 };
 
+type StoreStoreState = {
+  active: boolean | null;
+  priceRaw: string | null;
+  priceUsdt: string | null;
+  maxSupply: string | null;
+  totalSupply: string | null;
+  remaining: string | null;
+  paymentTokenAddress: string | null;
+  deliveryEnabled: boolean | null;
+  physicalItemIncluded: boolean | null;
+  officialItem: boolean | null;
+  primarySellerWallet: string | null;
+};
+
 async function safeReadCafeBigInt(
   functionName: "productPrices" | "maxSupply" | "totalSupply",
   tokenId: bigint
@@ -98,7 +133,7 @@ async function safeReadCafeBigInt(
   if (!CAFE_1155_CONTRACT) return null;
 
   try {
-    return (await cafeClient.readContract({
+    return (await storefrontClient.readContract({
       address: CAFE_1155_CONTRACT as `0x${string}`,
       abi: realifeCafeStoreAbi,
       functionName,
@@ -113,7 +148,7 @@ async function safeReadCafeBool(functionName: "isActive", tokenId: bigint) {
   if (!CAFE_1155_CONTRACT) return null;
 
   try {
-    return (await cafeClient.readContract({
+    return (await storefrontClient.readContract({
       address: CAFE_1155_CONTRACT as `0x${string}`,
       abi: realifeCafeStoreAbi,
       functionName,
@@ -129,11 +164,67 @@ async function safeReadCafeAddress(functionName: "paymentToken") {
 
   try {
     return norm(
-      (await cafeClient.readContract({
+      (await storefrontClient.readContract({
         address: CAFE_1155_CONTRACT as `0x${string}`,
         abi: realifeCafeStoreAbi,
         functionName,
         args: [],
+      })) as string
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function safeReadStoreBigInt(
+  functionName: "productPrices" | "maxSupply" | "totalSupply",
+  tokenId: bigint
+) {
+  if (!STORE_1155_CONTRACT) return null;
+
+  try {
+    return (await storefrontClient.readContract({
+      address: STORE_1155_CONTRACT as `0x${string}`,
+      abi: realifeStoreAbi,
+      functionName,
+      args: [tokenId],
+    })) as bigint;
+  } catch {
+    return null;
+  }
+}
+
+async function safeReadStoreBool(
+  functionName: "isActive" | "deliveryEnabled" | "physicalItemIncluded" | "officialItem",
+  tokenId: bigint
+) {
+  if (!STORE_1155_CONTRACT) return null;
+
+  try {
+    return (await storefrontClient.readContract({
+      address: STORE_1155_CONTRACT as `0x${string}`,
+      abi: realifeStoreAbi,
+      functionName,
+      args: [tokenId],
+    })) as boolean;
+  } catch {
+    return null;
+  }
+}
+
+async function safeReadStoreAddress(
+  functionName: "paymentToken" | "primarySellerOf",
+  tokenId?: bigint
+) {
+  if (!STORE_1155_CONTRACT) return null;
+
+  try {
+    return norm(
+      (await storefrontClient.readContract({
+        address: STORE_1155_CONTRACT as `0x${string}`,
+        abi: realifeStoreAbi,
+        functionName,
+        args: functionName === "primarySellerOf" && tokenId !== undefined ? [tokenId] : [],
       })) as string
     );
   } catch {
@@ -172,12 +263,62 @@ async function loadCafeStoreState(contract: string, tokenId: string): Promise<Ca
   }
 }
 
+async function loadStoreStoreState(contract: string, tokenId: string): Promise<StoreStoreState | null> {
+  if (!STORE_1155_CONTRACT || contract !== STORE_1155_CONTRACT) return null;
+
+  try {
+    const tokenIdBI = BigInt(tokenId);
+
+    const [
+      priceRaw,
+      maxSupplyRaw,
+      totalSupplyRaw,
+      active,
+      paymentTokenAddressRaw,
+      deliveryEnabled,
+      physicalItemIncluded,
+      officialItem,
+      primarySellerWallet,
+    ] = await Promise.all([
+      safeReadStoreBigInt("productPrices", tokenIdBI),
+      safeReadStoreBigInt("maxSupply", tokenIdBI),
+      safeReadStoreBigInt("totalSupply", tokenIdBI),
+      safeReadStoreBool("isActive", tokenIdBI),
+      safeReadStoreAddress("paymentToken"),
+      safeReadStoreBool("deliveryEnabled", tokenIdBI),
+      safeReadStoreBool("physicalItemIncluded", tokenIdBI),
+      safeReadStoreBool("officialItem", tokenIdBI),
+      safeReadStoreAddress("primarySellerOf", tokenIdBI),
+    ]);
+
+    const remainingRaw =
+      maxSupplyRaw !== null && totalSupplyRaw !== null ? maxSupplyRaw - totalSupplyRaw : null;
+
+    return {
+      active: active ?? null,
+      priceRaw: priceRaw !== null ? priceRaw.toString() : null,
+      priceUsdt: priceRaw !== null ? formatUnits(priceRaw, 6) : null,
+      maxSupply: maxSupplyRaw !== null ? maxSupplyRaw.toString() : null,
+      totalSupply: totalSupplyRaw !== null ? totalSupplyRaw.toString() : null,
+      remaining: remainingRaw !== null ? remainingRaw.toString() : null,
+      paymentTokenAddress: paymentTokenAddressRaw || PAYMENT_TOKEN_FALLBACK || null,
+      deliveryEnabled: deliveryEnabled ?? null,
+      physicalItemIncluded: physicalItemIncluded ?? null,
+      officialItem: officialItem ?? null,
+      primarySellerWallet: primarySellerWallet ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /* ------------------------------- Request origin (SSR safe) ------------------------------ */
 
 async function getOrigin() {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? (process.env.NODE_ENV === "development" ? "http" : "https");
+  const proto =
+    h.get("x-forwarded-proto") ?? (process.env.NODE_ENV === "development" ? "http" : "https");
   if (!host) return null;
   return `${proto}://${host}`;
 }
@@ -210,6 +351,7 @@ async function fetchJsonWithTimeout(
 function marketTagNft(chainId: number, contract: string, tokenId: string) {
   return `market:nft:${chainId}:${contract}:${tokenId}`;
 }
+
 function marketTagContract(chainId: number, contract: string) {
   return `market:contract:${chainId}:${contract}`;
 }
@@ -220,7 +362,14 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
 
-  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) return u;
+  if (
+    u.startsWith("http://") ||
+    u.startsWith("https://") ||
+    u.startsWith("data:") ||
+    u.startsWith("blob:")
+  ) {
+    return u;
+  }
 
   if (u.startsWith("ipfs://")) {
     let p = u.slice("ipfs://".length);
@@ -256,20 +405,28 @@ async function loadMetadataFromBackend1155(tokenId: string) {
   if (!base || !tokenId) return null;
 
   try {
-    const r = await fetch(`${base}/metadata1155/${encodeURIComponent(tokenId)}`, { cache: "no-store" });
+    const r = await fetch(`${base}/metadata1155/${encodeURIComponent(tokenId)}`, {
+      cache: "no-store",
+    });
     if (!r.ok) return null;
     const j = await r.json().catch(() => null);
     if (j && typeof j === "object") return j;
   } catch {
-    // ignore
+    //
   }
+
   return null;
 }
 
 function isLikelyVideoUrl(u?: string | null) {
   const s = (u || "").toLowerCase();
   const clean = s.split("?")[0].split("#")[0];
-  return clean.endsWith(".mp4") || clean.endsWith(".webm") || clean.endsWith(".mov") || clean.endsWith(".m4v");
+  return (
+    clean.endsWith(".mp4") ||
+    clean.endsWith(".webm") ||
+    clean.endsWith(".mov") ||
+    clean.endsWith(".m4v")
+  );
 }
 
 function pickAttrValue(meta: any, trait: string): string | null {
@@ -328,7 +485,12 @@ function toInt(v: any) {
   return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 
-async function loadMarketNft(origin: string | null, chainId: number, contract: string, tokenId: string) {
+async function loadMarketNft(
+  origin: string | null,
+  chainId: number,
+  contract: string,
+  tokenId: string
+) {
   const qs =
     `chainId=${encodeURIComponent(String(chainId))}` +
     `&contract=${encodeURIComponent(contract)}` +
@@ -383,6 +545,7 @@ export default async function NftDetailsPage({
   }
 
   const isCafeNft = !!CAFE_1155_CONTRACT && contract === CAFE_1155_CONTRACT;
+  const isStoreNft = !!STORE_1155_CONTRACT && contract === STORE_1155_CONTRACT;
   const isUser1155Nft = !!USER_1155_CONTRACT && contract === USER_1155_CONTRACT;
 
   const nft = await prisma.mint.findFirst({
@@ -468,8 +631,7 @@ export default async function NftDetailsPage({
 
   const currentOwnerUser = topHolder?.user || creator || null;
 
-  const currentOwnerPublicKey =
-    currentOwnerUser?.handle || currentOwnerUser?.publicId || null;
+  const currentOwnerPublicKey = currentOwnerUser?.handle || currentOwnerUser?.publicId || null;
 
   const currentOwnerUrl =
     currentOwnerPublicKey && currentOwnerPublicKey !== "tmp"
@@ -501,13 +663,14 @@ export default async function NftDetailsPage({
   const meta = liveMeta || (nft.tokenUri ? await loadMetadataFromTokenUri(nft.tokenUri) : null);
 
   const cafeStore = isCafeNft ? await loadCafeStoreState(contract, tokenId) : null;
+  const storeStore = isStoreNft ? await loadStoreStoreState(contract, tokenId) : null;
 
   let supplyLabel: string | null = null;
   if (meta) {
     supplyLabel = pickAttrValue(meta, "Total Supply");
-    if (!supplyLabel && cafeStore?.maxSupply) {
-      supplyLabel = cafeStore.maxSupply;
-    }
+    if (!supplyLabel && cafeStore?.maxSupply) supplyLabel = cafeStore.maxSupply;
+    if (!supplyLabel && storeStore?.maxSupply) supplyLabel = storeStore.maxSupply;
+
     if (!supplyLabel) {
       const s = meta?.supply;
       if (typeof s === "number") supplyLabel = String(s);
@@ -515,20 +678,17 @@ export default async function NftDetailsPage({
     }
   } else if (cafeStore?.maxSupply) {
     supplyLabel = cafeStore.maxSupply;
+  } else if (storeStore?.maxSupply) {
+    supplyLabel = storeStore.maxSupply;
   }
 
   const metaDescription =
     typeof meta?.description === "string" && meta.description.trim() ? meta.description.trim() : null;
 
-  const metaProject =
-    pickAttrAny(meta, ["Project", "project"]) ||
-    pickAny(meta, ["project"]) ||
-    null;
+  const metaProject = pickAttrAny(meta, ["Project", "project"]) || pickAny(meta, ["project"]) || null;
 
   const metaCategory =
-    pickAttrAny(meta, ["Category", "category"]) ||
-    pickAny(meta, ["category"]) ||
-    null;
+    pickAttrAny(meta, ["Category", "category"]) || pickAny(meta, ["category"]) || null;
 
   const metaProofRaw =
     pickAny(meta, ["external_url", "externalUrl", "proofUrl", "proof_url", "url"]) ||
@@ -560,7 +720,8 @@ export default async function NftDetailsPage({
         : null;
 
     const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackPoster;
-    const animHttp = ipfsToHttp(metaAnimation, PINATA_IPFS) || ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
+    const animHttp =
+      ipfsToHttp(metaAnimation, PINATA_IPFS) || ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
 
     if (metaAnimation || isLikelyVideoUrl(animHttp)) {
       kind = "video";
@@ -579,7 +740,11 @@ export default async function NftDetailsPage({
     }
   }
 
-  const standardLabel = isCafeNft ? "ERC-1155 • CAFE" : "ERC-1155";
+  const standardLabel = isCafeNft
+    ? "ERC-1155 • CAFE"
+    : isStoreNft
+    ? "ERC-1155 • STORE"
+    : "ERC-1155";
 
   const origin = await getOrigin();
   const { data: market, error: marketError } = await loadMarketNft(origin, chainId, contract, tokenId);
@@ -628,6 +793,15 @@ export default async function NftDetailsPage({
                 className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
                 Cafe storefront
+              </Link>
+            ) : null}
+
+            {isStoreNft ? (
+              <Link
+                href={STORE_STOREFRONT_HREF}
+                className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+              >
+                NFT Store
               </Link>
             ) : null}
 
@@ -682,7 +856,9 @@ export default async function NftDetailsPage({
                 style={{ animationDelay: "120ms" }}
               >
                 <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">About</div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
+                    About
+                  </div>
 
                   {metaDescription ? (
                     <div className="mt-3 text-[13px] text-white/80 leading-relaxed whitespace-pre-wrap">
@@ -693,15 +869,23 @@ export default async function NftDetailsPage({
                   <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
                     {metaProject ? (
                       <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Project</div>
-                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">{metaProject}</div>
+                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                          Project
+                        </div>
+                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
+                          {metaProject}
+                        </div>
                       </div>
                     ) : null}
 
                     {metaCategory ? (
                       <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Category</div>
-                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">{metaCategory}</div>
+                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                          Category
+                        </div>
+                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
+                          {metaCategory}
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -740,7 +924,11 @@ export default async function NftDetailsPage({
                 <div className="p-6 md:p-7">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                      {isCafeNft ? "Realife Cafe Edition" : "Realife Edition"}
+                      {isCafeNft
+                        ? "Realife Cafe Edition"
+                        : isStoreNft
+                        ? "Realife Store Edition"
+                        : "Realife Edition"}
                     </div>
                     <div className="px-3 py-1.5 rounded-full border border-white/15 bg-white/[0.06] text-[11px] font-black text-amber-100">
                       {standardLabel}
@@ -755,7 +943,12 @@ export default async function NftDetailsPage({
                     <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
                       {currentOwnerAvatar ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={currentOwnerAvatar} alt="owner" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        <img
+                          src={currentOwnerAvatar}
+                          alt="owner"
+                          className="h-full w-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
                       ) : (
                         <span className="text-white/35 text-xs font-black">RL</span>
                       )}
@@ -790,7 +983,12 @@ export default async function NftDetailsPage({
                     <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
                       {creatorAvatar ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={creatorAvatar} alt="creator" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                        <img
+                          src={creatorAvatar}
+                          alt="creator"
+                          className="h-full w-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
                       ) : (
                         <span className="text-white/35 text-xs font-black">RL</span>
                       )}
@@ -827,27 +1025,60 @@ export default async function NftDetailsPage({
                     </div>
                   ) : null}
 
+                  {isStoreNft ? (
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {storeStore?.deliveryEnabled ? (
+                        <span className="px-3 py-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-[11px] font-black text-emerald-100">
+                          Delivery available
+                        </span>
+                      ) : null}
+
+                      {storeStore?.physicalItemIncluded ? (
+                        <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-black text-amber-100">
+                          Physical item included
+                        </span>
+                      ) : null}
+
+                      {storeStore?.officialItem ? (
+                        <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
+                          Official item
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Floor</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Floor
+                      </div>
                       <div className="mt-1 text-[13px] font-extrabold text-amber-100 truncate">
                         {stats?.floorWei ? `${fmtEth(stats.floorWei)} ETH` : "—"}
                       </div>
                     </div>
+
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Last sale</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Last sale
+                      </div>
                       <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                         {stats?.lastSaleWei ? `${fmtEth(stats.lastSaleWei)} ETH` : "—"}
                       </div>
                     </div>
+
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Active listings</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Active listings
+                      </div>
                       <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                         {toInt(stats?.activeListings ?? 0)}
                       </div>
                     </div>
+
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Volume</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Volume
+                      </div>
                       <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                         {stats?.volumeTotalWei ? `${fmtEth(stats.volumeTotalWei)} ETH` : "0"}
                       </div>
@@ -856,33 +1087,60 @@ export default async function NftDetailsPage({
 
                   <div className="mt-5 grid grid-cols-2 gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Contract</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Contract
+                      </div>
                       <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
                         {shortAddr(nft.contract)}
                       </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Token ID</div>
-                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">#{nft.tokenId}</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Token ID
+                      </div>
+                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
+                        #{nft.tokenId}
+                      </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Chain ID</div>
-                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">{nft.chainId}</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Chain ID
+                      </div>
+                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
+                        {nft.chainId}
+                      </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Minted</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Minted
+                      </div>
                       <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                         {new Date(nft.createdAt).toLocaleString("en-GB")}
                       </div>
                     </div>
 
                     <div className="col-span-2 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Total Supply</div>
-                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">{supplyLabel || "—"}</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Total Supply
+                      </div>
+                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
+                        {supplyLabel || "—"}
+                      </div>
                     </div>
+
+                    {isStoreNft && storeStore?.primarySellerWallet ? (
+                      <div className="col-span-2 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                          Primary Seller
+                        </div>
+                        <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
+                          {shortAddr(storeStore.primarySellerWallet)}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="mt-7 flex flex-wrap gap-3">
@@ -928,6 +1186,15 @@ export default async function NftDetailsPage({
                       </Link>
                     ) : null}
 
+                    {isStoreNft ? (
+                      <Link
+                        href={STORE_STOREFRONT_HREF}
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                      >
+                        Open NFT Store
+                      </Link>
+                    ) : null}
+
                     {creatorNftsUrl ? (
                       <Link
                         href={creatorNftsUrl}
@@ -969,12 +1236,43 @@ export default async function NftDetailsPage({
                     bigintArgIndices: [0, 1],
                   }}
                   erc20Payment={{
-                    tokenAddress:
-                      cafeStore?.paymentTokenAddress ||
-                      PAYMENT_TOKEN_FALLBACK ||
-                      "",
+                    tokenAddress: cafeStore?.paymentTokenAddress || PAYMENT_TOKEN_FALLBACK || "",
                     spender: CAFE_1155_CONTRACT,
                     amountRaw: cafeStore?.priceRaw || "0",
+                    symbol: "USDT",
+                    approveUnlimited: true,
+                  }}
+                />
+              </div>
+            ) : null}
+
+            {isStoreNft ? (
+              <div className="reveal" style={{ animationDelay: "180ms" }}>
+                <StorefrontBuyPanel1155
+                  chainId={chainId}
+                  nftContract={contract}
+                  tokenId={tokenId}
+                  storefrontLabel="Realife NFT Store"
+                  title="Store Primary Sale"
+                  subtitle="NFT purchase happens on-chain here. Delivery and escrow are handled in the site UI."
+                  active={Boolean(storeStore?.active)}
+                  priceLabel={`${storeStore?.priceUsdt ?? "—"} USDT`}
+                  paymentTokenLabel="USDT"
+                  remaining={storeStore?.remaining}
+                  totalSupply={storeStore?.totalSupply}
+                  maxSupply={storeStore?.maxSupply}
+                  buyButtonLabel="Buy from store"
+                  buyConfig={{
+                    contract: STORE_1155_CONTRACT,
+                    abi: realifeStoreAbi,
+                    functionName: "buyProduct",
+                    args: [tokenId, 1],
+                    bigintArgIndices: [0, 1],
+                  }}
+                  erc20Payment={{
+                    tokenAddress: storeStore?.paymentTokenAddress || PAYMENT_TOKEN_FALLBACK || "",
+                    spender: STORE_1155_CONTRACT,
+                    amountRaw: storeStore?.priceRaw || "0",
                     symbol: "USDT",
                     approveUnlimited: true,
                   }}
@@ -999,7 +1297,9 @@ export default async function NftDetailsPage({
           >
             <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">Active Listings</div>
+                <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
+                  Active Listings
+                </div>
                 <div className="text-[12px] text-white/55 font-semibold">{listings.length}</div>
               </div>
 
@@ -1008,10 +1308,14 @@ export default async function NftDetailsPage({
               ) : (
                 <div className="mt-4 space-y-2">
                   {listings.slice(0, 10).map((l) => (
-                    <div key={l.marketplaceListingId} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div
+                      key={l.marketplaceListingId}
+                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="text-[13px] font-black text-amber-100">
-                          {fmtEth(l.pricePerUnitWei)} ETH <span className="text-white/35 text-[11px] font-black">/ unit</span>
+                          {fmtEth(l.pricePerUnitWei)} ETH{" "}
+                          <span className="text-white/35 text-[11px] font-black">/ unit</span>
                         </div>
                         <div className="text-[12px] text-white/70 font-semibold">
                           Remaining: <span className="text-white/90 font-black">{l.amountRemaining}</span>
@@ -1022,7 +1326,9 @@ export default async function NftDetailsPage({
                         <span>Seller:</span>
                         <span className="font-mono text-white/80">{shortAddr(l.sellerWallet)}</span>
                         <span className="text-white/35">•</span>
-                        <span className="font-black text-white/70">Listing #{l.marketplaceListingId}</span>
+                        <span className="font-black text-white/70">
+                          Listing #{l.marketplaceListingId}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -1041,7 +1347,9 @@ export default async function NftDetailsPage({
           >
             <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
               <div className="flex items-center justify-between gap-3">
-                <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">Recent Trades</div>
+                <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
+                  Recent Trades
+                </div>
                 <div className="text-[12px] text-white/55 font-semibold">{trades.length}</div>
               </div>
 
@@ -1050,14 +1358,19 @@ export default async function NftDetailsPage({
               ) : (
                 <div className="mt-4 space-y-2">
                   {trades.slice(0, 10).map((t) => (
-                    <div key={`${t.txHash}:${t.logIndex}`} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                    <div
+                      key={`${t.txHash}:${t.logIndex}`}
+                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="text-[13px] font-black text-amber-100">
                           {fmtEth(t.totalPriceWei)} ETH{" "}
                           <span className="text-white/35 text-[11px] font-black">•</span>
                           <span className="ml-2 text-white/80 text-[12px] font-black">x{t.amount}</span>
                         </div>
-                        <div className="text-[11px] text-white/40">{new Date(t.blockTime).toLocaleString("en-GB")}</div>
+                        <div className="text-[11px] text-white/40">
+                          {new Date(t.blockTime).toLocaleString("en-GB")}
+                        </div>
                       </div>
 
                       <div className="mt-2 text-[12px] text-white/55">
@@ -1065,7 +1378,11 @@ export default async function NftDetailsPage({
                         <span className="text-white/35"> • </span>
                         <a
                           className="text-amber-100/90 hover:text-amber-100 font-black"
-                          href={chainId === 84532 ? `https://sepolia.basescan.org/tx/${t.txHash}` : `https://basescan.org/tx/${t.txHash}`}
+                          href={
+                            chainId === 84532
+                              ? `https://sepolia.basescan.org/tx/${t.txHash}`
+                              : `https://basescan.org/tx/${t.txHash}`
+                          }
                           target="_blank"
                           rel="noreferrer"
                         >

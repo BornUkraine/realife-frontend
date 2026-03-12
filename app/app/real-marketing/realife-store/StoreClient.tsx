@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import StorefrontQuickBuy1155 from "@/components/storefront/StorefrontQuickBuy1155";
-import { realifeCafeStoreAbi } from "@/lib/realifeCafeStoreAbi";
+import { realifeStoreAbi } from "@/lib/realifeStoreAbi";
 
-type CafeProduct = {
+type StoreProduct = {
   id: string;
   createdAt: string;
   chainId: number;
@@ -34,19 +34,20 @@ type CafeProduct = {
   metaImage?: string | null;
   metaDescription?: string | null;
   collection?: string | null;
+  category?: string | null;
   item?: string | null;
   rarity?: string | null;
 };
 
-type CafeProductsResponse = {
+type StoreProductsResponse = {
   ok: boolean;
-  storefrontType: "cafe";
+  storefrontType: "store";
   chainId: number;
   contract: string;
   paymentTokenAddress?: string | null;
   treasuryAddress?: string | null;
   total: number;
-  items: CafeProduct[];
+  items: StoreProduct[];
 };
 
 function cx(...a: Array<string | false | null | undefined>) {
@@ -64,8 +65,8 @@ const PRIMARY_IPFS_ORIGIN = (
   process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link"
 ).replace(/\/$/, "");
 
-const CAFE_STOREFRONT_CONTRACT = String(
-  process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT || ""
+const STORE_STOREFRONT_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT || ""
 )
   .trim()
   .toLowerCase();
@@ -125,10 +126,10 @@ function toSafeNumber(v?: string | null) {
   return Number.isFinite(n) ? n : null;
 }
 
-export default function CafeStoreClient() {
+export default function StoreClient() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-  const [rows, setRows] = useState<CafeProduct[]>([]);
+  const [rows, setRows] = useState<StoreProduct[]>([]);
   const [apiPaymentToken, setApiPaymentToken] = useState<string>("");
 
   const [q, setQ] = useState("");
@@ -143,14 +144,16 @@ export default function CafeStoreClient() {
       setErr(null);
 
       try {
-        const j = await fetchJSON<CafeProductsResponse>("/api/cafe/products?take=80");
+        const j = await fetchJSON<StoreProductsResponse>(
+          `/api/store/products?take=80&mode=${mode === "active" ? "active" : "all"}`
+        );
         if (dead) return;
 
         setRows(Array.isArray(j?.items) ? j.items : []);
         setApiPaymentToken(String(j?.paymentTokenAddress || "").trim().toLowerCase());
       } catch (e: any) {
         if (dead) return;
-        setErr(e?.message || "Failed to load cafe products");
+        setErr(e?.message || "Failed to load store products");
       } finally {
         if (!dead) setLoading(false);
       }
@@ -159,7 +162,7 @@ export default function CafeStoreClient() {
     return () => {
       dead = true;
     };
-  }, []);
+  }, [mode]);
 
   const paymentTokenAddress = useMemo(() => {
     return apiPaymentToken || ENV_PAYMENT_TOKEN_ADDRESS;
@@ -170,15 +173,12 @@ export default function CafeStoreClient() {
 
     let out = rows;
 
-    if (mode === "active") {
-      out = out.filter((x) => x.active);
-    }
-
     if (qq) {
       out = out.filter((x) => {
         const name = String(x.name || "").toLowerCase();
         const tokenId = String(x.tokenId || "");
         const collection = String(x.collection || "").toLowerCase();
+        const category = String(x.category || "").toLowerCase();
         const item = String(x.item || "").toLowerCase();
         const rarity = String(x.rarity || "").toLowerCase();
 
@@ -186,6 +186,7 @@ export default function CafeStoreClient() {
           name.includes(qq) ||
           tokenId.includes(qq) ||
           collection.includes(qq) ||
+          category.includes(qq) ||
           item.includes(qq) ||
           rarity.includes(qq)
         );
@@ -207,7 +208,7 @@ export default function CafeStoreClient() {
     }
 
     return out;
-  }, [rows, q, mode, sort]);
+  }, [rows, q, sort]);
 
   const activeCount = useMemo(() => rows.filter((x) => x.active).length, [rows]);
 
@@ -223,14 +224,13 @@ export default function CafeStoreClient() {
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
             <div className="min-w-0">
               <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                Primary Storefront
+                Curated Storefront
               </div>
               <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">
-                Realife Cafe Collection
+                Realife NFT Store
               </div>
               <div className="mt-2 text-[12px] text-white/55 max-w-2xl">
-                All products created through the admin cafe mint form appear here as the
-                primary Realife Cafe catalog.
+                Real-world items connected to NFTs. Delivery and escrow are handled through the site UI, while the NFT purchase itself is minted through the store contract.
               </div>
             </div>
 
@@ -312,7 +312,7 @@ export default function CafeStoreClient() {
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="cappuccino / token id…"
+                placeholder="art / antique / token id…"
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
               />
             </div>
@@ -377,7 +377,7 @@ export default function CafeStoreClient() {
 
           const quickBuyReady =
             canBuy &&
-            CAFE_STOREFRONT_CONTRACT.startsWith("0x") &&
+            STORE_STOREFRONT_CONTRACT.startsWith("0x") &&
             paymentTokenAddress.startsWith("0x");
 
           return (
@@ -394,7 +394,7 @@ export default function CafeStoreClient() {
                   {img ? (
                     <img
                       src={img}
-                      alt={x.name || "Cafe NFT"}
+                      alt={x.name || "Store NFT"}
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -415,9 +415,17 @@ export default function CafeStoreClient() {
                       {soldOut ? "SOLD OUT" : x.active ? "AVAILABLE" : "INACTIVE"}
                     </div>
 
-                    <div className="px-2 py-1 rounded-full border border-black/10 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-[10px] font-black text-black">
-                      {x.collection || "REALIFE CAFE"}
-                    </div>
+                    {x.deliveryEnabled ? (
+                      <div className="px-2 py-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-[10px] font-black text-emerald-100">
+                        DELIVERY
+                      </div>
+                    ) : null}
+
+                    {x.officialItem ? (
+                      <div className="px-2 py-1 rounded-full border border-black/10 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-[10px] font-black text-black">
+                        OFFICIAL
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -433,12 +441,18 @@ export default function CafeStoreClient() {
               <div className="p-5">
                 <Link href={href} className="block">
                   <div className="text-sm font-extrabold text-white/90 truncate hover:text-amber-100 transition">
-                    {x.name || `Cafe Product #${x.tokenId}`}
+                    {x.name || `Store Product #${x.tokenId}`}
                   </div>
                 </Link>
 
-                {x.item || x.rarity ? (
+                {x.category || x.item || x.rarity ? (
                   <div className="mt-2 flex flex-wrap gap-2">
+                    {x.category ? (
+                      <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                        {x.category}
+                      </span>
+                    ) : null}
+
                     {x.item ? (
                       <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
                         {x.item}
@@ -472,6 +486,13 @@ export default function CafeStoreClient() {
                       {x.totalSupply ?? "0"} / {x.maxSupply ?? "—"}
                     </span>
                   </div>
+
+                  <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
+                    <span className="text-white/45">Seller</span>
+                    <span className="font-black text-white/75">
+                      {shortAddr(x.primarySellerWallet)}
+                    </span>
+                  </div>
                 </div>
 
                 {x.metaDescription ? (
@@ -479,6 +500,20 @@ export default function CafeStoreClient() {
                     {x.metaDescription}
                   </div>
                 ) : null}
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {x.deliveryEnabled ? (
+                    <span className="px-2 py-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-[10px] font-black text-emerald-100">
+                      Delivery available
+                    </span>
+                  ) : null}
+
+                  {x.physicalItemIncluded ? (
+                    <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                      Physical item included
+                    </span>
+                  ) : null}
+                </div>
 
                 <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Link
@@ -492,8 +527,8 @@ export default function CafeStoreClient() {
                     <StorefrontQuickBuy1155
                       chainId={x.chainId}
                       nftContract={x.contract}
-                      storefrontContract={CAFE_STOREFRONT_CONTRACT}
-                      storefrontAbi={realifeCafeStoreAbi}
+                      storefrontContract={STORE_STOREFRONT_CONTRACT}
+                      storefrontAbi={realifeStoreAbi}
                       tokenId={String(x.tokenId)}
                       active={Boolean(x.active)}
                       unitPriceRaw={x.priceRaw}
@@ -501,7 +536,7 @@ export default function CafeStoreClient() {
                       paymentTokenAddress={paymentTokenAddress}
                       paymentSymbol="USDT"
                       remaining={x.remaining}
-                      title={x.name || `Cafe Product #${x.tokenId}`}
+                      title={x.name || `Store Product #${x.tokenId}`}
                       functionName="buyProduct"
                       defaultAmount={1}
                       maxBuyPerTx={remainingNum && remainingNum > 0 ? remainingNum : 1}
