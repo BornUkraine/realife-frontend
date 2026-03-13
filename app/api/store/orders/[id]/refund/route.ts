@@ -70,14 +70,14 @@ function nextDeliveryStatusForRefund(
 ): DeliveryStatus {
   if (!deliveryRequired) return DeliveryStatus.NOT_REQUIRED;
 
-  if (
-    [
-      DeliveryStatus.SHIPPED,
-      DeliveryStatus.DELIVERED,
-      DeliveryStatus.CONFIRMED,
-      DeliveryStatus.RETURN_REQUESTED,
-    ].includes(current)
-  ) {
+  const returnedStatuses: DeliveryStatus[] = [
+    DeliveryStatus.SHIPPED,
+    DeliveryStatus.DELIVERED,
+    DeliveryStatus.CONFIRMED,
+    DeliveryStatus.RETURN_REQUESTED,
+  ];
+
+  if (returnedStatuses.includes(current)) {
     return DeliveryStatus.RETURNED;
   }
 

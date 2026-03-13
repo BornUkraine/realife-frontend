@@ -65,13 +65,13 @@ function nextDeliveryStatusForDispute(
 ): DeliveryStatus {
   if (!deliveryRequired) return DeliveryStatus.NOT_REQUIRED;
 
-  if (
-    [
-      DeliveryStatus.SHIPPED,
-      DeliveryStatus.DELIVERED,
-      DeliveryStatus.CONFIRMED,
-    ].includes(current)
-  ) {
+  const disputeEligibleStatuses: DeliveryStatus[] = [
+    DeliveryStatus.SHIPPED,
+    DeliveryStatus.DELIVERED,
+    DeliveryStatus.CONFIRMED,
+  ];
+
+  if (disputeEligibleStatuses.includes(current)) {
     return DeliveryStatus.RETURN_REQUESTED;
   }
 
@@ -132,13 +132,13 @@ export async function POST(
       );
     }
 
-    if (
-      [
-        EscrowStatus.RELEASED,
-        EscrowStatus.REFUNDED,
-        EscrowStatus.CANCELLED,
-      ].includes(order.escrowStatus)
-    ) {
+    const finalizedEscrowStatuses: EscrowStatus[] = [
+      EscrowStatus.RELEASED,
+      EscrowStatus.REFUNDED,
+      EscrowStatus.CANCELLED,
+    ];
+
+    if (finalizedEscrowStatuses.includes(order.escrowStatus)) {
       return NextResponse.json(
         { ok: false, error: "ORDER_ALREADY_FINALIZED" },
         { status: 400 }

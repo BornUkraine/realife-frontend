@@ -144,12 +144,14 @@ export async function POST(
       );
     }
 
+    const releasableDeliveryStatuses: DeliveryStatus[] = [
+      DeliveryStatus.CONFIRMED,
+      DeliveryStatus.DELIVERED,
+    ];
+
     if (
       order.deliveryRequired &&
-      ![
-        DeliveryStatus.CONFIRMED,
-        DeliveryStatus.DELIVERED,
-      ].includes(order.deliveryStatus)
+      !releasableDeliveryStatuses.includes(order.deliveryStatus)
     ) {
       return NextResponse.json(
         { ok: false, error: "DELIVERY_NOT_CONFIRMED" },
@@ -166,11 +168,13 @@ export async function POST(
         releasedAt: now,
         escrowReleaseTxHash: escrowReleaseTxHash || undefined,
         deliveryStatus:
-          order.deliveryRequired && order.deliveryStatus === DeliveryStatus.DELIVERED
+          order.deliveryRequired &&
+          order.deliveryStatus === DeliveryStatus.DELIVERED
             ? DeliveryStatus.CONFIRMED
             : order.deliveryStatus,
         confirmedAt:
-          order.deliveryRequired && order.deliveryStatus === DeliveryStatus.DELIVERED
+          order.deliveryRequired &&
+          order.deliveryStatus === DeliveryStatus.DELIVERED
             ? now
             : undefined,
         ...(note
