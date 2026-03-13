@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import StorefrontQuickBuy1155 from "@/components/storefront/StorefrontQuickBuy1155";
+import StorefrontBuyPanel1155 from "@/components/storefront/StorefrontBuyPanel1155";
 import { realifeStoreAbi } from "@/lib/realifeStoreAbi";
 
 type StoreProduct = {
@@ -341,7 +341,7 @@ export default function StoreClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {(loading ? Array.from({ length: 8 }) : filtered).map((x: any, idx: number) => {
           const isSkeleton = !x || typeof x !== "object" || !x.id;
 
@@ -375,10 +375,17 @@ export default function StoreClient() {
           const soldOut = remainingNum !== null ? remainingNum <= 0 : false;
           const canBuy = Boolean(x.active) && !soldOut;
 
-          const quickBuyReady =
+          const productPaymentTokenAddress = String(
+            x.paymentTokenAddress || paymentTokenAddress || ""
+          )
+            .trim()
+            .toLowerCase();
+
+          const panelReady =
             canBuy &&
             STORE_STOREFRONT_CONTRACT.startsWith("0x") &&
-            paymentTokenAddress.startsWith("0x");
+            productPaymentTokenAddress.startsWith("0x") &&
+            Boolean(x.priceRaw);
 
           return (
             <div
@@ -515,48 +522,66 @@ export default function StoreClient() {
                   ) : null}
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="mt-4">
                   <Link
                     href={href}
-                    className="inline-flex items-center justify-center px-4 py-3 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
+                    className="inline-flex w-full items-center justify-center px-4 py-3 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
                   >
                     Open product
                   </Link>
+                </div>
 
-                  {quickBuyReady ? (
-                    <StorefrontQuickBuy1155
+                <div className="mt-4">
+                  {panelReady ? (
+                    <StorefrontBuyPanel1155
                       chainId={x.chainId}
                       nftContract={x.contract}
-                      storefrontContract={STORE_STOREFRONT_CONTRACT}
-                      storefrontAbi={realifeStoreAbi}
                       tokenId={String(x.tokenId)}
-                      active={Boolean(x.active)}
-                      unitPriceRaw={x.priceRaw}
-                      priceLabel={`${fmtUsdt(x.priceUsdt)} USDT`}
-                      paymentTokenAddress={paymentTokenAddress}
-                      paymentSymbol="USDT"
-                      remaining={x.remaining}
+                      storefrontLabel="Realife NFT Store"
                       title={x.name || `Store Product #${x.tokenId}`}
-                      functionName="buyProduct"
-                      defaultAmount={1}
-                      maxBuyPerTx={remainingNum && remainingNum > 0 ? remainingNum : 1}
-                      approveUnlimited={true}
+                      subtitle={
+                        x.deliveryEnabled || x.physicalItemIncluded
+                          ? "Buy NFT and create delivery order through site UI"
+                          : "Buy directly from storefront contract"
+                      }
+                      active={Boolean(x.active)}
+                      priceLabel={`${fmtUsdt(x.priceUsdt)} USDT`}
+                      paymentTokenLabel="USDT"
+                      remaining={x.remaining}
+                      totalSupply={x.totalSupply}
+                      maxSupply={x.maxSupply}
+                      buyButtonLabel="Buy now"
+                      checkoutMode="delivery"
+                      vertical="store"
+                      deliveryEnabled={Boolean(x.deliveryEnabled)}
+                      physicalItemIncluded={Boolean(x.physicalItemIncluded)}
+                      officialItem={Boolean(x.officialItem)}
+                      primarySellerWallet={x.primarySellerWallet || null}
+                      buyConfig={{
+                        contract: STORE_STOREFRONT_CONTRACT,
+                        abi: realifeStoreAbi,
+                        functionName: "buyProduct",
+                        args: [String(x.tokenId), "1"],
+                        bigintArgIndices: [0, 1],
+                      }}
+                      erc20Payment={{
+                        tokenAddress: productPaymentTokenAddress,
+                        spender: STORE_STOREFRONT_CONTRACT,
+                        amountRaw: String(x.priceRaw || "0"),
+                        symbol: "USDT",
+                        approveUnlimited: true,
+                      }}
+                      extraRevalidateTags={[
+                        `storefront:store:${x.chainId}:${x.contract}`,
+                        `store:product:${x.chainId}:${x.contract}:${x.tokenId}`,
+                      ]}
                     />
                   ) : canBuy ? (
-                    <Link
-                      href={href}
-                      className={cx(
-                        "inline-flex items-center justify-center px-4 py-3 rounded-2xl",
-                        "text-[12px] font-extrabold text-black",
-                        "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-                        "shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15",
-                        "hover:brightness-110 transition"
-                      )}
-                    >
-                      Buy now
-                    </Link>
+                    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
+                      Storefront buy config is not ready yet.
+                    </div>
                   ) : (
-                    <div className="inline-flex items-center justify-center px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] text-[12px] font-black text-white/45">
+                    <div className="inline-flex w-full items-center justify-center px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] text-[12px] font-black text-white/45">
                       {soldOut ? "Sold out" : "Inactive"}
                     </div>
                   )}

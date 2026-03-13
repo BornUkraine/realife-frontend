@@ -39,7 +39,9 @@ function norm(a: string) {
 
 /* ------------------------------- Config ------------------------------ */
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app").replace(/\/$/, "");
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app"
+).replace(/\/$/, "");
 
 const USER_1155_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
 
@@ -224,7 +226,8 @@ async function safeReadStoreAddress(
         address: STORE_1155_CONTRACT as `0x${string}`,
         abi: realifeStoreAbi,
         functionName,
-        args: functionName === "primarySellerOf" && tokenId !== undefined ? [tokenId] : [],
+        args:
+          functionName === "primarySellerOf" && tokenId !== undefined ? [tokenId] : [],
       })) as string
     );
   } catch {
@@ -232,22 +235,28 @@ async function safeReadStoreAddress(
   }
 }
 
-async function loadCafeStoreState(contract: string, tokenId: string): Promise<CafeStoreState | null> {
+async function loadCafeStoreState(
+  contract: string,
+  tokenId: string
+): Promise<CafeStoreState | null> {
   if (!CAFE_1155_CONTRACT || contract !== CAFE_1155_CONTRACT) return null;
 
   try {
     const tokenIdBI = BigInt(tokenId);
 
-    const [priceRaw, maxSupplyRaw, totalSupplyRaw, active, paymentTokenAddressRaw] = await Promise.all([
-      safeReadCafeBigInt("productPrices", tokenIdBI),
-      safeReadCafeBigInt("maxSupply", tokenIdBI),
-      safeReadCafeBigInt("totalSupply", tokenIdBI),
-      safeReadCafeBool("isActive", tokenIdBI),
-      safeReadCafeAddress("paymentToken"),
-    ]);
+    const [priceRaw, maxSupplyRaw, totalSupplyRaw, active, paymentTokenAddressRaw] =
+      await Promise.all([
+        safeReadCafeBigInt("productPrices", tokenIdBI),
+        safeReadCafeBigInt("maxSupply", tokenIdBI),
+        safeReadCafeBigInt("totalSupply", tokenIdBI),
+        safeReadCafeBool("isActive", tokenIdBI),
+        safeReadCafeAddress("paymentToken"),
+      ]);
 
     const remainingRaw =
-      maxSupplyRaw !== null && totalSupplyRaw !== null ? maxSupplyRaw - totalSupplyRaw : null;
+      maxSupplyRaw !== null && totalSupplyRaw !== null
+        ? maxSupplyRaw - totalSupplyRaw
+        : null;
 
     return {
       active: active ?? null,
@@ -263,7 +272,10 @@ async function loadCafeStoreState(contract: string, tokenId: string): Promise<Ca
   }
 }
 
-async function loadStoreStoreState(contract: string, tokenId: string): Promise<StoreStoreState | null> {
+async function loadStoreStoreState(
+  contract: string,
+  tokenId: string
+): Promise<StoreStoreState | null> {
   if (!STORE_1155_CONTRACT || contract !== STORE_1155_CONTRACT) return null;
 
   try {
@@ -292,7 +304,9 @@ async function loadStoreStoreState(contract: string, tokenId: string): Promise<S
     ]);
 
     const remainingRaw =
-      maxSupplyRaw !== null && totalSupplyRaw !== null ? maxSupplyRaw - totalSupplyRaw : null;
+      maxSupplyRaw !== null && totalSupplyRaw !== null
+        ? maxSupplyRaw - totalSupplyRaw
+        : null;
 
     return {
       active: active ?? null,
@@ -336,7 +350,14 @@ async function fetchJsonWithTimeout(
   try {
     const r = await fetch(url, { ...init, signal: controller.signal });
     const j = await r.json().catch(() => null);
-    if (!r.ok) return { ok: false, status: r.status, json: j, error: j?.error || `http_${r.status}` };
+    if (!r.ok) {
+      return {
+        ok: false,
+        status: r.status,
+        json: j,
+        error: j?.error || `http_${r.status}`,
+      };
+    }
     return { ok: true, status: r.status, json: j, error: null };
   } catch (e: any) {
     const msg = e?.name === "AbortError" ? "timeout" : e?.message || "fetch_failed";
@@ -499,7 +520,10 @@ async function loadMarketNft(
 
   const url = origin ? `${origin}/api/market/nft?${qs}` : `/api/market/nft?${qs}`;
 
-  const tags = [marketTagNft(chainId, contract, tokenId), marketTagContract(chainId, contract)];
+  const tags = [
+    marketTagNft(chainId, contract, tokenId),
+    marketTagContract(chainId, contract),
+  ];
 
   const res = await fetchJsonWithTimeout(
     url,
@@ -683,9 +707,12 @@ export default async function NftDetailsPage({
   }
 
   const metaDescription =
-    typeof meta?.description === "string" && meta.description.trim() ? meta.description.trim() : null;
+    typeof meta?.description === "string" && meta.description.trim()
+      ? meta.description.trim()
+      : null;
 
-  const metaProject = pickAttrAny(meta, ["Project", "project"]) || pickAny(meta, ["project"]) || null;
+  const metaProject =
+    pickAttrAny(meta, ["Project", "project"]) || pickAny(meta, ["project"]) || null;
 
   const metaCategory =
     pickAttrAny(meta, ["Category", "category"]) || pickAny(meta, ["category"]) || null;
@@ -747,7 +774,12 @@ export default async function NftDetailsPage({
     : "ERC-1155";
 
   const origin = await getOrigin();
-  const { data: market, error: marketError } = await loadMarketNft(origin, chainId, contract, tokenId);
+  const { data: market, error: marketError } = await loadMarketNft(
+    origin,
+    chainId,
+    contract,
+    tokenId
+  );
 
   const stats = market?.stats || null;
   const listings: any[] = Array.isArray(market?.listings) ? market.listings : [];
@@ -1228,6 +1260,8 @@ export default async function NftDetailsPage({
                   totalSupply={cafeStore?.totalSupply}
                   maxSupply={cafeStore?.maxSupply}
                   buyButtonLabel="Buy from cafe"
+                  checkoutMode="simple"
+                  vertical="cafe"
                   buyConfig={{
                     contract: CAFE_1155_CONTRACT,
                     abi: realifeCafeStoreAbi,
@@ -1236,7 +1270,8 @@ export default async function NftDetailsPage({
                     bigintArgIndices: [0, 1],
                   }}
                   erc20Payment={{
-                    tokenAddress: cafeStore?.paymentTokenAddress || PAYMENT_TOKEN_FALLBACK || "",
+                    tokenAddress:
+                      cafeStore?.paymentTokenAddress || PAYMENT_TOKEN_FALLBACK || "",
                     spender: CAFE_1155_CONTRACT,
                     amountRaw: cafeStore?.priceRaw || "0",
                     symbol: "USDT",
@@ -1262,6 +1297,12 @@ export default async function NftDetailsPage({
                   totalSupply={storeStore?.totalSupply}
                   maxSupply={storeStore?.maxSupply}
                   buyButtonLabel="Buy from store"
+                  checkoutMode="delivery"
+                  vertical="store"
+                  deliveryEnabled={Boolean(storeStore?.deliveryEnabled)}
+                  physicalItemIncluded={Boolean(storeStore?.physicalItemIncluded)}
+                  officialItem={Boolean(storeStore?.officialItem)}
+                  primarySellerWallet={storeStore?.primarySellerWallet || null}
                   buyConfig={{
                     contract: STORE_1155_CONTRACT,
                     abi: realifeStoreAbi,
@@ -1270,7 +1311,8 @@ export default async function NftDetailsPage({
                     bigintArgIndices: [0, 1],
                   }}
                   erc20Payment={{
-                    tokenAddress: storeStore?.paymentTokenAddress || PAYMENT_TOKEN_FALLBACK || "",
+                    tokenAddress:
+                      storeStore?.paymentTokenAddress || PAYMENT_TOKEN_FALLBACK || "",
                     spender: STORE_1155_CONTRACT,
                     amountRaw: storeStore?.priceRaw || "0",
                     symbol: "USDT",

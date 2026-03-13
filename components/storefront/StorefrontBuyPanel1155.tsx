@@ -73,6 +73,7 @@ const erc20Abi = [
 const MAX_UINT256 = (1n << 256n) - 1n;
 
 type BuyArg = string | number | boolean;
+type CheckoutMode = "simple" | "delivery";
 
 type Erc20PaymentConfig = {
   tokenAddress: string;
@@ -109,6 +110,13 @@ export default function StorefrontBuyPanel1155({
 
   buyButtonLabel = "Buy now",
 
+  checkoutMode = "simple",
+  vertical = "store",
+  deliveryEnabled = false,
+  physicalItemIncluded = false,
+  officialItem = false,
+  primarySellerWallet = null,
+
   buyConfig,
   erc20Payment,
   extraRevalidateTags = [],
@@ -131,6 +139,13 @@ export default function StorefrontBuyPanel1155({
 
   buyButtonLabel?: string;
 
+  checkoutMode?: CheckoutMode;
+  vertical?: string;
+  deliveryEnabled?: boolean;
+  physicalItemIncluded?: boolean;
+  officialItem?: boolean;
+  primarySellerWallet?: string | null;
+
   buyConfig?: StorefrontBuyConfig | null;
   erc20Payment?: Erc20PaymentConfig | null;
   extraRevalidateTags?: string[];
@@ -148,7 +163,10 @@ export default function StorefrontBuyPanel1155({
   const nftAddr = useMemo(() => toLower(nftContract), [nftContract]);
   const me = useMemo(() => toLower(address), [address]);
 
-  const storefrontContract = useMemo(() => toLower(buyConfig?.contract || ""), [buyConfig?.contract]);
+  const storefrontContract = useMemo(
+    () => toLower(buyConfig?.contract || ""),
+    [buyConfig?.contract]
+  );
 
   const hasBuyConfig = Boolean(
     buyConfig &&
@@ -157,8 +175,15 @@ export default function StorefrontBuyPanel1155({
       Array.isArray(buyConfig.abi)
   );
 
-  const erc20Token = useMemo(() => toLower(erc20Payment?.tokenAddress || ""), [erc20Payment?.tokenAddress]);
-  const erc20Spender = useMemo(() => toLower(erc20Payment?.spender || ""), [erc20Payment?.spender]);
+  const erc20Token = useMemo(
+    () => toLower(erc20Payment?.tokenAddress || ""),
+    [erc20Payment?.tokenAddress]
+  );
+
+  const erc20Spender = useMemo(
+    () => toLower(erc20Payment?.spender || ""),
+    [erc20Payment?.spender]
+  );
 
   const hasErc20Payment = Boolean(
     erc20Payment &&
@@ -172,13 +197,23 @@ export default function StorefrontBuyPanel1155({
     [erc20Payment?.amountRaw]
   );
 
+  const isDeliveryCheckout = checkoutMode === "delivery";
+
+  const requiresShipping = useMemo(() => {
+    if (!isDeliveryCheckout) return false;
+    return Boolean(deliveryEnabled || physicalItemIncluded);
+  }, [isDeliveryCheckout, deliveryEnabled, physicalItemIncluded]);
+
   const { data: allowanceRaw, refetch: refetchAllowance } = useReadContract({
     abi: erc20Abi,
-    address: (erc20Token || "0x0000000000000000000000000000000000000000") as `0x${string}`,
+    address: (erc20Token ||
+      "0x0000000000000000000000000000000000000000") as `0x${string}`,
     functionName: "allowance",
     args: [
-      ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
-      ((erc20Spender || "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      ((address ||
+        "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      ((erc20Spender ||
+        "0x0000000000000000000000000000000000000000") as `0x${string}`),
     ],
     query: {
       enabled: Boolean(isConnected && hasErc20Payment),
@@ -200,6 +235,13 @@ export default function StorefrontBuyPanel1155({
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
+  const [shippingName, setShippingName] = useState("");
+  const [shippingPhone, setShippingPhone] = useState("");
+  const [shippingCountry, setShippingCountry] = useState("");
+  const [shippingCity, setShippingCity] = useState("");
+  const [shippingAddress, setShippingAddress] = useState("");
+  const [shippingZip, setShippingZip] = useState("");
+
   const isSoldOut = useMemo(() => {
     try {
       if (remaining == null) return false;
@@ -216,11 +258,21 @@ export default function StorefrontBuyPanel1155({
     const bigintIdx = new Set(cfg.bigintArgIndices || []);
 
     return args.map((arg, idx) => {
-      if (bigintIdx.has(idx)) {
-        return BigInt(String(arg));
-      }
+      if (bigintIdx.has(idx)) return BigInt(String(arg));
       return arg;
     });
+  }
+
+  function validateShipping() {
+    if (!requiresShipping) return null;
+
+    if (!shippingName.trim()) return "Shipping name is required";
+    if (!shippingPhone.trim()) return "Shipping phone is required";
+    if (!shippingCountry.trim()) return "Shipping country is required";
+    if (!shippingCity.trim()) return "Shipping city is required";
+    if (!shippingAddress.trim()) return "Shipping address is required";
+
+    return null;
   }
 
   async function ensureChain() {
@@ -243,7 +295,35 @@ export default function StorefrontBuyPanel1155({
         body: JSON.stringify({ tags }),
       });
     } catch {
-      // ignore
+      //
+    }
+  }
+
+  async function createOrderAfterBuy(hash: string) {
+    if (!requiresShipping) return;
+
+    const r = await fetch("/api/store/orders/create", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chainId,
+        contract: nftAddr,
+        tokenId,
+        amount: "1",
+        buyTxHash: hash,
+        shippingName,
+        shippingPhone,
+        shippingCountry,
+        shippingCity,
+        shippingAddress,
+        shippingZip,
+      }),
+    });
+
+    const j = await r.json().catch(() => null);
+
+    if (!r.ok || !j?.ok) {
+      throw new Error(j?.error || "ORDER_CREATE_FAILED");
     }
   }
 
@@ -258,7 +338,9 @@ export default function StorefrontBuyPanel1155({
     try {
       await ensureChain();
 
-      const approveAmount = erc20Payment.approveUnlimited ? MAX_UINT256 : requiredErc20Amount;
+      const approveAmount = erc20Payment.approveUnlimited
+        ? MAX_UINT256
+        : requiredErc20Amount;
 
       const hash = await writeContractAsync({
         abi: erc20Abi,
@@ -283,6 +365,13 @@ export default function StorefrontBuyPanel1155({
     if (!buyConfig) return;
     if (!active || isSoldOut) return;
 
+    const shippingError = validateShipping();
+    if (shippingError) {
+      setErr(shippingError);
+      setOk(null);
+      return;
+    }
+
     setErr(null);
     setOk(null);
     setBusy("buy");
@@ -304,10 +393,24 @@ export default function StorefrontBuyPanel1155({
 
       await publicClient?.waitForTransactionReceipt({ hash });
 
+      let orderWarning: string | null = null;
+
+      if (requiresShipping) {
+        try {
+          await createOrderAfterBuy(hash);
+        } catch (e: any) {
+          orderWarning = e?.message || "ORDER_CREATE_FAILED";
+        }
+      }
+
       await revalidateAfterBuy();
       router.refresh();
 
       setOk(successMessage);
+
+      if (orderWarning) {
+        setErr(`On-chain purchase succeeded, but order save failed: ${orderWarning}`);
+      }
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Buy failed");
     } finally {
@@ -329,7 +432,9 @@ export default function StorefrontBuyPanel1155({
               <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
                 {storefrontLabel}
               </div>
-              <div className="mt-2 text-lg md:text-xl font-black text-white/90">{title}</div>
+              <div className="mt-2 text-lg md:text-xl font-black text-white/90">
+                {title}
+              </div>
               <div className="mt-2 text-[12px] text-white/55">{subtitle}</div>
             </div>
 
@@ -345,30 +450,58 @@ export default function StorefrontBuyPanel1155({
             </div>
           </div>
 
+          <div className="mt-3 flex flex-wrap gap-2">
+            {isDeliveryCheckout && deliveryEnabled ? (
+              <span className="px-3 py-1 rounded-full border border-sky-400/20 bg-sky-400/10 text-[11px] font-black text-sky-200">
+                DELIVERY
+              </span>
+            ) : null}
+
+            {isDeliveryCheckout && physicalItemIncluded ? (
+              <span className="px-3 py-1 rounded-full border border-violet-400/20 bg-violet-400/10 text-[11px] font-black text-violet-200">
+                PHYSICAL ITEM
+              </span>
+            ) : null}
+
+            {officialItem ? (
+              <span className="px-3 py-1 rounded-full border border-amber-400/20 bg-amber-400/10 text-[11px] font-black text-amber-100">
+                OFFICIAL
+              </span>
+            ) : null}
+          </div>
+
           <div className="mt-5 grid grid-cols-2 gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Price</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Price
+              </div>
               <div className="mt-1 text-[13px] font-extrabold text-amber-100 truncate">
                 {priceLabel}
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Payment</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Payment
+              </div>
               <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                 {paymentTokenLabel}
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Remaining</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Remaining
+              </div>
               <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                 {fmtRawInt(remaining)}
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Supply</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Supply
+              </div>
               <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                 {fmtRawInt(totalSupply)} / {fmtRawInt(maxSupply)}
               </div>
@@ -382,10 +515,80 @@ export default function StorefrontBuyPanel1155({
             {hasBuyConfig ? (
               <>
                 <span className="text-white/30"> • </span>
-                Storefront: <span className="font-mono text-white/80">{shortAddr(storefrontContract)}</span>
+                Storefront:{" "}
+                <span className="font-mono text-white/80">
+                  {shortAddr(storefrontContract)}
+                </span>
               </>
             ) : null}
+            {primarySellerWallet ? (
+              <>
+                <span className="text-white/30"> • </span>
+                Seller:{" "}
+                <span className="font-mono text-white/80">
+                  {shortAddr(primarySellerWallet)}
+                </span>
+              </>
+            ) : null}
+            <span className="text-white/30"> • </span>
+            Vertical: <span className="font-black text-white/80">{vertical}</span>
           </div>
+
+          {requiresShipping ? (
+            <div className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
+              <div className="text-[12px] font-black text-sky-100">
+                Delivery checkout
+              </div>
+              <div className="mt-1 text-[12px] text-sky-50/80">
+                This product requires shipping info. After successful on-chain buy,
+                an order record will be created in the backend.
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  value={shippingName}
+                  onChange={(e) => setShippingName(e.target.value)}
+                  placeholder="Full name"
+                  className="h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                />
+
+                <input
+                  value={shippingPhone}
+                  onChange={(e) => setShippingPhone(e.target.value)}
+                  placeholder="Phone"
+                  className="h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                />
+
+                <input
+                  value={shippingCountry}
+                  onChange={(e) => setShippingCountry(e.target.value)}
+                  placeholder="Country"
+                  className="h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                />
+
+                <input
+                  value={shippingCity}
+                  onChange={(e) => setShippingCity(e.target.value)}
+                  placeholder="City"
+                  className="h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                />
+
+                <input
+                  value={shippingZip}
+                  onChange={(e) => setShippingZip(e.target.value)}
+                  placeholder="ZIP / Postal code"
+                  className="h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20 md:col-span-2"
+                />
+
+                <textarea
+                  value={shippingAddress}
+                  onChange={(e) => setShippingAddress(e.target.value)}
+                  placeholder="Full shipping address"
+                  className="min-h-[96px] rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20 md:col-span-2"
+                />
+              </div>
+            </div>
+          ) : null}
 
           {err ? (
             <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100">
@@ -506,7 +709,9 @@ export default function StorefrontBuyPanel1155({
                 : hasErc20Payment && needsApproval
                 ? "Approval required before buy."
                 : hasBuyConfig
-                ? "Ready to buy."
+                ? requiresShipping
+                  ? "Ready to buy and create delivery order."
+                  : "Ready to buy."
                 : "Connect buy config first."}
             </div>
           </div>
