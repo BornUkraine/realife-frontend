@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import StorefrontBuyPanel1155 from "@/components/storefront/StorefrontBuyPanel1155";
-import { realifeStoreAbi } from "@/lib/realifeStoreAbi";
 
 type StoreProduct = {
   id: string;
@@ -38,7 +36,6 @@ type StoreProduct = {
   item?: string | null;
   rarity?: string | null;
 
-  // brand-ready fields
   brandProject?: string | null;
   project?: string | null;
 };
@@ -68,18 +65,6 @@ function shortAddr(addr?: string | null) {
 const PRIMARY_IPFS_ORIGIN = (
   process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link"
 ).replace(/\/$/, "");
-
-const STORE_STOREFRONT_CONTRACT = String(
-  process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT || ""
-)
-  .trim()
-  .toLowerCase();
-
-const ENV_PAYMENT_TOKEN_ADDRESS = String(
-  process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS || ""
-)
-  .trim()
-  .toLowerCase();
 
 const IPFS_GATEWAYS = [
   `${PRIMARY_IPFS_ORIGIN}/ipfs/`,
@@ -138,7 +123,6 @@ export default function StoreClient() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [rows, setRows] = useState<StoreProduct[]>([]);
-  const [apiPaymentToken, setApiPaymentToken] = useState<string>("");
 
   const [q, setQ] = useState("");
   const [mode, setMode] = useState<"all" | "active">("active");
@@ -158,7 +142,6 @@ export default function StoreClient() {
         if (dead) return;
 
         setRows(Array.isArray(j?.items) ? j.items : []);
-        setApiPaymentToken(String(j?.paymentTokenAddress || "").trim().toLowerCase());
       } catch (e: any) {
         if (dead) return;
         setErr(e?.message || "Failed to load store products");
@@ -171,10 +154,6 @@ export default function StoreClient() {
       dead = true;
     };
   }, [mode]);
-
-  const paymentTokenAddress = useMemo(() => {
-    return apiPaymentToken || ENV_PAYMENT_TOKEN_ADDRESS;
-  }, [apiPaymentToken]);
 
   const filtered = useMemo(() => {
     const qq = q.trim().toLowerCase();
@@ -253,8 +232,7 @@ export default function StoreClient() {
               </div>
               <div className="mt-2 text-[12px] text-white/55 max-w-2xl">
                 Curated storefront for Realife products and future brand-ready collections.
-                NFT purchase is executed through the store contract, while delivery and escrow
-                are handled through the site UI.
+                Delivery checkout and final purchase flow open on the dedicated NFT product page.
               </div>
             </div>
 
@@ -407,17 +385,10 @@ export default function StoreClient() {
           const canBuy = Boolean(x.active) && !soldOut;
           const brandLabel = getBrandLabel(x);
 
-          const productPaymentTokenAddress = String(
-            x.paymentTokenAddress || paymentTokenAddress || ""
-          )
-            .trim()
-            .toLowerCase();
-
-          const panelReady =
-            canBuy &&
-            STORE_STOREFRONT_CONTRACT.startsWith("0x") &&
-            productPaymentTokenAddress.startsWith("0x") &&
-            Boolean(x.priceRaw);
+          const primaryActionLabel =
+            x.deliveryEnabled || x.physicalItemIncluded
+              ? "Delivery & buy →"
+              : "Open product →";
 
           return (
             <div
@@ -568,74 +539,31 @@ export default function StoreClient() {
                   ) : null}
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-4 grid grid-cols-1 gap-3">
                   <Link
                     href={href}
-                    className="inline-flex w-full items-center justify-center px-4 py-3 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
+                    className={cx(
+                      "inline-flex w-full items-center justify-center px-4 py-3 rounded-2xl transition text-[12px] font-black",
+                      canBuy
+                        ? "border border-black/10 text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 hover:brightness-110"
+                        : "border border-white/12 bg-white/[0.06] text-white/80 hover:bg-white/[0.10]"
+                    )}
                   >
-                    Open product
+                    {primaryActionLabel}
                   </Link>
+
+                  <div className="text-[11px] text-white/45 leading-relaxed">
+                    {x.deliveryEnabled || x.physicalItemIncluded
+                      ? "Checkout and delivery form are shown on the product page."
+                      : "Open the product page to view details and purchase options."}
+                  </div>
                 </div>
 
-                <div className="mt-4">
-                  {panelReady ? (
-                    <StorefrontBuyPanel1155
-                      chainId={x.chainId}
-                      nftContract={x.contract}
-                      tokenId={String(x.tokenId)}
-                      storefrontLabel={brandLabel ? `${brandLabel} • NFT Store` : "Realife NFT Store"}
-                      title={x.name || `Store Product #${x.tokenId}`}
-                      subtitle={
-                        x.deliveryEnabled || x.physicalItemIncluded
-                          ? brandLabel
-                            ? `Buy ${brandLabel} NFT and create delivery order through site UI`
-                            : "Buy NFT and create delivery order through site UI"
-                          : brandLabel
-                          ? `Buy ${brandLabel} product directly from storefront contract`
-                          : "Buy directly from storefront contract"
-                      }
-                      active={Boolean(x.active)}
-                      priceLabel={`${fmtUsdt(x.priceUsdt)} USDT`}
-                      paymentTokenLabel="USDT"
-                      remaining={x.remaining}
-                      totalSupply={x.totalSupply}
-                      maxSupply={x.maxSupply}
-                      buyButtonLabel="Buy now"
-                      checkoutMode="delivery"
-                      vertical="store"
-                      deliveryEnabled={Boolean(x.deliveryEnabled)}
-                      physicalItemIncluded={Boolean(x.physicalItemIncluded)}
-                      officialItem={Boolean(x.officialItem)}
-                      primarySellerWallet={x.primarySellerWallet || null}
-                      buyConfig={{
-                        contract: STORE_STOREFRONT_CONTRACT,
-                        abi: realifeStoreAbi,
-                        functionName: "buyProduct",
-                        args: [String(x.tokenId), "1"],
-                        bigintArgIndices: [0, 1],
-                      }}
-                      erc20Payment={{
-                        tokenAddress: productPaymentTokenAddress,
-                        spender: STORE_STOREFRONT_CONTRACT,
-                        amountRaw: String(x.priceRaw || "0"),
-                        symbol: "USDT",
-                        approveUnlimited: true,
-                      }}
-                      extraRevalidateTags={[
-                        `storefront:store:${x.chainId}:${x.contract}`,
-                        `store:product:${x.chainId}:${x.contract}:${x.tokenId}`,
-                      ]}
-                    />
-                  ) : canBuy ? (
-                    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
-                      Storefront buy config is not ready yet.
-                    </div>
-                  ) : (
-                    <div className="inline-flex w-full items-center justify-center px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] text-[12px] font-black text-white/45">
-                      {soldOut ? "Sold out" : "Inactive"}
-                    </div>
-                  )}
-                </div>
+                {!canBuy ? (
+                  <div className="mt-3 inline-flex w-full items-center justify-center px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] text-[12px] font-black text-white/45">
+                    {soldOut ? "Sold out" : "Inactive"}
+                  </div>
+                ) : null}
               </div>
             </div>
           );

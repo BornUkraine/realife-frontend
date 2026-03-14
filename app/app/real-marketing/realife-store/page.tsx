@@ -34,9 +34,18 @@ export default function RealifeStorePage() {
             </div>
 
             <div className="mt-3 text-[13px] text-white/50 max-w-3xl leading-relaxed">
-              Today this storefront is centered around <span className="text-white/80 font-black">Realife</span>.
-              It is also ready for future brand-based collections, where each NFT product can carry
-              its own project or brand label inside metadata without requiring a separate storefront UI.
+              Today this storefront is centered around{" "}
+              <span className="text-white/80 font-black">Realife</span>. It is also
+              ready for future brand-based collections, where each NFT product can carry
+              its own project or brand label inside metadata without requiring a separate
+              storefront UI.
+            </div>
+
+            <div className="mt-3 text-[13px] text-white/50 max-w-3xl leading-relaxed">
+              This page is now focused on{" "}
+              <span className="text-white/80 font-black">discovery and selection</span>.
+              The full product flow — including delivery checkout, approval and purchase —
+              opens on the dedicated NFT product page after the user selects an item.
             </div>
           </div>
 
