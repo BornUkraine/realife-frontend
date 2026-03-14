@@ -222,15 +222,27 @@ const storeAdminAbi = [
   },
   {
     type: "function",
-    name: "createProduct",
+    name: "createOfficialProduct",
     stateMutability: "nonpayable",
     inputs: [
       { name: "supply", type: "uint256" },
       { name: "price", type: "uint256" },
       { name: "tokenURI", type: "string" },
-      { name: "deliveryEnabled", type: "bool" },
-      { name: "physicalItemIncluded", type: "bool" },
-      { name: "officialItem", type: "bool" },
+      { name: "_deliveryEnabled", type: "bool" },
+      { name: "_physicalItemIncluded", type: "bool" },
+    ],
+    outputs: [{ name: "tokenId", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "createSellerProduct",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "supply", type: "uint256" },
+      { name: "price", type: "uint256" },
+      { name: "tokenURI", type: "string" },
+      { name: "_deliveryEnabled", type: "bool" },
+      { name: "_physicalItemIncluded", type: "bool" },
     ],
     outputs: [{ name: "tokenId", type: "uint256" }],
   },
@@ -564,8 +576,8 @@ export default function AdminMintForm() {
     productMode === "cafe"
       ? "Realife Crypto Cafe"
       : storeBrand === "Other"
-      ? "Partner NFT Store"
-      : `${storeBrand} NFT Store`;
+        ? "Partner NFT Store"
+        : `${storeBrand} NFT Store`;
   const selectedStorefrontHref =
     productMode === "cafe"
       ? "/app/real-marketing/realife-cafe"
@@ -1094,8 +1106,8 @@ export default function AdminMintForm() {
         data?.preview?.kind === "video"
           ? "video"
           : data?.preview?.kind === "image"
-          ? "image"
-          : pickedKind;
+            ? "image"
+            : pickedKind;
 
       const pMedia =
         ipfsToHttp(data?.preview?.media || null, IPFS_GATEWAYS[0]) || null;
@@ -1196,14 +1208,15 @@ export default function AdminMintForm() {
           : await writeContractAsync({
               address: selectedContract,
               abi: storeAdminAbi,
-              functionName: "createProduct",
+              functionName: officialItem
+                ? "createOfficialProduct"
+                : "createSellerProduct",
               args: [
                 BigInt(clampSupply(supply)),
                 priceParsed,
                 tokenURI,
                 deliveryEnabled,
                 physicalItemIncluded,
-                officialItem,
               ],
             });
 
@@ -1326,10 +1339,10 @@ export default function AdminMintForm() {
                 {!mounted || !connected
                   ? "Connect the admin wallet"
                   : wrongNetwork
-                  ? "Switch to Base Sepolia"
-                  : isAuthorized
-                  ? "Authorized moderator wallet"
-                  : "Access denied"}
+                    ? "Switch to Base Sepolia"
+                    : isAuthorized
+                      ? "Authorized moderator wallet"
+                      : "Access denied"}
               </div>
 
               <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
@@ -1797,12 +1810,12 @@ export default function AdminMintForm() {
                 {!manageTokenIdBI
                   ? "Enter token"
                   : !manageTokenExists
-                  ? "Not found"
-                  : isManageStatusFetching
-                  ? "Loading…"
-                  : manageIsActive
-                  ? "Enabled"
-                  : "Disabled"}
+                    ? "Not found"
+                    : isManageStatusFetching
+                      ? "Loading…"
+                      : manageIsActive
+                        ? "Enabled"
+                        : "Disabled"}
               </div>
             </div>
 
@@ -1849,13 +1862,13 @@ export default function AdminMintForm() {
                     ? "Disabling product on-chain…"
                     : "Waiting for wallet signature…"
                   : isMiningToggle
-                  ? "Enabling product on-chain…"
-                  : "Waiting for wallet signature…"
+                    ? "Enabling product on-chain…"
+                    : "Waiting for wallet signature…"
                 : manageTokenExists
-                ? manageIsActive
-                  ? "Disable product"
-                  : "Enable product"
-                : "Toggle product status"}
+                  ? manageIsActive
+                    ? "Disable product"
+                    : "Enable product"
+                  : "Toggle product status"}
             </GoldButton>
 
             <GhostButton
@@ -2094,7 +2107,8 @@ export default function AdminMintForm() {
                   real physical item.
                 </div>
                 <div>
-                  • <span className="font-black">officialItem</span> — highlights the product as an official store item.
+                  • <span className="font-black">officialItem</span> — defines whether admin create path calls the
+                  official or seller store method.
                 </div>
               </div>
             </div>
@@ -2119,10 +2133,13 @@ export default function AdminMintForm() {
                 Important ABI note
               </div>
               <div className="mt-2 text-[12px] text-white/65 leading-relaxed">
-                In your current <span className="font-black text-white/85">createProduct()</span> ABI there is no
-                <span className="font-black text-white/85"> primarySellerWallet </span>
-                input. So this admin form configures the delivery flags and metadata brand label, but it does not
-                directly set a custom seller wallet per product.
+                Your Store contract uses{" "}
+                <span className="font-black text-white/85">createOfficialProduct()</span> /{" "}
+                <span className="font-black text-white/85">createSellerProduct()</span>{" "}
+                instead of <span className="font-black text-white/85">createProduct()</span>.
+                There is also no{" "}
+                <span className="font-black text-white/85">primarySellerWallet</span>{" "}
+                input in this admin form call.
               </div>
             </div>
           </Card>
@@ -2395,8 +2412,8 @@ export default function AdminMintForm() {
                       productMode === "cafe"
                         ? "Realife Crypto Cafe"
                         : storeBrand === "Other"
-                        ? "Partner NFT Store"
-                        : `${storeBrand} NFT Store`
+                          ? "Partner NFT Store"
+                          : `${storeBrand} NFT Store`
                     );
                     setItem(productMode === "cafe" ? CAFE_ITEMS[0] : STORE_ITEMS[0]);
                     setRarity("Common");
@@ -2448,8 +2465,8 @@ export default function AdminMintForm() {
               {step === "signing"
                 ? "Waiting for wallet signature…"
                 : step === "mining" || isMiningCreate
-                ? "Creating product on-chain…"
-                : `2) Create ${productMode === "cafe" ? "Cafe" : "Store"} Product`}
+                  ? "Creating product on-chain…"
+                  : `2) Create ${productMode === "cafe" ? "Cafe" : "Store"} Product`}
             </GoldButton>
           </div>
 
