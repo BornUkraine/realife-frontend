@@ -57,8 +57,10 @@ function GoldEdgeWrap({
 
 export default function AdminCreatePage() {
   const year = new Date().getFullYear();
-  const cafeContract = process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT || "not-set";
-  const storeContract = process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT || "not-set";
+  const cafeContract =
+    process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT || "not-set";
+  const storeContract =
+    process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT || "not-set";
 
   return (
     <div className="space-y-6">
@@ -76,7 +78,9 @@ export default function AdminCreatePage() {
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">Realife Cafe + Realife NFT Store</span>
+                  <span className="text-white/80 font-extrabold">
+                    Realife Cafe + Realife NFT Store
+                  </span>
                 </Pill>
 
                 <Pill>
@@ -85,6 +89,10 @@ export default function AdminCreatePage() {
 
                 <Pill>
                   <span className="text-amber-200 font-black">toggleProductStatus()</span>
+                </Pill>
+
+                <Pill>
+                  <span className="text-amber-200 font-black">Store delivery flags</span>
                 </Pill>
               </div>
 
@@ -96,15 +104,23 @@ export default function AdminCreatePage() {
               </h1>
 
               <p className="mt-4 text-sm md:text-base text-white/70 max-w-3xl leading-relaxed">
-                Hidden control panel for both <span className="text-white font-semibold">RealifeCafeStore</span> and{" "}
+                Hidden control panel for both{" "}
+                <span className="text-white font-semibold">RealifeCafeStore</span> and{" "}
                 <span className="text-white font-semibold">RealifeStore1155</span>. Upload premium metadata to IPFS,
                 create new storefront products on-chain, and manage visibility for existing items.
               </p>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
-                This private page supports <span className="text-white font-semibold">cafe products</span> and{" "}
+                This private page supports{" "}
+                <span className="text-white font-semibold">cafe products</span> and{" "}
                 <span className="text-white font-semibold">curated store goods</span> like art, collectibles, merch,
                 perfume, fashion, antiques, packaged goods and other approved items.
+              </div>
+
+              <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
+                For <span className="text-white font-semibold">store products</span>, this panel configures the product
+                itself and its delivery flags. Actual shipping / tracking / confirmation / escrow control happens later
+                in the orders flow after purchase.
               </div>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
@@ -114,10 +130,12 @@ export default function AdminCreatePage() {
 
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 max-w-4xl">
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
-                  Cafe contract: <span className="font-semibold text-white break-all">{cafeContract}</span>
+                  Cafe contract:{" "}
+                  <span className="font-semibold text-white break-all">{cafeContract}</span>
                 </div>
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
-                  Store contract: <span className="font-semibold text-white break-all">{storeContract}</span>
+                  Store contract:{" "}
+                  <span className="font-semibold text-white break-all">{storeContract}</span>
                 </div>
               </div>
 
@@ -174,6 +192,7 @@ export default function AdminCreatePage() {
             <span className="opacity-60">AccessControl</span>
             <span className="opacity-60">IPFS metadata</span>
             <span className="opacity-60">Cafe + Store control</span>
+            <span className="opacity-60">Delivery flags</span>
           </div>
         </div>
       </Reveal>

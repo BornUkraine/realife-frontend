@@ -17,15 +17,24 @@ import { decodeEventLog, formatUnits, parseUnits } from "viem";
 
 import NftMedia from "@/components/NftMedia";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
 const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
 
-const CAFE_CONTRACT = process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT as `0x${string}` | undefined;
-const STORE_CONTRACT = process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT as `0x${string}` | undefined;
+const CAFE_CONTRACT =
+  process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT as
+    | `0x${string}`
+    | undefined;
+const STORE_CONTRACT =
+  process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT as
+    | `0x${string}`
+    | undefined;
 
-const ADMIN_WALLETS = (process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
+const ADMIN_WALLETS = (
+  process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
   process.env.NEXT_PUBLIC_ADMIN_WALLETS ||
-  "")
+  ""
+)
   .split(",")
   .map((v) => v.trim().toLowerCase())
   .filter(Boolean);
@@ -282,7 +291,13 @@ function shortAddr(a?: string | null) {
 }
 
 function prettyError(e: any) {
-  return e?.shortMessage || e?.cause?.shortMessage || e?.cause?.message || e?.message || "Something went wrong";
+  return (
+    e?.shortMessage ||
+    e?.cause?.shortMessage ||
+    e?.cause?.message ||
+    e?.message ||
+    "Something went wrong"
+  );
 }
 
 function persistableUrl(input?: string | null) {
@@ -303,7 +318,12 @@ function ipfsToHttp(u?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const s = (u || "").trim();
   if (!s) return null;
 
-  if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:") || s.startsWith("blob:")) {
+  if (
+    s.startsWith("http://") ||
+    s.startsWith("https://") ||
+    s.startsWith("data:") ||
+    s.startsWith("blob:")
+  ) {
     return s;
   }
 
@@ -331,17 +351,22 @@ async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
       const j = await r.json().catch(() => null);
       if (j && typeof j === "object") return j;
     } catch {
-      // ignore
+      //
     }
   }
   return null;
 }
 
-function extractProductTokenIdFromReceipt(receipt: any, abi: readonly any[], contract?: `0x${string}`): string | null {
+function extractProductTokenIdFromReceipt(
+  receipt: any,
+  abi: readonly any[],
+  contract?: `0x${string}`
+): string | null {
   const logs = receipt?.logs ?? [];
   for (const log of logs) {
     try {
-      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) continue;
+      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase())
+        continue;
 
       const decoded = decodeEventLog({
         abi,
@@ -357,13 +382,11 @@ function extractProductTokenIdFromReceipt(receipt: any, abi: readonly any[], con
         if (typeof tokenId === "string") return tokenId;
       }
     } catch {
-      // ignore
+      //
     }
   }
   return null;
 }
-
-/* ---------------- UI kit ---------------- */
 
 function Pill({ children }: { children: ReactNode }) {
   return (
@@ -373,7 +396,13 @@ function Pill({ children }: { children: ReactNode }) {
   );
 }
 
-function Card({ className = "", children }: { className?: string; children: ReactNode }) {
+function Card({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
   return (
     <div
       className={[
@@ -504,7 +533,8 @@ export default function AdminMintForm() {
   const balanceLabel = useMemo(() => {
     if (!mounted || !connected) return "—";
     if (isBalanceLoading) return "loading…";
-    if (!balanceData) return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
+    if (!balanceData)
+      return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
     const s = formatUnits(balanceData.value, balanceData.decimals);
     return `${fmtEth(s)} ${balanceData.symbol ?? "ETH"}`;
   }, [mounted, connected, isBalanceLoading, balanceData]);
@@ -513,13 +543,19 @@ export default function AdminMintForm() {
 
   const [productMode, setProductMode] = useState<ProductMode>("cafe");
 
-  const selectedContract = productMode === "cafe" ? CAFE_CONTRACT : STORE_CONTRACT;
+  const selectedContract =
+    productMode === "cafe" ? CAFE_CONTRACT : STORE_CONTRACT;
   const selectedAbi = productMode === "cafe" ? cafeStoreAbi : storeAdminAbi;
-  const selectedLabel = productMode === "cafe" ? "Realife Cafe" : "Realife NFT Store";
-  const selectedCollectionDefault = productMode === "cafe" ? "Realife Crypto Cafe" : "Realife NFT Store";
+  const selectedLabel =
+    productMode === "cafe" ? "Realife Cafe" : "Realife NFT Store";
+  const selectedCollectionDefault =
+    productMode === "cafe" ? "Realife Crypto Cafe" : "Realife NFT Store";
   const selectedStorefrontHref =
-    productMode === "cafe" ? "/app/real-marketing/realife-cafe" : "/app/real-marketing/realife-store";
-  const selectedCategories = productMode === "cafe" ? CAFE_CATEGORIES : STORE_CATEGORIES;
+    productMode === "cafe"
+      ? "/app/real-marketing/realife-cafe"
+      : "/app/real-marketing/realife-store";
+  const selectedCategories =
+    productMode === "cafe" ? CAFE_CATEGORIES : STORE_CATEGORIES;
   const selectedItems = productMode === "cafe" ? CAFE_ITEMS : STORE_ITEMS;
 
   const { data: moderatorRoleRaw } = useReadContract({
@@ -530,7 +566,8 @@ export default function AdminMintForm() {
   });
 
   const moderatorRole =
-    typeof moderatorRoleRaw === "string" && moderatorRoleRaw.startsWith("0x")
+    typeof moderatorRoleRaw === "string" &&
+    moderatorRoleRaw.startsWith("0x")
       ? (moderatorRoleRaw as `0x${string}`)
       : ZERO_BYTES32;
 
@@ -539,15 +576,20 @@ export default function AdminMintForm() {
     abi: selectedAbi as any,
     functionName: "hasRole",
     args: [moderatorRole, (address || ZERO_ADDRESS) as `0x${string}`],
-    query: { enabled: Boolean(selectedContract && address && moderatorRole !== ZERO_BYTES32) },
+    query: {
+      enabled: Boolean(
+        selectedContract && address && moderatorRole !== ZERO_BYTES32
+      ),
+    },
   });
 
-  const { data: nextTokenIdRaw, refetch: refetchNextTokenId } = useReadContract({
-    address: selectedContract,
-    abi: selectedAbi as any,
-    functionName: "nextTokenId",
-    query: { enabled: Boolean(selectedContract) },
-  });
+  const { data: nextTokenIdRaw, refetch: refetchNextTokenId } =
+    useReadContract({
+      address: selectedContract,
+      abi: selectedAbi as any,
+      functionName: "nextTokenId",
+      query: { enabled: Boolean(selectedContract) },
+    });
 
   const allowlistOk = useMemo(() => {
     if (!address) return false;
@@ -556,13 +598,16 @@ export default function AdminMintForm() {
   }, [address]);
 
   const hasModeratorRole = Boolean(hasModeratorRoleRaw);
-  const isAuthorized = connected && !wrongNetwork && allowlistOk && hasModeratorRole;
+  const isAuthorized =
+    connected && !wrongNetwork && allowlistOk && hasModeratorRole;
 
   const [file, setFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
   const [posterFile, setPosterFile] = useState<File | null>(null);
-  const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null);
+  const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(
+    null
+  );
 
   const [category, setCategory] = useState<string>(CAFE_CATEGORIES[0]);
   const [name, setName] = useState("");
@@ -573,13 +618,16 @@ export default function AdminMintForm() {
 
   const [collection, setCollection] = useState(selectedCollectionDefault);
   const [item, setItem] = useState<string>(CAFE_ITEMS[0]);
-  const [rarity, setRarity] = useState<(typeof RARITIES)[number]>("Common");
+  const [rarity, setRarity] =
+    useState<(typeof RARITIES)[number]>("Common");
 
   const [deliveryEnabled, setDeliveryEnabled] = useState(true);
   const [physicalItemIncluded, setPhysicalItemIncluded] = useState(true);
   const [officialItem, setOfficialItem] = useState(true);
 
-  const [step, setStep] = useState<"idle" | "preparing" | "signing" | "mining">("idle");
+  const [step, setStep] = useState<"idle" | "preparing" | "signing" | "mining">(
+    "idle"
+  );
   const [error, setError] = useState<string>("");
 
   const [tokenURI, setTokenURI] = useState<string | null>(null);
@@ -593,11 +641,15 @@ export default function AdminMintForm() {
 
   const [txMode, setTxMode] = useState<"create" | "toggle" | null>(null);
   const [txTarget, setTxTarget] = useState<ProductMode | null>(null);
-  const [pendingTxHash, setPendingTxHash] = useState<`0x${string}` | undefined>(undefined);
+  const [pendingTxHash, setPendingTxHash] = useState<
+    `0x${string}` | undefined
+  >(undefined);
 
   const [manageTokenId, setManageTokenId] = useState("");
   const [manageNotice, setManageNotice] = useState("");
-  const [toggleIntent, setToggleIntent] = useState<"enable" | "disable" | null>(null);
+  const [toggleIntent, setToggleIntent] = useState<"enable" | "disable" | null>(
+    null
+  );
 
   const pickedKind = useMemo<"image" | "video">(
     () => (file?.type?.startsWith("video/") ? "video" : "image"),
@@ -605,10 +657,13 @@ export default function AdminMintForm() {
   );
 
   const effectivePreviewKind = tokenURI ? preparedKind : pickedKind;
-  const effectivePreviewSrc = tokenURI ? preparedMedia || filePreviewUrl : filePreviewUrl;
+  const effectivePreviewSrc = tokenURI
+    ? preparedMedia || filePreviewUrl
+    : filePreviewUrl;
   const effectivePoster = tokenURI ? preparedPoster : posterPreviewUrl;
 
-  const refreshLabel = !mounted ? "Refresh" : isBalanceFetching ? "Refreshing…" : "Refresh";
+  const refreshLabel =
+    !mounted ? "Refresh" : isBalanceFetching ? "Refreshing…" : "Refresh";
   const requiredContractOk = Boolean(selectedContract);
 
   const priceParsed = useMemo(() => {
@@ -632,19 +687,28 @@ export default function AdminMintForm() {
     }
   }, [manageTokenId]);
 
-  const nextTokenId = typeof nextTokenIdRaw === "bigint" ? nextTokenIdRaw : null;
+  const nextTokenId =
+    typeof nextTokenIdRaw === "bigint" ? nextTokenIdRaw : null;
   const manageTokenExists = Boolean(
-    manageTokenIdBI && nextTokenId && manageTokenIdBI > 0n && manageTokenIdBI < nextTokenId
+    manageTokenIdBI &&
+      nextTokenId &&
+      manageTokenIdBI > 0n &&
+      manageTokenIdBI < nextTokenId
   );
 
-  const { data: manageIsActiveRaw, isFetching: isManageStatusFetching, refetch: refetchManageStatus } =
-    useReadContract({
-      address: selectedContract,
-      abi: selectedAbi as any,
-      functionName: "isActive",
-      args: [manageTokenIdBI ?? 0n],
-      query: { enabled: Boolean(selectedContract && manageTokenIdBI && manageTokenExists) },
-    });
+  const {
+    data: manageIsActiveRaw,
+    isFetching: isManageStatusFetching,
+    refetch: refetchManageStatus,
+  } = useReadContract({
+    address: selectedContract,
+    abi: selectedAbi as any,
+    functionName: "isActive",
+    args: [manageTokenIdBI ?? 0n],
+    query: {
+      enabled: Boolean(selectedContract && manageTokenIdBI && manageTokenExists),
+    },
+  });
 
   const manageIsActive = Boolean(manageIsActiveRaw);
 
@@ -680,12 +744,14 @@ export default function AdminMintForm() {
 
   const busy = step !== "idle" || isSwitching || txMode !== null;
 
-  const { writeContractAsync, isPending: isWalletPromptOpen } = useWriteContract();
+  const { writeContractAsync, isPending: isWalletPromptOpen } =
+    useWriteContract();
 
-  const { isLoading: isReceiptLoading, isSuccess, data: receipt } = useWaitForTransactionReceipt({
-    hash: pendingTxHash,
-    query: { enabled: Boolean(pendingTxHash) },
-  });
+  const { isLoading: isReceiptLoading, isSuccess, data: receipt } =
+    useWaitForTransactionReceipt({
+      hash: pendingTxHash,
+      query: { enabled: Boolean(pendingTxHash) },
+    });
 
   const isMiningCreate = txMode === "create" && isReceiptLoading;
   const isMiningToggle = txMode === "toggle" && isReceiptLoading;
@@ -728,9 +794,14 @@ export default function AdminMintForm() {
 
       (async () => {
         const targetAbi = txTarget === "cafe" ? cafeStoreAbi : storeAdminAbi;
-        const targetContract = txTarget === "cafe" ? CAFE_CONTRACT : STORE_CONTRACT;
+        const targetContract =
+          txTarget === "cafe" ? CAFE_CONTRACT : STORE_CONTRACT;
 
-        const tokenId = extractProductTokenIdFromReceipt(receipt, targetAbi, targetContract);
+        const tokenId = extractProductTokenIdFromReceipt(
+          receipt,
+          targetAbi,
+          targetContract
+        );
         setCreatedTokenId(tokenId);
         setCreatedAt(new Date().toLocaleString());
         setCreatedMode(txTarget);
@@ -752,7 +823,11 @@ export default function AdminMintForm() {
                 tokenId,
                 txHash: pendingTxHash || "",
                 tokenUri: tokenURI || "",
-                name: name.trim() || `${txTarget === "cafe" ? "Realife Cafe" : "Realife Store"} Product`,
+                name:
+                  name.trim() ||
+                  `${
+                    txTarget === "cafe" ? "Realife Cafe" : "Realife Store"
+                  } Product`,
                 image: finalImage,
                 verified: true,
                 standard: "ERC1155",
@@ -762,11 +837,13 @@ export default function AdminMintForm() {
 
             setManageTokenId(tokenId);
             setManageNotice(
-              `${txTarget === "cafe" ? "Cafe" : "Store"} product created and saved to local catalog cache.`
+              `${
+                txTarget === "cafe" ? "Cafe" : "Store"
+              } product created and saved to local catalog cache.`
             );
           }
         } catch {
-          // ignore
+          //
         } finally {
           setPendingTxHash(undefined);
           setTxMode(null);
@@ -782,8 +859,12 @@ export default function AdminMintForm() {
     if (txMode === "toggle") {
       setManageNotice(
         toggleIntent === "disable"
-          ? `${txTarget === "cafe" ? "Cafe" : "Store"} product successfully disabled.`
-          : `${txTarget === "cafe" ? "Cafe" : "Store"} product successfully enabled.`
+          ? `${
+              txTarget === "cafe" ? "Cafe" : "Store"
+            } product successfully disabled.`
+          : `${
+              txTarget === "cafe" ? "Cafe" : "Store"
+            } product successfully enabled.`
       );
       setPendingTxHash(undefined);
       setTxMode(null);
@@ -940,7 +1021,10 @@ export default function AdminMintForm() {
       }
 
       formData.append("name", name.trim());
-      formData.append("description", description.trim() || `${name.trim()} • ${collection.trim()}`);
+      formData.append(
+        "description",
+        description.trim() || `${name.trim()} • ${collection.trim()}`
+      );
       formData.append("project", collection.trim());
       formData.append("category", category);
       formData.append("collection", collection.trim());
@@ -957,18 +1041,28 @@ export default function AdminMintForm() {
 
       const res = await fetch(PREPARE_URL, { method: "POST", body: formData });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.message || "Metadata preparation failed");
+      if (!res.ok)
+        throw new Error(data?.message || "Metadata preparation failed");
 
-      const uri = data?.metadataUri || data?.tokenURI || data?.tokenUri || null;
-      if (!uri || typeof uri !== "string") throw new Error("Backend didn't return metadataUri/tokenURI");
+      const uri =
+        data?.metadataUri || data?.tokenURI || data?.tokenUri || null;
+      if (!uri || typeof uri !== "string") {
+        throw new Error("Backend didn't return metadataUri/tokenURI");
+      }
 
       setTokenURI(uri);
 
       const pKind: "image" | "video" =
-        data?.preview?.kind === "video" ? "video" : data?.preview?.kind === "image" ? "image" : pickedKind;
+        data?.preview?.kind === "video"
+          ? "video"
+          : data?.preview?.kind === "image"
+          ? "image"
+          : pickedKind;
 
-      const pMedia = ipfsToHttp(data?.preview?.media || null, IPFS_GATEWAYS[0]) || null;
-      const pPoster = ipfsToHttp(data?.preview?.poster || null, IPFS_GATEWAYS[0]) || null;
+      const pMedia =
+        ipfsToHttp(data?.preview?.media || null, IPFS_GATEWAYS[0]) || null;
+      const pPoster =
+        ipfsToHttp(data?.preview?.poster || null, IPFS_GATEWAYS[0]) || null;
 
       setPreparedKind(pKind);
       setPreparedMedia(pMedia || filePreviewUrl);
@@ -976,15 +1070,20 @@ export default function AdminMintForm() {
 
       const meta = await loadMetadataFromTokenUri(uri);
       const metaImage = typeof meta?.image === "string" ? meta.image : null;
-      const metaAnim = typeof meta?.animation_url === "string" ? meta.animation_url : null;
+      const metaAnim =
+        typeof meta?.animation_url === "string" ? meta.animation_url : null;
 
       if (metaAnim) {
         setPreparedKind("video");
-        setPreparedMedia(ipfsToHttp(metaAnim, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl);
+        setPreparedMedia(
+          ipfsToHttp(metaAnim, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl
+        );
         setPreparedPoster(ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pPoster || null);
       } else if (metaImage) {
         setPreparedKind("image");
-        setPreparedMedia(ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl);
+        setPreparedMedia(
+          ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl
+        );
         setPreparedPoster(null);
       }
 
@@ -1187,7 +1286,10 @@ export default function AdminMintForm() {
 
               <div className="mt-3 space-y-2 text-xs text-white/65">
                 <div>
-                  Connected wallet: <span className="font-semibold text-white">{address ? shortAddr(address) : "—"}</span>
+                  Connected wallet:{" "}
+                  <span className="font-semibold text-white">
+                    {address ? shortAddr(address) : "—"}
+                  </span>
                 </div>
                 <div>
                   Allowlist:{" "}
@@ -1206,7 +1308,9 @@ export default function AdminMintForm() {
                 </div>
                 <div>
                   Next token id:{" "}
-                  <span className="font-semibold text-white">{nextTokenId ? nextTokenId.toString() : "—"}</span>
+                  <span className="font-semibold text-white">
+                    {nextTokenId ? nextTokenId.toString() : "—"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1303,7 +1407,9 @@ export default function AdminMintForm() {
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Upload product media</div>
-              <div className="text-[11px] text-white/55 mt-1">Image or video for token metadata.</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Image or video for token metadata.
+              </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1346,7 +1452,9 @@ export default function AdminMintForm() {
                     roundedClass="rounded-2xl"
                   />
                 ) : (
-                  <div className="text-xs text-center text-white/60 px-3">{file ? "Preview" : "Click to upload"}</div>
+                  <div className="text-xs text-center text-white/60 px-3">
+                    {file ? "Preview" : "Click to upload"}
+                  </div>
                 )}
               </div>
 
@@ -1366,7 +1474,8 @@ export default function AdminMintForm() {
 
                 {tokenURI ? (
                   <p className="mt-3 text-xs">
-                    ✅ Prepared tokenURI: <span className="text-white/70 break-all">{tokenURI}</span>
+                    ✅ Prepared tokenURI:{" "}
+                    <span className="text-white/70 break-all">{tokenURI}</span>
                   </p>
                 ) : null}
               </div>
@@ -1378,7 +1487,9 @@ export default function AdminMintForm() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-sm font-extrabold">Poster (thumbnail)</div>
-                  <div className="mt-1 text-[11px] text-white/55">Optional image preview for product videos.</div>
+                  <div className="mt-1 text-[11px] text-white/55">
+                    Optional image preview for product videos.
+                  </div>
                 </div>
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-white/60" />
@@ -1397,7 +1508,11 @@ export default function AdminMintForm() {
               <div className="mt-4 flex items-center gap-4">
                 <div className="h-16 w-16 rounded-2xl border border-white/10 bg-black/30 overflow-hidden flex items-center justify-center">
                   {posterPreviewUrl ? (
-                    <img src={posterPreviewUrl} alt="Poster" className="h-full w-full object-cover" />
+                    <img
+                      src={posterPreviewUrl}
+                      alt="Poster"
+                      className="h-full w-full object-cover"
+                    />
                   ) : (
                     <span className="text-[10px] text-white/45">No poster</span>
                   )}
@@ -1406,7 +1521,9 @@ export default function AdminMintForm() {
                 <div className="flex-1 min-w-0">
                   <div className="text-xs text-white/60">
                     {posterFile ? (
-                      <span className="font-semibold text-white/80 truncate block">{posterFile.name}</span>
+                      <span className="font-semibold text-white/80 truncate block">
+                        {posterFile.name}
+                      </span>
                     ) : (
                       "Upload a thumbnail for the video preview."
                     )}
@@ -1441,7 +1558,9 @@ export default function AdminMintForm() {
               <div className="text-sm font-extrabold tracking-tight">
                 {productMode === "cafe" ? "Cafe category" : "Store category"}
               </div>
-              <div className="text-[11px] text-white/55 mt-1">Used inside metadata for the selected storefront.</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Used inside metadata for the selected storefront.
+              </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1487,15 +1606,25 @@ export default function AdminMintForm() {
             <Pill>
               <span
                 className={`h-2 w-2 rounded-full ${
-                  manageTokenExists ? (manageIsActive ? "bg-emerald-400" : "bg-rose-400") : "bg-white/40"
+                  manageTokenExists
+                    ? manageIsActive
+                      ? "bg-emerald-400"
+                      : "bg-rose-400"
+                    : "bg-white/40"
                 }`}
               />
-              {manageTokenExists ? (manageIsActive ? "Active" : "Disabled") : "Unknown"}
+              {manageTokenExists
+                ? manageIsActive
+                  ? "Active"
+                  : "Disabled"
+                : "Unknown"}
             </Pill>
           </div>
 
           <div className="mt-5">
-            <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Product token ID</div>
+            <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+              Product token ID
+            </div>
             <input
               type="text"
               inputMode="numeric"
@@ -1513,12 +1642,18 @@ export default function AdminMintForm() {
 
           <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">Exists</div>
-              <div className="mt-1 text-sm font-black text-white/90">{manageTokenExists ? "Yes" : "No / not loaded"}</div>
+              <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                Exists
+              </div>
+              <div className="mt-1 text-sm font-black text-white/90">
+                {manageTokenExists ? "Yes" : "No / not loaded"}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">Storefront status</div>
+              <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                Storefront status
+              </div>
               <div className="mt-1 text-sm font-black text-white/90">
                 {!manageTokenIdBI
                   ? "Enter token"
@@ -1533,9 +1668,15 @@ export default function AdminMintForm() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">Action</div>
+              <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                Action
+              </div>
               <div className="mt-1 text-sm font-black text-white/90">
-                {manageTokenExists ? (manageIsActive ? "Disable product" : "Enable product") : "—"}
+                {manageTokenExists
+                  ? manageIsActive
+                    ? "Disable product"
+                    : "Enable product"
+                  : "—"}
               </div>
             </div>
           </div>
@@ -1590,7 +1731,8 @@ export default function AdminMintForm() {
           </div>
 
           <div className="mt-4 text-[11px] text-white/55 leading-relaxed">
-            Disabling a product hides it from active storefront sales. It does not erase existing metadata or holders.
+            Disabling a product hides it from active storefront sales. It does not erase existing metadata, holders or
+            past orders.
           </div>
         </Card>
       </div>
@@ -1600,7 +1742,9 @@ export default function AdminMintForm() {
           <div className="flex items-end justify-between mb-3">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Product name</div>
-              <div className="text-[11px] text-white/55 mt-1">Visible title for the store item.</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Visible title for the store item.
+              </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1610,7 +1754,11 @@ export default function AdminMintForm() {
 
           <input
             type="text"
-            placeholder={productMode === "cafe" ? "Example: Cappuccino" : "Example: Vintage Realife Tee"}
+            placeholder={
+              productMode === "cafe"
+                ? "Example: Cappuccino"
+                : "Example: Vintage Realife Tee"
+            }
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -1629,7 +1777,9 @@ export default function AdminMintForm() {
           <div className="flex items-end justify-between mb-3">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Collection</div>
-              <div className="text-[11px] text-white/55 mt-1">Main collection name for metadata.</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Main collection name for metadata.
+              </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1660,7 +1810,9 @@ export default function AdminMintForm() {
               <div className="flex items-end justify-between mb-3">
                 <div>
                   <div className="text-sm font-extrabold tracking-tight">Item</div>
-                  <div className="text-[11px] text-white/55 mt-1">Universal product type for metadata.</div>
+                  <div className="text-[11px] text-white/55 mt-1">
+                    Universal product type for metadata.
+                  </div>
                 </div>
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1692,7 +1844,9 @@ export default function AdminMintForm() {
               <div className="flex items-end justify-between mb-3">
                 <div>
                   <div className="text-sm font-extrabold tracking-tight">Rarity</div>
-                  <div className="text-[11px] text-white/55 mt-1">Metadata rarity level.</div>
+                  <div className="text-[11px] text-white/55 mt-1">
+                    Metadata rarity level.
+                  </div>
                 </div>
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1728,7 +1882,7 @@ export default function AdminMintForm() {
               <div>
                 <div className="text-sm font-extrabold tracking-tight">Store delivery flags</div>
                 <div className="text-[11px] text-white/55 mt-1">
-                  These flags shape the Store storefront only. Delivery and escrow flow stay in site UI/backend.
+                  These flags affect the Store storefront product config only.
                 </div>
               </div>
               <Pill>
@@ -1786,6 +1940,60 @@ export default function AdminMintForm() {
                 Official: {officialItem ? "ON" : "OFF"}
               </button>
             </div>
+
+            <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
+              <div className="text-[12px] font-black text-sky-100">
+                What this block controls
+              </div>
+              <div className="mt-2 space-y-2 text-[12px] text-sky-50/85 leading-relaxed">
+                <div>
+                  • <span className="font-black">deliveryEnabled</span> — product is treated as delivery-capable in the
+                  Store UI.
+                </div>
+                <div>
+                  • <span className="font-black">physicalItemIncluded</span> — buyer is purchasing an NFT linked to a
+                  real physical item.
+                </div>
+                <div>
+                  • <span className="font-black">officialItem</span> — highlights the product as an official store item.
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+              <div className="text-[12px] font-black text-amber-100">
+                What this block does NOT control
+              </div>
+              <div className="mt-2 space-y-2 text-[12px] text-amber-50/85 leading-relaxed">
+                <div>
+                  • shipping address collection
+                </div>
+                <div>
+                  • tracking code / carrier / shipped status
+                </div>
+                <div>
+                  • buyer delivery confirmation
+                </div>
+                <div>
+                  • escrow release / refund flow
+                </div>
+              </div>
+              <div className="mt-3 text-[11px] text-amber-50/80 leading-relaxed">
+                Those actions happen later in the Store orders flow after buyer purchase.
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[12px] font-black text-white/85">
+                Important ABI note
+              </div>
+              <div className="mt-2 text-[12px] text-white/65 leading-relaxed">
+                In your current <span className="font-black text-white/85">createProduct()</span> ABI there is no
+                <span className="font-black text-white/85"> primarySellerWallet </span>
+                input. So this admin form configures the delivery flags, but it does not directly set a custom seller
+                wallet per product.
+              </div>
+            </div>
           </Card>
         ) : null}
 
@@ -1795,7 +2003,9 @@ export default function AdminMintForm() {
               <div className="flex items-end justify-between mb-3">
                 <div>
                   <div className="text-sm font-extrabold tracking-tight">Price (USDT)</div>
-                  <div className="text-[11px] text-white/55 mt-1">6 decimals, same as MockUSDT/USDT.</div>
+                  <div className="text-[11px] text-white/55 mt-1">
+                    6 decimals, same as MockUSDT/USDT.
+                  </div>
                 </div>
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1832,7 +2042,9 @@ export default function AdminMintForm() {
               <div className="flex items-end justify-between mb-3">
                 <div>
                   <div className="text-sm font-extrabold tracking-tight">Max supply</div>
-                  <div className="text-[11px] text-white/55 mt-1">Contract upper cap for this product.</div>
+                  <div className="text-[11px] text-white/55 mt-1">
+                    Contract upper cap for this product.
+                  </div>
                 </div>
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
@@ -1863,7 +2075,9 @@ export default function AdminMintForm() {
           <div className="flex items-end justify-between mb-3">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Description</div>
-              <div className="text-[11px] text-white/55 mt-1">This text goes into token metadata.</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                This text goes into token metadata.
+              </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-white/60" />
@@ -1896,7 +2110,9 @@ export default function AdminMintForm() {
           <div className="flex items-end justify-between mb-3">
             <div>
               <div className="text-sm font-extrabold tracking-tight">External / proof link</div>
-              <div className="text-[11px] text-white/55 mt-1">Optional website, post, landing page or proof link.</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Optional website, post, landing page or proof link.
+              </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-white/60" />
@@ -1942,8 +2158,10 @@ export default function AdminMintForm() {
                 </div>
 
                 <div className="mt-2 text-sm text-white/65 leading-relaxed">
-                  <span className="text-white font-semibold">{name || "Unnamed product"}</span> is now registered in the
-                  selected contract and cached in your local mint database.
+                  <span className="text-white font-semibold">
+                    {name || "Unnamed product"}
+                  </span>{" "}
+                  is now registered in the selected contract and cached in your local mint database.
                 </div>
 
                 <div className="mt-4 space-y-2 text-xs text-white/60">
@@ -1957,7 +2175,10 @@ export default function AdminMintForm() {
                     Rarity: <span className="font-semibold text-white">{rarity}</span>
                   </div>
                   <div>
-                    Supply: <span className="font-semibold text-white">{clampSupply(supply)}</span>
+                    Supply:{" "}
+                    <span className="font-semibold text-white">
+                      {clampSupply(supply)}
+                    </span>
                   </div>
                   <div>
                     Price: <span className="font-semibold text-white">{price || "0"} USDT</span>
@@ -1968,22 +2189,34 @@ export default function AdminMintForm() {
                   {createdMode === "store" ? (
                     <>
                       <div>
-                        Delivery enabled: <span className="font-semibold text-white">{deliveryEnabled ? "Yes" : "No"}</span>
+                        Delivery enabled:{" "}
+                        <span className="font-semibold text-white">
+                          {deliveryEnabled ? "Yes" : "No"}
+                        </span>
                       </div>
                       <div>
                         Physical item included:{" "}
-                        <span className="font-semibold text-white">{physicalItemIncluded ? "Yes" : "No"}</span>
+                        <span className="font-semibold text-white">
+                          {physicalItemIncluded ? "Yes" : "No"}
+                        </span>
                       </div>
                       <div>
-                        Official item: <span className="font-semibold text-white">{officialItem ? "Yes" : "No"}</span>
+                        Official item:{" "}
+                        <span className="font-semibold text-white">
+                          {officialItem ? "Yes" : "No"}
+                        </span>
                       </div>
                     </>
                   ) : null}
                   <div>
-                    Prepared URI: <span className="font-semibold text-white break-all">{tokenURI || "—"}</span>
+                    Prepared URI:{" "}
+                    <span className="font-semibold text-white break-all">
+                      {tokenURI || "—"}
+                    </span>
                   </div>
                   <div>
-                    Created at: <span className="font-semibold text-white">{createdAt || "—"}</span>
+                    Created at:{" "}
+                    <span className="font-semibold text-white">{createdAt || "—"}</span>
                   </div>
                 </div>
 
@@ -1991,6 +2224,13 @@ export default function AdminMintForm() {
                   This action creates a catalog product entry only. NFT ownership is minted later to the buyer through{" "}
                   <span className="text-white/75">buyProduct()</span>.
                 </div>
+
+                {createdMode === "store" ? (
+                  <div className="mt-3 rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-[11px] text-sky-50/85 leading-relaxed">
+                    Store delivery control continues later in the orders flow: shipping data is collected from buyer
+                    checkout, seller adds tracking, buyer confirms delivery, and escrow state is updated there.
+                  </div>
+                ) : null}
               </div>
 
               <div className="shrink-0 flex flex-col gap-2">
@@ -2048,11 +2288,19 @@ export default function AdminMintForm() {
 
         <Card>
           <div className="space-y-3">
-            <GhostButton disabled={busy || isWalletPromptOpen || !canPrepare} onClick={handlePrepare}>
-              {step === "preparing" ? "Uploading → IPFS (prepare)…" : "1) Prepare metadata"}
+            <GhostButton
+              disabled={busy || isWalletPromptOpen || !canPrepare}
+              onClick={handlePrepare}
+            >
+              {step === "preparing"
+                ? "Uploading → IPFS (prepare)…"
+                : "1) Prepare metadata"}
             </GhostButton>
 
-            <GoldButton disabled={busy || isWalletPromptOpen || !canCreate} onClick={handleCreateProduct}>
+            <GoldButton
+              disabled={busy || isWalletPromptOpen || !canCreate}
+              onClick={handleCreateProduct}
+            >
               {step === "signing"
                 ? "Waiting for wallet signature…"
                 : step === "mining" || isMiningCreate
@@ -2068,21 +2316,27 @@ export default function AdminMintForm() {
 
           {productMode === "store" ? (
             <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
-              Delivery and escrow are not hardcoded here. This admin flow only creates the product catalog entry and
-              storefront NFT configuration.
+              Mint form creates the Store product and saves the delivery flags. Shipping, tracking, buyer confirmation
+              and escrow actions are handled after purchase in the Store orders flow.
             </div>
           ) : null}
 
           <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
             Need gas?{" "}
-            <Link href="/app/faucet" className="text-[#d4af37] font-semibold hover:brightness-110 transition">
+            <Link
+              href="/app/faucet"
+              className="text-[#d4af37] font-semibold hover:brightness-110 transition"
+            >
               Open faucet ↗
             </Link>
           </div>
 
           <div className="mt-3 text-[11px] text-white/55 leading-relaxed">
             Storefront:{" "}
-            <Link href={selectedStorefrontHref} className="text-amber-200 font-semibold hover:brightness-110 transition">
+            <Link
+              href={selectedStorefrontHref}
+              className="text-amber-200 font-semibold hover:brightness-110 transition"
+            >
               Open {selectedLabel} →
             </Link>
           </div>
