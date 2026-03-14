@@ -413,7 +413,7 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
       const j = await r.json().catch(() => null);
       if (j && typeof j === "object") return j;
     } catch {
-      // next
+      //
     }
   }
   return null;
@@ -711,11 +711,36 @@ export default async function NftDetailsPage({
       ? meta.description.trim()
       : null;
 
+  const metaBrand =
+    pickAttrAny(meta, [
+      "Brand Project",
+      "Brand",
+      "Project",
+      "project",
+    ]) ||
+    pickAny(meta, ["brandProject", "brand", "project"]) ||
+    null;
+
   const metaProject =
     pickAttrAny(meta, ["Project", "project"]) || pickAny(meta, ["project"]) || null;
 
+  const metaCollection =
+    pickAttrAny(meta, ["Collection", "collection"]) ||
+    pickAny(meta, ["collection"]) ||
+    null;
+
   const metaCategory =
     pickAttrAny(meta, ["Category", "category"]) || pickAny(meta, ["category"]) || null;
+
+  const metaItem =
+    pickAttrAny(meta, ["Item", "item", "Drink"]) ||
+    pickAny(meta, ["item", "drink"]) ||
+    null;
+
+  const metaRarity =
+    pickAttrAny(meta, ["Rarity", "rarity"]) ||
+    pickAny(meta, ["rarity"]) ||
+    null;
 
   const metaProofRaw =
     pickAny(meta, ["external_url", "externalUrl", "proofUrl", "proof_url", "url"]) ||
@@ -784,6 +809,8 @@ export default async function NftDetailsPage({
   const stats = market?.stats || null;
   const listings: any[] = Array.isArray(market?.listings) ? market.listings : [];
   const trades: any[] = Array.isArray(market?.trades) ? market.trades : [];
+
+  const heroBrandLabel = metaBrand || metaProject || null;
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
@@ -878,7 +905,7 @@ export default async function NftDetailsPage({
               </div>
             </div>
 
-            {metaDescription || metaProject || metaCategory || metaProofUrl ? (
+            {metaDescription || metaBrand || metaProject || metaCollection || metaCategory || metaItem || metaRarity || metaProofUrl ? (
               <div
                 className={cx(
                   "reveal rounded-[34px] p-px overflow-hidden",
@@ -899,13 +926,24 @@ export default async function NftDetailsPage({
                   ) : null}
 
                   <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {metaProject ? (
+                    {metaBrand ? (
+                      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+                        <div className="text-[11px] text-amber-100/70 font-semibold uppercase tracking-wider">
+                          Brand / Project
+                        </div>
+                        <div className="mt-1 text-[13px] font-extrabold text-amber-100 truncate">
+                          {metaBrand}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {metaCollection ? (
                       <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                         <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                          Project
+                          Collection
                         </div>
                         <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                          {metaProject}
+                          {metaCollection}
                         </div>
                       </div>
                     ) : null}
@@ -917,6 +955,39 @@ export default async function NftDetailsPage({
                         </div>
                         <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                           {metaCategory}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {metaItem ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                          Item
+                        </div>
+                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
+                          {metaItem}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {metaRarity ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                          Rarity
+                        </div>
+                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
+                          {metaRarity}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {!metaBrand && metaProject ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                          Project
+                        </div>
+                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
+                          {metaProject}
                         </div>
                       </div>
                     ) : null}
@@ -967,6 +1038,28 @@ export default async function NftDetailsPage({
                     </div>
                   </div>
 
+                  {heroBrandLabel || metaCollection ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {heroBrandLabel ? (
+                        <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-black text-amber-100">
+                          {heroBrandLabel}
+                        </span>
+                      ) : null}
+
+                      {metaCollection ? (
+                        <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
+                          {metaCollection}
+                        </span>
+                      ) : null}
+
+                      {metaRarity ? (
+                        <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
+                          {metaRarity}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+
                   <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight">
                     {nft.name || `Token #${nft.tokenId}`}
                   </div>
@@ -974,7 +1067,6 @@ export default async function NftDetailsPage({
                   <div className="mt-5 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
                       {currentOwnerAvatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={currentOwnerAvatar}
                           alt="owner"
@@ -1014,7 +1106,6 @@ export default async function NftDetailsPage({
                   <div className="mt-4 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
                       {creatorAvatar ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={creatorAvatar}
                           alt="creator"
@@ -1118,6 +1209,17 @@ export default async function NftDetailsPage({
                   </div>
 
                   <div className="mt-5 grid grid-cols-2 gap-3">
+                    {heroBrandLabel ? (
+                      <div className="col-span-2 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+                        <div className="text-[11px] text-amber-100/70 font-semibold uppercase tracking-wider">
+                          Brand / Project
+                        </div>
+                        <div className="mt-1 text-[13px] font-extrabold text-amber-100 truncate">
+                          {heroBrandLabel}
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                       <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                         Contract
@@ -1288,8 +1390,12 @@ export default async function NftDetailsPage({
                   nftContract={contract}
                   tokenId={tokenId}
                   storefrontLabel="Realife NFT Store"
-                  title="Store Primary Sale"
-                  subtitle="NFT purchase happens on-chain here. Delivery and escrow are handled in the site UI."
+                  title={heroBrandLabel ? `${heroBrandLabel} Store Sale` : "Store Primary Sale"}
+                  subtitle={
+                    heroBrandLabel
+                      ? `Primary sale for ${heroBrandLabel}. NFT purchase happens on-chain here, delivery and escrow stay in site UI.`
+                      : "NFT purchase happens on-chain here. Delivery and escrow are handled in the site UI."
+                  }
                   active={Boolean(storeStore?.active)}
                   priceLabel={`${storeStore?.priceUsdt ?? "—"} USDT`}
                   paymentTokenLabel="USDT"

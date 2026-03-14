@@ -92,6 +92,10 @@ export default function AdminCreatePage() {
                 </Pill>
 
                 <Pill>
+                  <span className="text-amber-200 font-black">Brand label in metadata</span>
+                </Pill>
+
+                <Pill>
                   <span className="text-amber-200 font-black">Store delivery flags</span>
                 </Pill>
               </div>
@@ -111,16 +115,22 @@ export default function AdminCreatePage() {
               </p>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
-                This private page supports{" "}
-                <span className="text-white font-semibold">cafe products</span> and{" "}
-                <span className="text-white font-semibold">curated store goods</span> like art, collectibles, merch,
-                perfume, fashion, antiques, packaged goods and other approved items.
+                <span className="text-white font-semibold">Cafe mode</span> stays under the native Realife brand.
+                <span className="text-white/40"> </span>
+                <span className="text-white font-semibold">Store mode</span> can optionally carry a different brand /
+                project label in metadata and UI for testing, collabs or future partner drops.
+              </div>
+
+              <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
+                For now you can keep one{" "}
+                <span className="text-white font-semibold">shared Store contract</span> on Base Sepolia and still show
+                different brand labels per product. Separate contracts per project are optional later, not required now.
               </div>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
                 For <span className="text-white font-semibold">store products</span>, this panel configures the product
-                itself and its delivery flags. Actual shipping / tracking / confirmation / escrow control happens later
-                in the orders flow after purchase.
+                itself plus delivery flags. Actual shipping / tracking / confirmation / escrow control happens later in
+                the orders flow after purchase.
               </div>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
@@ -137,6 +147,13 @@ export default function AdminCreatePage() {
                   Store contract:{" "}
                   <span className="font-semibold text-white break-all">{storeContract}</span>
                 </div>
+              </div>
+
+              <div className="mt-4 rounded-[24px] border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-xs text-sky-50/85 max-w-4xl">
+                Current strategy: keep the real cafe / travel / events under{" "}
+                <span className="font-black text-sky-100">Realife</span>, while the Store can optionally test different{" "}
+                <span className="font-black text-sky-100">brand labels</span> on product cards and NFT pages without
+                fragmenting the contract architecture.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -192,6 +209,7 @@ export default function AdminCreatePage() {
             <span className="opacity-60">AccessControl</span>
             <span className="opacity-60">IPFS metadata</span>
             <span className="opacity-60">Cafe + Store control</span>
+            <span className="opacity-60">Brand label</span>
             <span className="opacity-60">Delivery flags</span>
           </div>
         </div>

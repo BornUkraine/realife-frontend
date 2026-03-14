@@ -65,6 +65,16 @@ const STORE_CATEGORIES = [
   "Other",
 ] as const;
 
+const STORE_BRANDS = [
+  "Realife",
+  "Billions",
+  "Sentient",
+  "Neura",
+  "Rialo",
+  "Espresso",
+  "Other",
+] as const;
+
 const RARITIES = ["Common", "Rare", "Epic", "Legendary"] as const;
 
 const CAFE_ITEMS = [
@@ -264,6 +274,7 @@ const storeAdminAbi = [
 ] as const;
 
 type ProductMode = "cafe" | "store";
+type StoreBrand = (typeof STORE_BRANDS)[number];
 
 function useMounted() {
   const [mounted, setMounted] = useState(false);
@@ -365,8 +376,9 @@ function extractProductTokenIdFromReceipt(
   const logs = receipt?.logs ?? [];
   for (const log of logs) {
     try {
-      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase())
+      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) {
         continue;
+      }
 
       const decoded = decodeEventLog({
         abi,
@@ -533,15 +545,15 @@ export default function AdminMintForm() {
   const balanceLabel = useMemo(() => {
     if (!mounted || !connected) return "—";
     if (isBalanceLoading) return "loading…";
-    if (!balanceData)
+    if (!balanceData) {
       return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
+    }
     const s = formatUnits(balanceData.value, balanceData.decimals);
     return `${fmtEth(s)} ${balanceData.symbol ?? "ETH"}`;
   }, [mounted, connected, isBalanceLoading, balanceData]);
 
-  const hasGas = connected && !wrongNetwork && balanceEth > 0;
-
   const [productMode, setProductMode] = useState<ProductMode>("cafe");
+  const [storeBrand, setStoreBrand] = useState<StoreBrand>("Realife");
 
   const selectedContract =
     productMode === "cafe" ? CAFE_CONTRACT : STORE_CONTRACT;
@@ -549,7 +561,11 @@ export default function AdminMintForm() {
   const selectedLabel =
     productMode === "cafe" ? "Realife Cafe" : "Realife NFT Store";
   const selectedCollectionDefault =
-    productMode === "cafe" ? "Realife Crypto Cafe" : "Realife NFT Store";
+    productMode === "cafe"
+      ? "Realife Crypto Cafe"
+      : storeBrand === "Other"
+      ? "Partner NFT Store"
+      : `${storeBrand} NFT Store`;
   const selectedStorefrontHref =
     productMode === "cafe"
       ? "/app/real-marketing/realife-cafe"
@@ -557,6 +573,7 @@ export default function AdminMintForm() {
   const selectedCategories =
     productMode === "cafe" ? CAFE_CATEGORIES : STORE_CATEGORIES;
   const selectedItems = productMode === "cafe" ? CAFE_ITEMS : STORE_ITEMS;
+  const effectiveProjectBrand = productMode === "store" ? storeBrand : "Realife";
 
   const { data: moderatorRoleRaw } = useReadContract({
     address: selectedContract,
@@ -605,9 +622,7 @@ export default function AdminMintForm() {
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
   const [posterFile, setPosterFile] = useState<File | null>(null);
-  const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(
-    null
-  );
+  const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null);
 
   const [category, setCategory] = useState<string>(CAFE_CATEGORIES[0]);
   const [name, setName] = useState("");
@@ -616,7 +631,7 @@ export default function AdminMintForm() {
   const [price, setPrice] = useState("5");
   const [externalUrl, setExternalUrl] = useState("");
 
-  const [collection, setCollection] = useState(selectedCollectionDefault);
+  const [collection, setCollection] = useState("Realife Crypto Cafe");
   const [item, setItem] = useState<string>(CAFE_ITEMS[0]);
   const [rarity, setRarity] =
     useState<(typeof RARITIES)[number]>("Common");
@@ -638,6 +653,7 @@ export default function AdminMintForm() {
   const [createdTokenId, setCreatedTokenId] = useState<string | null>(null);
   const [createdAt, setCreatedAt] = useState<string | null>(null);
   const [createdMode, setCreatedMode] = useState<ProductMode | null>(null);
+  const [createdBrand, setCreatedBrand] = useState<string | null>(null);
 
   const [txMode, setTxMode] = useState<"create" | "toggle" | null>(null);
   const [txTarget, setTxTarget] = useState<ProductMode | null>(null);
@@ -758,6 +774,7 @@ export default function AdminMintForm() {
 
   useEffect(() => {
     if (productMode === "cafe") {
+      setStoreBrand("Realife");
       setCollection("Realife Crypto Cafe");
       setCategory(CAFE_CATEGORIES[0]);
       setItem(CAFE_ITEMS[0]);
@@ -765,6 +782,7 @@ export default function AdminMintForm() {
       setPhysicalItemIncluded(true);
       setOfficialItem(true);
     } else {
+      setStoreBrand("Realife");
       setCollection("Realife NFT Store");
       setCategory(STORE_CATEGORIES[0]);
       setItem(STORE_ITEMS[0]);
@@ -779,11 +797,27 @@ export default function AdminMintForm() {
     setCreatedTokenId(null);
     setCreatedAt(null);
     setCreatedMode(null);
+    setCreatedBrand(null);
     savedRef.current = false;
     setTokenURI(null);
     setPreparedMedia(null);
     setPreparedPoster(null);
   }, [productMode]);
+
+  useEffect(() => {
+    if (productMode !== "store") return;
+
+    const knownDefaults = STORE_BRANDS.map((brand) =>
+      brand === "Other" ? "Partner NFT Store" : `${brand} NFT Store`
+    );
+
+    const current = collection.trim();
+    if (!current || knownDefaults.includes(current)) {
+      setCollection(
+        storeBrand === "Other" ? "Partner NFT Store" : `${storeBrand} NFT Store`
+      );
+    }
+  }, [productMode, storeBrand, collection]);
 
   useEffect(() => {
     if (!isSuccess || !receipt || !txMode || !txTarget) return;
@@ -805,11 +839,14 @@ export default function AdminMintForm() {
         setCreatedTokenId(tokenId);
         setCreatedAt(new Date().toLocaleString());
         setCreatedMode(txTarget);
+        setCreatedBrand(txTarget === "store" ? storeBrand : "Realife");
         setStep("idle");
 
         try {
           const finalImage =
-            persistableUrl(preparedKind === "video" ? preparedPoster : preparedMedia) ||
+            persistableUrl(
+              preparedKind === "video" ? preparedPoster : preparedMedia
+            ) ||
             persistableUrl(preparedMedia) ||
             null;
 
@@ -859,12 +896,8 @@ export default function AdminMintForm() {
     if (txMode === "toggle") {
       setManageNotice(
         toggleIntent === "disable"
-          ? `${
-              txTarget === "cafe" ? "Cafe" : "Store"
-            } product successfully disabled.`
-          : `${
-              txTarget === "cafe" ? "Cafe" : "Store"
-            } product successfully enabled.`
+          ? `${txTarget === "cafe" ? "Cafe" : "Store"} product successfully disabled.`
+          : `${txTarget === "cafe" ? "Cafe" : "Store"} product successfully enabled.`
       );
       setPendingTxHash(undefined);
       setTxMode(null);
@@ -885,6 +918,7 @@ export default function AdminMintForm() {
     preparedPoster,
     preparedMedia,
     name,
+    storeBrand,
     refetchManageStatus,
     refetchNextTokenId,
   ]);
@@ -906,6 +940,7 @@ export default function AdminMintForm() {
     setCreatedTokenId(null);
     setCreatedAt(null);
     setCreatedMode(null);
+    setCreatedBrand(null);
     setPreparedMedia(null);
     setPreparedPoster(null);
     savedRef.current = false;
@@ -967,6 +1002,7 @@ export default function AdminMintForm() {
     setCreatedTokenId(null);
     setCreatedAt(null);
     setCreatedMode(null);
+    setCreatedBrand(null);
     savedRef.current = false;
   }
 
@@ -1025,7 +1061,8 @@ export default function AdminMintForm() {
         "description",
         description.trim() || `${name.trim()} • ${collection.trim()}`
       );
-      formData.append("project", collection.trim());
+      formData.append("project", effectiveProjectBrand);
+      formData.append("brandProject", effectiveProjectBrand);
       formData.append("category", category);
       formData.append("collection", collection.trim());
       formData.append("item", item);
@@ -1041,8 +1078,9 @@ export default function AdminMintForm() {
 
       const res = await fetch(PREPARE_URL, { method: "POST", body: formData });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok)
+      if (!res.ok) {
         throw new Error(data?.message || "Metadata preparation failed");
+      }
 
       const uri =
         data?.metadataUri || data?.tokenURI || data?.tokenUri || null;
@@ -1078,7 +1116,9 @@ export default function AdminMintForm() {
         setPreparedMedia(
           ipfsToHttp(metaAnim, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl
         );
-        setPreparedPoster(ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pPoster || null);
+        setPreparedPoster(
+          ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pPoster || null
+        );
       } else if (metaImage) {
         setPreparedKind("image");
         setPreparedMedia(
@@ -1253,19 +1293,29 @@ export default function AdminMintForm() {
                   <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
                   Admin Store Access
                 </Pill>
+
                 <Pill>
                   <span className="text-white/80 font-extrabold">Base Sepolia</span>
                 </Pill>
+
                 <Pill>
                   <span className="text-white/70">Mode:</span>
                   <span className="text-amber-200 font-extrabold">{selectedLabel}</span>
                 </Pill>
+
                 <Pill>
                   <span className="text-white/70">Contract:</span>
                   <span className="text-amber-200 font-extrabold">
                     {selectedContract ? shortAddr(selectedContract) : "missing"}
                   </span>
                 </Pill>
+
+                {productMode === "store" ? (
+                  <Pill>
+                    <span className="text-white/70">Brand:</span>
+                    <span className="text-amber-200 font-extrabold">{storeBrand}</span>
+                  </Pill>
+                ) : null}
               </div>
 
               <div className="mt-4 text-sm md:text-base font-extrabold tracking-tight">
@@ -1284,6 +1334,18 @@ export default function AdminMintForm() {
                 <span className="text-white/75 font-semibold">Realife NFT Store</span>.
               </div>
 
+              {productMode === "store" ? (
+                <div className="mt-3 rounded-2xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-[11px] text-sky-50/85 leading-relaxed">
+                  Store mode can keep one shared Store contract on Base Sepolia while each product still carries its own{" "}
+                  <span className="font-black text-sky-100">brand / project label</span> in metadata and UI.
+                </div>
+              ) : (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[11px] text-white/65 leading-relaxed">
+                  Cafe mode stays under the native{" "}
+                  <span className="font-black text-white/85">Realife</span> brand.
+                </div>
+              )}
+
               <div className="mt-3 space-y-2 text-xs text-white/65">
                 <div>
                   Connected wallet:{" "}
@@ -1293,13 +1355,25 @@ export default function AdminMintForm() {
                 </div>
                 <div>
                   Allowlist:{" "}
-                  <span className={allowlistOk ? "font-semibold text-emerald-200" : "font-semibold text-rose-200"}>
+                  <span
+                    className={
+                      allowlistOk
+                        ? "font-semibold text-emerald-200"
+                        : "font-semibold text-rose-200"
+                    }
+                  >
                     {allowlistOk ? "OK" : "Blocked"}
                   </span>
                 </div>
                 <div>
                   Moderator role:{" "}
-                  <span className={hasModeratorRole ? "font-semibold text-emerald-200" : "font-semibold text-rose-200"}>
+                  <span
+                    className={
+                      hasModeratorRole
+                        ? "font-semibold text-emerald-200"
+                        : "font-semibold text-rose-200"
+                    }
+                  >
                     {hasModeratorRole ? "Granted" : "Missing"}
                   </span>
                 </div>
@@ -1341,7 +1415,9 @@ export default function AdminMintForm() {
                 <button
                   type="button"
                   disabled={isSwitching}
-                  onClick={() => switchChainAsync({ chainId: baseSepolia.id }).catch(() => {})}
+                  onClick={() =>
+                    switchChainAsync({ chainId: baseSepolia.id }).catch(() => {})
+                  }
                   className="h-10 px-4 rounded-2xl bg-white text-black hover:bg-gray-100 transition text-xs font-extrabold disabled:opacity-60 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                 >
                   {isSwitching ? "Switching…" : "Switch"}
@@ -1593,6 +1669,59 @@ export default function AdminMintForm() {
             })}
           </div>
         </Card>
+
+        {productMode === "store" ? (
+          <Card>
+            <div className="flex items-end justify-between mb-4">
+              <div>
+                <div className="text-sm font-extrabold tracking-tight">Store brand / project</div>
+                <div className="text-[11px] text-white/55 mt-1">
+                  This label goes into metadata and later appears in store / NFT UI.
+                </div>
+              </div>
+              <Pill>
+                <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+                Store only
+              </Pill>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {STORE_BRANDS.map((brand) => {
+                const active = storeBrand === brand;
+                return (
+                  <button
+                    key={brand}
+                    type="button"
+                    onClick={() => {
+                      setStoreBrand(brand);
+                      resetPreparedState();
+                    }}
+                    className={[
+                      "px-4 py-2.5 rounded-2xl border text-sm font-extrabold transition",
+                      "shadow-[0_16px_40px_rgba(0,0,0,0.35)]",
+                      active
+                        ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                        : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+                    ].join(" ")}
+                  >
+                    {brand}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
+              <div className="text-[12px] font-black text-sky-100">
+                Shared contract, separate brand label
+              </div>
+              <div className="mt-2 text-[12px] text-sky-50/85 leading-relaxed">
+                You do not need a separate Store contract for every test brand right now. This selector only changes the{" "}
+                <span className="font-black text-sky-100">metadata / UI brand label</span> while products still live
+                under the same shared Realife Store contract on Base Sepolia.
+              </div>
+            </div>
+          </Card>
+        ) : null}
 
         <Card>
           <div className="flex items-start justify-between gap-3">
@@ -1965,18 +2094,10 @@ export default function AdminMintForm() {
                 What this block does NOT control
               </div>
               <div className="mt-2 space-y-2 text-[12px] text-amber-50/85 leading-relaxed">
-                <div>
-                  • shipping address collection
-                </div>
-                <div>
-                  • tracking code / carrier / shipped status
-                </div>
-                <div>
-                  • buyer delivery confirmation
-                </div>
-                <div>
-                  • escrow release / refund flow
-                </div>
+                <div>• shipping address collection</div>
+                <div>• tracking code / carrier / shipped status</div>
+                <div>• buyer delivery confirmation</div>
+                <div>• escrow release / refund flow</div>
               </div>
               <div className="mt-3 text-[11px] text-amber-50/80 leading-relaxed">
                 Those actions happen later in the Store orders flow after buyer purchase.
@@ -1990,8 +2111,8 @@ export default function AdminMintForm() {
               <div className="mt-2 text-[12px] text-white/65 leading-relaxed">
                 In your current <span className="font-black text-white/85">createProduct()</span> ABI there is no
                 <span className="font-black text-white/85"> primarySellerWallet </span>
-                input. So this admin form configures the delivery flags, but it does not directly set a custom seller
-                wallet per product.
+                input. So this admin form configures the delivery flags and metadata brand label, but it does not
+                directly set a custom seller wallet per product.
               </div>
             </div>
           </Card>
@@ -2165,6 +2286,12 @@ export default function AdminMintForm() {
                 </div>
 
                 <div className="mt-4 space-y-2 text-xs text-white/60">
+                  {createdBrand ? (
+                    <div>
+                      Brand / Project:{" "}
+                      <span className="font-semibold text-white">{createdBrand}</span>
+                    </div>
+                  ) : null}
                   <div>
                     Collection: <span className="font-semibold text-white">{collection}</span>
                   </div>
@@ -2254,7 +2381,13 @@ export default function AdminMintForm() {
                     setPrice("5");
                     setExternalUrl("");
                     setCategory(productMode === "cafe" ? CAFE_CATEGORIES[0] : STORE_CATEGORIES[0]);
-                    setCollection(productMode === "cafe" ? "Realife Crypto Cafe" : "Realife NFT Store");
+                    setCollection(
+                      productMode === "cafe"
+                        ? "Realife Crypto Cafe"
+                        : storeBrand === "Other"
+                        ? "Partner NFT Store"
+                        : `${storeBrand} NFT Store`
+                    );
                     setItem(productMode === "cafe" ? CAFE_ITEMS[0] : STORE_ITEMS[0]);
                     setRarity("Common");
                     setDeliveryEnabled(productMode === "store");
@@ -2268,6 +2401,7 @@ export default function AdminMintForm() {
                     setCreatedTokenId(null);
                     setCreatedAt(null);
                     setCreatedMode(null);
+                    setCreatedBrand(null);
                     setError("");
                     savedRef.current = false;
 
@@ -2315,10 +2449,16 @@ export default function AdminMintForm() {
           </div>
 
           {productMode === "store" ? (
-            <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
-              Mint form creates the Store product and saves the delivery flags. Shipping, tracking, buyer confirmation
-              and escrow actions are handled after purchase in the Store orders flow.
-            </div>
+            <>
+              <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
+                Mint form creates the Store product and saves the delivery flags. Shipping, tracking, buyer confirmation
+                and escrow actions are handled after purchase in the Store orders flow.
+              </div>
+              <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
+                Selected brand label for this product:{" "}
+                <span className="text-amber-200 font-semibold">{storeBrand}</span>.
+              </div>
+            </>
           ) : null}
 
           <div className="mt-2 text-[11px] text-white/55 leading-relaxed">

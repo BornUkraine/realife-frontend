@@ -29,7 +29,14 @@ export default function RealifeStorePage() {
             </div>
 
             <div className="mt-2 text-[13px] text-white/55 max-w-2xl">
-              Curated NFT storefront for real-world goods, collectibles, art, fashion, food and other approved products connected to NFTs.
+              Curated NFT storefront for real-world goods, collectibles, art, fashion,
+              food and other approved products.
+            </div>
+
+            <div className="mt-3 text-[13px] text-white/50 max-w-3xl leading-relaxed">
+              Today this storefront is centered around <span className="text-white/80 font-black">Realife</span>.
+              It is also ready for future brand-based collections, where each NFT product can carry
+              its own project or brand label inside metadata without requiring a separate storefront UI.
             </div>
           </div>
 
@@ -39,6 +46,13 @@ export default function RealifeStorePage() {
               className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
             >
               Trading
+            </Link>
+
+            <Link
+              href="/app/create/admin"
+              className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+            >
+              Admin
             </Link>
 
             <Link

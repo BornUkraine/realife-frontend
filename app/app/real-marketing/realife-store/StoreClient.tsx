@@ -37,6 +37,10 @@ type StoreProduct = {
   category?: string | null;
   item?: string | null;
   rarity?: string | null;
+
+  // brand-ready fields
+  brandProject?: string | null;
+  project?: string | null;
 };
 
 type StoreProductsResponse = {
@@ -126,6 +130,10 @@ function toSafeNumber(v?: string | null) {
   return Number.isFinite(n) ? n : null;
 }
 
+function getBrandLabel(x: Partial<StoreProduct>) {
+  return String(x.brandProject || x.project || "").trim() || null;
+}
+
 export default function StoreClient() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -181,6 +189,8 @@ export default function StoreClient() {
         const category = String(x.category || "").toLowerCase();
         const item = String(x.item || "").toLowerCase();
         const rarity = String(x.rarity || "").toLowerCase();
+        const brandProject = String(x.brandProject || "").toLowerCase();
+        const project = String(x.project || "").toLowerCase();
 
         return (
           name.includes(qq) ||
@@ -188,7 +198,9 @@ export default function StoreClient() {
           collection.includes(qq) ||
           category.includes(qq) ||
           item.includes(qq) ||
-          rarity.includes(qq)
+          rarity.includes(qq) ||
+          brandProject.includes(qq) ||
+          project.includes(qq)
         );
       });
     }
@@ -212,6 +224,16 @@ export default function StoreClient() {
 
   const activeCount = useMemo(() => rows.filter((x) => x.active).length, [rows]);
 
+  const brandCount = useMemo(() => {
+    const set = new Set(
+      rows
+        .map((x) => getBrandLabel(x))
+        .filter((v): v is string => Boolean(v))
+        .map((v) => v.toLowerCase())
+    );
+    return set.size;
+  }, [rows]);
+
   const goldWrap =
     "rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.60)]";
   const goldCard =
@@ -230,7 +252,9 @@ export default function StoreClient() {
                 Realife NFT Store
               </div>
               <div className="mt-2 text-[12px] text-white/55 max-w-2xl">
-                Real-world items connected to NFTs. Delivery and escrow are handled through the site UI, while the NFT purchase itself is minted through the store contract.
+                Curated storefront for Realife products and future brand-ready collections.
+                NFT purchase is executed through the store contract, while delivery and escrow
+                are handled through the site UI.
               </div>
             </div>
 
@@ -268,7 +292,7 @@ export default function StoreClient() {
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Total
@@ -288,6 +312,13 @@ export default function StoreClient() {
                 Visible
               </div>
               <div className="mt-1 text-lg font-black text-white/90">{filtered.length}</div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Brands
+              </div>
+              <div className="mt-1 text-lg font-black text-white/90">{brandCount}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
@@ -312,7 +343,7 @@ export default function StoreClient() {
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="art / antique / token id…"
+                placeholder="brand / art / antique / token id…"
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
               />
             </div>
@@ -374,6 +405,7 @@ export default function StoreClient() {
           const remainingNum = toSafeNumber(x?.remaining);
           const soldOut = remainingNum !== null ? remainingNum <= 0 : false;
           const canBuy = Boolean(x.active) && !soldOut;
+          const brandLabel = getBrandLabel(x);
 
           const productPaymentTokenAddress = String(
             x.paymentTokenAddress || paymentTokenAddress || ""
@@ -422,6 +454,12 @@ export default function StoreClient() {
                       {soldOut ? "SOLD OUT" : x.active ? "AVAILABLE" : "INACTIVE"}
                     </div>
 
+                    {brandLabel ? (
+                      <div className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                        {brandLabel}
+                      </div>
+                    ) : null}
+
                     {x.deliveryEnabled ? (
                       <div className="px-2 py-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-[10px] font-black text-emerald-100">
                         DELIVERY
@@ -446,6 +484,14 @@ export default function StoreClient() {
               </Link>
 
               <div className="p-5">
+                {brandLabel ? (
+                  <div className="mb-2">
+                    <span className="inline-flex px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                      {brandLabel}
+                    </span>
+                  </div>
+                ) : null}
+
                 <Link href={href} className="block">
                   <div className="text-sm font-extrabold text-white/90 truncate hover:text-amber-100 transition">
                     {x.name || `Store Product #${x.tokenId}`}
@@ -537,11 +583,15 @@ export default function StoreClient() {
                       chainId={x.chainId}
                       nftContract={x.contract}
                       tokenId={String(x.tokenId)}
-                      storefrontLabel="Realife NFT Store"
+                      storefrontLabel={brandLabel ? `${brandLabel} • NFT Store` : "Realife NFT Store"}
                       title={x.name || `Store Product #${x.tokenId}`}
                       subtitle={
                         x.deliveryEnabled || x.physicalItemIncluded
-                          ? "Buy NFT and create delivery order through site UI"
+                          ? brandLabel
+                            ? `Buy ${brandLabel} NFT and create delivery order through site UI`
+                            : "Buy NFT and create delivery order through site UI"
+                          : brandLabel
+                          ? `Buy ${brandLabel} product directly from storefront contract`
                           : "Buy directly from storefront contract"
                       }
                       active={Boolean(x.active)}
