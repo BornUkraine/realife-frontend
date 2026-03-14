@@ -536,17 +536,17 @@ export default function AdminMintForm() {
   });
 
   const balanceEth = useMemo(() => {
-    if (!mounted || !balanceData) return 0;
+    if (!mounted || !balanceData) return null;
     const s = formatUnits(balanceData.value, balanceData.decimals);
     const n = Number(s);
-    return Number.isFinite(n) ? n : 0;
+    return Number.isFinite(n) ? n : null;
   }, [mounted, balanceData]);
 
   const balanceLabel = useMemo(() => {
     if (!mounted || !connected) return "—";
     if (isBalanceLoading) return "loading…";
     if (!balanceData) {
-      return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
+      return `— ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
     }
     const s = formatUnits(balanceData.value, balanceData.decimals);
     return `${fmtEth(s)} ${balanceData.symbol ?? "ETH"}`;
@@ -1173,7 +1173,9 @@ export default function AdminMintForm() {
     try {
       await ensureCorrectNetwork();
 
-      if (balanceEth === 0) {
+      const freshBalance = await refetchBalance();
+
+      if (freshBalance.data?.value === 0n) {
         setError("No gas on Base Sepolia. Open Faucet, get test ETH, then create.");
         return;
       }
@@ -1250,7 +1252,9 @@ export default function AdminMintForm() {
     try {
       await ensureCorrectNetwork();
 
-      if (balanceEth === 0) {
+      const freshBalance = await refetchBalance();
+
+      if (freshBalance.data?.value === 0n) {
         setError("No gas on Base Sepolia. Open Faucet, get test ETH, then continue.");
         return;
       }
@@ -1475,6 +1479,12 @@ export default function AdminMintForm() {
           {!hasModeratorRole && connected && !wrongNetwork ? (
             <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
               Connected wallet does not have <b>MODERATOR_ROLE</b> in the selected contract.
+            </div>
+          ) : null}
+
+          {connected && !wrongNetwork && balanceEth === null ? (
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/70">
+              Wallet balance is still loading. You can refresh once if needed.
             </div>
           ) : null}
         </Card>
