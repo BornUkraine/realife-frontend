@@ -18,7 +18,6 @@ export default function AppShell({
 }) {
   return (
     <main className="min-h-screen bg-[#070606] text-white overflow-x-hidden relative">
-      {/* 🔥 НАДЕЖНЫЙ СПОСОБ ВСТАВИТЬ АНИМАЦИЮ В NEXT.JS */}
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -41,17 +40,13 @@ export default function AppShell({
         }}
       />
 
-      {/* VIP Premium Background */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
-        {/* 1. Deep Core Vignette */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_20%,#040303_100%)] z-10 opacity-90" />
 
-        {/* 2. Luxury Ambient Gold Orbs */}
         <div className="animate-orb-1 absolute -top-[30%] -left-[10%] h-[800px] w-[800px] rounded-full bg-[#d4af37] blur-[140px]" />
         <div className="animate-orb-2 absolute -bottom-[20%] -right-[10%] h-[900px] w-[900px] rounded-full bg-[#d4af37] blur-[160px]" />
         <div className="animate-top-glow absolute top-0 h-[400px] w-[600px] rounded-full bg-[#f7e7a7] blur-[120px]" />
 
-        {/* 3. Premium Fading Grid (IDEAL: редкая, слабая, золото, мягкая маска) */}
         <div
           className="absolute inset-0 z-0 opacity-[0.028]"
           style={{
@@ -65,24 +60,24 @@ export default function AppShell({
           }}
         />
 
-        {/* 4. Micro-noise */}
         <div className="absolute inset-0 opacity-[0.03] z-20 mix-blend-screen bg-[radial-gradient(circle,rgba(255,255,255,1)_1px,transparent_1px)] [background-size:12px_12px]" />
       </div>
 
-      {/* Content Layout */}
-      <div className="relative z-30 max-w-7xl mx-auto px-6 md:px-10 pt-10 pb-10 md:pt-14 md:pb-14 grid grid-cols-12 gap-10">
-        <aside className="col-span-12 lg:col-span-3">
-          <AppSidebar
-            title={title}
-            subtitle={subtitle}
-            topBadge={sidebarTopBadge}
-            bottom={sidebarBottom}
-          />
-        </aside>
+      <div className="relative z-30 mx-auto w-full max-w-[1720px] px-4 sm:px-6 lg:px-8 2xl:px-10 pt-8 pb-8 md:pt-10 md:pb-10">
+        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)] gap-6 xl:gap-8">
+          <aside className="min-w-0">
+            <AppSidebar
+              title={title}
+              subtitle={subtitle}
+              topBadge={sidebarTopBadge}
+              bottom={sidebarBottom}
+            />
+          </aside>
 
-        <section className="col-span-12 lg:col-span-9 space-y-6">
-          {children}
-        </section>
+          <section className="min-w-0 space-y-6">
+            {children}
+          </section>
+        </div>
       </div>
     </main>
   );

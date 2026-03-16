@@ -53,19 +53,19 @@ function SidebarNavItem({
   badge?: string;
 }) {
   const base =
-    "group block w-full rounded-2xl px-4 py-3 text-sm font-semibold transition duration-200";
+    "group block w-full rounded-2xl px-4 py-2.5 text-sm font-semibold transition duration-200";
 
   const activeCls = [
     "text-black",
     "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-    "shadow-[0_22px_70px_rgba(212,175,55,0.18)]",
+    "shadow-[0_18px_56px_rgba(212,175,55,0.16)]",
     "ring-1 ring-black/15",
   ].join(" ");
 
   const idleCls = [
     "text-white/85 hover:text-white",
     "border border-white/10 bg-white/[0.04] hover:bg-white/[0.07]",
-    "shadow-[0_16px_60px_rgba(0,0,0,0.35)]",
+    "shadow-[0_14px_44px_rgba(0,0,0,0.32)]",
     "hover:-translate-y-[1px] active:translate-y-0",
   ].join(" ");
 
@@ -123,12 +123,8 @@ export default function AppSidebar({
   return (
     <div className="sticky top-24">
       <GoldEdgeCard>
-        <div className="p-6">
-          
-          {/* Brand */}
-          <Link href="/app" className="flex items-center mb-10 relative overflow-visible">
-            
-            {/* Mark: Иконка (с чистым фоном). Добавили -ml-2 чтобы сдвинуть левее! */}
+        <div className="p-5 xl:p-6">
+          <Link href="/app" className="flex items-center mb-8 relative overflow-visible">
             <div className="z-10 shrink-0 relative w-16 h-16 flex items-center justify-center -ml-2">
               <img
                 src="/brand/logo-mark.png"
@@ -138,7 +134,6 @@ export default function AppSidebar({
               />
             </div>
 
-            {/* Wordmark: Оставляем твою идеальную настройку left-[-71px] */}
             <div className="relative flex-1 h-12 overflow-visible z-0">
               <img
                 src="/brand/logo-wordmark.png"
@@ -147,11 +142,25 @@ export default function AppSidebar({
                 draggable={false}
               />
             </div>
-
           </Link>
 
+          {(title || subtitle) && (
+            <div className="mb-5">
+              {title ? (
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/38 font-black">
+                  {title}
+                </div>
+              ) : null}
+              {subtitle ? (
+                <div className="mt-2 text-[12px] text-white/52 leading-relaxed">
+                  {subtitle}
+                </div>
+              ) : null}
+            </div>
+          )}
+
           {topBadge ? (
-            <div className="mb-5 rounded-3xl bg-white/5 border border-white/10 p-4">
+            <div className="mb-4 rounded-3xl bg-white/5 border border-white/10 p-4">
               {topBadge}
             </div>
           ) : null}
@@ -169,7 +178,7 @@ export default function AppSidebar({
             ))}
           </nav>
 
-          {bottom ? <div className="mt-8">{bottom}</div> : null}
+          {bottom ? <div className="mt-6">{bottom}</div> : null}
         </div>
       </GoldEdgeCard>
     </div>

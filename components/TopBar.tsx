@@ -31,8 +31,8 @@ function StatusDot({ state }: { state: "ok" | "warn" | "off" }) {
         state === "ok"
           ? "bg-emerald-400"
           : state === "warn"
-          ? "bg-rose-400"
-          : "bg-white/30",
+            ? "bg-rose-400"
+            : "bg-white/30",
         "shadow-[0_0_0_3px_rgba(255,255,255,0.06)]"
       )}
     />
@@ -157,7 +157,6 @@ function NetworkStatusContent({
 export default function TopBar() {
   const mounted = useMounted();
 
-  // ✅ ХУКИ — ВСЕГДА, без ранних return
   const { address } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
@@ -191,18 +190,18 @@ export default function TopBar() {
   const networkTitle = !mounted
     ? "Connect wallet"
     : !connected
-    ? "Connect wallet"
-    : wrongNetwork
-    ? "Wrong network"
-    : "Base Sepolia";
+      ? "Connect wallet"
+      : wrongNetwork
+        ? "Wrong network"
+        : "Base Sepolia";
 
   const dotState: "ok" | "warn" | "off" = !mounted
     ? "off"
     : !connected
-    ? "off"
-    : wrongNetwork
-    ? "warn"
-    : "ok";
+      ? "off"
+      : wrongNetwork
+        ? "warn"
+        : "ok";
 
   const showGetEth = mounted ? (connected ? wrongNetwork || !hasGas : false) : false;
   const canSwitch = typeof switchChainAsync === "function";
@@ -226,9 +225,8 @@ export default function TopBar() {
   return (
     <header className="w-full relative z-50">
       {!mounted ? (
-        // ✅ СКЕЛЕТ ВНУТРИ JSX (НЕ ранний return)
         <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
-          <div className="mx-auto w-full max-w-7xl px-4 py-3">
+          <div className="mx-auto w-full max-w-[1720px] px-4 sm:px-6 lg:px-8 2xl:px-10 py-3">
             <div className="flex items-center justify-between gap-3">
               <Link href="/" className="inline-flex items-center gap-3 min-w-0">
                 <span className="h-11 w-11 rounded-full bg-white/5 border border-white/10" />
@@ -239,13 +237,12 @@ export default function TopBar() {
           </div>
         </div>
       ) : (
-        // ✅ ТВОЙ ОРИГИНАЛЬНЫЙ UI
         <div className="relative">
           <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[820px] rounded-full bg-[#d4af37]/14 blur-3xl" />
           <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[560px] rounded-full bg-white/[0.06] blur-2xl" />
 
           <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
-            <div className="mx-auto w-full max-w-7xl px-4 py-3">
+            <div className="mx-auto w-full max-w-[1720px] px-4 sm:px-6 lg:px-8 2xl:px-10 py-3">
               <div className="flex items-center justify-between gap-3">
                 <Link href="/" className="inline-flex items-center gap-3 min-w-0 relative group">
                   <div className="absolute inset-y-0 left-0 w-16 sm:w-64 z-20 cursor-pointer" />
