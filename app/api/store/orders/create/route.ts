@@ -71,6 +71,27 @@ async function ensureUserByWallet(wallet?: string | null) {
   return user.id;
 }
 
+function serializeOrder(order: {
+  id: string;
+  chainId: number;
+  contract: string;
+  tokenId: string;
+  buyerWallet: string;
+  sellerWallet: string;
+  amount: bigint;
+  totalPrice: bigint;
+  escrowStatus: string;
+  deliveryStatus: string;
+  createdAt: Date;
+}) {
+  return {
+    ...order,
+    amount: order.amount.toString(),
+    totalPrice: order.totalPrice.toString(),
+    createdAt: order.createdAt.toISOString(),
+  };
+}
+
 export async function POST(req: Request) {
   if (!STORE_CONTRACT) {
     return NextResponse.json(
@@ -335,12 +356,18 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      order,
+      order: serializeOrder(order),
     });
-  } catch (e) {
-    console.error("[API_STORE_ORDER_CREATE_ERROR]", e);
+  } catch (e: any) {
+    console.error("[API_STORE_ORDER_CREATE_ERROR]", {
+      name: e?.name,
+      message: e?.message,
+      code: e?.code,
+      meta: e?.meta,
+    });
+
     return NextResponse.json(
-      { ok: false, error: "INTERNAL" },
+      { ok: false, error: e?.message || "INTERNAL" },
       { status: 500 }
     );
   }
