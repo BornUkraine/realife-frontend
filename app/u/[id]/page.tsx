@@ -139,7 +139,12 @@ function Avatar({
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={fallback} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+        <img
+          src={src}
+          alt={fallback}
+          className="h-full w-full object-cover"
+          referrerPolicy="no-referrer"
+        />
       ) : (
         <span className="text-white/40 text-xs font-black">{fallback}</span>
       )}
@@ -147,11 +152,26 @@ function Avatar({
   );
 }
 
-function KeyValue({ label, value, mono = false }: { label: string; value: ReactNode; mono?: boolean }) {
+function KeyValue({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: ReactNode;
+  mono?: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">{label}</div>
-      <div className={cx("mt-1 text-sm font-extrabold text-white/85 truncate", mono && "font-mono text-[13px]")}>
+      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+        {label}
+      </div>
+      <div
+        className={cx(
+          "mt-1 text-sm font-extrabold text-white/85 truncate",
+          mono && "font-mono text-[13px]"
+        )}
+      >
         {value}
       </div>
     </div>
@@ -187,7 +207,11 @@ const userSelect = {
   discordImage: true,
 } as const;
 
-export default async function PublicProfilePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PublicProfilePage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
 
   const key = safeDecode(id || "").trim();
@@ -204,6 +228,14 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
   });
 
   if (!user) notFound();
+
+  const nftCount = await prisma.holding.count({
+    where: {
+      userId: user.id,
+      amount: { gt: 0n },
+      mint: { verified: true },
+    },
+  });
 
   const walletConnected = Boolean(user.walletAddress);
   const twitterConnected = Boolean(user.twitterId);
@@ -230,7 +262,6 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
-      {/* Ultra premium background */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
@@ -250,7 +281,6 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
       </div>
 
       <div className="relative mx-auto max-w-5xl px-6 py-10 space-y-8">
-        {/* HERO */}
         <GoldEdgeWrap className="reveal rounded-[44px]">
           <div className="relative p-7 md:p-10">
             <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/10 blur-3xl" />
@@ -274,20 +304,29 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                   {dcHandle && <Chip tone="brand">{dcHandle}</Chip>}
                   {user.handle && user.handle !== user.twitterUser && <Chip>@{user.handle}</Chip>}
 
-                  <StatusPill ok={walletConnected} text={walletConnected ? "Wallet Linked" : "No Wallet"} />
-                  <StatusPill ok={twitterConnected} text={twitterConnected ? "X Verified" : "X Unlinked"} />
-                  <StatusPill ok={discordConnected} text={discordConnected ? "Discord Linked" : "Discord Unlinked"} />
+                  <StatusPill
+                    ok={walletConnected}
+                    text={walletConnected ? "Wallet Linked" : "No Wallet"}
+                  />
+                  <StatusPill
+                    ok={twitterConnected}
+                    text={twitterConnected ? "X Verified" : "X Unlinked"}
+                  />
+                  <StatusPill
+                    ok={discordConnected}
+                    text={discordConnected ? "Discord Linked" : "Discord Unlinked"}
+                  />
                 </div>
 
                 <div className="mt-7 grid grid-cols-2 md:grid-cols-4 gap-3">
                   <KeyValue label="Points" value={user.points ?? 0} />
+                  <KeyValue label="NFTs" value={nftCount} />
                   <KeyValue
                     label="Public Link"
                     value={publicUrl ? <span className="text-amber-400/90">{publicKey}</span> : "—"}
                     mono
                   />
                   <KeyValue label="EVM Wallet" value={shortAddr(user.walletAddress)} mono />
-                  <KeyValue label="Status" value={walletConnected ? "Verified" : "—"} />
                 </div>
 
                 <div className="mt-6 flex flex-wrap gap-3">
@@ -328,7 +367,6 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
           </div>
         </GoldEdgeWrap>
 
-        {/* SOCIAL CARDS */}
         <div className="reveal grid md:grid-cols-2 gap-6" style={{ animationDelay: "110ms" }}>
           <Card className="ring-1 ring-white/5">
             <div className="flex items-center justify-between mb-6">
@@ -343,8 +381,12 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
               <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
                 <Avatar src={user.twitterImage} fallback="X" size="md" />
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-extrabold truncate text-white/90">{user.twitterName || "—"}</div>
-                  <div className="text-xs text-white/40 font-mono truncate">@{user.twitterUser}</div>
+                  <div className="text-sm font-extrabold truncate text-white/90">
+                    {user.twitterName || "—"}
+                  </div>
+                  <div className="text-xs text-white/40 font-mono truncate">
+                    @{user.twitterUser}
+                  </div>
                 </div>
                 {xUrl ? (
                   <a
@@ -368,7 +410,9 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                   <Avatar src={null} fallback="X" size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-extrabold truncate text-white/80">Not connected</div>
-                    <div className="text-xs text-white/40 mt-0.5">This user hasn’t linked X yet.</div>
+                    <div className="text-xs text-white/40 mt-0.5">
+                      This user hasn’t linked X yet.
+                    </div>
                   </div>
                   <div className="shrink-0">
                     <Chip>🔒 Private</Chip>
@@ -396,7 +440,9 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
               <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
                 <Avatar src={user.discordImage} fallback="DC" size="md" />
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-extrabold truncate text-white/90">{user.discordName || "—"}</div>
+                  <div className="text-sm font-extrabold truncate text-white/90">
+                    {user.discordName || "—"}
+                  </div>
                   <div className="text-xs text-white/40 font-mono truncate">
                     {user.discordUser ? `@${user.discordUser}` : "—"}
                   </div>
@@ -413,7 +459,9 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                   <Avatar src={null} fallback="DC" size="md" />
                   <div className="min-w-0 flex-1">
                     <div className="text-sm font-extrabold truncate text-white/80">Not connected</div>
-                    <div className="text-xs text-white/40 mt-0.5">This user hasn’t linked Discord yet.</div>
+                    <div className="text-xs text-white/40 mt-0.5">
+                      This user hasn’t linked Discord yet.
+                    </div>
                   </div>
                   <div className="shrink-0">
                     <Chip>🔒 Private</Chip>

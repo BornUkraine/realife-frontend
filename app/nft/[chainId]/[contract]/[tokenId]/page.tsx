@@ -9,6 +9,8 @@ import { realifeStoreAbi } from "@/lib/realifeStoreAbi";
 import { headers } from "next/headers";
 import { createPublicClient, formatUnits, http } from "viem";
 import { baseSepolia } from "viem/chains";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +37,13 @@ function shortAddr(addr?: string | null) {
 
 function norm(a: string) {
   return String(a || "").trim().toLowerCase();
+}
+
+function fmtDate(v?: Date | string | null) {
+  if (!v) return "—";
+  const d = typeof v === "string" ? new Date(v) : v;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-GB");
 }
 
 /* ------------------------------- Config ------------------------------ */
@@ -337,6 +346,24 @@ async function getOrigin() {
   return `${proto}://${host}`;
 }
 
+async function getPreferredGalleryHref(
+  creatorNftsUrl: string | null,
+  currentOwnerNftsUrl: string | null
+) {
+  const h = await headers();
+  const referer = String(h.get("referer") || "").trim();
+  const origin = await getOrigin();
+
+  if (origin && referer.startsWith(origin)) {
+    const path = referer.slice(origin.length);
+    if (/^\/u\/[^/?#]+\/nfts(?:\?[^#]*)?$/.test(path)) {
+      return path;
+    }
+  }
+
+  return currentOwnerNftsUrl || creatorNftsUrl || null;
+}
+
 /* ------------------------------- Small fetch helper (timeout) ------------------------------ */
 
 async function fetchJsonWithTimeout(
@@ -551,6 +578,96 @@ function fmtEth(wei?: string | null) {
   }
 }
 
+function StatCard({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "gold";
+}) {
+  return (
+    <div
+      className={cx(
+        "rounded-2xl border p-4",
+        tone === "gold"
+          ? "border-amber-500/20 bg-amber-500/10"
+          : "border-white/10 bg-white/[0.04]"
+      )}
+    >
+      <div
+        className={cx(
+          "text-[11px] font-semibold uppercase tracking-wider",
+          tone === "gold" ? "text-amber-100/70" : "text-white/55"
+        )}
+      >
+        {label}
+      </div>
+      <div
+        className={cx(
+          "mt-1 text-[13px] font-extrabold truncate",
+          tone === "gold" ? "text-amber-100" : "text-white/85"
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function PersonCard({
+  label,
+  avatar,
+  name,
+  href,
+  secondaryHref,
+}: {
+  label: string;
+  avatar?: string | null;
+  name: string;
+  href?: string | null;
+  secondaryHref?: string | null;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <div className="flex items-center gap-4">
+        <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
+          {avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={avatar}
+              alt={label}
+              className="h-full w-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <span className="text-white/35 text-xs font-black">RL</span>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+            {label}
+          </div>
+          <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
+            {href ? <Link className="hover:underline" href={href}>{name}</Link> : name}
+          </div>
+        </div>
+
+        {secondaryHref ? (
+          <Link
+            href={secondaryHref}
+            className="shrink-0 text-[12px] font-extrabold text-amber-100/90 hover:text-amber-100"
+          >
+            View NFTs →
+          </Link>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export default async function NftDetailsPage({
   params,
 }: {
@@ -656,12 +773,10 @@ export default async function NftDetailsPage({
   const currentOwnerUser = topHolder?.user || creator || null;
 
   const currentOwnerPublicKey = currentOwnerUser?.handle || currentOwnerUser?.publicId || null;
-
   const currentOwnerUrl =
     currentOwnerPublicKey && currentOwnerPublicKey !== "tmp"
       ? `/u/${currentOwnerPublicKey}`
       : null;
-
   const currentOwnerNftsUrl = currentOwnerUrl ? `${currentOwnerUrl}/nfts` : null;
 
   const currentOwnerName =
@@ -712,12 +827,7 @@ export default async function NftDetailsPage({
       : null;
 
   const metaBrand =
-    pickAttrAny(meta, [
-      "Brand Project",
-      "Brand",
-      "Project",
-      "project",
-    ]) ||
+    pickAttrAny(meta, ["Brand Project", "Brand", "Project", "project"]) ||
     pickAny(meta, ["brandProject", "brand", "project"]) ||
     null;
 
@@ -809,8 +919,22 @@ export default async function NftDetailsPage({
   const stats = market?.stats || null;
   const listings: any[] = Array.isArray(market?.listings) ? market.listings : [];
   const trades: any[] = Array.isArray(market?.trades) ? market.trades : [];
-
   const heroBrandLabel = metaBrand || metaProject || null;
+
+  const session = await getServerSession(authOptions);
+  const viewerAuthed = Boolean(
+    (session as any)?.user?.id ||
+      (session as any)?.userId ||
+      (session as any)?.user?.walletAddress ||
+      (session as any)?.walletAddress
+  );
+
+  const backToGalleryHref = await getPreferredGalleryHref(
+    creatorNftsUrl,
+    currentOwnerNftsUrl
+  );
+
+  const hasStorefrontPanel = isCafeNft || isStoreNft;
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
@@ -823,29 +947,49 @@ export default async function NftDetailsPage({
         <div className="absolute inset-x-0 top-0 h-48 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.65),transparent)]" />
       </div>
 
-      <div className="relative mx-auto max-w-6xl px-6 py-10 space-y-6">
-        <div className="reveal flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-[12px] text-white/55">
-            {creatorNftsUrl ? (
-              <Link className="hover:underline" href={creatorNftsUrl}>
-                NFTs
-              </Link>
-            ) : (
-              <span>NFTs</span>
-            )}
-            <span>›</span>
-            {creatorUrl ? (
-              <Link className="hover:underline" href={creatorUrl}>
-                {creatorName}
-              </Link>
-            ) : (
-              <span>{creatorName}</span>
-            )}
-            <span>›</span>
-            <span className="text-white/70 font-black">{nft.name || `Token #${nft.tokenId}`}</span>
+      <div className="relative mx-auto max-w-[1480px] px-6 py-10 space-y-8">
+        <div className="reveal flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/55">
+              {backToGalleryHref ? (
+                <Link className="hover:underline" href={backToGalleryHref}>
+                  Gallery
+                </Link>
+              ) : (
+                <span>NFT</span>
+              )}
+              <span>›</span>
+              <span className="text-white/75 font-black truncate">
+                {nft.name || `Token #${nft.tokenId}`}
+              </span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {heroBrandLabel ? (
+                <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-black text-amber-100">
+                  {heroBrandLabel}
+                </span>
+              ) : null}
+
+              {metaCollection ? (
+                <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
+                  {metaCollection}
+                </span>
+              ) : null}
+
+              <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
+                {standardLabel}
+              </span>
+
+              {metaRarity ? (
+                <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
+                  {metaRarity}
+                </span>
+              ) : null}
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {isCafeNft ? (
               <Link
                 href={CAFE_STOREFRONT_HREF}
@@ -856,18 +1000,29 @@ export default async function NftDetailsPage({
             ) : null}
 
             {isStoreNft ? (
-              <Link
-                href={STORE_STOREFRONT_HREF}
-                className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
-              >
-                NFT Store
-              </Link>
+              <>
+                <Link
+                  href={STORE_STOREFRONT_HREF}
+                  className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                >
+                  NFT Store
+                </Link>
+
+                {viewerAuthed ? (
+                  <Link
+                    href="/app/profile/delivery"
+                    className="px-4 py-2 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                  >
+                    My Delivery
+                  </Link>
+                ) : null}
+              </>
             ) : null}
 
-            {creatorNftsUrl ? (
+            {backToGalleryHref ? (
               <Link
-                href={creatorNftsUrl}
-                className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                href={backToGalleryHref}
+                className="px-4 py-2 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
               >
                 Back to gallery
               </Link>
@@ -875,17 +1030,17 @@ export default async function NftDetailsPage({
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className="grid xl:grid-cols-[minmax(0,1.08fr)_minmax(420px,0.92fr)] gap-6 items-start">
           <div className="space-y-6">
             <div
               className={cx(
-                "reveal rounded-[34px] p-px overflow-hidden",
+                "reveal rounded-[38px] p-px overflow-hidden",
                 "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
                 "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
               )}
               style={{ animationDelay: "80ms" }}
             >
-              <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/15 backdrop-blur-2xl ring-1 ring-black/10">
+              <div className="rounded-[38px] overflow-hidden border border-white/10 bg-[#0b0a09]/15 backdrop-blur-2xl ring-1 ring-black/10">
                 <div className="aspect-square bg-black/30 flex items-center justify-center relative">
                   {media ? (
                     <NftMedia
@@ -900,12 +1055,48 @@ export default async function NftDetailsPage({
                   ) : (
                     <div className="text-white/25 font-black">No media</div>
                   )}
-                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.35)_0%,transparent_35%)]" />
+
+                  <div className="pointer-events-none absolute inset-x-0 top-0 p-5 flex items-start justify-between">
+                    <div className="flex flex-wrap gap-2">
+                      <span className="px-3 py-1.5 rounded-full border border-white/10 bg-black/40 text-[11px] font-black text-white/90 backdrop-blur-xl">
+                        {standardLabel}
+                      </span>
+                      {kind === "video" ? (
+                        <span className="px-3 py-1.5 rounded-full border border-white/10 bg-black/40 text-[11px] font-black text-amber-100 backdrop-blur-xl">
+                          VIDEO
+                        </span>
+                      ) : null}
+                    </div>
+
+                    {supplyLabel ? (
+                      <span className="px-3 py-1.5 rounded-full border border-white/10 bg-black/40 text-[11px] font-black text-white/90 backdrop-blur-xl">
+                        Supply {supplyLabel}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 p-6 bg-[linear-gradient(to_top,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.32)_42%,transparent_100%)]">
+                    <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
+                      {isCafeNft
+                        ? "Realife Cafe Edition"
+                        : isStoreNft
+                        ? "Realife Store Edition"
+                        : "Realife Edition"}
+                    </div>
+                    <div className="mt-2 text-2xl md:text-3xl font-black tracking-tight text-white">
+                      {nft.name || `Token #${nft.tokenId}`}
+                    </div>
+                    {metaCollection || heroBrandLabel ? (
+                      <div className="mt-2 text-[13px] text-white/70">
+                        {[heroBrandLabel, metaCollection].filter(Boolean).join(" • ")}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {metaDescription || metaBrand || metaProject || metaCollection || metaCategory || metaItem || metaRarity || metaProofUrl ? (
+            <div className="grid md:grid-cols-2 gap-6">
               <div
                 className={cx(
                   "reveal rounded-[34px] p-px overflow-hidden",
@@ -914,7 +1105,7 @@ export default async function NftDetailsPage({
                 )}
                 style={{ animationDelay: "120ms" }}
               >
-                <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
+                <div className="rounded-[34px] h-full overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
                   <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
                     About
                   </div>
@@ -923,78 +1114,23 @@ export default async function NftDetailsPage({
                     <div className="mt-3 text-[13px] text-white/80 leading-relaxed whitespace-pre-wrap">
                       {metaDescription}
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="mt-3 text-[13px] text-white/50 leading-relaxed">
+                      This NFT doesn&apos;t have an extended description yet.
+                    </div>
+                  )}
 
-                  <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {metaBrand ? (
-                      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
-                        <div className="text-[11px] text-amber-100/70 font-semibold uppercase tracking-wider">
-                          Brand / Project
-                        </div>
-                        <div className="mt-1 text-[13px] font-extrabold text-amber-100 truncate">
-                          {metaBrand}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {metaCollection ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                          Collection
-                        </div>
-                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                          {metaCollection}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {metaCategory ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                          Category
-                        </div>
-                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                          {metaCategory}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {metaItem ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                          Item
-                        </div>
-                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                          {metaItem}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {metaRarity ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                          Rarity
-                        </div>
-                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                          {metaRarity}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    {!metaBrand && metaProject ? (
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                          Project
-                        </div>
-                        <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                          {metaProject}
-                        </div>
-                      </div>
-                    ) : null}
+                  <div className="mt-5 grid grid-cols-1 gap-3">
+                    {metaBrand ? <StatCard label="Brand / Project" value={metaBrand} tone="gold" /> : null}
+                    {metaCollection ? <StatCard label="Collection" value={metaCollection} /> : null}
+                    {metaCategory ? <StatCard label="Category" value={metaCategory} /> : null}
+                    {metaItem ? <StatCard label="Item" value={metaItem} /> : null}
+                    {metaRarity ? <StatCard label="Rarity" value={metaRarity} /> : null}
+                    {!metaBrand && metaProject ? <StatCard label="Project" value={metaProject} /> : null}
                   </div>
 
                   {metaProofUrl ? (
-                    <div className="mt-5 flex flex-wrap gap-3">
+                    <div className="mt-5">
                       <a
                         href={metaProofUrl}
                         target="_blank"
@@ -1011,10 +1147,71 @@ export default async function NftDetailsPage({
                   </div>
                 </div>
               </div>
-            ) : null}
+
+              <div
+                className={cx(
+                  "reveal rounded-[34px] p-px overflow-hidden",
+                  "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
+                  "shadow-[0_34px_130px_rgba(0,0,0,0.55)]"
+                )}
+                style={{ animationDelay: "150ms" }}
+              >
+                <div className="rounded-[34px] h-full overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
+                    Blockchain details
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 gap-3">
+                    <StatCard label="Contract" value={shortAddr(nft.contract)} />
+                    <StatCard label="Token ID" value={`#${nft.tokenId}`} />
+                    <StatCard label="Chain ID" value={String(nft.chainId)} />
+                    <StatCard label="Minted" value={fmtDate(nft.createdAt)} />
+                    <StatCard label="Total Supply" value={supplyLabel || "—"} />
+                    {isStoreNft && storeStore?.primarySellerWallet ? (
+                      <StatCard label="Primary Seller" value={shortAddr(storeStore.primarySellerWallet)} />
+                    ) : null}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    {tokenUriHttp ? (
+                      <a
+                        href={tokenUriHttp}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl hover:bg-white/10 transition"
+                      >
+                        Token URI ↗
+                      </a>
+                    ) : null}
+
+                    {txUrl ? (
+                      <a
+                        href={txUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl hover:bg-white/10 transition"
+                      >
+                        Tx ↗
+                      </a>
+                    ) : null}
+
+                    {contractUrl ? (
+                      <a
+                        href={contractUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl hover:bg-white/10 transition"
+                      >
+                        Contract ↗
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 xl:sticky xl:top-24">
             <div
               className={cx(
                 "reveal rounded-[34px] p-px overflow-hidden",
@@ -1023,7 +1220,7 @@ export default async function NftDetailsPage({
               )}
               style={{ animationDelay: "140ms" }}
             >
-              <div className="rounded-[34px] h-full overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10">
+              <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10">
                 <div className="p-6 md:p-7">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
@@ -1038,115 +1235,47 @@ export default async function NftDetailsPage({
                     </div>
                   </div>
 
-                  {heroBrandLabel || metaCollection ? (
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {heroBrandLabel ? (
-                        <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-black text-amber-100">
-                          {heroBrandLabel}
-                        </span>
-                      ) : null}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {heroBrandLabel ? (
+                      <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-black text-amber-100">
+                        {heroBrandLabel}
+                      </span>
+                    ) : null}
 
-                      {metaCollection ? (
-                        <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
-                          {metaCollection}
-                        </span>
-                      ) : null}
+                    {metaCollection ? (
+                      <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
+                        {metaCollection}
+                      </span>
+                    ) : null}
 
-                      {metaRarity ? (
-                        <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
-                          {metaRarity}
-                        </span>
-                      ) : null}
-                    </div>
-                  ) : null}
+                    {metaRarity ? (
+                      <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
+                        {metaRarity}
+                      </span>
+                    ) : null}
+                  </div>
 
-                  <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight">
+                  <div className="mt-4 text-3xl md:text-4xl font-black tracking-tight">
                     {nft.name || `Token #${nft.tokenId}`}
                   </div>
 
-                  <div className="mt-5 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
-                      {currentOwnerAvatar ? (
-                        <img
-                          src={currentOwnerAvatar}
-                          alt="owner"
-                          className="h-full w-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <span className="text-white/35 text-xs font-black">RL</span>
-                      )}
-                    </div>
+                  <div className="mt-6 space-y-3">
+                    <PersonCard
+                      label={ownershipLabel}
+                      avatar={currentOwnerAvatar}
+                      name={currentOwnerName}
+                      href={currentOwnerUrl}
+                      secondaryHref={currentOwnerNftsUrl}
+                    />
 
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        {ownershipLabel}
-                      </div>
-                      <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
-                        {currentOwnerUrl ? (
-                          <Link className="hover:underline" href={currentOwnerUrl}>
-                            {currentOwnerName}
-                          </Link>
-                        ) : (
-                          currentOwnerName
-                        )}
-                      </div>
-                    </div>
-
-                    {currentOwnerNftsUrl ? (
-                      <Link
-                        href={currentOwnerNftsUrl}
-                        className="shrink-0 text-[12px] font-extrabold text-amber-100/90 hover:text-amber-100"
-                      >
-                        View NFTs →
-                      </Link>
-                    ) : null}
+                    <PersonCard
+                      label="Creator / Profile"
+                      avatar={creatorAvatar}
+                      name={creatorName}
+                      href={creatorUrl}
+                      secondaryHref={creatorNftsUrl}
+                    />
                   </div>
-
-                  <div className="mt-4 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
-                      {creatorAvatar ? (
-                        <img
-                          src={creatorAvatar}
-                          alt="creator"
-                          className="h-full w-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
-                      ) : (
-                        <span className="text-white/35 text-xs font-black">RL</span>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Creator / Profile
-                      </div>
-                      <div className="mt-1 text-sm font-extrabold text-white/85 truncate">
-                        {creatorUrl ? (
-                          <Link className="hover:underline" href={creatorUrl}>
-                            {creatorName}
-                          </Link>
-                        ) : (
-                          creatorName
-                        )}
-                      </div>
-                    </div>
-
-                    {creatorNftsUrl ? (
-                      <Link
-                        href={creatorNftsUrl}
-                        className="shrink-0 text-[12px] font-extrabold text-amber-100/90 hover:text-amber-100"
-                      >
-                        View NFTs →
-                      </Link>
-                    ) : null}
-                  </div>
-
-                  {marketError ? (
-                    <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
-                      Market data temporarily unavailable ({marketError}). NFT details still work.
-                    </div>
-                  ) : null}
 
                   {isStoreNft ? (
                     <div className="mt-5 flex flex-wrap gap-2">
@@ -1170,271 +1299,135 @@ export default async function NftDetailsPage({
                     </div>
                   ) : null}
 
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Floor
-                      </div>
-                      <div className="mt-1 text-[13px] font-extrabold text-amber-100 truncate">
-                        {stats?.floorWei ? `${fmtEth(stats.floorWei)} ETH` : "—"}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Last sale
-                      </div>
-                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                        {stats?.lastSaleWei ? `${fmtEth(stats.lastSaleWei)} ETH` : "—"}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Active listings
-                      </div>
-                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                        {toInt(stats?.activeListings ?? 0)}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Volume
-                      </div>
-                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                        {stats?.volumeTotalWei ? `${fmtEth(stats.volumeTotalWei)} ETH` : "0"}
-                      </div>
-                    </div>
+                  <div className="mt-6 grid grid-cols-2 gap-3">
+                    <StatCard
+                      label="Floor"
+                      value={stats?.floorWei ? `${fmtEth(stats.floorWei)} ETH` : "—"}
+                      tone="gold"
+                    />
+                    <StatCard
+                      label="Last sale"
+                      value={stats?.lastSaleWei ? `${fmtEth(stats.lastSaleWei)} ETH` : "—"}
+                    />
+                    <StatCard
+                      label="Active listings"
+                      value={String(toInt(stats?.activeListings ?? 0))}
+                    />
+                    <StatCard
+                      label="Volume"
+                      value={stats?.volumeTotalWei ? `${fmtEth(stats.volumeTotalWei)} ETH` : "0"}
+                    />
                   </div>
 
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    {heroBrandLabel ? (
-                      <div className="col-span-2 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
-                        <div className="text-[11px] text-amber-100/70 font-semibold uppercase tracking-wider">
-                          Brand / Project
-                        </div>
-                        <div className="mt-1 text-[13px] font-extrabold text-amber-100 truncate">
-                          {heroBrandLabel}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Contract
-                      </div>
-                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
-                        {shortAddr(nft.contract)}
-                      </div>
+                  {marketError ? (
+                    <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
+                      Market data temporarily unavailable ({marketError}). NFT details still work.
                     </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Token ID
-                      </div>
-                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
-                        #{nft.tokenId}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Chain ID
-                      </div>
-                      <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
-                        {nft.chainId}
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Minted
-                      </div>
-                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                        {new Date(nft.createdAt).toLocaleString("en-GB")}
-                      </div>
-                    </div>
-
-                    <div className="col-span-2 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                        Total Supply
-                      </div>
-                      <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
-                        {supplyLabel || "—"}
-                      </div>
-                    </div>
-
-                    {isStoreNft && storeStore?.primarySellerWallet ? (
-                      <div className="col-span-2 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                        <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                          Primary Seller
-                        </div>
-                        <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
-                          {shortAddr(storeStore.primarySellerWallet)}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-7 flex flex-wrap gap-3">
-                    {tokenUriHttp ? (
-                      <a
-                        href={tokenUriHttp}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
-                      >
-                        Token URI ↗
-                      </a>
-                    ) : null}
-
-                    {txUrl ? (
-                      <a
-                        href={txUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
-                      >
-                        Tx ↗
-                      </a>
-                    ) : null}
-
-                    {contractUrl ? (
-                      <a
-                        href={contractUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
-                      >
-                        Contract ↗
-                      </a>
-                    ) : null}
-
-                    {isCafeNft ? (
-                      <Link
-                        href={CAFE_STOREFRONT_HREF}
-                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
-                      >
-                        Open cafe storefront
-                      </Link>
-                    ) : null}
-
-                    {isStoreNft ? (
-                      <Link
-                        href={STORE_STOREFRONT_HREF}
-                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
-                      >
-                        Open NFT Store
-                      </Link>
-                    ) : null}
-
-                    {creatorNftsUrl ? (
-                      <Link
-                        href={creatorNftsUrl}
-                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
-                      >
-                        Back to gallery
-                      </Link>
-                    ) : null}
-                  </div>
+                  ) : null}
 
                   <div className="mt-6 text-[11px] text-white/35">
-                    Market uses timeout + revalidate({MARKET_REVALIDATE_SECONDS}s) + tags. If market fails — page still renders.
+                    The page is now focused on the media + key info first. Buy, delivery and trading stay below in separate premium blocks.
                   </div>
                 </div>
               </div>
             </div>
-
-            {isCafeNft ? (
-              <div className="reveal" style={{ animationDelay: "180ms" }}>
-                <StorefrontBuyPanel1155
-                  chainId={chainId}
-                  nftContract={contract}
-                  tokenId={tokenId}
-                  storefrontLabel="Realife Cafe"
-                  title="Cafe Primary Sale"
-                  subtitle="Buy directly from Realife Cafe storefront contract"
-                  active={Boolean(cafeStore?.active)}
-                  priceLabel={`${cafeStore?.priceUsdt ?? "—"} USDT`}
-                  paymentTokenLabel="USDT"
-                  remaining={cafeStore?.remaining}
-                  totalSupply={cafeStore?.totalSupply}
-                  maxSupply={cafeStore?.maxSupply}
-                  buyButtonLabel="Buy from cafe"
-                  checkoutMode="simple"
-                  vertical="cafe"
-                  buyConfig={{
-                    contract: CAFE_1155_CONTRACT,
-                    abi: realifeCafeStoreAbi,
-                    functionName: "buyProduct",
-                    args: [tokenId, 1],
-                    bigintArgIndices: [0, 1],
-                  }}
-                  erc20Payment={{
-                    tokenAddress:
-                      cafeStore?.paymentTokenAddress || PAYMENT_TOKEN_FALLBACK || "",
-                    spender: CAFE_1155_CONTRACT,
-                    amountRaw: cafeStore?.priceRaw || "0",
-                    symbol: "USDT",
-                    approveUnlimited: true,
-                  }}
-                />
-              </div>
-            ) : null}
-
-            {isStoreNft ? (
-              <div className="reveal" style={{ animationDelay: "180ms" }}>
-                <StorefrontBuyPanel1155
-                  chainId={chainId}
-                  nftContract={contract}
-                  tokenId={tokenId}
-                  storefrontLabel="Realife NFT Store"
-                  title={heroBrandLabel ? `${heroBrandLabel} Store Sale` : "Store Primary Sale"}
-                  subtitle={
-                    heroBrandLabel
-                      ? `Primary sale for ${heroBrandLabel}. NFT purchase happens on-chain here, delivery and escrow stay in site UI.`
-                      : "NFT purchase happens on-chain here. Delivery and escrow are handled in the site UI."
-                  }
-                  active={Boolean(storeStore?.active)}
-                  priceLabel={`${storeStore?.priceUsdt ?? "—"} USDT`}
-                  paymentTokenLabel="USDT"
-                  remaining={storeStore?.remaining}
-                  totalSupply={storeStore?.totalSupply}
-                  maxSupply={storeStore?.maxSupply}
-                  buyButtonLabel="Buy from store"
-                  checkoutMode="delivery"
-                  vertical="store"
-                  deliveryEnabled={Boolean(storeStore?.deliveryEnabled)}
-                  physicalItemIncluded={Boolean(storeStore?.physicalItemIncluded)}
-                  officialItem={Boolean(storeStore?.officialItem)}
-                  primarySellerWallet={storeStore?.primarySellerWallet || null}
-                  buyConfig={{
-                    contract: STORE_1155_CONTRACT,
-                    abi: realifeStoreAbi,
-                    functionName: "buyProduct",
-                    args: [tokenId, 1],
-                    bigintArgIndices: [0, 1],
-                  }}
-                  erc20Payment={{
-                    tokenAddress:
-                      storeStore?.paymentTokenAddress || PAYMENT_TOKEN_FALLBACK || "",
-                    spender: STORE_1155_CONTRACT,
-                    amountRaw: storeStore?.priceRaw || "0",
-                    symbol: "USDT",
-                    approveUnlimited: true,
-                  }}
-                />
-              </div>
-            ) : null}
-
-            <div className="reveal" style={{ animationDelay: "200ms" }}>
-              <TradingPanel1155 chainId={chainId} contract={contract} tokenId={tokenId} />
-            </div>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div
+          className={cx(
+            "grid gap-6",
+            hasStorefrontPanel ? "xl:grid-cols-2" : "grid-cols-1"
+          )}
+        >
+          {isCafeNft ? (
+            <div className="reveal" style={{ animationDelay: "180ms" }}>
+              <StorefrontBuyPanel1155
+                chainId={chainId}
+                nftContract={contract}
+                tokenId={tokenId}
+                storefrontLabel="Realife Cafe"
+                title="Cafe Primary Sale"
+                subtitle="Buy directly from Realife Cafe storefront contract"
+                active={Boolean(cafeStore?.active)}
+                priceLabel={`${cafeStore?.priceUsdt ?? "—"} USDT`}
+                paymentTokenLabel="USDT"
+                remaining={cafeStore?.remaining}
+                totalSupply={cafeStore?.totalSupply}
+                maxSupply={cafeStore?.maxSupply}
+                buyButtonLabel="Buy from cafe"
+                checkoutMode="simple"
+                vertical="cafe"
+                buyConfig={{
+                  contract: CAFE_1155_CONTRACT,
+                  abi: realifeCafeStoreAbi,
+                  functionName: "buyProduct",
+                  args: [tokenId, 1],
+                  bigintArgIndices: [0, 1],
+                }}
+                erc20Payment={{
+                  tokenAddress:
+                    cafeStore?.paymentTokenAddress || PAYMENT_TOKEN_FALLBACK || "",
+                  spender: CAFE_1155_CONTRACT,
+                  amountRaw: cafeStore?.priceRaw || "0",
+                  symbol: "USDT",
+                  approveUnlimited: true,
+                }}
+              />
+            </div>
+          ) : null}
+
+          {isStoreNft ? (
+            <div className="reveal" style={{ animationDelay: "180ms" }}>
+              <StorefrontBuyPanel1155
+                chainId={chainId}
+                nftContract={contract}
+                tokenId={tokenId}
+                storefrontLabel="Realife NFT Store"
+                title={heroBrandLabel ? `${heroBrandLabel} Store Sale` : "Store Primary Sale"}
+                subtitle={
+                  heroBrandLabel
+                    ? `Primary sale for ${heroBrandLabel}. NFT purchase happens on-chain here, delivery and escrow stay in site UI.`
+                    : "NFT purchase happens on-chain here. Delivery and escrow are handled in the site UI."
+                }
+                active={Boolean(storeStore?.active)}
+                priceLabel={`${storeStore?.priceUsdt ?? "—"} USDT`}
+                paymentTokenLabel="USDT"
+                remaining={storeStore?.remaining}
+                totalSupply={storeStore?.totalSupply}
+                maxSupply={storeStore?.maxSupply}
+                buyButtonLabel="Buy from store"
+                checkoutMode="delivery"
+                vertical="store"
+                deliveryEnabled={Boolean(storeStore?.deliveryEnabled)}
+                physicalItemIncluded={Boolean(storeStore?.physicalItemIncluded)}
+                officialItem={Boolean(storeStore?.officialItem)}
+                primarySellerWallet={storeStore?.primarySellerWallet || null}
+                buyConfig={{
+                  contract: STORE_1155_CONTRACT,
+                  abi: realifeStoreAbi,
+                  functionName: "buyProduct",
+                  args: [tokenId, 1],
+                  bigintArgIndices: [0, 1],
+                }}
+                erc20Payment={{
+                  tokenAddress:
+                    storeStore?.paymentTokenAddress || PAYMENT_TOKEN_FALLBACK || "",
+                  spender: STORE_1155_CONTRACT,
+                  amountRaw: storeStore?.priceRaw || "0",
+                  symbol: "USDT",
+                  approveUnlimited: true,
+                }}
+              />
+            </div>
+          ) : null}
+
+          <div className="reveal" style={{ animationDelay: "200ms" }}>
+            <TradingPanel1155 chainId={chainId} contract={contract} tokenId={tokenId} />
+          </div>
+        </div>
+
+        <div className="grid xl:grid-cols-2 gap-6">
           <div
             className={cx(
               "reveal rounded-[34px] p-px overflow-hidden",
@@ -1466,7 +1459,8 @@ export default async function NftDetailsPage({
                           <span className="text-white/35 text-[11px] font-black">/ unit</span>
                         </div>
                         <div className="text-[12px] text-white/70 font-semibold">
-                          Remaining: <span className="text-white/90 font-black">{l.amountRemaining}</span>
+                          Remaining:{" "}
+                          <span className="text-white/90 font-black">{l.amountRemaining}</span>
                         </div>
                       </div>
 
@@ -1514,10 +1508,12 @@ export default async function NftDetailsPage({
                         <div className="text-[13px] font-black text-amber-100">
                           {fmtEth(t.totalPriceWei)} ETH{" "}
                           <span className="text-white/35 text-[11px] font-black">•</span>
-                          <span className="ml-2 text-white/80 text-[12px] font-black">x{t.amount}</span>
+                          <span className="ml-2 text-white/80 text-[12px] font-black">
+                            x{t.amount}
+                          </span>
                         </div>
                         <div className="text-[11px] text-white/40">
-                          {new Date(t.blockTime).toLocaleString("en-GB")}
+                          {fmtDate(t.blockTime)}
                         </div>
                       </div>
 
@@ -1545,7 +1541,7 @@ export default async function NftDetailsPage({
           </div>
         </div>
 
-        <footer className="reveal pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]">
+        <footer className="reveal pt-6 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]">
           Realife Ecosystem • NFT Trading
         </footer>
       </div>

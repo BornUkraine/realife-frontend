@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Reveal from "@/components/Reveal";
 import { signOut, useSession } from "next-auth/react";
-import { useAccount, useChainId } from "wagmi";
+import { useAccount } from "wagmi";
 
 /* -------------------------------------------------------------------------- */
 /* REWARDS                                                                    */
@@ -37,14 +37,14 @@ type MeUser = {
   twitterUser?: string | null;
   twitterName?: string | null;
   twitterImage?: string | null;
-  twitterRewarded?: boolean; // ✅
+  twitterRewarded?: boolean;
 
   // Discord
   discordId?: string | null;
   discordUser?: string | null;
   discordName?: string | null;
   discordImage?: string | null;
-  discordRewarded?: boolean; // ✅
+  discordRewarded?: boolean;
 };
 
 type MeResponse = {
@@ -509,7 +509,6 @@ export default function ProfilePage() {
   const authed = status === "authenticated";
 
   const { address: liveAddress, isConnected: walletIsConnected } = useAccount();
-  const liveChainId = useChainId();
 
   const [me, setMe] = useState<MeUser | null>(null);
   const [loading, setLoading] = useState(false);
@@ -613,7 +612,7 @@ export default function ProfilePage() {
 
       setLinkError(json?.linkError ?? null);
     } catch {
-      // ignore
+      //
     } finally {
       setLoading(false);
     }
@@ -800,7 +799,6 @@ export default function ProfilePage() {
     : "Wallet not connected";
 
   const canCopyWallet = Boolean(displayWalletAddress);
-  const canCopyPublic = Boolean(publicFullUrl);
 
   return (
     <div className="space-y-6">
@@ -830,7 +828,6 @@ export default function ProfilePage() {
         />
       )}
 
-      {/* HERO */}
       <Reveal>
         <Card>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
@@ -988,6 +985,22 @@ export default function ProfilePage() {
 
             {authed && (
               <a
+                href="/app/profile/delivery"
+                className={cx(
+                  "inline-flex items-center justify-center px-3 py-2 rounded-xl",
+                  "text-[12px] font-extrabold",
+                  "text-white",
+                  "border border-white/15 bg-white/[0.06]",
+                  "backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]",
+                  "hover:bg-white/10 hover:-translate-y-px active:translate-y-0 transition"
+                )}
+              >
+                My Delivery →
+              </a>
+            )}
+
+            {authed && (
+              <a
                 href="/app/referrals"
                 className={cx(
                   "inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl",
@@ -1011,7 +1024,6 @@ export default function ProfilePage() {
         </Card>
       </Reveal>
 
-      {/* SOCIALS */}
       {authed && (
         <Reveal delayMs={120}>
           <div className="grid md:grid-cols-2 gap-6">
