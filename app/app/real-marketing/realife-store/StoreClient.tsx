@@ -231,8 +231,9 @@ export default function StoreClient() {
                 Realife NFT Store
               </div>
               <div className="mt-2 text-[12px] text-white/55 max-w-2xl">
-                Curated storefront for Realife products and future brand-ready collections.
-                Delivery checkout and final purchase flow open on the dedicated NFT product page.
+                Curated storefront for Realife products and future brand-ready
+                collections. Delivery checkout and final purchase flow open on the
+                dedicated NFT product page.
               </div>
             </div>
 
@@ -275,28 +276,36 @@ export default function StoreClient() {
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Total
               </div>
-              <div className="mt-1 text-lg font-black text-white/90">{rows.length}</div>
+              <div className="mt-1 text-lg font-black text-white/90">
+                {rows.length}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Active
               </div>
-              <div className="mt-1 text-lg font-black text-emerald-200">{activeCount}</div>
+              <div className="mt-1 text-lg font-black text-emerald-200">
+                {activeCount}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Visible
               </div>
-              <div className="mt-1 text-lg font-black text-white/90">{filtered.length}</div>
+              <div className="mt-1 text-lg font-black text-white/90">
+                {filtered.length}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Brands
               </div>
-              <div className="mt-1 text-lg font-black text-white/90">{brandCount}</div>
+              <div className="mt-1 text-lg font-black text-white/90">
+                {brandCount}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
@@ -332,7 +341,9 @@ export default function StoreClient() {
               </div>
               <select
                 value={sort}
-                onChange={(e) => setSort(e.target.value as "new" | "priceAsc" | "priceDesc")}
+                onChange={(e) =>
+                  setSort(e.target.value as "new" | "priceAsc" | "priceDesc")
+                }
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
               >
                 <option value="new">Newest</option>
@@ -350,7 +361,7 @@ export default function StoreClient() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {(loading ? Array.from({ length: 8 }) : filtered).map((x: any, idx: number) => {
           const isSkeleton = !x || typeof x !== "object" || !x.id;
 
@@ -365,9 +376,10 @@ export default function StoreClient() {
                 )}
               >
                 <div className="aspect-square w-full bg-white/[0.03] animate-pulse" />
-                <div className="p-5 space-y-3">
+                <div className="p-4 space-y-3">
                   <div className="h-4 w-3/4 bg-white/[0.06] rounded-lg animate-pulse" />
                   <div className="h-3 w-1/2 bg-white/[0.06] rounded-lg animate-pulse" />
+                  <div className="h-16 w-full bg-white/[0.06] rounded-2xl animate-pulse" />
                   <div className="h-10 w-full bg-white/[0.06] rounded-2xl animate-pulse" />
                 </div>
               </div>
@@ -387,8 +399,8 @@ export default function StoreClient() {
 
           const primaryActionLabel =
             x.deliveryEnabled || x.physicalItemIncluded
-              ? "Delivery & buy →"
-              : "Open product →";
+              ? "Delivery & buy"
+              : "Buy";
 
           return (
             <div
@@ -454,7 +466,7 @@ export default function StoreClient() {
                 </div>
               </Link>
 
-              <div className="p-5">
+              <div className="p-4">
                 {brandLabel ? (
                   <div className="mb-2">
                     <span className="inline-flex px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
@@ -464,7 +476,7 @@ export default function StoreClient() {
                 ) : null}
 
                 <Link href={href} className="block">
-                  <div className="text-sm font-extrabold text-white/90 truncate hover:text-amber-100 transition">
+                  <div className="text-[15px] font-extrabold text-white/90 truncate hover:text-amber-100 transition">
                     {x.name || `Store Product #${x.tokenId}`}
                   </div>
                 </Link>
@@ -496,31 +508,40 @@ export default function StoreClient() {
                   <span className="font-mono">#{x.tokenId}</span>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-[12px] text-white/55 font-semibold">Store price</div>
-                    <div className="text-[13px] font-black text-amber-100">
-                      {fmtUsdt(x.priceUsdt)} USDT
+                <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 p-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-[11px] text-white/45">Store price</div>
+                      <div className="mt-1 text-[13px] font-black text-amber-100">
+                        {fmtUsdt(x.priceUsdt)} USDT
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
-                    <span className="text-white/45">Supply</span>
-                    <span className="font-black text-white/75">
-                      {x.totalSupply ?? "0"} / {x.maxSupply ?? "—"}
-                    </span>
-                  </div>
+                    <div>
+                      <div className="text-[11px] text-white/45">Supply</div>
+                      <div className="mt-1 text-[13px] font-black text-white/80">
+                        {x.totalSupply ?? "0"} / {x.maxSupply ?? "—"}
+                      </div>
+                    </div>
 
-                  <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
-                    <span className="text-white/45">Seller</span>
-                    <span className="font-black text-white/75">
-                      {shortAddr(x.primarySellerWallet)}
-                    </span>
+                    <div>
+                      <div className="text-[11px] text-white/45">Left</div>
+                      <div className="mt-1 text-[13px] font-black text-white/80">
+                        {remaining}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[11px] text-white/45">Seller</div>
+                      <div className="mt-1 truncate text-[13px] font-black text-white/80">
+                        {shortAddr(x.primarySellerWallet)}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 {x.metaDescription ? (
-                  <div className="mt-3 line-clamp-2 text-[12px] text-white/50">
+                  <div className="mt-3 line-clamp-2 text-[11px] text-white/50">
                     {x.metaDescription}
                   </div>
                 ) : null}
@@ -539,29 +560,37 @@ export default function StoreClient() {
                   ) : null}
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 gap-3">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Link
                     href={href}
-                    className={cx(
-                      "inline-flex w-full items-center justify-center px-4 py-3 rounded-2xl transition text-[12px] font-black",
-                      canBuy
-                        ? "border border-black/10 text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 hover:brightness-110"
-                        : "border border-white/12 bg-white/[0.06] text-white/80 hover:bg-white/[0.10]"
-                    )}
+                    className="inline-flex items-center justify-center px-4 py-3 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
                   >
-                    {primaryActionLabel}
+                    Open product
                   </Link>
 
-                  <div className="text-[11px] text-white/45 leading-relaxed">
-                    {x.deliveryEnabled || x.physicalItemIncluded
-                      ? "Checkout and delivery form are shown on the product page."
-                      : "Open the product page to view details and purchase options."}
-                  </div>
+                  {canBuy ? (
+                    <Link
+                      href={href}
+                      className={cx(
+                        "inline-flex items-center justify-center px-4 py-3 rounded-2xl",
+                        "text-[12px] font-extrabold text-black",
+                        "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
+                        "shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15",
+                        "hover:brightness-110 transition"
+                      )}
+                    >
+                      {primaryActionLabel}
+                    </Link>
+                  ) : (
+                    <div className="inline-flex items-center justify-center px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] text-[12px] font-black text-white/45">
+                      {soldOut ? "Sold out" : "Inactive"}
+                    </div>
+                  )}
                 </div>
 
-                {!canBuy ? (
-                  <div className="mt-3 inline-flex w-full items-center justify-center px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] text-[12px] font-black text-white/45">
-                    {soldOut ? "Sold out" : "Inactive"}
+                {x.deliveryEnabled || x.physicalItemIncluded ? (
+                  <div className="mt-3 text-[11px] text-white/45 leading-relaxed">
+                    Checkout and delivery form are shown on the product page.
                   </div>
                 ) : null}
               </div>
