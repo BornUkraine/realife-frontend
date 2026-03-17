@@ -84,11 +84,7 @@ export default function AdminCreatePage() {
                 </Pill>
 
                 <Pill>
-                  <span className="text-amber-200 font-black">createProduct()</span>
-                </Pill>
-
-                <Pill>
-                  <span className="text-amber-200 font-black">toggleProductStatus()</span>
+                  <span className="text-amber-200 font-black">Product create / toggle</span>
                 </Pill>
 
                 <Pill>
@@ -97,6 +93,10 @@ export default function AdminCreatePage() {
 
                 <Pill>
                   <span className="text-amber-200 font-black">Store delivery flags</span>
+                </Pill>
+
+                <Pill>
+                  <span className="text-amber-200 font-black">User delivery access</span>
                 </Pill>
               </div>
 
@@ -111,7 +111,8 @@ export default function AdminCreatePage() {
                 Hidden control panel for both{" "}
                 <span className="text-white font-semibold">RealifeCafeStore</span> and{" "}
                 <span className="text-white font-semibold">RealifeStore1155</span>. Upload premium metadata to IPFS,
-                create new storefront products on-chain, and manage visibility for existing items.
+                create new storefront products on-chain, manage visibility for existing items, and control which public
+                users can mint with delivery access.
               </p>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
@@ -134,6 +135,12 @@ export default function AdminCreatePage() {
               </div>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
+                For <span className="text-white font-semibold">public creator mint</span>, this panel can also grant or
+                revoke <span className="text-amber-200 font-extrabold">delivery-enabled mint access</span> for selected
+                user wallets.
+              </div>
+
+              <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
                 Access is granted only to the connected wallet that matches your front-end allowlist and has{" "}
                 <span className="text-amber-200 font-extrabold">MODERATOR_ROLE</span> in the selected contract.
               </div>
@@ -153,7 +160,8 @@ export default function AdminCreatePage() {
                 Current strategy: keep the real cafe / travel / events under{" "}
                 <span className="font-black text-sky-100">Realife</span>, while the Store can optionally test different{" "}
                 <span className="font-black text-sky-100">brand labels</span> on product cards and NFT pages without
-                fragmenting the contract architecture.
+                fragmenting the contract architecture. Delivery-enabled public mint access is managed separately at the
+                user level.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -211,6 +219,7 @@ export default function AdminCreatePage() {
             <span className="opacity-60">Cafe + Store control</span>
             <span className="opacity-60">Brand label</span>
             <span className="opacity-60">Delivery flags</span>
+            <span className="opacity-60">User delivery access</span>
           </div>
         </div>
       </Reveal>

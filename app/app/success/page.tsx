@@ -32,7 +32,8 @@ function PremiumFallback() {
         </div>
 
         <div className="mt-6 text-xs text-white/60 font-semibold">
-          Loading success data… <span className="text-amber-200 font-extrabold">reward +10</span>
+          Loading minted asset data…{" "}
+          <span className="text-amber-200 font-extrabold">reward +10</span>
         </div>
       </div>
     </div>

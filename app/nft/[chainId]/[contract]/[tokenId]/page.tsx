@@ -94,6 +94,7 @@ const IPFS_GATEWAYS = [
 const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
 const CAFE_STOREFRONT_HREF = "/app/real-marketing/realife-cafe";
 const STORE_STOREFRONT_HREF = "/app/real-marketing/realife-store";
+const DELIVERY_PROFILE_HREF = "/app/profile/delivery";
 
 /* ------------------------------- Market fetch tuning ------------------------------ */
 
@@ -425,6 +426,10 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
     return `${gw}${p}`;
   }
 
+  if (u.startsWith("/ipfs/")) {
+    return `${gw}${u.slice("/ipfs/".length)}`;
+  }
+
   if (u.startsWith("Qm") || u.startsWith("bafy")) return `${gw}${u}`;
   return u;
 }
@@ -498,6 +503,30 @@ function pickAny(meta: any, keys: string[]): string | null {
   for (const k of keys) {
     const v = meta?.[k];
     if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+function pickAnyBoolean(meta: any, keys: string[]): boolean | null {
+  for (const k of keys) {
+    const v = meta?.[k];
+    if (typeof v === "boolean") return v;
+    if (typeof v === "string") {
+      const s = v.trim().toLowerCase();
+      if (["true", "1", "yes", "on"].includes(s)) return true;
+      if (["false", "0", "no", "off"].includes(s)) return false;
+    }
+  }
+  return null;
+}
+
+function pickAttrBoolean(meta: any, traits: string[]): boolean | null {
+  for (const tr of traits) {
+    const v = pickAttrValue(meta, tr);
+    if (!v) continue;
+    const s = v.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(s)) return true;
+    if (["false", "0", "no", "off"].includes(s)) return false;
   }
   return null;
 }
@@ -665,6 +694,31 @@ function PersonCard({
         ) : null}
       </div>
     </div>
+  );
+}
+
+function InfoPill({
+  children,
+  tone = "default",
+}: {
+  children: React.ReactNode;
+  tone?: "default" | "gold" | "emerald" | "sky" | "violet";
+}) {
+  const cls =
+    tone === "gold"
+      ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
+      : tone === "emerald"
+      ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
+      : tone === "sky"
+      ? "border-sky-500/20 bg-sky-500/10 text-sky-100"
+      : tone === "violet"
+      ? "border-violet-500/20 bg-violet-500/10 text-violet-100"
+      : "border-white/10 bg-white/[0.06] text-white/85";
+
+  return (
+    <span className={cx("px-3 py-1.5 rounded-full border text-[11px] font-black", cls)}>
+      {children}
+    </span>
   );
 }
 
@@ -847,9 +901,20 @@ export default async function NftDetailsPage({
     pickAny(meta, ["item", "drink"]) ||
     null;
 
+  const metaItemType =
+    pickAttrAny(meta, ["Item Type", "Item type", "item type"]) ||
+    pickAny(meta, ["itemType", "item_type"]) ||
+    metaItem ||
+    null;
+
   const metaRarity =
     pickAttrAny(meta, ["Rarity", "rarity"]) ||
     pickAny(meta, ["rarity"]) ||
+    null;
+
+  const metaVertical =
+    pickAttrAny(meta, ["Vertical", "vertical"]) ||
+    pickAny(meta, ["vertical"]) ||
     null;
 
   const metaProofRaw =
@@ -857,6 +922,32 @@ export default async function NftDetailsPage({
     pickAttrAny(meta, ["Proof / X link", "Proof", "X", "X link", "Proof URL"]);
 
   const metaProofUrl = normalizeUrl(metaProofRaw);
+
+  const metaDeliveryEnabled =
+    pickAnyBoolean(meta, ["deliveryEnabled"]) ??
+    pickAttrBoolean(meta, ["Delivery Enabled"]) ??
+    false;
+
+  const metaPhysicalItemIncluded =
+    pickAnyBoolean(meta, ["physicalItemIncluded"]) ??
+    pickAttrBoolean(meta, ["Physical Item Included"]) ??
+    false;
+
+  const metaOfficialItem =
+    pickAnyBoolean(meta, ["officialItem"]) ??
+    pickAttrBoolean(meta, ["Official Item"]) ??
+    false;
+
+  const metaDeliveryMode =
+    pickAny(meta, ["deliveryMode"]) ||
+    pickAttrAny(meta, ["Delivery Mode"]) ||
+    (metaDeliveryEnabled || metaPhysicalItemIncluded ? "Delivery" : "Digital");
+
+  const isUserDeliveryNft =
+    isUser1155Nft &&
+    (metaDeliveryEnabled ||
+      metaPhysicalItemIncluded ||
+      String(metaDeliveryMode || "").trim().toLowerCase() === "delivery");
 
   let kind: "image" | "video" = "image";
   let media: string | null = fallbackPoster;
@@ -906,6 +997,8 @@ export default async function NftDetailsPage({
     ? "ERC-1155 • CAFE"
     : isStoreNft
     ? "ERC-1155 • STORE"
+    : isUserDeliveryNft
+    ? "ERC-1155 • DELIVERY"
     : "ERC-1155";
 
   const origin = await getOrigin();
@@ -935,6 +1028,7 @@ export default async function NftDetailsPage({
   );
 
   const hasStorefrontPanel = isCafeNft || isStoreNft;
+  const hasSecondaryActionPanel = hasStorefrontPanel || isUserDeliveryNft;
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
@@ -966,26 +1060,16 @@ export default async function NftDetailsPage({
 
             <div className="mt-3 flex flex-wrap gap-2">
               {heroBrandLabel ? (
-                <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-black text-amber-100">
-                  {heroBrandLabel}
-                </span>
+                <InfoPill tone="gold">{heroBrandLabel}</InfoPill>
               ) : null}
 
-              {metaCollection ? (
-                <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
-                  {metaCollection}
-                </span>
-              ) : null}
+              {metaCollection ? <InfoPill>{metaCollection}</InfoPill> : null}
 
-              <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
-                {standardLabel}
-              </span>
+              <InfoPill>{standardLabel}</InfoPill>
 
-              {metaRarity ? (
-                <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
-                  {metaRarity}
-                </span>
-              ) : null}
+              {metaRarity ? <InfoPill>{metaRarity}</InfoPill> : null}
+
+              {isUserDeliveryNft ? <InfoPill tone="violet">Marketplace Delivery Item</InfoPill> : null}
             </div>
           </div>
 
@@ -1000,23 +1084,21 @@ export default async function NftDetailsPage({
             ) : null}
 
             {isStoreNft ? (
-              <>
-                <Link
-                  href={STORE_STOREFRONT_HREF}
-                  className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
-                >
-                  NFT Store
-                </Link>
+              <Link
+                href={STORE_STOREFRONT_HREF}
+                className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+              >
+                NFT Store
+              </Link>
+            ) : null}
 
-                {viewerAuthed ? (
-                  <Link
-                    href="/app/profile/delivery"
-                    className="px-4 py-2 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
-                  >
-                    My Delivery
-                  </Link>
-                ) : null}
-              </>
+            {(isStoreNft || isUserDeliveryNft) && viewerAuthed ? (
+              <Link
+                href={DELIVERY_PROFILE_HREF}
+                className="px-4 py-2 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+              >
+                My Delivery
+              </Link>
             ) : null}
 
             {backToGalleryHref ? (
@@ -1058,21 +1140,11 @@ export default async function NftDetailsPage({
 
                   <div className="pointer-events-none absolute inset-x-0 top-0 p-5 flex items-start justify-between">
                     <div className="flex flex-wrap gap-2">
-                      <span className="px-3 py-1.5 rounded-full border border-white/10 bg-black/40 text-[11px] font-black text-white/90 backdrop-blur-xl">
-                        {standardLabel}
-                      </span>
-                      {kind === "video" ? (
-                        <span className="px-3 py-1.5 rounded-full border border-white/10 bg-black/40 text-[11px] font-black text-amber-100 backdrop-blur-xl">
-                          VIDEO
-                        </span>
-                      ) : null}
+                      <InfoPill>{standardLabel}</InfoPill>
+                      {kind === "video" ? <InfoPill tone="gold">VIDEO</InfoPill> : null}
                     </div>
 
-                    {supplyLabel ? (
-                      <span className="px-3 py-1.5 rounded-full border border-white/10 bg-black/40 text-[11px] font-black text-white/90 backdrop-blur-xl">
-                        Supply {supplyLabel}
-                      </span>
-                    ) : null}
+                    {supplyLabel ? <InfoPill>Supply {supplyLabel}</InfoPill> : null}
                   </div>
 
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 p-6 bg-[linear-gradient(to_top,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.32)_42%,transparent_100%)]">
@@ -1081,6 +1153,8 @@ export default async function NftDetailsPage({
                         ? "Realife Cafe Edition"
                         : isStoreNft
                         ? "Realife Store Edition"
+                        : isUserDeliveryNft
+                        ? "Realife Delivery Edition"
                         : "Realife Edition"}
                     </div>
                     <div className="mt-2 text-2xl md:text-3xl font-black tracking-tight text-white">
@@ -1124,9 +1198,11 @@ export default async function NftDetailsPage({
                     {metaBrand ? <StatCard label="Brand / Project" value={metaBrand} tone="gold" /> : null}
                     {metaCollection ? <StatCard label="Collection" value={metaCollection} /> : null}
                     {metaCategory ? <StatCard label="Category" value={metaCategory} /> : null}
-                    {metaItem ? <StatCard label="Item" value={metaItem} /> : null}
+                    {metaItemType ? <StatCard label="Item Type" value={metaItemType} /> : null}
+                    {metaItem && metaItem !== metaItemType ? <StatCard label="Item" value={metaItem} /> : null}
                     {metaRarity ? <StatCard label="Rarity" value={metaRarity} /> : null}
                     {!metaBrand && metaProject ? <StatCard label="Project" value={metaProject} /> : null}
+                    {metaVertical ? <StatCard label="Vertical" value={metaVertical} /> : null}
                   </div>
 
                   {metaProofUrl ? (
@@ -1228,6 +1304,8 @@ export default async function NftDetailsPage({
                         ? "Realife Cafe Edition"
                         : isStoreNft
                         ? "Realife Store Edition"
+                        : isUserDeliveryNft
+                        ? "Marketplace Delivery Edition"
                         : "Realife Edition"}
                     </div>
                     <div className="px-3 py-1.5 rounded-full border border-white/15 bg-white/[0.06] text-[11px] font-black text-amber-100">
@@ -1236,23 +1314,14 @@ export default async function NftDetailsPage({
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {heroBrandLabel ? (
-                      <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-black text-amber-100">
-                        {heroBrandLabel}
-                      </span>
-                    ) : null}
+                    {heroBrandLabel ? <InfoPill tone="gold">{heroBrandLabel}</InfoPill> : null}
+                    {metaCollection ? <InfoPill>{metaCollection}</InfoPill> : null}
+                    {metaRarity ? <InfoPill>{metaRarity}</InfoPill> : null}
 
-                    {metaCollection ? (
-                      <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
-                        {metaCollection}
-                      </span>
-                    ) : null}
-
-                    {metaRarity ? (
-                      <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
-                        {metaRarity}
-                      </span>
-                    ) : null}
+                    {isUserDeliveryNft ? <InfoPill tone="violet">Delivery</InfoPill> : null}
+                    {metaDeliveryEnabled ? <InfoPill tone="emerald">Delivery available</InfoPill> : null}
+                    {metaPhysicalItemIncluded ? <InfoPill tone="gold">Physical item</InfoPill> : null}
+                    {metaOfficialItem ? <InfoPill>Official item</InfoPill> : null}
                   </div>
 
                   <div className="mt-4 text-3xl md:text-4xl font-black tracking-tight">
@@ -1279,23 +1348,30 @@ export default async function NftDetailsPage({
 
                   {isStoreNft ? (
                     <div className="mt-5 flex flex-wrap gap-2">
-                      {storeStore?.deliveryEnabled ? (
-                        <span className="px-3 py-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-[11px] font-black text-emerald-100">
-                          Delivery available
-                        </span>
-                      ) : null}
+                      {storeStore?.deliveryEnabled ? <InfoPill tone="emerald">Delivery available</InfoPill> : null}
+                      {storeStore?.physicalItemIncluded ? <InfoPill tone="gold">Physical item included</InfoPill> : null}
+                      {storeStore?.officialItem ? <InfoPill>Official item</InfoPill> : null}
+                    </div>
+                  ) : null}
 
-                      {storeStore?.physicalItemIncluded ? (
-                        <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-black text-amber-100">
-                          Physical item included
-                        </span>
-                      ) : null}
-
-                      {storeStore?.officialItem ? (
-                        <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/85">
-                          Official item
-                        </span>
-                      ) : null}
+                  {isUserDeliveryNft ? (
+                    <div className="mt-5 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
+                      <div className="text-[12px] font-black text-violet-100">
+                        Marketplace delivery flow
+                      </div>
+                      <div className="mt-2 text-[12px] text-violet-50/90 leading-relaxed">
+                        This NFT is traded through the marketplace. If a buyer purchases it, delivery and escrow are
+                        handled later in the site UI order flow.
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <InfoPill tone="emerald">
+                          {metaDeliveryEnabled ? "Delivery enabled" : "Delivery off"}
+                        </InfoPill>
+                        <InfoPill tone="gold">
+                          {metaPhysicalItemIncluded ? "Physical item included" : "Digital only"}
+                        </InfoPill>
+                        {metaDeliveryMode ? <InfoPill tone="violet">{metaDeliveryMode}</InfoPill> : null}
+                      </div>
                     </div>
                   ) : null}
 
@@ -1326,7 +1402,7 @@ export default async function NftDetailsPage({
                   ) : null}
 
                   <div className="mt-6 text-[11px] text-white/35">
-                    The page is now focused on the media + key info first. Buy, delivery and trading stay below in separate premium blocks.
+                    The page is focused on media + key info first. Buy, delivery and trading stay below in separate premium blocks.
                   </div>
                 </div>
               </div>
@@ -1337,7 +1413,7 @@ export default async function NftDetailsPage({
         <div
           className={cx(
             "grid gap-6",
-            hasStorefrontPanel ? "xl:grid-cols-2" : "grid-cols-1"
+            hasSecondaryActionPanel ? "xl:grid-cols-2" : "grid-cols-1"
           )}
         >
           {isCafeNft ? (
@@ -1419,6 +1495,75 @@ export default async function NftDetailsPage({
                   approveUnlimited: true,
                 }}
               />
+            </div>
+          ) : null}
+
+          {isUserDeliveryNft ? (
+            <div className="reveal" style={{ animationDelay: "180ms" }}>
+              <div
+                className={cx(
+                  "rounded-[34px] p-px overflow-hidden",
+                  "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
+                  "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
+                )}
+              >
+                <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
+                  <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
+                    Delivery & Escrow
+                  </div>
+
+                  <div className="mt-2 text-xl font-black tracking-tight text-white/90">
+                    Marketplace purchase flow
+                  </div>
+
+                  <div className="mt-3 text-[13px] text-white/60 leading-relaxed">
+                    This item is not a store primary sale. It is bought through the trading marketplace. After a successful
+                    purchase, delivery details and escrow are handled in the site UI orders flow.
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <StatCard
+                      label="Delivery enabled"
+                      value={metaDeliveryEnabled ? "Yes" : "No"}
+                      tone={metaDeliveryEnabled ? "gold" : "default"}
+                    />
+                    <StatCard
+                      label="Physical item"
+                      value={metaPhysicalItemIncluded ? "Included" : "No"}
+                      tone={metaPhysicalItemIncluded ? "gold" : "default"}
+                    />
+                    <StatCard label="Delivery mode" value={metaDeliveryMode || "—"} />
+                    <StatCard label="Item type" value={metaItemType || "—"} />
+                  </div>
+
+                  <div className="mt-5 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
+                    <div className="text-[12px] font-black text-violet-100">
+                      Buyer journey
+                    </div>
+                    <div className="mt-2 space-y-2 text-[12px] text-violet-50/90 leading-relaxed">
+                      <div>• buyer purchases NFT in marketplace trading</div>
+                      <div>• delivery order is created in site UI flow</div>
+                      <div>• seller ships physical item and adds tracking</div>
+                      <div>• buyer confirms delivery, escrow is released</div>
+                    </div>
+                  </div>
+
+                  {viewerAuthed ? (
+                    <div className="mt-5">
+                      <Link
+                        href={DELIVERY_PROFILE_HREF}
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                      >
+                        Open My Delivery
+                      </Link>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 text-[11px] text-white/35">
+                    This block only explains the flow. The actual trade still happens in the Trading panel.
+                  </div>
+                </div>
+              </div>
             </div>
           ) : null}
 

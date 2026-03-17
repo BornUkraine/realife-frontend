@@ -39,17 +39,14 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 1) mint (каталог)
     const mint = await prisma.mint.findUnique({
       where: { chainId_contract_tokenId: { chainId, contract, tokenId } },
     });
 
-    // закрытый маркет: только то, что есть в Mint и verified=true
     if (!mint || !mint.verified) {
       return NextResponse.json({ ok: false, error: "NFT_NOT_FOUND_OR_NOT_VERIFIED" }, { status: 404 });
     }
 
-    // 2) listings + trades
     const [listings, trades] = await Promise.all([
       prisma.listing.findMany({
         where: { chainId, contract, tokenId, status: "ACTIVE", mint: { verified: true } },
@@ -64,7 +61,6 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    // 3) stats
     const floorWei =
       listings.length === 0
         ? null
@@ -95,6 +91,11 @@ export async function GET(req: NextRequest) {
         pricePerUnitWei: s(r.pricePerUnitWei),
         amountTotal: s(r.amountTotal),
         amountRemaining: s(r.amountRemaining),
+
+        deliveryEnabled: r.deliveryEnabled,
+        physicalItemIncluded: r.physicalItemIncluded,
+        officialItem: r.officialItem,
+
         createdAt: r.createdAt,
       })),
       trades: trades.map((t) => ({

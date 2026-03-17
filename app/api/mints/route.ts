@@ -30,6 +30,10 @@ function uniqueStrings(values: Array<string | null | undefined>) {
   return Array.from(new Set(values.map((v) => norm(String(v || ""))).filter(Boolean)));
 }
 
+function hasOwn(obj: any, key: string) {
+  return !!obj && Object.prototype.hasOwnProperty.call(obj, key);
+}
+
 export async function GET() {
   return NextResponse.json({
     ok: true,
@@ -62,6 +66,11 @@ export async function POST(req: Request) {
     supply,
     standard,
     catalogOnly, // for Cafe/Store product creation via admin form
+
+    // NEW: delivery / physical flags
+    deliveryEnabled,
+    physicalItemIncluded,
+    officialItem,
   } = body as any;
 
   if (!chainId || !contract || tokenId === undefined || tokenId === null) {
@@ -112,6 +121,61 @@ export async function POST(req: Request) {
 
   const isCatalogOnly = toBool(catalogOnly);
 
+  // detect explicitly passed flags
+  const hasDeliveryEnabled = hasOwn(body, "deliveryEnabled");
+  const hasPhysicalItemIncluded = hasOwn(body, "physicalItemIncluded");
+  const hasOfficialItem = hasOwn(body, "officialItem");
+
+  const rawDeliveryEnabled = hasDeliveryEnabled ? toBool(deliveryEnabled) : undefined;
+  const rawPhysicalItemIncluded = hasPhysicalItemIncluded ? toBool(physicalItemIncluded) : undefined;
+  const rawOfficialItem = hasOfficialItem ? toBool(officialItem) : undefined;
+
+  // public mint flow UX = two modes:
+  // - without delivery
+  // - with delivery
+  //
+  // so for public mint we treat ANY delivery/physical request as "delivery mode",
+  // and store BOTH flags as true.
+  const wantsDeliveryMode = Boolean(rawDeliveryEnabled || rawPhysicalItemIncluded);
+
+  // create values
+  const createDeliveryEnabled = isCatalogOnly
+    ? Boolean(rawDeliveryEnabled)
+    : wantsDeliveryMode;
+
+  const createPhysicalItemIncluded = isCatalogOnly
+    ? Boolean(rawPhysicalItemIncluded)
+    : wantsDeliveryMode;
+
+  // officialItem should remain admin/catalog-only controlled
+  const createOfficialItem = isCatalogOnly
+    ? Boolean(rawOfficialItem)
+    : false;
+
+  // update values
+  // preserve existing DB values if field was not passed
+  const updateDeliveryEnabled = isCatalogOnly
+    ? rawDeliveryEnabled === undefined
+      ? undefined
+      : rawDeliveryEnabled
+    : hasDeliveryEnabled || hasPhysicalItemIncluded
+      ? wantsDeliveryMode
+      : undefined;
+
+  const updatePhysicalItemIncluded = isCatalogOnly
+    ? rawPhysicalItemIncluded === undefined
+      ? undefined
+      : rawPhysicalItemIncluded
+    : hasDeliveryEnabled || hasPhysicalItemIncluded
+      ? wantsDeliveryMode
+      : undefined;
+
+  const updateOfficialItem = isCatalogOnly
+    ? rawOfficialItem === undefined
+      ? undefined
+      : rawOfficialItem
+    : undefined;
+
   // public mint flow => ownership exists immediately
   // cafe/store admin flow => catalogOnly=true => no holding, no points
   const shouldCreateHolding = !isCatalogOnly;
@@ -139,11 +203,28 @@ export async function POST(req: Request) {
     const result = await prisma.$transaction(async (tx) => {
       const u = await tx.user.findUnique({
         where: { id: userId },
-        select: { id: true, points: true },
+        select: {
+          id: true,
+          points: true,
+          approvedPhysicalSeller: true,
+        },
       });
 
       if (!u) {
         return { status: 404 as const, body: { ok: false, error: "USER_NOT_FOUND" } };
+      }
+
+      // VIP check only for public mint flow with delivery mode
+      // catalogOnly admin/store/cafe flow is not blocked here
+      if (!isCatalogOnly && wantsDeliveryMode && !u.approvedPhysicalSeller) {
+        return {
+          status: 403 as const,
+          body: {
+            ok: false,
+            error: "DELIVERY_NOT_ALLOWED",
+            message: "Delivery mint is available only for approved seller wallets.",
+          },
+        };
       }
 
       const whereKey = {
@@ -164,6 +245,11 @@ export async function POST(req: Request) {
         name: name ? String(name) : null,
         image: image ? String(image) : null,
         verified: typeof verified === "boolean" ? verified : true,
+
+        // NEW
+        deliveryEnabled: createDeliveryEnabled,
+        physicalItemIncluded: createPhysicalItemIncluded,
+        officialItem: createOfficialItem,
       };
 
       // IMPORTANT:
@@ -174,6 +260,11 @@ export async function POST(req: Request) {
         name: name ? String(name) : undefined,
         image: image ? String(image) : undefined,
         verified: typeof verified === "boolean" ? verified : true,
+
+        // NEW
+        deliveryEnabled: updateDeliveryEnabled,
+        physicalItemIncluded: updatePhysicalItemIncluded,
+        officialItem: updateOfficialItem,
       };
 
       let mint: any = null;
@@ -237,6 +328,9 @@ export async function POST(req: Request) {
               supply: sInt,
               standard: std,
               catalogOnly: false,
+              deliveryEnabled: createDeliveryEnabled,
+              physicalItemIncluded: createPhysicalItemIncluded,
+              officialItem: createOfficialItem,
             },
           },
         });

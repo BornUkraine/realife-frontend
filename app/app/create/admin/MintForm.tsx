@@ -288,6 +288,16 @@ const storeAdminAbi = [
 type ProductMode = "cafe" | "store";
 type StoreBrand = (typeof STORE_BRANDS)[number];
 
+type DeliveryAccessUser = {
+  id: string;
+  handle: string | null;
+  publicId: string | null;
+  walletAddress: string;
+  approvedPhysicalSeller: boolean;
+  approvedPhysicalAt: string | null;
+  approvedPhysicalNote: string | null;
+};
+
 function useMounted() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -576,8 +586,8 @@ export default function AdminMintForm() {
     productMode === "cafe"
       ? "Realife Crypto Cafe"
       : storeBrand === "Other"
-        ? "Partner NFT Store"
-        : `${storeBrand} NFT Store`;
+      ? "Partner NFT Store"
+      : `${storeBrand} NFT Store`;
   const selectedStorefrontHref =
     productMode === "cafe"
       ? "/app/real-marketing/realife-cafe"
@@ -678,6 +688,15 @@ export default function AdminMintForm() {
   const [toggleIntent, setToggleIntent] = useState<"enable" | "disable" | null>(
     null
   );
+
+  // Delivery Access Manager state
+  const [deliveryLookup, setDeliveryLookup] = useState("");
+  const [deliveryLookupLoading, setDeliveryLookupLoading] = useState(false);
+  const [deliveryLookupError, setDeliveryLookupError] = useState("");
+  const [deliveryLookupNotice, setDeliveryLookupNotice] = useState("");
+  const [deliveryAccessUser, setDeliveryAccessUser] = useState<DeliveryAccessUser | null>(null);
+  const [deliveryAccessNote, setDeliveryAccessNote] = useState("");
+  const [deliveryAccessSaving, setDeliveryAccessSaving] = useState(false);
 
   const pickedKind = useMemo<"image" | "video">(
     () => (file?.type?.startsWith("video/") ? "video" : "image"),
@@ -1018,6 +1037,146 @@ export default function AdminMintForm() {
     savedRef.current = false;
   }
 
+  async function resolveDeliveryAccessUser() {
+    setDeliveryLookupError("");
+    setDeliveryLookupNotice("");
+
+    const raw = deliveryLookup.trim();
+    if (!raw) {
+      setDeliveryLookupError("Enter user id, publicId or handle.");
+      return;
+    }
+
+    setDeliveryLookupLoading(true);
+
+    try {
+      const tryAdminGet = async (id: string) => {
+        const r = await fetch(
+          `/api/admin/users/${encodeURIComponent(id)}/delivery-access`,
+          { cache: "no-store" }
+        );
+        const j = await r.json().catch(() => null);
+        return { ok: r.ok, status: r.status, data: j };
+      };
+
+      // 1) try direct id first
+      let direct = await tryAdminGet(raw);
+      if (direct.ok && direct.data?.ok && direct.data?.user) {
+        const u = direct.data.user as DeliveryAccessUser;
+        setDeliveryAccessUser(u);
+        setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
+        setDeliveryLookupNotice("User resolved directly by database user id.");
+        return;
+      }
+
+      // 2) fallback: publicId / handle via public route, then re-read admin route by db id
+      const publicRes = await fetch(`/api/u/${encodeURIComponent(raw)}`, {
+        cache: "no-store",
+      });
+      const publicData = await publicRes.json().catch(() => null);
+
+      if (!publicRes.ok || !publicData?.ok || !publicData?.user?.id) {
+        if (direct.status === 403) {
+          throw new Error("Admin API access denied for this wallet/session.");
+        }
+        throw new Error("User not found. Use database user id, publicId or handle.");
+      }
+
+      const resolvedId = String(publicData.user.id);
+      const finalRes = await tryAdminGet(resolvedId);
+
+      if (!finalRes.ok || !finalRes.data?.ok || !finalRes.data?.user) {
+        if (finalRes.status === 403) {
+          throw new Error("Admin API access denied for this wallet/session.");
+        }
+        throw new Error(finalRes.data?.error || "Failed to load delivery access.");
+      }
+
+      const u = finalRes.data.user as DeliveryAccessUser;
+      setDeliveryAccessUser(u);
+      setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
+      setDeliveryLookupNotice("User resolved by publicId / handle.");
+    } catch (e: any) {
+      setDeliveryAccessUser(null);
+      setDeliveryAccessNote("");
+      setDeliveryLookupError(prettyError(e));
+    } finally {
+      setDeliveryLookupLoading(false);
+    }
+  }
+
+  async function grantDeliveryAccess() {
+    if (!deliveryAccessUser?.id) {
+      setDeliveryLookupError("Resolve a user first.");
+      return;
+    }
+
+    setDeliveryLookupError("");
+    setDeliveryLookupNotice("");
+    setDeliveryAccessSaving(true);
+
+    try {
+      const r = await fetch(
+        `/api/admin/users/${encodeURIComponent(deliveryAccessUser.id)}/delivery-access`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            note: deliveryAccessNote.trim(),
+          }),
+        }
+      );
+
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data?.ok || !data?.user) {
+        throw new Error(data?.error || data?.message || "Failed to grant delivery access");
+      }
+
+      const u = data.user as DeliveryAccessUser;
+      setDeliveryAccessUser(u);
+      setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
+      setDeliveryLookupNotice("Delivery access granted.");
+    } catch (e: any) {
+      setDeliveryLookupError(prettyError(e));
+    } finally {
+      setDeliveryAccessSaving(false);
+    }
+  }
+
+  async function revokeDeliveryAccess() {
+    if (!deliveryAccessUser?.id) {
+      setDeliveryLookupError("Resolve a user first.");
+      return;
+    }
+
+    setDeliveryLookupError("");
+    setDeliveryLookupNotice("");
+    setDeliveryAccessSaving(true);
+
+    try {
+      const r = await fetch(
+        `/api/admin/users/${encodeURIComponent(deliveryAccessUser.id)}/delivery-access`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await r.json().catch(() => null);
+      if (!r.ok || !data?.ok || !data?.user) {
+        throw new Error(data?.error || data?.message || "Failed to revoke delivery access");
+      }
+
+      const u = data.user as DeliveryAccessUser;
+      setDeliveryAccessUser(u);
+      setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
+      setDeliveryLookupNotice("Delivery access revoked.");
+    } catch (e: any) {
+      setDeliveryLookupError(prettyError(e));
+    } finally {
+      setDeliveryAccessSaving(false);
+    }
+  }
+
   async function handlePrepare() {
     setError("");
 
@@ -1106,8 +1265,8 @@ export default function AdminMintForm() {
         data?.preview?.kind === "video"
           ? "video"
           : data?.preview?.kind === "image"
-            ? "image"
-            : pickedKind;
+          ? "image"
+          : pickedKind;
 
       const pMedia =
         ipfsToHttp(data?.preview?.media || null, IPFS_GATEWAYS[0]) || null;
@@ -1339,10 +1498,10 @@ export default function AdminMintForm() {
                 {!mounted || !connected
                   ? "Connect the admin wallet"
                   : wrongNetwork
-                    ? "Switch to Base Sepolia"
-                    : isAuthorized
-                      ? "Authorized moderator wallet"
-                      : "Access denied"}
+                  ? "Switch to Base Sepolia"
+                  : isAuthorized
+                  ? "Authorized moderator wallet"
+                  : "Access denied"}
               </div>
 
               <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
@@ -1499,6 +1658,171 @@ export default function AdminMintForm() {
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/70">
               Wallet balance is still loading. You can refresh once if needed.
             </div>
+          ) : null}
+        </Card>
+
+        {/* NEW: DELIVERY ACCESS MANAGER */}
+        <Card>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">Delivery Access Manager</div>
+              <div className="mt-1 text-[11px] text-white/55">
+                Grant or revoke public mint delivery access for a user wallet/profile.
+              </div>
+            </div>
+
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+              Admin only
+            </Pill>
+          </div>
+
+          <div className="mt-5">
+            <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+              User lookup
+            </div>
+            <input
+              type="text"
+              placeholder="User id / publicId / handle"
+              value={deliveryLookup}
+              onChange={(e) => {
+                setDeliveryLookup(e.target.value);
+                setDeliveryLookupError("");
+                setDeliveryLookupNotice("");
+              }}
+              className={[
+                "mt-2 w-full rounded-2xl px-4 py-3 text-sm",
+                "bg-white/[0.04] border border-white/10 text-white",
+                "placeholder:text-white/35",
+                "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              ].join(" ")}
+            />
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <GhostButton
+              disabled={!isAuthorized || deliveryLookupLoading || deliveryAccessSaving || !deliveryLookup.trim()}
+              onClick={resolveDeliveryAccessUser}
+            >
+              {deliveryLookupLoading ? "Resolving user…" : "Resolve user"}
+            </GhostButton>
+
+            <GhostButton
+              disabled={!isAuthorized || deliveryLookupLoading || deliveryAccessSaving || !deliveryAccessUser}
+              onClick={resolveDeliveryAccessUser}
+            >
+              Refresh access
+            </GhostButton>
+          </div>
+
+          <div className="mt-3 text-[11px] text-white/50 leading-relaxed">
+            Search currently supports <span className="text-white/75 font-semibold">database user id</span>,{" "}
+            <span className="text-white/75 font-semibold">publicId</span> or{" "}
+            <span className="text-white/75 font-semibold">handle</span>.
+          </div>
+
+          {deliveryLookupError ? (
+            <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              {deliveryLookupError}
+            </div>
+          ) : null}
+
+          {deliveryLookupNotice ? (
+            <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+              {deliveryLookupNotice}
+            </div>
+          ) : null}
+
+          {deliveryAccessUser ? (
+            <>
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                    User
+                  </div>
+                  <div className="mt-1 text-sm font-black text-white/90">
+                    {deliveryAccessUser.handle
+                      ? `@${deliveryAccessUser.handle}`
+                      : deliveryAccessUser.publicId || deliveryAccessUser.id}
+                  </div>
+                  <div className="mt-2 text-xs text-white/60 break-all">
+                    DB id: <span className="text-white/85">{deliveryAccessUser.id}</span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                    Wallet
+                  </div>
+                  <div className="mt-1 text-sm font-black text-white/90">
+                    {shortAddr(deliveryAccessUser.walletAddress)}
+                  </div>
+                  <div className="mt-2 text-xs text-white/60 break-all">
+                    <span className="text-white/85">{deliveryAccessUser.walletAddress}</span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                    Delivery access
+                  </div>
+                  <div
+                    className={`mt-1 text-sm font-black ${
+                      deliveryAccessUser.approvedPhysicalSeller
+                        ? "text-emerald-200"
+                        : "text-white/90"
+                    }`}
+                  >
+                    {deliveryAccessUser.approvedPhysicalSeller ? "Approved" : "Not approved"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                    Approved at
+                  </div>
+                  <div className="mt-1 text-sm font-black text-white/90">
+                    {deliveryAccessUser.approvedPhysicalAt
+                      ? new Date(deliveryAccessUser.approvedPhysicalAt).toLocaleString()
+                      : "—"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                  Admin note
+                </div>
+                <textarea
+                  placeholder="Optional note for why this wallet has delivery access"
+                  value={deliveryAccessNote}
+                  onChange={(e) => setDeliveryAccessNote(e.target.value)}
+                  className={[
+                    "mt-2 w-full rounded-2xl px-4 py-3 text-sm min-h-[120px]",
+                    "bg-white/[0.04] border border-white/10 text-white",
+                    "placeholder:text-white/35",
+                    "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+                    "resize-none",
+                  ].join(" ")}
+                />
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <GoldButton
+                  disabled={!isAuthorized || deliveryAccessSaving || deliveryLookupLoading}
+                  onClick={grantDeliveryAccess}
+                >
+                  {deliveryAccessSaving ? "Saving…" : "Grant delivery access"}
+                </GoldButton>
+
+                <GhostButton
+                  disabled={!isAuthorized || deliveryAccessSaving || deliveryLookupLoading}
+                  onClick={revokeDeliveryAccess}
+                >
+                  {deliveryAccessSaving ? "Saving…" : "Revoke delivery access"}
+                </GhostButton>
+              </div>
+            </>
           ) : null}
         </Card>
 
@@ -1810,12 +2134,12 @@ export default function AdminMintForm() {
                 {!manageTokenIdBI
                   ? "Enter token"
                   : !manageTokenExists
-                    ? "Not found"
-                    : isManageStatusFetching
-                      ? "Loading…"
-                      : manageIsActive
-                        ? "Enabled"
-                        : "Disabled"}
+                  ? "Not found"
+                  : isManageStatusFetching
+                  ? "Loading…"
+                  : manageIsActive
+                  ? "Enabled"
+                  : "Disabled"}
               </div>
             </div>
 
@@ -1862,13 +2186,13 @@ export default function AdminMintForm() {
                     ? "Disabling product on-chain…"
                     : "Waiting for wallet signature…"
                   : isMiningToggle
-                    ? "Enabling product on-chain…"
-                    : "Waiting for wallet signature…"
+                  ? "Enabling product on-chain…"
+                  : "Waiting for wallet signature…"
                 : manageTokenExists
-                  ? manageIsActive
-                    ? "Disable product"
-                    : "Enable product"
-                  : "Toggle product status"}
+                ? manageIsActive
+                  ? "Disable product"
+                  : "Enable product"
+                : "Toggle product status"}
             </GoldButton>
 
             <GhostButton
@@ -2124,7 +2448,7 @@ export default function AdminMintForm() {
                 <div>• escrow release / refund flow</div>
               </div>
               <div className="mt-3 text-[11px] text-amber-50/80 leading-relaxed">
-                Those actions happen later in the Store orders flow after buyer purchase.
+                Those actions happen later in the orders flow after buyer purchase.
               </div>
             </div>
 
@@ -2412,8 +2736,8 @@ export default function AdminMintForm() {
                       productMode === "cafe"
                         ? "Realife Crypto Cafe"
                         : storeBrand === "Other"
-                          ? "Partner NFT Store"
-                          : `${storeBrand} NFT Store`
+                        ? "Partner NFT Store"
+                        : `${storeBrand} NFT Store`
                     );
                     setItem(productMode === "cafe" ? CAFE_ITEMS[0] : STORE_ITEMS[0]);
                     setRarity("Common");
@@ -2465,8 +2789,8 @@ export default function AdminMintForm() {
               {step === "signing"
                 ? "Waiting for wallet signature…"
                 : step === "mining" || isMiningCreate
-                  ? "Creating product on-chain…"
-                  : `2) Create ${productMode === "cafe" ? "Cafe" : "Store"} Product`}
+                ? "Creating product on-chain…"
+                : `2) Create ${productMode === "cafe" ? "Cafe" : "Store"} Product`}
             </GoldButton>
           </div>
 

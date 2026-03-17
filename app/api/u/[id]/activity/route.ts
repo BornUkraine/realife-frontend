@@ -45,7 +45,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const url = new URL(req.url);
 
-  // independent pagination per section
   const take = clamp(toInt(url.searchParams.get("take")) ?? 50, 1, 200);
 
   const listingsSkip = clamp(toInt(url.searchParams.get("listingsSkip")) ?? 0, 0, 1_000_000);
@@ -53,7 +52,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const salesSkip = clamp(toInt(url.searchParams.get("salesSkip")) ?? 0, 0, 1_000_000);
 
   try {
-    // Find user by handle/publicId
     const user = await prisma.user.findFirst({
       where: {
         OR: [
@@ -75,14 +73,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const wallet = user.walletAddress.toLowerCase();
 
-    // totals
     const [listingsTotal, purchasesTotal, salesTotal] = await Promise.all([
       prisma.listing.count({ where: { sellerWallet: wallet } }),
       prisma.trade.count({ where: { buyerWallet: wallet } }),
       prisma.trade.count({ where: { sellerWallet: wallet } }),
     ]);
 
-    // page data
     const [listings, purchases, sales] = await Promise.all([
       prisma.listing.findMany({
         where: { sellerWallet: wallet },
@@ -90,8 +86,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         take,
         skip: listingsSkip,
         include: {
-          mint: { select: { name: true, image: true } },
-          seller: { select: { handle: true, publicId: true } }, // может быть null
+          mint: {
+            select: {
+              name: true,
+              image: true,
+              deliveryEnabled: true,
+              physicalItemIncluded: true,
+              officialItem: true,
+            },
+          },
+          seller: { select: { handle: true, publicId: true } },
         },
       }),
       prisma.trade.findMany({
@@ -100,9 +104,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         take,
         skip: purchasesSkip,
         include: {
-          mint: { select: { name: true, image: true } },
-          seller: { select: { handle: true, publicId: true } }, // nullable
-          buyer: { select: { handle: true, publicId: true } },  // nullable
+          mint: {
+            select: {
+              name: true,
+              image: true,
+              deliveryEnabled: true,
+              physicalItemIncluded: true,
+              officialItem: true,
+            },
+          },
+          seller: { select: { handle: true, publicId: true } },
+          buyer: { select: { handle: true, publicId: true } },
         },
       }),
       prisma.trade.findMany({
@@ -111,9 +123,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         take,
         skip: salesSkip,
         include: {
-          mint: { select: { name: true, image: true } },
-          seller: { select: { handle: true, publicId: true } }, // nullable
-          buyer: { select: { handle: true, publicId: true } },  // nullable
+          mint: {
+            select: {
+              name: true,
+              image: true,
+              deliveryEnabled: true,
+              physicalItemIncluded: true,
+              officialItem: true,
+            },
+          },
+          seller: { select: { handle: true, publicId: true } },
+          buyer: { select: { handle: true, publicId: true } },
         },
       }),
     ]);
@@ -154,12 +174,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         status: x.status,
 
         sellerWallet: x.sellerWallet,
-        seller: x.seller, // может быть null
+        seller: x.seller,
 
         marketplaceListingId: s(x.marketplaceListingId),
         pricePerUnitWei: s(x.pricePerUnitWei),
         amountTotal: s(x.amountTotal),
         amountRemaining: s(x.amountRemaining),
+
+        deliveryEnabled: x.deliveryEnabled,
+        physicalItemIncluded: x.physicalItemIncluded,
+        officialItem: x.officialItem,
 
         createdAt: x.createdAt,
         cancelledAt: x.cancelledAt,
@@ -181,13 +205,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         sellerWallet: t.sellerWallet,
         buyerWallet: t.buyerWallet,
 
-        // ✅ counterparty для покупок = seller
         counterpartyWallet: t.sellerWallet,
         counterpartyUser: t.seller ?? null,
 
         amount: s(t.amount),
         pricePerUnitWei: s(t.pricePerUnitWei),
         totalPriceWei: s(t.totalPriceWei),
+
+        deliveryEnabled: t.mint?.deliveryEnabled ?? false,
+        physicalItemIncluded: t.mint?.physicalItemIncluded ?? false,
+        officialItem: t.mint?.officialItem ?? false,
 
         mint: t.mint,
       })),
@@ -205,13 +232,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         sellerWallet: t.sellerWallet,
         buyerWallet: t.buyerWallet,
 
-        // ✅ counterparty для продаж = buyer
         counterpartyWallet: t.buyerWallet,
         counterpartyUser: t.buyer ?? null,
 
         amount: s(t.amount),
         pricePerUnitWei: s(t.pricePerUnitWei),
         totalPriceWei: s(t.totalPriceWei),
+
+        deliveryEnabled: t.mint?.deliveryEnabled ?? false,
+        physicalItemIncluded: t.mint?.physicalItemIncluded ?? false,
+        officialItem: t.mint?.officialItem ?? false,
 
         mint: t.mint,
       })),

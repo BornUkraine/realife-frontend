@@ -62,19 +62,24 @@ export async function GET() {
           lastDailyAt: true,
           createdAt: true,
 
+          // Delivery / VIP access
+          approvedPhysicalSeller: true,
+          approvedPhysicalAt: true,
+          approvedPhysicalNote: true,
+
           // X (Twitter)
           twitterId: true,
           twitterUser: true,
           twitterName: true,
           twitterImage: true,
-          twitterRewarded: true, // ✅ added
+          twitterRewarded: true,
 
           // Discord
           discordId: true,
           discordUser: true,
           discordName: true,
           discordImage: true,
-          discordRewarded: true, // ✅ added
+          discordRewarded: true,
         },
       });
 
@@ -90,7 +95,6 @@ export async function GET() {
       const publicKey = user.handle || currentPublicId || null;
       const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
-      // Display name priority: displayName (if later add), X, Discord, handle, wallet short
       const displayName =
         user.twitterName ||
         (user.twitterUser ? `@${user.twitterUser}` : null) ||

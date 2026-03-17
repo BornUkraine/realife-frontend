@@ -63,7 +63,7 @@ export default function CreatePage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                  VIP Mint Studio • Base Sepolia • IPFS metadata
+                  Public Mint • Base Sepolia • IPFS metadata
                 </Pill>
 
                 <Pill>
@@ -73,6 +73,10 @@ export default function CreatePage() {
 
                 <Pill>
                   <span className="text-white/80 font-extrabold">ERC-1155 (Unique + Editions)</span>
+                </Pill>
+
+                <Pill>
+                  <span className="text-white/80 font-extrabold">Optional delivery mode</span>
                 </Pill>
               </div>
 
@@ -84,13 +88,20 @@ export default function CreatePage() {
               </h1>
 
               <p className="mt-4 text-sm md:text-base text-white/70 max-w-3xl leading-relaxed">
-                Prepare (IPFS) → Sign → Create Edition → Verify. One contract for everything:
-                supply=1 (unique) or supply&gt;1 (edition).
+                Prepare (IPFS) → Sign → Mint. Public ERC-1155 mint for creators, collectors and product-backed editions.
               </p>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
-                Mint and earn{" "}
-                <span className="text-amber-200 font-extrabold">+10 points</span>.{" "}
+                Choose your mint mode:{" "}
+                <span className="text-white font-semibold">Without delivery</span> or{" "}
+                <span className="text-white font-semibold">With delivery</span>.{" "}
+                <span className="text-white/55">
+                  Delivery mode is available only for approved seller wallets.
+                </span>
+              </div>
+
+              <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
+                Mint and earn <span className="text-amber-200 font-extrabold">+10 points</span>.{" "}
                 <span className="text-white/55">More mints → more points → stronger creator reputation.</span>
               </div>
 
@@ -139,7 +150,8 @@ export default function CreatePage() {
           <div className="flex items-center gap-4">
             <span className="opacity-60">ERC-1155</span>
             <span className="opacity-60">IPFS</span>
-            <span className="opacity-60">On-chain createEdition</span>
+            <span className="opacity-60">Public mint</span>
+            <span className="opacity-60">Optional delivery mode</span>
           </div>
         </div>
       </Reveal>

@@ -93,7 +93,7 @@ async function mainLoop() {
       const toBlock =
         fromBlock + BATCH - 1n > safe ? safe : fromBlock + BATCH - 1n;
 
-      // ✅ ethers v6: fromBlock/toBlock лучше numbers
+      // ethers v6: fromBlock/toBlock лучше numbers
       const logs = await provider.getLogs({
         address: MARKETPLACE,
         fromBlock: Number(fromBlock),
@@ -105,7 +105,6 @@ async function mainLoop() {
       for (const log of logs) {
         let parsed = null;
 
-        // ✅ ethers v6 может вернуть null (а не throw), если event не из ABI
         try {
           parsed = iface.parseLog(log);
         } catch {
@@ -133,7 +132,12 @@ async function mainLoop() {
                 tokenId,
               },
             },
-            select: { verified: true },
+            select: {
+              verified: true,
+              deliveryEnabled: true,
+              physicalItemIncluded: true,
+              officialItem: true,
+            },
           });
 
           if (!mint?.verified) {
@@ -169,6 +173,10 @@ async function mainLoop() {
               createdTxHash: txHash,
               cancelledAt: null,
               soldOutAt: null,
+
+              deliveryEnabled: Boolean(mint.deliveryEnabled),
+              physicalItemIncluded: Boolean(mint.physicalItemIncluded),
+              officialItem: Boolean(mint.officialItem),
             },
             create: {
               chainId: CHAIN_ID,
@@ -183,6 +191,10 @@ async function mainLoop() {
               amountRemaining: amount,
               status: "ACTIVE",
               createdTxHash: txHash,
+
+              deliveryEnabled: Boolean(mint.deliveryEnabled),
+              physicalItemIncluded: Boolean(mint.physicalItemIncluded),
+              officialItem: Boolean(mint.officialItem),
             },
           });
 
@@ -193,6 +205,8 @@ async function mainLoop() {
             tokenId,
             amount: amount.toString(),
             pricePerUnitWei: pricePerUnitWei.toString(),
+            deliveryEnabled: Boolean(mint.deliveryEnabled),
+            physicalItemIncluded: Boolean(mint.physicalItemIncluded),
           });
         }
 
@@ -229,7 +243,12 @@ async function mainLoop() {
                 tokenId,
               },
             },
-            select: { verified: true },
+            select: {
+              verified: true,
+              deliveryEnabled: true,
+              physicalItemIncluded: true,
+              officialItem: true,
+            },
           });
 
           if (!mint?.verified) {
@@ -237,7 +256,7 @@ async function mainLoop() {
             continue;
           }
 
-          const [sellerUser, buyerUser] = await Promise.all([
+          const [sellerUser, buyerUser, currentListing] = await Promise.all([
             prisma.user.findUnique({
               where: { walletAddress: seller },
               select: { id: true },
@@ -246,12 +265,29 @@ async function mainLoop() {
               where: { walletAddress: buyer },
               select: { id: true },
             }),
+            prisma.listing.findUnique({
+              where: {
+                chainId_marketplaceListingId: {
+                  chainId: CHAIN_ID,
+                  marketplaceListingId: listingId,
+                },
+              },
+              select: {
+                id: true,
+                status: true,
+                amountRemaining: true,
+                deliveryEnabled: true,
+                physicalItemIncluded: true,
+                officialItem: true,
+              },
+            }),
           ]);
 
-          // ✅ IMPORTANT: make Bought idempotent (don’t double-decrement listing/holdings)
           let createdTrade = false;
+          let tradeRow = null;
+
           try {
-            await prisma.trade.create({
+            tradeRow = await prisma.trade.create({
               data: {
                 chainId: CHAIN_ID,
                 contract: nft,
@@ -270,32 +306,32 @@ async function mainLoop() {
                 pricePerUnitWei,
                 totalPriceWei,
               },
+              select: { id: true },
             });
             createdTrade = true;
           } catch (e) {
             if (isPrismaUnique(e)) {
-              createdTrade = false; // duplicate -> ignore all side-effects
+              createdTrade = false;
+              tradeRow = await prisma.trade.findUnique({
+                where: {
+                  chainId_txHash_logIndex: {
+                    chainId: CHAIN_ID,
+                    txHash,
+                    logIndex,
+                  },
+                },
+                select: { id: true },
+              });
             } else {
               console.error("[TRADE_CREATE_ERROR]", e);
-              // don’t apply side-effects if we failed unexpectedly
               createdTrade = false;
             }
           }
 
+          // side-effects only once
           if (createdTrade) {
-            // ✅ decrement listing remaining once
-            const L = await prisma.listing.findUnique({
-              where: {
-                chainId_marketplaceListingId: {
-                  chainId: CHAIN_ID,
-                  marketplaceListingId: listingId,
-                },
-              },
-              select: { amountRemaining: true, status: true },
-            });
-
-            if (L && L.status === "ACTIVE") {
-              const newRemaining = BigInt(L.amountRemaining) - amount;
+            if (currentListing && currentListing.status === "ACTIVE") {
+              const newRemaining = BigInt(currentListing.amountRemaining) - amount;
               const soldOut = newRemaining <= 0n;
 
               await prisma.listing.update({
@@ -313,7 +349,6 @@ async function mainLoop() {
               });
             }
 
-            // ✅ update holdings (only if users exist in DB)
             // seller -= amount
             if (sellerUser?.id) {
               await prisma.holding.updateMany({
@@ -327,7 +362,7 @@ async function mainLoop() {
               });
             }
 
-            // buyer += amount (upsert)
+            // buyer += amount
             if (buyerUser?.id) {
               await prisma.holding.upsert({
                 where: {
@@ -351,6 +386,73 @@ async function mainLoop() {
             }
           }
 
+          // create secondary delivery order if needed
+          // important: do it independently from createdTrade, so if trade already existed
+          // but order was not created yet, reprocessing can still recover it
+          const deliveryEnabled =
+            currentListing?.deliveryEnabled ?? Boolean(mint.deliveryEnabled);
+
+          const physicalItemIncluded =
+            currentListing?.physicalItemIncluded ?? Boolean(mint.physicalItemIncluded);
+
+          const officialItem =
+            currentListing?.officialItem ?? Boolean(mint.officialItem);
+
+          if (tradeRow?.id && deliveryEnabled) {
+            const existingOrder = await prisma.storeOrder.findFirst({
+              where: { tradeId: tradeRow.id },
+              select: { id: true },
+            });
+
+            if (!existingOrder) {
+              await prisma.storeOrder.create({
+                data: {
+                  chainId: CHAIN_ID,
+                  contract: nft,
+                  tokenId,
+
+                  sourceType: "MARKETPLACE",
+                  orderKind: "SECONDARY",
+                  vertical: "marketplace",
+
+                  buyerWallet: buyer,
+                  sellerWallet: seller,
+
+                  buyerId: buyerUser?.id ?? null,
+                  sellerId: sellerUser?.id ?? null,
+
+                  listingId: currentListing?.id ?? null,
+                  tradeId: tradeRow.id,
+                  marketplaceListingId: listingId,
+
+                  amount,
+                  unitPrice: pricePerUnitWei,
+                  totalPrice: totalPriceWei,
+
+                  paymentToken: null,
+
+                  deliveryRequired: true,
+                  physicalItem: Boolean(physicalItemIncluded),
+                  officialItem: Boolean(officialItem),
+
+                  escrowStatus: "PENDING",
+                  deliveryStatus: "PENDING",
+
+                  buyTxHash: txHash,
+                },
+              });
+
+              console.log("[STORE_ORDER_CREATED]", {
+                tradeId: tradeRow.id,
+                listingId: listingId.toString(),
+                nft,
+                tokenId,
+                buyer,
+                seller,
+              });
+            }
+          }
+
           console.log("[BOUGHT]", {
             listingId: listingId.toString(),
             seller,
@@ -360,6 +462,7 @@ async function mainLoop() {
             amount: amount.toString(),
             totalPriceWei: totalPriceWei.toString(),
             createdTrade,
+            deliveryEnabled: Boolean(deliveryEnabled),
           });
         }
       }

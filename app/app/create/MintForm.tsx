@@ -30,6 +30,19 @@ const CATEGORIES = [
   "AI work",
 ] as const;
 
+const ITEM_TYPES = [
+  "Art / Painting",
+  "Antique",
+  "Collectible",
+  "Fashion / Accessory",
+  "Tech / Gadget",
+  "Home / Decor",
+  "Product",
+  "Other valuable item",
+] as const;
+
+type DeliveryMode = "none" | "delivery";
+
 function useMounted() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -256,6 +269,8 @@ function Stepper({
   isMining,
   isSuccess,
   mintFeeWei,
+  approvedPhysicalSeller,
+  deliveryMode,
 }: {
   mounted: boolean;
   connected: boolean;
@@ -267,6 +282,8 @@ function Stepper({
   isMining: boolean;
   isSuccess: boolean;
   mintFeeWei: bigint;
+  approvedPhysicalSeller: boolean;
+  deliveryMode: DeliveryMode;
 }) {
   const stage = useMemo(() => {
     if (!mounted) return 0;
@@ -296,11 +313,25 @@ function Stepper({
           <div className="flex flex-wrap items-center gap-2">
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-              VIP Mint Flow
+              Public Mint Flow
             </Pill>
 
             <Pill>
               <span className="text-white/80 font-extrabold">Edition (ERC-1155)</span>
+            </Pill>
+
+            <Pill>
+              <span className="text-white/70">Mode:</span>
+              <span className="text-white font-extrabold">
+                {deliveryMode === "delivery" ? "With delivery" : "Without delivery"}
+              </span>
+            </Pill>
+
+            <Pill>
+              <span className="text-white/70">Delivery access:</span>
+              <span className={approvedPhysicalSeller ? "text-emerald-200 font-extrabold" : "text-white/70 font-extrabold"}>
+                {approvedPhysicalSeller ? "Approved" : "Standard"}
+              </span>
             </Pill>
 
             <Pill>
@@ -336,6 +367,18 @@ function Stepper({
           <div className="mt-2 text-[11px] text-white/60 leading-relaxed">
             Mint rewards: <span className="text-amber-200 font-extrabold">+10 points</span> per mint.
             <span className="text-white/45"> Editions support supply 1..10000.</span>
+          </div>
+
+          <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
+            {deliveryMode === "delivery" ? (
+              approvedPhysicalSeller ? (
+                <>Delivery mode is enabled for this wallet. The NFT will be marked as a physical-item delivery edition.</>
+              ) : (
+                <>Delivery mode is reserved for approved seller wallets. Switch to <span className="text-white/75 font-semibold">Without delivery</span> or ask admin for access.</>
+              )
+            ) : (
+              <>Standard mint mode is active. This edition will be created without delivery flow.</>
+            )}
           </div>
 
           <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
@@ -499,6 +542,50 @@ export default function MintForm() {
 
   const mintFeeWei = (typeof mintFeeWeiRaw === "bigint" ? mintFeeWeiRaw : 0n) as bigint;
 
+  /* ---------- session / me ---------- */
+
+  const [approvedPhysicalSeller, setApprovedPhysicalSeller] = useState(false);
+  const [approvedPhysicalAt, setApprovedPhysicalAt] = useState<string | null>(null);
+  const [approvedPhysicalNote, setApprovedPhysicalNote] = useState<string>("");
+  const [meLoaded, setMeLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMe() {
+      try {
+        const res = await fetch("/api/me", { cache: "no-store" });
+        const data = await res.json().catch(() => null);
+
+        if (cancelled) return;
+
+        if (res.ok && data?.ok && data?.user) {
+          setApprovedPhysicalSeller(Boolean(data.user.approvedPhysicalSeller));
+          setApprovedPhysicalAt(data.user.approvedPhysicalAt ? String(data.user.approvedPhysicalAt) : null);
+          setApprovedPhysicalNote(String(data.user.approvedPhysicalNote || ""));
+        } else {
+          setApprovedPhysicalSeller(false);
+          setApprovedPhysicalAt(null);
+          setApprovedPhysicalNote("");
+        }
+      } catch {
+        if (!cancelled) {
+          setApprovedPhysicalSeller(false);
+          setApprovedPhysicalAt(null);
+          setApprovedPhysicalNote("");
+        }
+      } finally {
+        if (!cancelled) setMeLoaded(true);
+      }
+    }
+
+    if (mounted) loadMe();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted, connected]);
+
   /* ---------- form state ---------- */
 
   const [file, setFile] = useState<File | null>(null);
@@ -509,7 +596,11 @@ export default function MintForm() {
 
   const [project, setProject] = useState<(typeof PROJECTS)[number]>("Realife");
   const [categories, setCategories] = useState<string[]>([]);
+  const [itemType, setItemType] = useState<(typeof ITEM_TYPES)[number]>("Art / Painting");
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>("none");
+
   const [name, setName] = useState("");
+  const [brand, setBrand] = useState("");
   const [description, setDescription] = useState("");
   const [supply, setSupply] = useState<number>(20);
   const [proofUrl, setProofUrl] = useState("");
@@ -532,6 +623,15 @@ export default function MintForm() {
   const effectivePreviewKind = tokenURI ? preparedKind : pickedKind;
   const effectivePreviewSrc = tokenURI ? preparedMedia || filePreviewUrl : filePreviewUrl;
   const effectivePoster = tokenURI ? preparedPoster : posterPreviewUrl;
+
+  const isDeliveryMode = deliveryMode === "delivery";
+  const deliveryBlocked = isDeliveryMode && !approvedPhysicalSeller;
+
+  useEffect(() => {
+    if (!approvedPhysicalSeller && deliveryMode === "delivery") {
+      setDeliveryMode("none");
+    }
+  }, [approvedPhysicalSeller, deliveryMode]);
 
   function toggleCategory(cat: string) {
     setCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
@@ -584,6 +684,7 @@ export default function MintForm() {
   function openFilePicker() {
     fileInputRef.current?.click();
   }
+
   function openPosterPicker() {
     posterInputRef.current?.click();
   }
@@ -628,6 +729,8 @@ export default function MintForm() {
               image: posterOrImage || null,
               verified: true,
               supply: clampSupply(supply),
+              deliveryEnabled: isDeliveryMode,
+              physicalItemIncluded: isDeliveryMode,
             }),
           });
         }
@@ -642,6 +745,9 @@ export default function MintForm() {
       qp.set("kind", effectivePreviewKind);
       qp.set("category", finalCategory);
       qp.set("project", project);
+      qp.set("itemType", itemType);
+      qp.set("brand", brand.trim());
+      qp.set("delivery", isDeliveryMode ? "1" : "0");
       qp.set("tx", txHash || "");
       qp.set("tokenId", tokenId || "");
       qp.set("standard", "ERC1155");
@@ -663,8 +769,8 @@ export default function MintForm() {
   }
 
   const requiredContractOk = Boolean(CONTRACT_1155_NEW);
-  const canPrepare = Boolean(file) && Boolean(name.trim()) && requiredContractOk;
-  const canMint = Boolean(tokenURI) && requiredContractOk;
+  const canPrepare = Boolean(file) && Boolean(name.trim()) && requiredContractOk && !deliveryBlocked;
+  const canMint = Boolean(tokenURI) && requiredContractOk && !deliveryBlocked;
 
   const busy = step !== "idle" || isWalletPromptOpen || isMining || isSwitching;
 
@@ -673,6 +779,11 @@ export default function MintForm() {
 
     if (!CONTRACT_1155_NEW) {
       setError("Missing NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT in Railway/ENV");
+      return;
+    }
+
+    if (deliveryBlocked) {
+      setError("Delivery mode is available only for approved seller wallets.");
       return;
     }
 
@@ -699,6 +810,11 @@ export default function MintForm() {
       formData.append("description", description.trim());
       formData.append("project", project);
       formData.append("category", selectedCategoryLabel);
+      formData.append("itemType", itemType);
+      formData.append("brand", brand.trim());
+      formData.append("deliveryMode", deliveryMode);
+      formData.append("deliveryEnabled", isDeliveryMode ? "true" : "false");
+      formData.append("physicalItemIncluded", isDeliveryMode ? "true" : "false");
       formData.append("supply", String(clampSupply(supply)));
       formData.append("proofUrl", proofUrl.trim());
 
@@ -721,7 +837,6 @@ export default function MintForm() {
       setPreparedMedia(pMedia || filePreviewUrl);
       setPreparedPoster(pKind === "video" ? pPoster : null);
 
-      // optional refine from tokenURI JSON
       const meta = await loadMetadataFromTokenUri(uri);
       const metaImage = typeof meta?.image === "string" ? meta.image : null;
       const metaAnim = typeof meta?.animation_url === "string" ? meta.animation_url : null;
@@ -746,6 +861,11 @@ export default function MintForm() {
 
   async function handleOnchainCreate() {
     setError("");
+
+    if (deliveryBlocked) {
+      setError("Delivery mode is available only for approved seller wallets.");
+      return;
+    }
 
     if (!tokenURI) {
       setError("First click: Prepare (Upload → IPFS).");
@@ -799,6 +919,8 @@ export default function MintForm() {
         isMining={isMining}
         isSuccess={isSuccess}
         mintFeeWei={mintFeeWei}
+        approvedPhysicalSeller={approvedPhysicalSeller}
+        deliveryMode={deliveryMode}
       />
 
       {/* LEFT */}
@@ -910,7 +1032,6 @@ export default function MintForm() {
             </div>
           </div>
 
-          {/* POSTER upload (video only) */}
           {file?.type?.startsWith("video/") ? (
             <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="flex items-start justify-between gap-4">
@@ -1021,6 +1142,148 @@ export default function MintForm() {
             Selected: <span className="font-semibold text-white">{selectedCategoryLabel}</span>
           </p>
         </Card>
+
+        {/* ITEM TYPE */}
+        <Card>
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">Item type</div>
+              <div className="text-[11px] text-white/55 mt-1">Describe the physical type of the item behind this NFT.</div>
+            </div>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+              Required
+            </Pill>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {ITEM_TYPES.map((t) => {
+              const active = itemType === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setItemType(t)}
+                  className={[
+                    "flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border text-sm transition",
+                    "shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
+                    active
+                      ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                      : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+                  ].join(" ")}
+                >
+                  <span className="font-extrabold text-left">{t}</span>
+                  <span
+                    className={[
+                      "w-5 h-5 rounded-md border flex items-center justify-center text-xs shrink-0",
+                      active ? "border-black/35 bg-black/10" : "border-white/25",
+                    ].join(" ")}
+                  >
+                    {active ? "✓" : ""}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="mt-3 text-xs text-white/60">
+            Selected item type: <span className="font-semibold text-white">{itemType}</span>
+          </p>
+        </Card>
+
+        {/* DELIVERY MODE */}
+        <Card>
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">Delivery option</div>
+              <div className="text-[11px] text-white/55 mt-1">Choose whether this edition is standard or delivery-enabled.</div>
+            </div>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+              Required
+            </Pill>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setError("");
+                setDeliveryMode("none");
+              }}
+              className={[
+                "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
+                deliveryMode === "none"
+                  ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                  : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+              ].join(" ")}
+            >
+              <div className="text-sm font-extrabold">Without delivery</div>
+              <div className={deliveryMode === "none" ? "text-black/70 text-xs mt-1" : "text-white/55 text-xs mt-1"}>
+                Standard public mint. Normal trading flow without delivery.
+              </div>
+            </button>
+
+            <button
+              type="button"
+              disabled={!approvedPhysicalSeller}
+              onClick={() => {
+                if (!approvedPhysicalSeller) return;
+                setError("");
+                setDeliveryMode("delivery");
+              }}
+              className={[
+                "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
+                !approvedPhysicalSeller
+                  ? "bg-white/[0.03] border-white/10 text-white/45 cursor-not-allowed"
+                  : deliveryMode === "delivery"
+                  ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                  : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+              ].join(" ")}
+            >
+              <div className="text-sm font-extrabold">With delivery</div>
+              <div
+                className={
+                  !approvedPhysicalSeller
+                    ? "text-white/40 text-xs mt-1"
+                    : deliveryMode === "delivery"
+                    ? "text-black/70 text-xs mt-1"
+                    : "text-white/55 text-xs mt-1"
+                }
+              >
+                Delivery-enabled physical item flow. Available only for approved seller wallets.
+              </div>
+            </button>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/65">
+            {meLoaded ? (
+              approvedPhysicalSeller ? (
+                <>
+                  Delivery access: <span className="text-emerald-200 font-extrabold">approved</span>
+                  {approvedPhysicalAt ? (
+                    <>
+                      {" "}
+                      • enabled at <span className="text-white">{new Date(approvedPhysicalAt).toLocaleString()}</span>
+                    </>
+                  ) : null}
+                  {approvedPhysicalNote ? (
+                    <>
+                      {" "}
+                      • note: <span className="text-white">{approvedPhysicalNote}</span>
+                    </>
+                  ) : null}
+                </>
+              ) : (
+                <>
+                  Delivery access: <span className="text-white font-extrabold">standard wallet</span>. Mint with delivery is disabled until admin approval.
+                </>
+              )
+            ) : (
+              <>Checking delivery access…</>
+            )}
+          </div>
+        </Card>
       </div>
 
       {/* RIGHT */}
@@ -1073,8 +1336,8 @@ export default function MintForm() {
                   </>
                 ) : (
                   <>
-                    Connect wallet to enable switching, balance check and create.{" "}
-                    <span className="text-white/45">(VIP flow)</span>
+                    Connect wallet to enable switching, balance check and create.
+                    <span className="text-white/45"> Public mint flow.</span>
                   </>
                 )}
               </div>
@@ -1136,6 +1399,33 @@ export default function MintForm() {
             placeholder="Create a name for your NFT"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            className={[
+              "w-full rounded-2xl px-4 py-3 text-sm",
+              "bg-white/[0.04] border border-white/10 text-white",
+              "placeholder:text-white/35",
+              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+            ].join(" ")}
+          />
+        </Card>
+
+        {/* BRAND */}
+        <Card>
+          <div className="flex items-end justify-between mb-3">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">Brand / Maker</div>
+              <div className="text-[11px] text-white/55 mt-1">Brand, studio, creator mark or collection name.</div>
+            </div>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-white/60" />
+              Optional
+            </Pill>
+          </div>
+
+          <input
+            type="text"
+            placeholder="Example: Atelier Realife / Vintage House / Custom Studio"
+            value={brand}
+            onChange={(e) => setBrand(e.target.value)}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
               "bg-white/[0.04] border border-white/10 text-white",
@@ -1244,7 +1534,7 @@ export default function MintForm() {
                 ? "Waiting for wallet signature…"
                 : step === "mining" || isMining
                 ? "Creating on-chain (mining)…"
-                : `2) Create Edition (ERC-1155)`}
+                : "2) Mint"}
             </GoldButton>
           </div>
 
@@ -1254,6 +1544,19 @@ export default function MintForm() {
               <span className="text-amber-200 font-extrabold">{fmtEth(formatUnits(mintFeeWei, 18))} ETH</span>
             </div>
           ) : null}
+
+          <div className="mt-3 text-[11px] text-white/55 leading-relaxed">
+            Current mode:{" "}
+            <span className="text-white font-semibold">{deliveryMode === "delivery" ? "With delivery" : "Without delivery"}</span>
+            {" · "}
+            Item type: <span className="text-white font-semibold">{itemType}</span>
+            {brand.trim() ? (
+              <>
+                {" · "}
+                Brand: <span className="text-white font-semibold">{brand.trim()}</span>
+              </>
+            ) : null}
+          </div>
         </Card>
       </div>
     </div>

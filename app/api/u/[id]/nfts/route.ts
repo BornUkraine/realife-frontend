@@ -84,6 +84,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             verified: true,
             txHash: true,
             createdAt: true,
+            deliveryEnabled: true,
+            physicalItemIncluded: true,
+            officialItem: true,
           },
         },
       },
@@ -94,7 +97,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const nextCursor = hasMore ? data[data.length - 1]?.id ?? null : null;
 
     const nfts = data.map((x) => ({
-      id: x.id, // Holding.id
+      id: x.id,
       updatedAt: x.updatedAt,
       chainId: x.chainId,
       contract: String(x.contract || "").toLowerCase(),
@@ -107,6 +110,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       verified: x.mint?.verified ?? false,
       txHash: x.mint?.txHash ?? null,
       mintedAt: x.mint?.createdAt ?? null,
+
+      deliveryEnabled: x.mint?.deliveryEnabled ?? false,
+      physicalItemIncluded: x.mint?.physicalItemIncluded ?? false,
+      officialItem: x.mint?.officialItem ?? false,
     }));
 
     return NextResponse.json({ ok: true, nfts, nextCursor });

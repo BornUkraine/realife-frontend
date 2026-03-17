@@ -43,7 +43,6 @@ export async function GET(req: NextRequest) {
   const take = Math.min(toInt(url.searchParams.get("take")) ?? 30, 100);
   const skip = Math.max(toInt(url.searchParams.get("skip")) ?? 0, 0);
 
-  // filters
   const where: any = { status };
 
   if (chainId !== null) where.chainId = chainId;
@@ -87,6 +86,10 @@ export async function GET(req: NextRequest) {
         pricePerUnitWei: s(r.pricePerUnitWei),
         amountTotal: s(r.amountTotal),
         amountRemaining: s(r.amountRemaining),
+
+        deliveryEnabled: r.deliveryEnabled,
+        physicalItemIncluded: r.physicalItemIncluded,
+        officialItem: r.officialItem,
 
         createdAt: r.createdAt,
         mint: r.mint,
