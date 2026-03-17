@@ -9,11 +9,7 @@ datasource db {
 
 /**
  * ==========================================================================
- */
-/**
  * ENUMS
- */
-/**
  * ==========================================================================
  */
 
@@ -50,13 +46,19 @@ enum DeliveryStatus {
   CANCELLED
 }
 
+enum OrderSourceType {
+  STORE
+  MARKETPLACE
+}
+
+enum OrderKind {
+  PRIMARY
+  SECONDARY
+}
+
 /**
  * ==========================================================================
- */
-/**
  * USER
- */
-/**
  * ==========================================================================
  */
 
@@ -76,6 +78,13 @@ model User {
    */
   walletAddress String @unique
   walletChainId Int?
+
+  /**
+   * ---------------- Delivery / VIP seller access ----------------
+   */
+  approvedPhysicalSeller Boolean   @default(false)
+  approvedPhysicalAt     DateTime?
+  approvedPhysicalNote   String?
 
   /**
    * ---------------- Referrals ----------------
@@ -136,15 +145,12 @@ model User {
   @@index([discordUser])
   @@index([referralCode])
   @@index([referredById])
+  @@index([approvedPhysicalSeller])
 }
 
 /**
  * ==========================================================================
- */
-/**
  * WALLET NONCE
- */
-/**
  * ==========================================================================
  */
 
@@ -161,11 +167,7 @@ model WalletNonce {
 
 /**
  * ==========================================================================
- */
-/**
  * POINT EVENTS
- */
-/**
  * ==========================================================================
  */
 
@@ -189,11 +191,7 @@ model PointEvent {
 
 /**
  * ==========================================================================
- */
-/**
  * TEMP STORAGE FOR X OAUTH LINKING
- */
-/**
  * ==========================================================================
  */
 
@@ -215,11 +213,7 @@ model TwitterLinkAttempt {
 
 /**
  * ==========================================================================
- */
-/**
  * NFT CATALOG ENTRY
- */
-/**
  * ==========================================================================
  */
 
@@ -241,21 +235,26 @@ model Mint {
 
   verified Boolean @default(true)
 
+  /**
+   * ---------------- Delivery / physical item flags ----------------
+   */
+  deliveryEnabled      Boolean @default(false)
+  physicalItemIncluded Boolean @default(false)
+  officialItem         Boolean @default(false)
+
   holdings Holding[]
   listings Listing[]
   trades   Trade[]
 
   @@unique([chainId, contract, tokenId])
   @@index([userId, createdAt])
+  @@index([chainId, contract, tokenId])
+  @@index([deliveryEnabled, physicalItemIncluded])
 }
 
 /**
  * ==========================================================================
- */
-/**
  * HOLDINGS
- */
-/**
  * ==========================================================================
  */
 
@@ -283,11 +282,7 @@ model Holding {
 
 /**
  * ==========================================================================
- */
-/**
  * LISTINGS
- */
-/**
  * ==========================================================================
  */
 
@@ -307,11 +302,18 @@ model Listing {
   sellerId String?
   seller   User?   @relation(fields: [sellerId], references: [id], onDelete: SetNull)
 
-  sellerWallet String
+  sellerWallet         String
   marketplaceListingId BigInt
-  pricePerUnitWei BigInt
-  amountTotal     BigInt @default(1)
-  amountRemaining BigInt @default(1)
+  pricePerUnitWei      BigInt
+  amountTotal          BigInt @default(1)
+  amountRemaining      BigInt @default(1)
+
+  /**
+   * ---------------- Snapshot of delivery / physical state at listing time ---
+   */
+  deliveryEnabled      Boolean @default(false)
+  physicalItemIncluded Boolean @default(false)
+  officialItem         Boolean @default(false)
 
   status      ListingStatus @default(ACTIVE)
   cancelledAt DateTime?
@@ -324,15 +326,12 @@ model Listing {
   @@index([sellerWallet])
   @@index([sellerId])
   @@index([chainId, contract, tokenId])
+  @@index([deliveryEnabled, physicalItemIncluded])
 }
 
 /**
  * ==========================================================================
- */
-/**
  * TRADES
- */
-/**
  * ==========================================================================
  */
 
@@ -377,11 +376,7 @@ model Trade {
 
 /**
  * ==========================================================================
- */
-/**
  * INDEXER STATE
- */
-/**
  * ==========================================================================
  */
 
@@ -398,11 +393,7 @@ model IndexerState {
 
 /**
  * ==========================================================================
- */
-/**
  * REAL MARKETING PRODUCTS
- */
-/**
  * ==========================================================================
  */
 
@@ -447,11 +438,7 @@ model RealMarketingProduct {
 
 /**
  * ==========================================================================
- */
-/**
  * STORE ORDERS (delivery + escrow flow)
- */
-/**
  * ==========================================================================
  */
 
@@ -464,7 +451,22 @@ model StoreOrder {
   contract String
   tokenId  String
 
-  // store | cafe | travel | cosmetics | etc
+  /**
+   * Source of order:
+   * STORE       -> buy from store/cafe/etc
+   * MARKETPLACE -> secondary sale from trading
+   */
+  sourceType OrderSourceType @default(STORE)
+
+  /**
+   * PRIMARY   -> direct primary sale
+   * SECONDARY -> resale / trading sale
+   */
+  orderKind OrderKind @default(PRIMARY)
+
+  /**
+   * store | cafe | travel | cosmetics | marketplace | etc
+   */
   vertical String
 
   buyerWallet  String
@@ -475,6 +477,13 @@ model StoreOrder {
 
   buyer  User? @relation("StoreOrderBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
   seller User? @relation("StoreOrderSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+
+  /**
+   * Optional links to marketplace entities
+   */
+  listingId             String?
+  tradeId               String?
+  marketplaceListingId  BigInt?
 
   amount     BigInt @default(1)
   unitPrice  BigInt
@@ -509,9 +518,9 @@ model StoreOrder {
   trackingUrl  String?
   carrier      String?
 
-  buyTxHash            String?
-  escrowReleaseTxHash  String?
-  escrowRefundTxHash   String?
+  buyTxHash           String?
+  escrowReleaseTxHash String?
+  escrowRefundTxHash  String?
 
   noteBuyer  String?
   noteSeller String?
@@ -523,6 +532,10 @@ model StoreOrder {
   @@index([sellerId])
   @@index([chainId, contract, tokenId])
   @@index([vertical])
+  @@index([sourceType, orderKind])
+  @@index([listingId])
+  @@index([tradeId])
+  @@index([marketplaceListingId])
   @@index([escrowStatus])
   @@index([deliveryStatus])
   @@index([createdAt])
