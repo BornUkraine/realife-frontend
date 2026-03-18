@@ -228,7 +228,10 @@ export async function PATCH(
     );
   }
 
-  const hasApproved = Object.prototype.hasOwnProperty.call(body, "approvedPhysicalSeller");
+  const hasApproved = Object.prototype.hasOwnProperty.call(
+    body,
+    "approvedPhysicalSeller"
+  );
   const hasNote = Object.prototype.hasOwnProperty.call(body, "note");
 
   const nextApproved = hasApproved

@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function s(v: any) {
+function s(v: unknown) {
   return typeof v === "bigint" ? v.toString() : v;
 }
 
@@ -16,11 +16,18 @@ export async function GET(req: Request) {
   const uid = (session as any)?.userId || (session as any)?.user?.id;
 
   if (!uid) {
-    return NextResponse.json({ ok: false, reason: "UNAUTHORIZED" }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, reason: "UNAUTHORIZED" },
+      { status: 401 }
+    );
   }
 
   const url = new URL(req.url);
-  const take = Math.max(1, Math.min(48, Number(url.searchParams.get("take") || "24")));
+  const rawTake = Number(url.searchParams.get("take") || "24");
+  const take = Math.max(
+    1,
+    Math.min(48, Number.isFinite(rawTake) ? Math.trunc(rawTake) : 24)
+  );
   const cursor = url.searchParams.get("cursor"); // Holding.id
 
   try {
@@ -28,7 +35,11 @@ export async function GET(req: Request) {
       where: {
         userId: uid,
         amount: { gt: 0n },
-        mint: { verified: true },
+        mint: {
+          is: {
+            verified: true,
+          },
+        },
       },
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: take + 1,
@@ -59,14 +70,13 @@ export async function GET(req: Request) {
     const nextCursor = hasMore ? data[data.length - 1]?.id ?? null : null;
 
     const nfts = data.map((x) => ({
-      id: x.id, // Holding.id
+      id: x.id,
       updatedAt: x.updatedAt,
       chainId: x.chainId,
       contract: String(x.contract || "").toLowerCase(),
       tokenId: x.tokenId,
       standard: x.standard,
       amount: s(x.amount),
-      // metadata from Mint
       name: x.mint?.name ?? null,
       image: x.mint?.image ?? null,
       tokenUri: x.mint?.tokenUri ?? null,

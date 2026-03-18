@@ -18,9 +18,16 @@ const CONFIRMATIONS = BigInt(process.env.CONFIRMATIONS || "5");
 const BATCH = BigInt(process.env.BATCH_BLOCKS || "2000");
 const SLEEP_MS = Number(process.env.SLEEP_MS || "8000");
 
+const PAYMENT_TOKEN_FALLBACK = String(
+  process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS ||
+    process.env.PAYMENT_TOKEN_ADDRESS ||
+    ""
+)
+  .trim()
+  .toLowerCase();
+
 const provider = new JsonRpcProvider(RPC_URL);
 
-// ABI под RealifeMarketplaceSpot1155 (events)
 const ABI = [
   "event Listed(uint256 indexed listingId,address indexed seller,address indexed nft,uint256 tokenId,uint256 amount,uint256 pricePerUnitWei)",
   "event Cancelled(uint256 indexed listingId,address indexed seller,address indexed nft,uint256 tokenId)",
@@ -31,6 +38,10 @@ const iface = new Interface(ABI);
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+function norm(v) {
+  return String(v || "").trim().toLowerCase();
 }
 
 function stateKey() {
@@ -55,7 +66,7 @@ async function setLastBlock(bn) {
   });
 }
 
-const blockTsCache = new Map(); // number -> Date
+const blockTsCache = new Map();
 
 async function getBlockTime(blockNumber) {
   if (blockTsCache.has(blockNumber)) return blockTsCache.get(blockNumber);
@@ -71,6 +82,7 @@ function isPrismaUnique(e) {
 
 async function mainLoop() {
   let last = await getLastBlock();
+
   console.log("[INDEXER] start", {
     chainId: CHAIN_ID,
     marketplace: MARKETPLACE,
@@ -93,7 +105,6 @@ async function mainLoop() {
       const toBlock =
         fromBlock + BATCH - 1n > safe ? safe : fromBlock + BATCH - 1n;
 
-      // ethers v6: fromBlock/toBlock лучше numbers
       const logs = await provider.getLogs({
         address: MARKETPLACE,
         fromBlock: Number(fromBlock),
@@ -118,37 +129,64 @@ async function mainLoop() {
 
         if (parsed.name === "Listed") {
           const listingId = BigInt(parsed.args.listingId);
-          const seller = String(parsed.args.seller).toLowerCase();
-          const nft = String(parsed.args.nft).toLowerCase();
+          const seller = norm(parsed.args.seller);
+          const nft = norm(parsed.args.nft);
           const tokenId = BigInt(parsed.args.tokenId).toString();
           const amount = BigInt(parsed.args.amount);
           const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
 
-          const mint = await prisma.mint.findUnique({
-            where: {
-              chainId_contract_tokenId: {
-                chainId: CHAIN_ID,
-                contract: nft,
-                tokenId,
+          const [product, mint, sellerUser] = await Promise.all([
+            prisma.realMarketingProduct.findUnique({
+              where: {
+                chainId_contract_tokenId: {
+                  chainId: CHAIN_ID,
+                  contract: nft,
+                  tokenId,
+                },
               },
-            },
-            select: {
-              verified: true,
-              deliveryEnabled: true,
-              physicalItemIncluded: true,
-              officialItem: true,
-            },
-          });
+              select: {
+                vertical: true,
+                paymentToken: true,
+                deliveryEnabled: true,
+                physicalItemIncluded: true,
+                officialItem: true,
+              },
+            }),
+            prisma.mint.findUnique({
+              where: {
+                chainId_contract_tokenId: {
+                  chainId: CHAIN_ID,
+                  contract: nft,
+                  tokenId,
+                },
+              },
+              select: {
+                verified: true,
+                deliveryEnabled: true,
+                physicalItemIncluded: true,
+                officialItem: true,
+              },
+            }),
+            prisma.user.findUnique({
+              where: { walletAddress: seller },
+              select: { id: true },
+            }),
+          ]);
 
           if (!mint?.verified) {
             console.log("[SKIP] mint missing/not verified", { nft, tokenId });
             continue;
           }
 
-          const sellerUser = await prisma.user.findUnique({
-            where: { walletAddress: seller },
-            select: { id: true },
-          });
+          const deliveryEnabled =
+            product?.deliveryEnabled ?? Boolean(mint.deliveryEnabled);
+
+          const physicalItemIncluded =
+            product?.physicalItemIncluded ?? Boolean(mint.physicalItemIncluded);
+
+          const officialItem =
+            product?.officialItem ?? Boolean(mint.officialItem);
+
           const sellerId = sellerUser?.id ?? null;
 
           if (!sellerId) {
@@ -174,9 +212,9 @@ async function mainLoop() {
               cancelledAt: null,
               soldOutAt: null,
 
-              deliveryEnabled: Boolean(mint.deliveryEnabled),
-              physicalItemIncluded: Boolean(mint.physicalItemIncluded),
-              officialItem: Boolean(mint.officialItem),
+              deliveryEnabled: Boolean(deliveryEnabled),
+              physicalItemIncluded: Boolean(physicalItemIncluded),
+              officialItem: Boolean(officialItem),
             },
             create: {
               chainId: CHAIN_ID,
@@ -192,9 +230,9 @@ async function mainLoop() {
               status: "ACTIVE",
               createdTxHash: txHash,
 
-              deliveryEnabled: Boolean(mint.deliveryEnabled),
-              physicalItemIncluded: Boolean(mint.physicalItemIncluded),
-              officialItem: Boolean(mint.officialItem),
+              deliveryEnabled: Boolean(deliveryEnabled),
+              physicalItemIncluded: Boolean(physicalItemIncluded),
+              officialItem: Boolean(officialItem),
             },
           });
 
@@ -205,8 +243,9 @@ async function mainLoop() {
             tokenId,
             amount: amount.toString(),
             pricePerUnitWei: pricePerUnitWei.toString(),
-            deliveryEnabled: Boolean(mint.deliveryEnabled),
-            physicalItemIncluded: Boolean(mint.physicalItemIncluded),
+            deliveryEnabled: Boolean(deliveryEnabled),
+            physicalItemIncluded: Boolean(physicalItemIncluded),
+            officialItem: Boolean(officialItem),
           });
         }
 
@@ -227,61 +266,77 @@ async function mainLoop() {
 
         if (parsed.name === "Bought") {
           const listingId = BigInt(parsed.args.listingId);
-          const seller = String(parsed.args.seller).toLowerCase();
-          const buyer = String(parsed.args.buyer).toLowerCase();
-          const nft = String(parsed.args.nft).toLowerCase();
+          const seller = norm(parsed.args.seller);
+          const buyer = norm(parsed.args.buyer);
+          const nft = norm(parsed.args.nft);
           const tokenId = BigInt(parsed.args.tokenId).toString();
           const amount = BigInt(parsed.args.amount);
           const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
           const totalPriceWei = BigInt(parsed.args.totalPriceWei);
 
-          const mint = await prisma.mint.findUnique({
-            where: {
-              chainId_contract_tokenId: {
-                chainId: CHAIN_ID,
-                contract: nft,
-                tokenId,
-              },
-            },
-            select: {
-              verified: true,
-              deliveryEnabled: true,
-              physicalItemIncluded: true,
-              officialItem: true,
-            },
-          });
+          const [product, mint, sellerUser, buyerUser, currentListing] =
+            await Promise.all([
+              prisma.realMarketingProduct.findUnique({
+                where: {
+                  chainId_contract_tokenId: {
+                    chainId: CHAIN_ID,
+                    contract: nft,
+                    tokenId,
+                  },
+                },
+                select: {
+                  vertical: true,
+                  paymentToken: true,
+                  deliveryEnabled: true,
+                  physicalItemIncluded: true,
+                  officialItem: true,
+                },
+              }),
+              prisma.mint.findUnique({
+                where: {
+                  chainId_contract_tokenId: {
+                    chainId: CHAIN_ID,
+                    contract: nft,
+                    tokenId,
+                  },
+                },
+                select: {
+                  verified: true,
+                  deliveryEnabled: true,
+                  physicalItemIncluded: true,
+                  officialItem: true,
+                },
+              }),
+              prisma.user.findUnique({
+                where: { walletAddress: seller },
+                select: { id: true },
+              }),
+              prisma.user.findUnique({
+                where: { walletAddress: buyer },
+                select: { id: true },
+              }),
+              prisma.listing.findUnique({
+                where: {
+                  chainId_marketplaceListingId: {
+                    chainId: CHAIN_ID,
+                    marketplaceListingId: listingId,
+                  },
+                },
+                select: {
+                  id: true,
+                  status: true,
+                  amountRemaining: true,
+                  deliveryEnabled: true,
+                  physicalItemIncluded: true,
+                  officialItem: true,
+                },
+              }),
+            ]);
 
           if (!mint?.verified) {
             console.log("[SKIP] trade mint missing/not verified", { nft, tokenId });
             continue;
           }
-
-          const [sellerUser, buyerUser, currentListing] = await Promise.all([
-            prisma.user.findUnique({
-              where: { walletAddress: seller },
-              select: { id: true },
-            }),
-            prisma.user.findUnique({
-              where: { walletAddress: buyer },
-              select: { id: true },
-            }),
-            prisma.listing.findUnique({
-              where: {
-                chainId_marketplaceListingId: {
-                  chainId: CHAIN_ID,
-                  marketplaceListingId: listingId,
-                },
-              },
-              select: {
-                id: true,
-                status: true,
-                amountRemaining: true,
-                deliveryEnabled: true,
-                physicalItemIncluded: true,
-                officialItem: true,
-              },
-            }),
-          ]);
 
           let createdTrade = false;
           let tradeRow = null;
@@ -328,7 +383,6 @@ async function mainLoop() {
             }
           }
 
-          // side-effects only once
           if (createdTrade) {
             if (currentListing && currentListing.status === "ACTIVE") {
               const newRemaining = BigInt(currentListing.amountRemaining) - amount;
@@ -349,7 +403,6 @@ async function mainLoop() {
               });
             }
 
-            // seller -= amount
             if (sellerUser?.id) {
               await prisma.holding.updateMany({
                 where: {
@@ -362,7 +415,6 @@ async function mainLoop() {
               });
             }
 
-            // buyer += amount
             if (buyerUser?.id) {
               await prisma.holding.upsert({
                 where: {
@@ -386,19 +438,29 @@ async function mainLoop() {
             }
           }
 
-          // create secondary delivery order if needed
-          // important: do it independently from createdTrade, so if trade already existed
-          // but order was not created yet, reprocessing can still recover it
           const deliveryEnabled =
-            currentListing?.deliveryEnabled ?? Boolean(mint.deliveryEnabled);
+            currentListing?.deliveryEnabled ??
+            product?.deliveryEnabled ??
+            Boolean(mint.deliveryEnabled);
 
           const physicalItemIncluded =
-            currentListing?.physicalItemIncluded ?? Boolean(mint.physicalItemIncluded);
+            currentListing?.physicalItemIncluded ??
+            product?.physicalItemIncluded ??
+            Boolean(mint.physicalItemIncluded);
 
           const officialItem =
-            currentListing?.officialItem ?? Boolean(mint.officialItem);
+            currentListing?.officialItem ??
+            product?.officialItem ??
+            Boolean(mint.officialItem);
 
-          if (tradeRow?.id && deliveryEnabled) {
+          const deliveryRequired =
+            Boolean(deliveryEnabled) || Boolean(physicalItemIncluded);
+
+          const vertical = product?.vertical || "marketplace";
+          const paymentToken =
+            norm(product?.paymentToken || "") || PAYMENT_TOKEN_FALLBACK || null;
+
+          if (tradeRow?.id && deliveryRequired) {
             const existingOrder = await prisma.storeOrder.findFirst({
               where: { tradeId: tradeRow.id },
               select: { id: true },
@@ -413,7 +475,7 @@ async function mainLoop() {
 
                   sourceType: "MARKETPLACE",
                   orderKind: "SECONDARY",
-                  vertical: "marketplace",
+                  vertical,
 
                   buyerWallet: buyer,
                   sellerWallet: seller,
@@ -429,7 +491,7 @@ async function mainLoop() {
                   unitPrice: pricePerUnitWei,
                   totalPrice: totalPriceWei,
 
-                  paymentToken: null,
+                  paymentToken,
 
                   deliveryRequired: true,
                   physicalItem: Boolean(physicalItemIncluded),
@@ -449,6 +511,9 @@ async function mainLoop() {
                 tokenId,
                 buyer,
                 seller,
+                vertical,
+                deliveryRequired,
+                physicalItemIncluded: Boolean(physicalItemIncluded),
               });
             }
           }
@@ -462,7 +527,10 @@ async function mainLoop() {
             amount: amount.toString(),
             totalPriceWei: totalPriceWei.toString(),
             createdTrade,
+            vertical,
             deliveryEnabled: Boolean(deliveryEnabled),
+            physicalItemIncluded: Boolean(physicalItemIncluded),
+            deliveryRequired: Boolean(deliveryRequired),
           });
         }
       }
@@ -483,6 +551,7 @@ process.on("SIGINT", async () => {
     process.exit(0);
   }
 });
+
 process.on("SIGTERM", async () => {
   try {
     await prisma.$disconnect();

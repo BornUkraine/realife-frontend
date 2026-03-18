@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function s(v: any) {
+function s(v: unknown) {
   return typeof v === "bigint" ? v.toString() : v;
 }
 
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   const statusRaw = (url.searchParams.get("status") || "ACTIVE").toUpperCase();
   const status = ALLOWED_STATUS.has(statusRaw) ? statusRaw : "ACTIVE";
 
-  const take = Math.min(toInt(url.searchParams.get("take")) ?? 30, 100);
+  const take = Math.max(1, Math.min(toInt(url.searchParams.get("take")) ?? 30, 100));
   const skip = Math.max(toInt(url.searchParams.get("skip")) ?? 0, 0);
 
   const where: any = { status };
@@ -51,18 +51,34 @@ export async function GET(req: NextRequest) {
   if (standard) where.standard = standard;
 
   // закрытый маркет: только то, что есть в Mint и verified=true
-  where.mint = { verified: true };
+  where.mint = {
+    is: {
+      verified: true,
+    },
+  };
 
   try {
     const [rows, total] = await Promise.all([
       prisma.listing.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take,
         skip,
         include: {
-          mint: { select: { name: true, image: true, tokenUri: true, verified: true } },
-          seller: { select: { handle: true, publicId: true } },
+          mint: {
+            select: {
+              name: true,
+              image: true,
+              tokenUri: true,
+              verified: true,
+            },
+          },
+          seller: {
+            select: {
+              handle: true,
+              publicId: true,
+            },
+          },
         },
       }),
       prisma.listing.count({ where }),

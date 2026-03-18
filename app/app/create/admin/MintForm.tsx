@@ -39,6 +39,8 @@ const ADMIN_WALLETS = (
   .map((v) => v.trim().toLowerCase())
   .filter(Boolean);
 
+const DELIVERY_ACCESS_WALLET_LOOKUP_URL = "/api/admin/users/by-wallet";
+
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 const ZERO_BYTES32 = `0x${"0".repeat(64)}` as const;
 
@@ -321,6 +323,14 @@ function clampSupply(n: number) {
 function shortAddr(a?: string | null) {
   if (!a) return "—";
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
+}
+
+function normAddr(v?: string | null) {
+  return String(v || "").trim().toLowerCase();
+}
+
+function isAddressLike(v?: string | null) {
+  return /^0x[a-fA-F0-9]{40}$/.test(String(v || "").trim());
 }
 
 function prettyError(e: any) {
@@ -689,7 +699,6 @@ export default function AdminMintForm() {
     null
   );
 
-  // Delivery Access Manager state
   const [deliveryLookup, setDeliveryLookup] = useState("");
   const [deliveryLookupLoading, setDeliveryLookupLoading] = useState(false);
   const [deliveryLookupError, setDeliveryLookupError] = useState("");
@@ -1043,7 +1052,7 @@ export default function AdminMintForm() {
 
     const raw = deliveryLookup.trim();
     if (!raw) {
-      setDeliveryLookupError("Enter user id, publicId or handle.");
+      setDeliveryLookupError("Enter user id, publicId, handle or wallet.");
       return;
     }
 
@@ -1059,8 +1068,47 @@ export default function AdminMintForm() {
         return { ok: r.ok, status: r.status, data: j };
       };
 
-      // 1) try direct id first
-      let direct = await tryAdminGet(raw);
+      const resolveByAdminId = async (id: string, notice: string) => {
+        const res = await tryAdminGet(id);
+        if (!res.ok || !res.data?.ok || !res.data?.user) {
+          if (res.status === 403) {
+            throw new Error("Admin API access denied for this wallet/session.");
+          }
+          throw new Error(res.data?.error || "Failed to load delivery access.");
+        }
+
+        const u = res.data.user as DeliveryAccessUser;
+        setDeliveryAccessUser(u);
+        setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
+        setDeliveryLookupNotice(notice);
+      };
+
+      if (isAddressLike(raw)) {
+        const wallet = normAddr(raw);
+
+        const walletRes = await fetch(
+          `${DELIVERY_ACCESS_WALLET_LOOKUP_URL}?wallet=${encodeURIComponent(wallet)}`,
+          { cache: "no-store" }
+        );
+        const walletData = await walletRes.json().catch(() => null);
+
+        if (!walletRes.ok || !walletData?.ok || !walletData?.user?.id) {
+          if (walletRes.status === 403) {
+            throw new Error("Admin API access denied for this wallet/session.");
+          }
+          if (walletRes.status === 404) {
+            throw new Error(
+              "Wallet lookup route is missing or user not found. Add /api/admin/users/by-wallet route first."
+            );
+          }
+          throw new Error(walletData?.error || "User not found by wallet.");
+        }
+
+        await resolveByAdminId(String(walletData.user.id), "User resolved by wallet.");
+        return;
+      }
+
+      const direct = await tryAdminGet(raw);
       if (direct.ok && direct.data?.ok && direct.data?.user) {
         const u = direct.data.user as DeliveryAccessUser;
         setDeliveryAccessUser(u);
@@ -1069,7 +1117,6 @@ export default function AdminMintForm() {
         return;
       }
 
-      // 2) fallback: publicId / handle via public route, then re-read admin route by db id
       const publicRes = await fetch(`/api/u/${encodeURIComponent(raw)}`, {
         cache: "no-store",
       });
@@ -1079,23 +1126,13 @@ export default function AdminMintForm() {
         if (direct.status === 403) {
           throw new Error("Admin API access denied for this wallet/session.");
         }
-        throw new Error("User not found. Use database user id, publicId or handle.");
+        throw new Error("User not found. Use database user id, publicId, handle or wallet.");
       }
 
-      const resolvedId = String(publicData.user.id);
-      const finalRes = await tryAdminGet(resolvedId);
-
-      if (!finalRes.ok || !finalRes.data?.ok || !finalRes.data?.user) {
-        if (finalRes.status === 403) {
-          throw new Error("Admin API access denied for this wallet/session.");
-        }
-        throw new Error(finalRes.data?.error || "Failed to load delivery access.");
-      }
-
-      const u = finalRes.data.user as DeliveryAccessUser;
-      setDeliveryAccessUser(u);
-      setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
-      setDeliveryLookupNotice("User resolved by publicId / handle.");
+      await resolveByAdminId(
+        String(publicData.user.id),
+        "User resolved by publicId / handle."
+      );
     } catch (e: any) {
       setDeliveryAccessUser(null);
       setDeliveryAccessNote("");
@@ -1661,7 +1698,6 @@ export default function AdminMintForm() {
           ) : null}
         </Card>
 
-        {/* NEW: DELIVERY ACCESS MANAGER */}
         <Card>
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -1683,7 +1719,7 @@ export default function AdminMintForm() {
             </div>
             <input
               type="text"
-              placeholder="User id / publicId / handle"
+              placeholder="User id / publicId / handle / 0xwallet"
               value={deliveryLookup}
               onChange={(e) => {
                 setDeliveryLookup(e.target.value);
@@ -1717,8 +1753,9 @@ export default function AdminMintForm() {
 
           <div className="mt-3 text-[11px] text-white/50 leading-relaxed">
             Search currently supports <span className="text-white/75 font-semibold">database user id</span>,{" "}
-            <span className="text-white/75 font-semibold">publicId</span> or{" "}
-            <span className="text-white/75 font-semibold">handle</span>.
+            <span className="text-white/75 font-semibold">publicId</span>,{" "}
+            <span className="text-white/75 font-semibold">handle</span> or{" "}
+            <span className="text-white/75 font-semibold">wallet address</span>.
           </div>
 
           {deliveryLookupError ? (

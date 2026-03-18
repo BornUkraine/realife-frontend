@@ -30,7 +30,9 @@ const STORE_CONTRACT = (
   .toLowerCase();
 
 if (!CAFE_STORE && !STORE_CONTRACT) {
-  throw new Error("No NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT / NEXT_PUBLIC_REALIFE_STORE_CONTRACT configured");
+  throw new Error(
+    "No NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT / NEXT_PUBLIC_REALIFE_STORE_CONTRACT configured"
+  );
 }
 
 const DEFAULT_CREATOR_WALLET = (
@@ -57,9 +59,15 @@ const STORE_CREATOR_WALLET = (
   .trim()
   .toLowerCase();
 
-const DEFAULT_START_BLOCK = BigInt(process.env.REAL_MARKETING_INDEXER_START_BLOCK || "0");
-const CONFIRMATIONS = BigInt(process.env.REAL_MARKETING_INDEXER_CONFIRMATIONS || "5");
-const BATCH = BigInt(process.env.REAL_MARKETING_INDEXER_BATCH_BLOCKS || "2000");
+const DEFAULT_START_BLOCK = BigInt(
+  process.env.REAL_MARKETING_INDEXER_START_BLOCK || "0"
+);
+const CONFIRMATIONS = BigInt(
+  process.env.REAL_MARKETING_INDEXER_CONFIRMATIONS || "5"
+);
+const BATCH = BigInt(
+  process.env.REAL_MARKETING_INDEXER_BATCH_BLOCKS || "2000"
+);
 const SLEEP_MS = Number(process.env.REAL_MARKETING_INDEXER_SLEEP_MS || "8000");
 
 const CAFE_START_BLOCK = BigInt(
@@ -168,7 +176,9 @@ function ipfsToHttp(uri) {
   }
 
   if (u.startsWith("/ipfs/")) return `${IPFS_GATEWAY_ORIGIN}${u}`;
-  if (u.startsWith("Qm") || u.startsWith("bafy")) return `${IPFS_GATEWAY_ORIGIN}/ipfs/${u}`;
+  if (u.startsWith("Qm") || u.startsWith("bafy")) {
+    return `${IPFS_GATEWAY_ORIGIN}/ipfs/${u}`;
+  }
 
   return u;
 }
@@ -242,7 +252,11 @@ async function getLastBlock(cfg) {
   const row = await prisma.indexerState.upsert({
     where: { chainId_key: { chainId: CHAIN_ID, key } },
     update: {},
-    create: { chainId: CHAIN_ID, key, lastBlock: cfg.startBlock || DEFAULT_START_BLOCK },
+    create: {
+      chainId: CHAIN_ID,
+      key,
+      lastBlock: cfg.startBlock || DEFAULT_START_BLOCK,
+    },
   });
   return BigInt(row.lastBlock);
 }
@@ -277,9 +291,7 @@ async function resolveTokenUri(cfg, tokenId, eventUri) {
 async function buildProductSnapshot(cfg, tokenId, opts = {}) {
   const tokenIdStr = tokenId.toString();
 
-  const tokenUri =
-    (await resolveTokenUri(cfg, tokenId, opts.eventUri)) ||
-    null;
+  const tokenUri = (await resolveTokenUri(cfg, tokenId, opts.eventUri)) || null;
 
   let name = null;
   let image = null;
@@ -302,60 +314,71 @@ async function buildProductSnapshot(cfg, tokenId, opts = {}) {
     name = `Realife ${prettyVertical(cfg.vertical)} Product #${tokenIdStr}`;
   }
 
-  const paymentToken = norm(
-    opts.paymentToken ??
-      (await readOptional(cfg.contract, "paymentToken", [], "")) ??
-      process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS ??
-      process.env.PAYMENT_TOKEN_ADDRESS ??
-      ""
-  ) || null;
+  const paymentToken =
+    norm(
+      opts.paymentToken ??
+        (await readOptional(cfg.contract, "paymentToken", [], "")) ??
+        process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS ??
+        process.env.PAYMENT_TOKEN_ADDRESS ??
+        ""
+    ) || null;
 
-  const treasury = norm(
-    await readOptional(cfg.contract, "treasury", [], "")
-  ) || DEFAULT_CREATOR_WALLET || null;
+  const treasury =
+    norm(await readOptional(cfg.contract, "treasury", [], "")) ||
+    DEFAULT_CREATOR_WALLET ||
+    null;
 
   let creatorWallet = norm(opts.creatorWallet || "");
   let primarySellerWallet = norm(opts.primarySellerWallet || "");
 
-  let maxSupply = opts.maxSupply != null
-    ? BigInt(opts.maxSupply)
-    : BigInt((await readOptional(cfg.contract, "maxSupply", [tokenId], 0n)) || 0n);
+  let maxSupply =
+    opts.maxSupply != null
+      ? BigInt(opts.maxSupply)
+      : BigInt((await readOptional(cfg.contract, "maxSupply", [tokenId], 0n)) || 0n);
 
-  let price = opts.price != null
-    ? BigInt(opts.price)
-    : BigInt((await readOptional(cfg.contract, "productPrices", [tokenId], 0n)) || 0n);
+  let price =
+    opts.price != null
+      ? BigInt(opts.price)
+      : BigInt((await readOptional(cfg.contract, "productPrices", [tokenId], 0n)) || 0n);
 
-  let isActive = typeof opts.isActive === "boolean"
-    ? opts.isActive
-    : Boolean(await readOptional(cfg.contract, "isActive", [tokenId], true));
+  let isActive =
+    typeof opts.isActive === "boolean"
+      ? opts.isActive
+      : Boolean(await readOptional(cfg.contract, "isActive", [tokenId], true));
 
   let mintedSupply = BigInt(
     (await readOptional(cfg.contract, "totalSupply", [tokenId], 0n)) || 0n
   );
 
-  let deliveryEnabled = typeof opts.deliveryEnabled === "boolean"
-    ? opts.deliveryEnabled
-    : cfg.defaultDeliveryEnabled;
+  let deliveryEnabled =
+    typeof opts.deliveryEnabled === "boolean"
+      ? opts.deliveryEnabled
+      : cfg.defaultDeliveryEnabled;
 
-  let physicalItemIncluded = typeof opts.physicalItemIncluded === "boolean"
-    ? opts.physicalItemIncluded
-    : cfg.defaultPhysicalItemIncluded;
+  let physicalItemIncluded =
+    typeof opts.physicalItemIncluded === "boolean"
+      ? opts.physicalItemIncluded
+      : cfg.defaultPhysicalItemIncluded;
 
-  let officialItem = typeof opts.officialItem === "boolean"
-    ? opts.officialItem
-    : cfg.defaultOfficialItem;
+  let officialItem =
+    typeof opts.officialItem === "boolean"
+      ? opts.officialItem
+      : cfg.defaultOfficialItem;
 
   if (cfg.kind === "store") {
     if (!creatorWallet) {
-      creatorWallet = norm(
-        await readOptional(cfg.contract, "creatorOf", [tokenId], "")
-      ) || cfg.creatorWallet || treasury || null;
+      creatorWallet =
+        norm(await readOptional(cfg.contract, "creatorOf", [tokenId], "")) ||
+        cfg.creatorWallet ||
+        treasury ||
+        null;
     }
 
     if (!primarySellerWallet) {
-      primarySellerWallet = norm(
-        await readOptional(cfg.contract, "primarySellerOf", [tokenId], "")
-      ) || treasury || null;
+      primarySellerWallet =
+        norm(await readOptional(cfg.contract, "primarySellerOf", [tokenId], "")) ||
+        treasury ||
+        null;
     }
 
     if (typeof opts.deliveryEnabled !== "boolean") {
@@ -377,7 +400,8 @@ async function buildProductSnapshot(cfg, tokenId, opts = {}) {
     }
   } else {
     creatorWallet = creatorWallet || cfg.creatorWallet || treasury || null;
-    primarySellerWallet = primarySellerWallet || treasury || cfg.creatorWallet || null;
+    primarySellerWallet =
+      primarySellerWallet || treasury || cfg.creatorWallet || null;
   }
 
   return {
@@ -455,13 +479,20 @@ async function ensureMintRecord(cfg, tokenId, opts = {}) {
       name: true,
       image: true,
       verified: true,
+      deliveryEnabled: true,
+      physicalItemIncluded: true,
+      officialItem: true,
     },
   });
 
-  const snapshot = opts.snapshot || await buildProductSnapshot(cfg, tokenId, opts);
+  const snapshot = opts.snapshot || (await buildProductSnapshot(cfg, tokenId, opts));
 
   const creatorWallet = norm(
-    snapshot.creatorWallet || opts.creatorWallet || opts.actorWallet || cfg.creatorWallet || ""
+    snapshot.creatorWallet ||
+      opts.creatorWallet ||
+      opts.actorWallet ||
+      cfg.creatorWallet ||
+      ""
   );
 
   const creatorUserId =
@@ -495,12 +526,20 @@ async function ensureMintRecord(cfg, tokenId, opts = {}) {
       name: snapshot.name,
       image: snapshot.image,
       verified: true,
+
+      deliveryEnabled: Boolean(snapshot.deliveryEnabled),
+      physicalItemIncluded: Boolean(snapshot.physicalItemIncluded),
+      officialItem: Boolean(snapshot.officialItem),
     },
     update: {
       tokenUri: snapshot.tokenUri || undefined,
       name: snapshot.name || undefined,
       image: snapshot.image || undefined,
       verified: true,
+
+      deliveryEnabled: Boolean(snapshot.deliveryEnabled),
+      physicalItemIncluded: Boolean(snapshot.physicalItemIncluded),
+      officialItem: Boolean(snapshot.officialItem),
     },
   });
 
@@ -732,10 +771,12 @@ async function processLog(cfg, log) {
     const tokenId = BigInt(parsed.args.tokenId);
     const enabled = Boolean(parsed.args.enabled);
 
-    await upsertRealMarketingProduct(cfg, tokenId, {
+    const snapshot = await upsertRealMarketingProduct(cfg, tokenId, {
       deliveryEnabled: enabled,
       lastTxHash: txHash,
     });
+
+    await ensureMintRecord(cfg, tokenId, { snapshot });
 
     console.log("[REAL_MARKETING_DELIVERY_UPDATED]", {
       vertical: cfg.vertical,
@@ -751,10 +792,12 @@ async function processLog(cfg, log) {
     const tokenId = BigInt(parsed.args.tokenId);
     const enabled = Boolean(parsed.args.enabled);
 
-    await upsertRealMarketingProduct(cfg, tokenId, {
+    const snapshot = await upsertRealMarketingProduct(cfg, tokenId, {
       physicalItemIncluded: enabled,
       lastTxHash: txHash,
     });
+
+    await ensureMintRecord(cfg, tokenId, { snapshot });
 
     console.log("[REAL_MARKETING_PHYSICAL_UPDATED]", {
       vertical: cfg.vertical,
@@ -770,10 +813,12 @@ async function processLog(cfg, log) {
     const tokenId = BigInt(parsed.args.tokenId);
     const enabled = Boolean(parsed.args.enabled);
 
-    await upsertRealMarketingProduct(cfg, tokenId, {
+    const snapshot = await upsertRealMarketingProduct(cfg, tokenId, {
       officialItem: enabled,
       lastTxHash: txHash,
     });
+
+    await ensureMintRecord(cfg, tokenId, { snapshot });
 
     console.log("[REAL_MARKETING_OFFICIAL_UPDATED]", {
       vertical: cfg.vertical,
@@ -789,10 +834,12 @@ async function processLog(cfg, log) {
     const tokenId = BigInt(parsed.args.tokenId);
     const newSeller = norm(String(parsed.args.newSeller || ""));
 
-    await upsertRealMarketingProduct(cfg, tokenId, {
+    const snapshot = await upsertRealMarketingProduct(cfg, tokenId, {
       primarySellerWallet: newSeller,
       lastTxHash: txHash,
     });
+
+    await ensureMintRecord(cfg, tokenId, { snapshot });
 
     console.log("[REAL_MARKETING_PRIMARY_SELLER_UPDATED]", {
       vertical: cfg.vertical,
@@ -886,7 +933,9 @@ async function scanContract(cfg) {
     toBlock: Number(toBlock),
   });
 
-  console.log(`[REAL_MARKETING_SCAN:${cfg.vertical}] ${fromBlock}..${toBlock} logs=${logs.length}`);
+  console.log(
+    `[REAL_MARKETING_SCAN:${cfg.vertical}] ${fromBlock}..${toBlock} logs=${logs.length}`
+  );
 
   for (const log of logs) {
     await processLog(cfg, log);

@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function s(v: any) {
+function s(v: unknown) {
   return typeof v === "bigint" ? v.toString() : v;
 }
 
@@ -31,32 +31,76 @@ export async function GET(req: NextRequest) {
   const contract = normAddr(url.searchParams.get("contract"));
   const tokenId = (url.searchParams.get("tokenId") || "").trim();
 
-  const listingsTake = Math.min(toInt(url.searchParams.get("listingsTake")) ?? 50, 200);
-  const tradesTake = Math.min(toInt(url.searchParams.get("tradesTake")) ?? 100, 500);
+  const listingsTake = Math.max(
+    1,
+    Math.min(toInt(url.searchParams.get("listingsTake")) ?? 50, 200)
+  );
+  const tradesTake = Math.max(
+    1,
+    Math.min(toInt(url.searchParams.get("tradesTake")) ?? 100, 500)
+  );
 
   if (!chainId || !contract || !tokenId) {
-    return NextResponse.json({ ok: false, error: "Missing chainId/contract/tokenId" }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error: "Missing chainId/contract/tokenId" },
+      { status: 400 }
+    );
   }
 
   try {
     const mint = await prisma.mint.findUnique({
-      where: { chainId_contract_tokenId: { chainId, contract, tokenId } },
+      where: {
+        chainId_contract_tokenId: {
+          chainId,
+          contract,
+          tokenId,
+        },
+      },
     });
 
     if (!mint || !mint.verified) {
-      return NextResponse.json({ ok: false, error: "NFT_NOT_FOUND_OR_NOT_VERIFIED" }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: "NFT_NOT_FOUND_OR_NOT_VERIFIED" },
+        { status: 404 }
+      );
     }
 
     const [listings, trades] = await Promise.all([
       prisma.listing.findMany({
-        where: { chainId, contract, tokenId, status: "ACTIVE", mint: { verified: true } },
-        orderBy: { createdAt: "desc" },
+        where: {
+          chainId,
+          contract,
+          tokenId,
+          status: "ACTIVE",
+          mint: {
+            is: {
+              verified: true,
+            },
+          },
+        },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: listingsTake,
-        include: { seller: { select: { handle: true, publicId: true } } },
+        include: {
+          seller: {
+            select: {
+              handle: true,
+              publicId: true,
+            },
+          },
+        },
       }),
       prisma.trade.findMany({
-        where: { chainId, contract, tokenId, mint: { verified: true } },
-        orderBy: { blockTime: "desc" },
+        where: {
+          chainId,
+          contract,
+          tokenId,
+          mint: {
+            is: {
+              verified: true,
+            },
+          },
+        },
+        orderBy: [{ blockTime: "desc" }, { id: "desc" }],
         take: tradesTake,
       }),
     ]);
