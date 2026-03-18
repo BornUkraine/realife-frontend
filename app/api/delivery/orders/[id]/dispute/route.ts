@@ -19,15 +19,10 @@ function clean(v: unknown, max = 500) {
 async function getActor() {
   const session = await getServerSession(authOptions);
 
-  const userId =
-    (session as any)?.user?.id ||
-    (session as any)?.userId ||
-    null;
+  const userId = (session as any)?.user?.id || (session as any)?.userId || null;
 
   const walletAddress = normAddr(
-    (session as any)?.user?.walletAddress ||
-      (session as any)?.walletAddress ||
-      ""
+    (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
   );
 
   return { userId, walletAddress };
@@ -44,15 +39,13 @@ function getViewerRole(
 ): "buyer" | "seller" | null {
   const isBuyer =
     (actor.userId && order.buyerId && actor.userId === order.buyerId) ||
-    (actor.walletAddress &&
-      actor.walletAddress === normAddr(order.buyerWallet));
+    (actor.walletAddress && actor.walletAddress === normAddr(order.buyerWallet));
 
   if (isBuyer) return "buyer";
 
   const isSeller =
     (actor.userId && order.sellerId && actor.userId === order.sellerId) ||
-    (actor.walletAddress &&
-      actor.walletAddress === normAddr(order.sellerWallet));
+    (actor.walletAddress && actor.walletAddress === normAddr(order.sellerWallet));
 
   if (isSeller) return "seller";
 
@@ -88,18 +81,12 @@ export async function POST(
     const actor = await getActor();
 
     if (!actor.userId && !actor.walletAddress) {
-      return NextResponse.json(
-        { ok: false, error: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const note = clean(body?.note, 500);
     if (!note) {
-      return NextResponse.json(
-        { ok: false, error: "DISPUTE_NOTE_REQUIRED" },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "DISPUTE_NOTE_REQUIRED" }, { status: 400 });
     }
 
     const order = await prisma.storeOrder.findUnique({
@@ -117,19 +104,13 @@ export async function POST(
     });
 
     if (!order) {
-      return NextResponse.json(
-        { ok: false, error: "ORDER_NOT_FOUND" },
-        { status: 404 }
-      );
+      return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
     }
 
     const viewerRole = getViewerRole(actor, order);
 
     if (!viewerRole) {
-      return NextResponse.json(
-        { ok: false, error: "FORBIDDEN" },
-        { status: 403 }
-      );
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     const finalizedEscrowStatuses: EscrowStatus[] = [
@@ -139,17 +120,11 @@ export async function POST(
     ];
 
     if (finalizedEscrowStatuses.includes(order.escrowStatus)) {
-      return NextResponse.json(
-        { ok: false, error: "ORDER_ALREADY_FINALIZED" },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "ORDER_ALREADY_FINALIZED" }, { status: 400 });
     }
 
     if (order.escrowStatus === EscrowStatus.DISPUTED) {
-      return NextResponse.json({
-        ok: true,
-        alreadyDisputed: true,
-      });
+      return NextResponse.json({ ok: true, alreadyDisputed: true });
     }
 
     const now = new Date();
@@ -163,9 +138,7 @@ export async function POST(
           order.deliveryRequired,
           order.deliveryStatus
         ),
-        ...(viewerRole === "buyer"
-          ? { noteBuyer: note }
-          : { noteSeller: note }),
+        ...(viewerRole === "buyer" ? { noteBuyer: note } : { noteSeller: note }),
       },
       select: {
         id: true,
@@ -179,13 +152,13 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
-      order: updated,
+      order: {
+        ...updated,
+        disputedAt: updated.disputedAt ? updated.disputedAt.toISOString() : null,
+      },
     });
   } catch (e) {
-    console.error("[API_STORE_ORDER_DISPUTE_ERROR]", e);
-    return NextResponse.json(
-      { ok: false, error: "INTERNAL" },
-      { status: 500 }
-    );
+    console.error("[API_DELIVERY_ORDER_DISPUTE_ERROR]", e);
+    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
   }
 }

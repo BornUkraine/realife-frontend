@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useAccount,
@@ -71,6 +72,9 @@ const erc20Abi = [
 ] as const;
 
 const MAX_UINT256 = (1n << 256n) - 1n;
+
+const DELIVERY_CREATE_ENDPOINT = "/api/delivery/orders/create";
+const LEGACY_STORE_CREATE_ENDPOINT = "/api/store/orders/create";
 
 type BuyArg = string | number | boolean;
 type CheckoutMode = "simple" | "delivery";
@@ -299,10 +303,8 @@ export default function StorefrontBuyPanel1155({
     }
   }
 
-  async function createOrderAfterBuy(hash: string) {
-    if (!requiresShipping) return;
-
-    const r = await fetch("/api/store/orders/create", {
+  async function postOrderCreate(url: string, hash: string) {
+    const r = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -311,6 +313,11 @@ export default function StorefrontBuyPanel1155({
         tokenId,
         amount: "1",
         buyTxHash: hash,
+
+        vertical,
+        sourceType: "STORE",
+        orderKind: "PRIMARY",
+
         shippingName,
         shippingPhone,
         shippingCountry,
@@ -321,10 +328,23 @@ export default function StorefrontBuyPanel1155({
     });
 
     const j = await r.json().catch(() => null);
+    return { r, j };
+  }
 
-    if (!r.ok || !j?.ok) {
-      throw new Error(j?.error || "ORDER_CREATE_FAILED");
+  async function createOrderAfterBuy(hash: string) {
+    if (!requiresShipping) return;
+
+    let primary = await postOrderCreate(DELIVERY_CREATE_ENDPOINT, hash);
+    if (primary.r.ok && primary.j?.ok) return;
+
+    if (primary.r.status === 404) {
+      const legacy = await postOrderCreate(LEGACY_STORE_CREATE_ENDPOINT, hash);
+      if (legacy.r.ok && legacy.j?.ok) return;
+
+      throw new Error(legacy.j?.error || "ORDER_CREATE_FAILED");
     }
+
+    throw new Error(primary.j?.error || "ORDER_CREATE_FAILED");
   }
 
   async function approveToken() {
@@ -406,10 +426,14 @@ export default function StorefrontBuyPanel1155({
       await revalidateAfterBuy();
       router.refresh();
 
-      setOk(successMessage);
+      setOk(
+        requiresShipping
+          ? "Purchase completed ✅ Delivery order saved."
+          : successMessage
+      );
 
       if (orderWarning) {
-        setErr(`On-chain purchase succeeded, but order save failed: ${orderWarning}`);
+        setErr(`On-chain purchase succeeded, but delivery order save failed: ${orderWarning}`);
       }
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Buy failed");
@@ -536,12 +560,23 @@ export default function StorefrontBuyPanel1155({
 
           {requiresShipping ? (
             <div className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
-              <div className="text-[12px] font-black text-sky-100">
-                Delivery checkout
-              </div>
-              <div className="mt-1 text-[12px] text-sky-50/80">
-                This product requires shipping info. After successful on-chain buy,
-                an order record will be created in the backend.
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-[12px] font-black text-sky-100">
+                    Delivery checkout
+                  </div>
+                  <div className="mt-1 text-[12px] text-sky-50/80">
+                    This product requires shipping info. After successful on-chain buy,
+                    a delivery order will be created in the unified delivery layer.
+                  </div>
+                </div>
+
+                <Link
+                  href="/app/orders"
+                  className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-sky-200/20 bg-white/10 hover:bg-white/15 text-[12px] font-black text-sky-50 transition"
+                >
+                  Open Orders
+                </Link>
               </div>
 
               <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">

@@ -32,7 +32,13 @@ function pickViewer(session: any) {
   };
 }
 
-function isSeller(viewer: { id: string | null; wallet: string | null }, row: any) {
+function isSeller(
+  viewer: { id: string | null; wallet: string | null },
+  row: {
+    sellerId: string | null;
+    sellerWallet: string;
+  }
+) {
   return Boolean(
     (viewer.id && row.sellerId && viewer.id === row.sellerId) ||
       (viewer.wallet && normAddr(row.sellerWallet) === viewer.wallet)
@@ -62,7 +68,6 @@ export async function POST(
       where: { id: orderId },
       select: {
         id: true,
-        vertical: true,
         sellerId: true,
         sellerWallet: true,
         deliveryRequired: true,
@@ -72,19 +77,12 @@ export async function POST(
       },
     });
 
-    if (!order || order.vertical !== "store") {
+    if (!order || !order.deliveryRequired) {
       return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
     }
 
     if (!isSeller(viewer, order)) {
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
-    }
-
-    if (!order.deliveryRequired) {
-      return NextResponse.json(
-        { ok: false, error: "DELIVERY_NOT_REQUIRED" },
-        { status: 400 }
-      );
     }
 
     if (
@@ -98,7 +96,10 @@ export async function POST(
       );
     }
 
-    if (order.escrowStatus === "REFUNDED" || order.escrowStatus === "CANCELLED") {
+    if (
+      order.escrowStatus === "REFUNDED" ||
+      order.escrowStatus === "CANCELLED"
+    ) {
       return NextResponse.json(
         { ok: false, error: "ORDER_NOT_SHIPPABLE" },
         { status: 400 }
@@ -148,7 +149,7 @@ export async function POST(
       },
     });
   } catch (e) {
-    console.error("[API_STORE_ORDER_SHIP_ERROR]", e);
+    console.error("[API_DELIVERY_ORDER_SHIP_ERROR]", e);
     return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
   }
 }

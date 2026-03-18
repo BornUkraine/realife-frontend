@@ -9,7 +9,7 @@ function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
 
-export default function StoreOrdersPage() {
+export default function OrdersPage() {
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
       <div className="pointer-events-none fixed inset-0">
@@ -25,18 +25,36 @@ export default function StoreOrdersPage() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-              Realife Store
+              Realife Delivery
             </div>
+
             <h1 className="mt-2 text-3xl md:text-4xl font-black tracking-tight text-white/95">
               Orders & Delivery
             </h1>
+
             <div className="mt-2 max-w-3xl text-[13px] text-white/55">
-              Здесь buyer и seller управляют доставкой, подтверждением получения и
-              escrow-флоу для store NFT.
+              Единый delivery-раздел для всех NFT с доставкой: store покупки,
+              future public mint delivery и secondary trading delivery.
+            </div>
+
+            <div className="mt-3 max-w-3xl text-[13px] text-white/50 leading-relaxed">
+              Здесь buyer и seller управляют shipping flow, tracking, confirmation
+              и escrow-статусами в одной общей системе, без разделения на store-only
+              логику.
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            <Link
+              href="/app/profile"
+              className={cx(
+                "px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06]",
+                "hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
+              )}
+            >
+              Profile
+            </Link>
+
             <Link
               href="/app/real-marketing/realife-store"
               className={cx(
@@ -44,7 +62,7 @@ export default function StoreOrdersPage() {
                 "hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
               )}
             >
-              Back to Store
+              Store
             </Link>
 
             <Link
@@ -62,7 +80,7 @@ export default function StoreOrdersPage() {
         <OrdersClient />
 
         <footer className="pt-10 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]">
-          Realife Ecosystem • Store Orders
+          Realife Ecosystem • Delivery Orders
         </footer>
       </div>
     </main>

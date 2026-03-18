@@ -49,9 +49,20 @@ export async function GET(req: Request) {
     }
 
     const url = new URL(req.url);
+
     const roleRaw = String(url.searchParams.get("role") || "all").toLowerCase();
     const role = roleRaw === "buyer" || roleRaw === "seller" ? roleRaw : "all";
-    const vertical = String(url.searchParams.get("vertical") || "store").trim() || "store";
+
+    const vertical = String(url.searchParams.get("vertical") || "").trim().toLowerCase() || null;
+
+    const sourceTypeRaw = String(url.searchParams.get("sourceType") || "").trim().toUpperCase();
+    const sourceType =
+      sourceTypeRaw === "STORE" || sourceTypeRaw === "MARKETPLACE" ? sourceTypeRaw : null;
+
+    const orderKindRaw = String(url.searchParams.get("orderKind") || "").trim().toUpperCase();
+    const orderKind =
+      orderKindRaw === "PRIMARY" || orderKindRaw === "SECONDARY" ? orderKindRaw : null;
+
     const take = clamp(Number(url.searchParams.get("take") || "50"), 1, 100);
 
     const buyerClauses: any[] = [];
@@ -68,8 +79,12 @@ export async function GET(req: Request) {
     }
 
     const where: any = {
-      vertical,
+      deliveryRequired: true,
     };
+
+    if (vertical) where.vertical = vertical;
+    if (sourceType) where.sourceType = sourceType;
+    if (orderKind) where.orderKind = orderKind;
 
     if (role === "buyer") {
       where.OR = buyerClauses;
@@ -91,12 +106,19 @@ export async function GET(req: Request) {
         chainId: true,
         contract: true,
         tokenId: true,
+
+        sourceType: true,
+        orderKind: true,
         vertical: true,
 
         buyerWallet: true,
         sellerWallet: true,
         buyerId: true,
         sellerId: true,
+
+        listingId: true,
+        tradeId: true,
+        marketplaceListingId: true,
 
         amount: true,
         unitPrice: true,
@@ -110,10 +132,14 @@ export async function GET(req: Request) {
         escrowStatus: true,
         deliveryStatus: true,
 
+        escrowFundedAt: true,
         shippedAt: true,
         deliveredAt: true,
         confirmedAt: true,
         releasedAt: true,
+        refundedAt: true,
+        disputedAt: true,
+        cancelledAt: true,
 
         shippingName: true,
         shippingPhone: true,
@@ -127,6 +153,8 @@ export async function GET(req: Request) {
         carrier: true,
 
         buyTxHash: true,
+        escrowReleaseTxHash: true,
+        escrowRefundTxHash: true,
 
         noteBuyer: true,
         noteSeller: true,
@@ -148,12 +176,33 @@ export async function GET(req: Request) {
             name: true,
             image: true,
             tokenUri: true,
+            vertical: true,
             deliveryEnabled: true,
             physicalItemIncluded: true,
             officialItem: true,
             primarySellerWallet: true,
           },
         });
+
+        const mint = !product
+          ? await prisma.mint.findUnique({
+              where: {
+                chainId_contract_tokenId: {
+                  chainId: row.chainId,
+                  contract: row.contract,
+                  tokenId: row.tokenId,
+                },
+              },
+              select: {
+                name: true,
+                image: true,
+                tokenUri: true,
+                deliveryEnabled: true,
+                physicalItemIncluded: true,
+                officialItem: true,
+              },
+            })
+          : null;
 
         const viewerRole = isBuyer(viewer, row)
           ? "buyer"
@@ -169,10 +218,18 @@ export async function GET(req: Request) {
           chainId: row.chainId,
           contract: row.contract,
           tokenId: row.tokenId,
+
+          sourceType: row.sourceType,
+          orderKind: row.orderKind,
           vertical: row.vertical,
 
           buyerWallet: row.buyerWallet,
           sellerWallet: row.sellerWallet,
+
+          listingId: row.listingId || null,
+          tradeId: row.tradeId || null,
+          marketplaceListingId:
+            row.marketplaceListingId != null ? row.marketplaceListingId.toString() : null,
 
           amount: row.amount.toString(),
           unitPrice: row.unitPrice.toString(),
@@ -186,10 +243,14 @@ export async function GET(req: Request) {
           escrowStatus: row.escrowStatus,
           deliveryStatus: row.deliveryStatus,
 
+          escrowFundedAt: row.escrowFundedAt ? row.escrowFundedAt.toISOString() : null,
           shippedAt: row.shippedAt ? row.shippedAt.toISOString() : null,
           deliveredAt: row.deliveredAt ? row.deliveredAt.toISOString() : null,
           confirmedAt: row.confirmedAt ? row.confirmedAt.toISOString() : null,
           releasedAt: row.releasedAt ? row.releasedAt.toISOString() : null,
+          refundedAt: row.refundedAt ? row.refundedAt.toISOString() : null,
+          disputedAt: row.disputedAt ? row.disputedAt.toISOString() : null,
+          cancelledAt: row.cancelledAt ? row.cancelledAt.toISOString() : null,
 
           shippingName: row.shippingName || null,
           shippingPhone: row.shippingPhone || null,
@@ -203,6 +264,8 @@ export async function GET(req: Request) {
           carrier: row.carrier || null,
 
           buyTxHash: row.buyTxHash || null,
+          escrowReleaseTxHash: row.escrowReleaseTxHash || null,
+          escrowRefundTxHash: row.escrowRefundTxHash || null,
 
           noteBuyer: row.noteBuyer || null,
           noteSeller: row.noteSeller || null,
@@ -215,10 +278,22 @@ export async function GET(req: Request) {
                 name: product.name || null,
                 image: product.image || null,
                 tokenUri: product.tokenUri || null,
+                vertical: product.vertical || null,
                 deliveryEnabled: product.deliveryEnabled,
                 physicalItemIncluded: product.physicalItemIncluded,
                 officialItem: product.officialItem,
                 primarySellerWallet: product.primarySellerWallet || null,
+              }
+            : mint
+            ? {
+                name: mint.name || null,
+                image: mint.image || null,
+                tokenUri: mint.tokenUri || null,
+                vertical: row.vertical || null,
+                deliveryEnabled: mint.deliveryEnabled,
+                physicalItemIncluded: mint.physicalItemIncluded,
+                officialItem: mint.officialItem,
+                primarySellerWallet: null,
               }
             : null,
         };
@@ -231,7 +306,7 @@ export async function GET(req: Request) {
       items,
     });
   } catch (e) {
-    console.error("[API_STORE_ORDERS_GET_ERROR]", e);
+    console.error("[API_DELIVERY_ORDERS_GET_ERROR]", e);
     return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
   }
 }

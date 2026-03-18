@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useAccount,
@@ -26,6 +27,10 @@ type Listing = {
   amountTotal: string;
   amountRemaining: string;
   createdAt: string;
+
+  deliveryEnabled?: boolean;
+  physicalItemIncluded?: boolean;
+  officialItem?: boolean;
 };
 
 type Trade = {
@@ -49,6 +54,10 @@ type MarketNftResponse = {
     name: string | null;
     image: string | null;
     tokenUri: string | null;
+
+    deliveryEnabled?: boolean;
+    physicalItemIncluded?: boolean;
+    officialItem?: boolean;
   };
   stats: {
     activeListings: number;
@@ -332,6 +341,25 @@ export default function TradingPanel1155({
     }
   }, [selectedListing, buyAmount]);
 
+  const nftHasDelivery = useMemo(() => {
+    return Boolean(data?.mint?.deliveryEnabled || data?.mint?.physicalItemIncluded);
+  }, [data?.mint?.deliveryEnabled, data?.mint?.physicalItemIncluded]);
+
+  const selectedListingHasDelivery = useMemo(() => {
+    if (!selectedListing) return nftHasDelivery;
+    return Boolean(
+      selectedListing.deliveryEnabled ||
+        selectedListing.physicalItemIncluded ||
+        data?.mint?.deliveryEnabled ||
+        data?.mint?.physicalItemIncluded
+    );
+  }, [
+    selectedListing,
+    nftHasDelivery,
+    data?.mint?.deliveryEnabled,
+    data?.mint?.physicalItemIncluded,
+  ]);
+
   const refreshAll = useCallback(async () => {
     await Promise.allSettled([refresh(), refetchBalance(), refetchApproved()]);
   }, [refresh, refetchBalance, refetchApproved]);
@@ -477,7 +505,11 @@ export default function TradingPanel1155({
       setHint("Buy sent. Waiting for confirmation…");
       await publicClient?.waitForTransactionReceipt({ hash });
 
-      setHint("Bought ✅ Updating…");
+      setHint(
+        selectedListingHasDelivery
+          ? "Bought ✅ Updating… Delivery order will appear in Orders & Delivery after indexer sync."
+          : "Bought ✅ Updating…"
+      );
       await afterMarketTx();
       setHint(null);
     } catch (e: any) {
@@ -524,6 +556,13 @@ export default function TradingPanel1155({
                 </div>
               ) : null}
 
+              <Link
+                href="/app/orders"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
+              >
+                Orders
+              </Link>
+
               <button
                 onClick={() => refreshAll()}
                 className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100"
@@ -542,6 +581,16 @@ export default function TradingPanel1155({
           {hint ? (
             <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
               {hint}
+            </div>
+          ) : null}
+
+          {nftHasDelivery ? (
+            <div className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100">
+              This NFT is delivery-enabled. When a secondary purchase is completed, the delivery order should appear in{" "}
+              <Link href="/app/orders" className="underline font-black">
+                Orders &amp; Delivery
+              </Link>
+              {" "}after indexer sync.
             </div>
           ) : null}
 
@@ -640,6 +689,16 @@ export default function TradingPanel1155({
                   </div>
                 )}
               </div>
+
+              {nftHasDelivery ? (
+                <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] text-violet-100">
+                  This NFT supports delivery. If your listing is bought on trading, the secondary delivery order should be created by the marketplace indexer and appear in{" "}
+                  <Link href="/app/orders" className="underline font-black">
+                    Orders &amp; Delivery
+                  </Link>
+                  .
+                </div>
+              ) : null}
 
               <div className="mt-5 grid md:grid-cols-2 gap-4">
                 <label className="block">
@@ -746,6 +805,9 @@ export default function TradingPanel1155({
                       const active = l.marketplaceListingId === (selectedListing?.marketplaceListingId || "");
                       const isMine = toLower(l.sellerWallet) === me;
                       const isCancelling = busy === `cancel:${l.marketplaceListingId}`;
+                      const hasDeliveryBadge = Boolean(
+                        l.deliveryEnabled || l.physicalItemIncluded || data?.mint?.deliveryEnabled || data?.mint?.physicalItemIncluded
+                      );
 
                       return (
                         <div
@@ -772,13 +834,27 @@ export default function TradingPanel1155({
                               <div className="mt-1 text-[12px] text-white/55">
                                 Seller: <span className="font-mono text-white/82">{shortAddr(l.sellerWallet)}</span>
                               </div>
+
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <span className="px-2 py-1 rounded-full border border-white/10 bg-black/20 text-[10px] font-black text-white/80">
+                                  Left {l.amountRemaining}
+                                </span>
+
+                                {hasDeliveryBadge ? (
+                                  <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
+                                    DELIVERY
+                                  </span>
+                                ) : null}
+
+                                {l.officialItem ? (
+                                  <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                                    OFFICIAL
+                                  </span>
+                                ) : null}
+                              </div>
                             </div>
 
                             <div className="flex items-center gap-2">
-                              <div className="px-3 py-2 rounded-2xl border border-white/10 bg-black/20 text-[11px] font-black text-white/80">
-                                Left {l.amountRemaining}
-                              </div>
-
                               {isMine ? (
                                 <button
                                   type="button"
@@ -839,7 +915,31 @@ export default function TradingPanel1155({
                       <div className="mt-2 text-[12px] text-white/55">
                         Remaining: <span className="text-white/82 font-black">{selectedListing.amountRemaining}</span>
                       </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedListingHasDelivery ? (
+                          <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
+                            DELIVERY ORDER AFTER BUY
+                          </span>
+                        ) : null}
+
+                        {selectedListing.officialItem ? (
+                          <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                            OFFICIAL
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
+
+                    {selectedListingHasDelivery ? (
+                      <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100">
+                        This purchase should create a delivery order in{" "}
+                        <Link href="/app/orders" className="underline font-black">
+                          Orders &amp; Delivery
+                        </Link>
+                        {" "}after the marketplace indexer syncs the trade.
+                      </div>
+                    ) : null}
 
                     <label className="block mt-4">
                       <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Amount</div>
@@ -968,7 +1068,7 @@ export default function TradingPanel1155({
           </div>
 
           <div className="mt-6 text-[11px] text-white/35">
-            After buy / list / cancel, the indexer may take a few seconds to update listings and trades.
+            After buy / list / cancel, the indexer may take a few seconds to update listings, trades and delivery orders.
           </div>
         </div>
       </div>

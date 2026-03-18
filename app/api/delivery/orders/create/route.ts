@@ -2,27 +2,18 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createPublicClient, http, parseEventLogs } from "viem";
 import { baseSepolia } from "viem/chains";
-import { realifeStoreAbi } from "@/lib/realifeStoreAbi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const CHAIN_ID = Number(process.env.CHAIN_ID || "84532");
+
 const RPC_URL =
   process.env.RPC_URL ||
   process.env.BASE_SEPOLIA_RPC ||
   process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC ||
   "https://sepolia.base.org";
-
-const STORE_CONTRACT = String(
-  process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT ||
-    process.env.REALIFE_STORE_CONTRACT ||
-    process.env.STORE_CONTRACT_ADDRESS ||
-    ""
-)
-  .trim()
-  .toLowerCase();
 
 const PAYMENT_TOKEN_FALLBACK = String(
   process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS ||
@@ -36,6 +27,33 @@ const client = createPublicClient({
   chain: baseSepolia,
   transport: http(RPC_URL),
 });
+
+const STORE_PRODUCT_BOUGHT_ABI = [
+  {
+    type: "event",
+    name: "ProductBought",
+    inputs: [
+      { indexed: true, name: "buyer", type: "address" },
+      { indexed: true, name: "tokenId", type: "uint256" },
+      { indexed: false, name: "amount", type: "uint256" },
+      { indexed: false, name: "totalPrice", type: "uint256" },
+      { indexed: true, name: "seller", type: "address" },
+    ],
+  },
+] as const;
+
+const CAFE_PRODUCT_BOUGHT_ABI = [
+  {
+    type: "event",
+    name: "ProductBought",
+    inputs: [
+      { indexed: true, name: "buyer", type: "address" },
+      { indexed: true, name: "tokenId", type: "uint256" },
+      { indexed: false, name: "amount", type: "uint256" },
+      { indexed: false, name: "totalPrice", type: "uint256" },
+    ],
+  },
+] as const;
 
 function normAddr(v?: string | null) {
   return String(v || "").trim().toLowerCase();
@@ -52,6 +70,18 @@ function isTxHash(v?: string | null) {
 
 function isTokenId(v?: string | null) {
   return /^\d+$/.test(String(v || "").trim());
+}
+
+function isPositiveIntString(v?: string | null) {
+  return /^\d+$/.test(String(v || "").trim());
+}
+
+function isSourceType(v?: string | null) {
+  return v === "STORE" || v === "MARKETPLACE";
+}
+
+function isOrderKind(v?: string | null) {
+  return v === "PRIMARY" || v === "SECONDARY";
 }
 
 async function ensureUserByWallet(wallet?: string | null) {
@@ -80,6 +110,7 @@ function serializeOrder(order: {
   sellerWallet: string;
   amount: bigint;
   totalPrice: bigint;
+  unitPrice: bigint;
   escrowStatus: string;
   deliveryStatus: string;
   createdAt: Date;
@@ -88,18 +119,109 @@ function serializeOrder(order: {
     ...order,
     amount: order.amount.toString(),
     totalPrice: order.totalPrice.toString(),
+    unitPrice: order.unitPrice.toString(),
     createdAt: order.createdAt.toISOString(),
   };
 }
 
-export async function POST(req: Request) {
-  if (!STORE_CONTRACT) {
-    return NextResponse.json(
-      { ok: false, error: "NEXT_PUBLIC_REALIFE_STORE_CONTRACT_MISSING" },
-      { status: 500 }
+function findMatchedBoughtEvent(args: {
+  logs: readonly unknown[];
+  contract: string;
+  wantedTokenId: bigint;
+  wantedAmount: bigint;
+}) {
+  const { logs, contract, wantedTokenId, wantedAmount } = args;
+
+  const parsedStore = parseEventLogs({
+    abi: STORE_PRODUCT_BOUGHT_ABI,
+    logs: logs as any,
+    eventName: "ProductBought",
+    strict: false,
+  });
+
+  const storeEvent = parsedStore.find((log) => {
+    const eventTokenId =
+      typeof log.args?.tokenId === "bigint" ? log.args.tokenId : null;
+    const eventAmount =
+      typeof log.args?.amount === "bigint" ? log.args.amount : null;
+
+    return (
+      normAddr(log.address) === contract &&
+      eventTokenId === wantedTokenId &&
+      eventAmount === wantedAmount
     );
+  });
+
+  if (storeEvent) {
+    return {
+      buyer: normAddr(
+        typeof storeEvent.args?.buyer === "string" ? storeEvent.args.buyer : ""
+      ),
+      seller: normAddr(
+        typeof storeEvent.args?.seller === "string" ? storeEvent.args.seller : ""
+      ),
+      tokenId:
+        typeof storeEvent.args?.tokenId === "bigint"
+          ? storeEvent.args.tokenId
+          : wantedTokenId,
+      amount:
+        typeof storeEvent.args?.amount === "bigint"
+          ? storeEvent.args.amount
+          : wantedAmount,
+      totalPrice:
+        typeof storeEvent.args?.totalPrice === "bigint"
+          ? storeEvent.args.totalPrice
+          : 0n,
+      variant: "store" as const,
+    };
   }
 
+  const parsedCafe = parseEventLogs({
+    abi: CAFE_PRODUCT_BOUGHT_ABI,
+    logs: logs as any,
+    eventName: "ProductBought",
+    strict: false,
+  });
+
+  const cafeEvent = parsedCafe.find((log) => {
+    const eventTokenId =
+      typeof log.args?.tokenId === "bigint" ? log.args.tokenId : null;
+    const eventAmount =
+      typeof log.args?.amount === "bigint" ? log.args.amount : null;
+
+    return (
+      normAddr(log.address) === contract &&
+      eventTokenId === wantedTokenId &&
+      eventAmount === wantedAmount
+    );
+  });
+
+  if (cafeEvent) {
+    return {
+      buyer: normAddr(
+        typeof cafeEvent.args?.buyer === "string" ? cafeEvent.args.buyer : ""
+      ),
+      seller: "",
+      tokenId:
+        typeof cafeEvent.args?.tokenId === "bigint"
+          ? cafeEvent.args.tokenId
+          : wantedTokenId,
+      amount:
+        typeof cafeEvent.args?.amount === "bigint"
+          ? cafeEvent.args.amount
+          : wantedAmount,
+      totalPrice:
+        typeof cafeEvent.args?.totalPrice === "bigint"
+          ? cafeEvent.args.totalPrice
+          : 0n,
+      variant: "cafe" as const,
+    };
+  }
+
+  return null;
+}
+
+export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
 
@@ -108,6 +230,10 @@ export async function POST(req: Request) {
     const tokenId = String(body?.tokenId || "").trim();
     const amountRaw = String(body?.amount || "1").trim();
     const buyTxHash = String(body?.buyTxHash || "").trim();
+
+    const sourceType = String(body?.sourceType || "STORE").trim().toUpperCase();
+    const orderKind = String(body?.orderKind || "PRIMARY").trim().toUpperCase();
+    const verticalRaw = clean(body?.vertical, 80);
 
     const shippingName = clean(body?.shippingName, 120);
     const shippingPhone = clean(body?.shippingPhone, 60);
@@ -123,9 +249,9 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!contract || contract !== STORE_CONTRACT) {
+    if (!contract || !contract.startsWith("0x")) {
       return NextResponse.json(
-        { ok: false, error: "STORE_CONTRACT_MISMATCH" },
+        { ok: false, error: "CONTRACT_INVALID" },
         { status: 400 }
       );
     }
@@ -137,7 +263,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!/^\d+$/.test(amountRaw)) {
+    if (!isPositiveIntString(amountRaw)) {
       return NextResponse.json(
         { ok: false, error: "AMOUNT_INVALID" },
         { status: 400 }
@@ -147,6 +273,30 @@ export async function POST(req: Request) {
     if (!isTxHash(buyTxHash)) {
       return NextResponse.json(
         { ok: false, error: "BUY_TX_HASH_INVALID" },
+        { status: 400 }
+      );
+    }
+
+    if (!isSourceType(sourceType)) {
+      return NextResponse.json(
+        { ok: false, error: "SOURCE_TYPE_INVALID" },
+        { status: 400 }
+      );
+    }
+
+    if (!isOrderKind(orderKind)) {
+      return NextResponse.json(
+        { ok: false, error: "ORDER_KIND_INVALID" },
+        { status: 400 }
+      );
+    }
+
+    if (sourceType === "MARKETPLACE" || orderKind === "SECONDARY") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "SECONDARY_ORDER_MUST_BE_CREATED_BY_INDEXER",
+        },
         { status: 400 }
       );
     }
@@ -173,10 +323,34 @@ export async function POST(req: Request) {
       },
     });
 
-    if (!product || product.vertical !== "store") {
+    if (!product) {
       return NextResponse.json(
-        { ok: false, error: "STORE_PRODUCT_NOT_FOUND" },
+        { ok: false, error: "PRODUCT_NOT_FOUND" },
         { status: 404 }
+      );
+    }
+
+    const deliveryRequired = Boolean(
+      product.deliveryEnabled || product.physicalItemIncluded
+    );
+
+    if (!deliveryRequired) {
+      return NextResponse.json(
+        { ok: false, error: "DELIVERY_NOT_REQUIRED" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      !shippingName ||
+      !shippingPhone ||
+      !shippingCountry ||
+      !shippingCity ||
+      !shippingAddress
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "SHIPPING_FIELDS_REQUIRED" },
+        { status: 400 }
       );
     }
 
@@ -186,6 +360,8 @@ export async function POST(req: Request) {
         contract,
         tokenId,
         buyTxHash,
+        sourceType: "STORE",
+        orderKind: "PRIMARY",
       },
       select: { id: true },
     });
@@ -209,52 +385,30 @@ export async function POST(req: Request) {
       );
     }
 
-    const parsed = parseEventLogs({
-      abi: realifeStoreAbi,
-      logs: receipt.logs,
-      eventName: "ProductBought",
-      strict: false,
-    });
-
     const wantedTokenId = BigInt(tokenId);
     const wantedAmount = BigInt(amountRaw);
 
-    const buyEvent = parsed.find((log) => {
-      const logAddress = normAddr(log.address);
-      const eventTokenId =
-        typeof log.args?.tokenId === "bigint" ? log.args.tokenId : null;
-      const eventAmount =
-        typeof log.args?.amount === "bigint" ? log.args.amount : null;
-
-      return (
-        logAddress === STORE_CONTRACT &&
-        eventTokenId === wantedTokenId &&
-        eventAmount === wantedAmount
-      );
+    const matchedEvent = findMatchedBoughtEvent({
+      logs: receipt.logs,
+      contract,
+      wantedTokenId,
+      wantedAmount,
     });
 
-    if (!buyEvent) {
+    if (!matchedEvent) {
       return NextResponse.json(
         { ok: false, error: "PRODUCT_BOUGHT_EVENT_NOT_FOUND" },
         { status: 400 }
       );
     }
 
-    const buyerWallet = normAddr(
-      typeof buyEvent.args?.buyer === "string" ? buyEvent.args.buyer : ""
-    );
-
+    const buyerWallet = normAddr(matchedEvent.buyer);
     const sellerWallet = normAddr(
-      typeof buyEvent.args?.seller === "string"
-        ? buyEvent.args.seller
-        : product.primarySellerWallet || product.creatorWallet || ""
+      matchedEvent.seller ||
+        product.primarySellerWallet ||
+        product.creatorWallet ||
+        ""
     );
-
-    const eventAmount =
-      typeof buyEvent.args?.amount === "bigint" ? buyEvent.args.amount : wantedAmount;
-
-    const eventTotalPrice =
-      typeof buyEvent.args?.totalPrice === "bigint" ? buyEvent.args.totalPrice : 0n;
 
     if (!buyerWallet) {
       return NextResponse.json(
@@ -270,27 +424,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const deliveryRequired = Boolean(
-      product.deliveryEnabled || product.physicalItemIncluded
-    );
-
-    if (deliveryRequired) {
-      if (
-        !shippingName ||
-        !shippingPhone ||
-        !shippingCountry ||
-        !shippingCity ||
-        !shippingAddress
-      ) {
-        return NextResponse.json(
-          { ok: false, error: "SHIPPING_FIELDS_REQUIRED" },
-          { status: 400 }
-        );
-      }
-    }
-
     const buyerId = await ensureUserByWallet(buyerWallet);
     const sellerId = await ensureUserByWallet(sellerWallet);
+
+    const eventAmount = matchedEvent.amount;
+    const eventTotalPrice = matchedEvent.totalPrice;
 
     const fallbackUnitPrice = BigInt(product.price || 0);
     const unitPrice =
@@ -308,34 +446,37 @@ export async function POST(req: Request) {
         chainId: CHAIN_ID,
         contract,
         tokenId,
-        vertical: "store",
+
+        sourceType: "STORE",
+        orderKind: "PRIMARY",
+        vertical: product.vertical || verticalRaw || "store",
 
         buyerWallet,
         sellerWallet,
-
         buyerId,
         sellerId,
 
         amount: eventAmount,
         unitPrice,
         totalPrice,
-        paymentToken: normAddr(product.paymentToken) || PAYMENT_TOKEN_FALLBACK || null,
 
-        deliveryRequired,
+        paymentToken:
+          normAddr(product.paymentToken) || PAYMENT_TOKEN_FALLBACK || null,
+
+        deliveryRequired: true,
         physicalItem: Boolean(product.physicalItemIncluded),
         officialItem: Boolean(product.officialItem),
 
-        escrowStatus: deliveryRequired ? "FUNDED" : "NOT_REQUIRED",
-        deliveryStatus: deliveryRequired ? "PENDING" : "NOT_REQUIRED",
+        escrowStatus: "FUNDED",
+        deliveryStatus: "PENDING",
+        escrowFundedAt: now,
 
-        escrowFundedAt: deliveryRequired ? now : null,
-
-        shippingName: deliveryRequired ? shippingName : null,
-        shippingPhone: deliveryRequired ? shippingPhone : null,
-        shippingCountry: deliveryRequired ? shippingCountry : null,
-        shippingCity: deliveryRequired ? shippingCity : null,
-        shippingAddress: deliveryRequired ? shippingAddress : null,
-        shippingZip: deliveryRequired ? shippingZip : null,
+        shippingName,
+        shippingPhone,
+        shippingCountry,
+        shippingCity,
+        shippingAddress,
+        shippingZip: shippingZip || null,
 
         buyTxHash,
       },
@@ -348,6 +489,7 @@ export async function POST(req: Request) {
         sellerWallet: true,
         amount: true,
         totalPrice: true,
+        unitPrice: true,
         escrowStatus: true,
         deliveryStatus: true,
         createdAt: true,
@@ -359,7 +501,7 @@ export async function POST(req: Request) {
       order: serializeOrder(order),
     });
   } catch (e: any) {
-    console.error("[API_STORE_ORDER_CREATE_ERROR]", {
+    console.error("[API_DELIVERY_ORDER_CREATE_ERROR]", {
       name: e?.name,
       message: e?.message,
       code: e?.code,

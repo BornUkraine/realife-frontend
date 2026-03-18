@@ -20,7 +20,13 @@ function pickViewer(session: any) {
   };
 }
 
-function isBuyer(viewer: { id: string | null; wallet: string | null }, row: any) {
+function isBuyer(
+  viewer: { id: string | null; wallet: string | null },
+  row: {
+    buyerId: string | null;
+    buyerWallet: string;
+  }
+) {
   return Boolean(
     (viewer.id && row.buyerId && viewer.id === row.buyerId) ||
       (viewer.wallet && normAddr(row.buyerWallet) === viewer.wallet)
@@ -50,7 +56,6 @@ export async function POST(
       where: { id: orderId },
       select: {
         id: true,
-        vertical: true,
         buyerId: true,
         buyerWallet: true,
         deliveryRequired: true,
@@ -62,19 +67,12 @@ export async function POST(
       },
     });
 
-    if (!order || order.vertical !== "store") {
+    if (!order || !order.deliveryRequired) {
       return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
     }
 
     if (!isBuyer(viewer, order)) {
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
-    }
-
-    if (!order.deliveryRequired) {
-      return NextResponse.json(
-        { ok: false, error: "DELIVERY_NOT_REQUIRED" },
-        { status: 400 }
-      );
     }
 
     if (
@@ -110,7 +108,9 @@ export async function POST(
         escrowStatus:
           order.escrowStatus === "NOT_REQUIRED" ? "NOT_REQUIRED" : "RELEASED",
         releasedAt:
-          order.escrowStatus === "NOT_REQUIRED" ? order.releasedAt : order.releasedAt || now,
+          order.escrowStatus === "NOT_REQUIRED"
+            ? order.releasedAt
+            : order.releasedAt || now,
       },
       select: {
         id: true,
@@ -136,7 +136,7 @@ export async function POST(
       },
     });
   } catch (e) {
-    console.error("[API_STORE_ORDER_CONFIRM_ERROR]", e);
+    console.error("[API_DELIVERY_ORDER_CONFIRM_ERROR]", e);
     return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
   }
 }

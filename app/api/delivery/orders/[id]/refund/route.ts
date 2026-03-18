@@ -24,15 +24,10 @@ function isTxHash(v?: string | null) {
 async function getActor() {
   const session = await getServerSession(authOptions);
 
-  const userId =
-    (session as any)?.user?.id ||
-    (session as any)?.userId ||
-    null;
+  const userId = (session as any)?.user?.id || (session as any)?.userId || null;
 
   const walletAddress = normAddr(
-    (session as any)?.user?.walletAddress ||
-      (session as any)?.walletAddress ||
-      ""
+    (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
   );
 
   return { userId, walletAddress };
@@ -49,19 +44,41 @@ function getViewerRole(
 ): "buyer" | "seller" | null {
   const isBuyer =
     (actor.userId && order.buyerId && actor.userId === order.buyerId) ||
-    (actor.walletAddress &&
-      actor.walletAddress === normAddr(order.buyerWallet));
+    (actor.walletAddress && actor.walletAddress === normAddr(order.buyerWallet));
 
   if (isBuyer) return "buyer";
 
   const isSeller =
     (actor.userId && order.sellerId && actor.userId === order.sellerId) ||
-    (actor.walletAddress &&
-      actor.walletAddress === normAddr(order.sellerWallet));
+    (actor.walletAddress && actor.walletAddress === normAddr(order.sellerWallet));
 
   if (isSeller) return "seller";
 
   return null;
+}
+
+function nextDeliveryStatusForRefund(
+  deliveryRequired: boolean,
+  current: DeliveryStatus
+): DeliveryStatus {
+  if (!deliveryRequired) return DeliveryStatus.NOT_REQUIRED;
+
+  const returnedStatuses: DeliveryStatus[] = [
+    DeliveryStatus.SHIPPED,
+    DeliveryStatus.DELIVERED,
+    DeliveryStatus.CONFIRMED,
+    DeliveryStatus.RETURN_REQUESTED,
+  ];
+
+  if (returnedStatuses.includes(current)) {
+    return DeliveryStatus.RETURNED;
+  }
+
+  if (current === DeliveryStatus.NOT_REQUIRED) {
+    return DeliveryStatus.NOT_REQUIRED;
+  }
+
+  return DeliveryStatus.CANCELLED;
 }
 
 export async function POST(
@@ -74,18 +91,15 @@ export async function POST(
     const actor = await getActor();
 
     if (!actor.userId && !actor.walletAddress) {
-      return NextResponse.json(
-        { ok: false, error: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
     }
 
-    const escrowReleaseTxHash = String(body?.escrowReleaseTxHash || "").trim();
+    const escrowRefundTxHash = String(body?.escrowRefundTxHash || "").trim();
     const note = clean(body?.note, 500);
 
-    if (escrowReleaseTxHash && !isTxHash(escrowReleaseTxHash)) {
+    if (escrowRefundTxHash && !isTxHash(escrowRefundTxHash)) {
       return NextResponse.json(
-        { ok: false, error: "ESCROW_RELEASE_TX_INVALID" },
+        { ok: false, error: "ESCROW_REFUND_TX_INVALID" },
         { status: 400 }
       );
     }
@@ -105,58 +119,29 @@ export async function POST(
     });
 
     if (!order) {
-      return NextResponse.json(
-        { ok: false, error: "ORDER_NOT_FOUND" },
-        { status: 404 }
-      );
+      return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
     }
 
     const viewerRole = getViewerRole(actor, order);
 
     if (!viewerRole) {
-      return NextResponse.json(
-        { ok: false, error: "FORBIDDEN" },
-        { status: 403 }
-      );
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     if (order.escrowStatus === EscrowStatus.NOT_REQUIRED) {
-      return NextResponse.json(
-        { ok: false, error: "ESCROW_NOT_REQUIRED" },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "ESCROW_NOT_REQUIRED" }, { status: 400 });
+    }
+
+    if (order.escrowStatus === EscrowStatus.REFUNDED) {
+      return NextResponse.json({ ok: true, alreadyRefunded: true });
     }
 
     if (order.escrowStatus === EscrowStatus.RELEASED) {
-      return NextResponse.json({
-        ok: true,
-        alreadyReleased: true,
-      });
+      return NextResponse.json({ ok: false, error: "ESCROW_ALREADY_RELEASED" }, { status: 400 });
     }
 
-    if (
-      order.escrowStatus === EscrowStatus.REFUNDED ||
-      order.escrowStatus === EscrowStatus.CANCELLED
-    ) {
-      return NextResponse.json(
-        { ok: false, error: "ESCROW_ALREADY_FINALIZED" },
-        { status: 400 }
-      );
-    }
-
-    const releasableDeliveryStatuses: DeliveryStatus[] = [
-      DeliveryStatus.CONFIRMED,
-      DeliveryStatus.DELIVERED,
-    ];
-
-    if (
-      order.deliveryRequired &&
-      !releasableDeliveryStatuses.includes(order.deliveryStatus)
-    ) {
-      return NextResponse.json(
-        { ok: false, error: "DELIVERY_NOT_CONFIRMED" },
-        { status: 400 }
-      );
+    if (order.escrowStatus === EscrowStatus.CANCELLED) {
+      return NextResponse.json({ ok: false, error: "ESCROW_ALREADY_CANCELLED" }, { status: 400 });
     }
 
     const now = new Date();
@@ -164,19 +149,13 @@ export async function POST(
     const updated = await prisma.storeOrder.update({
       where: { id: order.id },
       data: {
-        escrowStatus: EscrowStatus.RELEASED,
-        releasedAt: now,
-        escrowReleaseTxHash: escrowReleaseTxHash || undefined,
-        deliveryStatus:
-          order.deliveryRequired &&
-          order.deliveryStatus === DeliveryStatus.DELIVERED
-            ? DeliveryStatus.CONFIRMED
-            : order.deliveryStatus,
-        confirmedAt:
-          order.deliveryRequired &&
-          order.deliveryStatus === DeliveryStatus.DELIVERED
-            ? now
-            : undefined,
+        escrowStatus: EscrowStatus.REFUNDED,
+        refundedAt: now,
+        escrowRefundTxHash: escrowRefundTxHash || undefined,
+        deliveryStatus: nextDeliveryStatusForRefund(
+          order.deliveryRequired,
+          order.deliveryStatus
+        ),
         ...(note
           ? viewerRole === "buyer"
             ? { noteBuyer: note }
@@ -187,21 +166,20 @@ export async function POST(
         id: true,
         escrowStatus: true,
         deliveryStatus: true,
-        releasedAt: true,
-        confirmedAt: true,
-        escrowReleaseTxHash: true,
+        refundedAt: true,
+        escrowRefundTxHash: true,
       },
     });
 
     return NextResponse.json({
       ok: true,
-      order: updated,
+      order: {
+        ...updated,
+        refundedAt: updated.refundedAt ? updated.refundedAt.toISOString() : null,
+      },
     });
   } catch (e) {
-    console.error("[API_STORE_ORDER_RELEASE_ERROR]", e);
-    return NextResponse.json(
-      { ok: false, error: "INTERNAL" },
-      { status: 500 }
-    );
+    console.error("[API_DELIVERY_ORDER_REFUND_ERROR]", e);
+    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
   }
 }

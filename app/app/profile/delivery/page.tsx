@@ -141,6 +141,33 @@ function escrowTone(v?: string | null) {
   }
 }
 
+function sourceLabel(sourceType?: string | null, orderKind?: string | null) {
+  if (sourceType === "STORE" && orderKind === "PRIMARY") return "PRIMARY STORE";
+  if (sourceType === "MARKETPLACE" && orderKind === "SECONDARY") return "SECONDARY";
+  return `${sourceType || "UNKNOWN"} / ${orderKind || "UNKNOWN"}`;
+}
+
+function currencyLabel(paymentToken?: string | null) {
+  return paymentToken ? "USDT" : "ETH";
+}
+
+function formatRaw(raw?: bigint | string | null, decimals = 18) {
+  try {
+    if (raw == null) return "—";
+    const v = BigInt(raw);
+    const neg = v < 0n;
+    const abs = neg ? -v : v;
+    const base = 10n ** BigInt(decimals);
+    const whole = abs / base;
+    const frac = abs % base;
+    if (frac === 0n) return `${neg ? "-" : ""}${whole.toString()}`;
+    const fracStr = frac.toString().padStart(decimals, "0").slice(0, 6).replace(/0+$/, "");
+    return `${neg ? "-" : ""}${whole.toString()}${fracStr ? `.${fracStr}` : ""}`;
+  } catch {
+    return String(raw || "—");
+  }
+}
+
 function Card({
   children,
   className = "",
@@ -206,6 +233,7 @@ export default async function ProfileDeliveryPage() {
 
   const orders = await prisma.storeOrder.findMany({
     where: {
+      deliveryRequired: true,
       OR: orWhere,
     },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -217,6 +245,8 @@ export default async function ProfileDeliveryPage() {
       contract: true,
       tokenId: true,
       vertical: true,
+      sourceType: true,
+      orderKind: true,
 
       buyerWallet: true,
       sellerWallet: true,
@@ -287,10 +317,7 @@ export default async function ProfileDeliveryPage() {
 
       return {
         ...order,
-        productName:
-          product?.name ||
-          mint?.name ||
-          `Store product #${order.tokenId}`,
+        productName: product?.name || mint?.name || `Delivery product #${order.tokenId}`,
         productImage: ipfsToHttp(product?.image || mint?.image || null),
         verticalResolved: product?.vertical || order.vertical,
       };
@@ -299,9 +326,7 @@ export default async function ProfileDeliveryPage() {
 
   const totalOrders = hydrated.length;
   const activeShipments = hydrated.filter((x) =>
-    ["PENDING", "READY_TO_SHIP", "SHIPPED", "DELIVERED"].includes(
-      String(x.deliveryStatus || "")
-    )
+    ["PENDING", "READY_TO_SHIP", "SHIPPED", "DELIVERED"].includes(String(x.deliveryStatus || ""))
   ).length;
 
   const trackable = hydrated.filter((x) => x.trackingCode || x.trackingUrl).length;
@@ -334,17 +359,16 @@ export default async function ProfileDeliveryPage() {
                 My Delivery
               </div>
               <div className="mt-2 text-[12px] text-white/55 max-w-2xl">
-                Private shipping and order flow for store purchases. Shipping address,
-                tracking and escrow details are visible only here.
+                Private buyer-side shipping and delivery view across store and future delivery-enabled NFT orders.
               </div>
             </div>
 
             <div className="flex flex-wrap gap-3">
               <Link
-                href="/app/profile"
+                href="/app/orders"
                 className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-[12px] font-extrabold transition"
               >
-                Back to profile
+                Open Orders Center
               </Link>
 
               <Link
@@ -358,30 +382,22 @@ export default async function ProfileDeliveryPage() {
 
           <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                Orders
-              </div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Orders</div>
               <div className="mt-1 text-lg font-black text-white/90">{totalOrders}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                Active delivery
-              </div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Active delivery</div>
               <div className="mt-1 text-lg font-black text-sky-200">{activeShipments}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                Trackable
-              </div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Trackable</div>
               <div className="mt-1 text-lg font-black text-white/90">{trackable}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                Issues
-              </div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Issues</div>
               <div className="mt-1 text-lg font-black text-amber-100">{issues}</div>
             </div>
           </div>
@@ -425,7 +441,7 @@ export default async function ProfileDeliveryPage() {
             <div className="text-center py-8">
               <div className="text-lg font-black text-white/85">No delivery orders yet</div>
               <div className="mt-2 text-[13px] text-white/55">
-                Orders from Realife NFT Store with shipping will appear here.
+                Delivery-enabled orders will appear here after purchase.
               </div>
             </div>
           </Card>
@@ -436,6 +452,7 @@ export default async function ProfileDeliveryPage() {
               const nftHref = `/nft/${order.chainId}/${order.contract}/${encodeURIComponent(
                 String(order.tokenId)
               )}`;
+              const moneyLabel = currencyLabel(order.paymentToken);
 
               return (
                 <Card key={order.id}>
@@ -460,69 +477,67 @@ export default async function ProfileDeliveryPage() {
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                            {String(order.verticalResolved || "store").toUpperCase()} ORDER
+                            {String(order.verticalResolved || "delivery").toUpperCase()} ORDER
                           </div>
                           <div className="mt-2 text-xl font-black text-white/90 truncate">
                             {order.productName}
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            <div className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/80">
+                              {sourceLabel(order.sourceType, order.orderKind)}
+                            </div>
+
+                            <div
+                              className={cx(
+                                "px-3 py-1.5 rounded-full border text-[11px] font-black",
+                                deliveryTone(order.deliveryStatus)
+                              )}
+                            >
+                              {deliveryLabel(order.deliveryStatus)}
+                            </div>
+
+                            <div
+                              className={cx(
+                                "px-3 py-1.5 rounded-full border text-[11px] font-black",
+                                escrowTone(order.escrowStatus)
+                              )}
+                            >
+                              {escrowLabel(order.escrowStatus)}
+                            </div>
                           </div>
                           <div className="mt-2 text-[12px] text-white/55">
                             Order ID: <span className="font-mono text-white/80">{order.id}</span>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
-                          <div
-                            className={cx(
-                              "px-3 py-1.5 rounded-full border text-[11px] font-black",
-                              deliveryTone(order.deliveryStatus)
-                            )}
-                          >
-                            {deliveryLabel(order.deliveryStatus)}
-                          </div>
-
-                          <div
-                            className={cx(
-                              "px-3 py-1.5 rounded-full border text-[11px] font-black",
-                              escrowTone(order.escrowStatus)
-                            )}
-                          >
-                            {escrowLabel(order.escrowStatus)}
+                        <div className="text-right">
+                          <div className="text-[12px] text-white/45">Total</div>
+                          <div className="text-[16px] font-black text-amber-100">
+                            {formatRaw(order.totalPrice, order.paymentToken ? 6 : 18)} {moneyLabel}
                           </div>
                         </div>
                       </div>
 
                       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                            Token
-                          </div>
-                          <div className="mt-1 text-[13px] font-extrabold text-white/85">
-                            #{order.tokenId}
-                          </div>
+                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Token</div>
+                          <div className="mt-1 text-[13px] font-extrabold text-white/85">#{order.tokenId}</div>
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                            Amount
-                          </div>
+                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Amount</div>
                           <div className="mt-1 text-[13px] font-extrabold text-white/85">
                             {order.amount.toString()}
                           </div>
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                            Payment token
-                          </div>
-                          <div className="mt-1 text-[13px] font-mono font-extrabold text-white/85 truncate">
-                            {shortAddr(order.paymentToken)}
-                          </div>
+                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Payment</div>
+                          <div className="mt-1 text-[13px] font-extrabold text-white/85">{moneyLabel}</div>
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
-                            Created
-                          </div>
+                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Created</div>
                           <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                             {fmtDate(order.createdAt)}
                           </div>
@@ -537,9 +552,7 @@ export default async function ProfileDeliveryPage() {
                           <div className="mt-2 text-sm font-extrabold text-white/90">
                             {order.shippingName || "—"}
                           </div>
-                          <div className="mt-1 text-[12px] text-white/65">
-                            {order.shippingPhone || "—"}
-                          </div>
+                          <div className="mt-1 text-[12px] text-white/65">{order.shippingPhone || "—"}</div>
                           <div className="mt-2 text-[12px] text-white/65 leading-relaxed">
                             {[
                               order.shippingCountry,
@@ -636,6 +649,13 @@ export default async function ProfileDeliveryPage() {
                             Buy tx ↗
                           </a>
                         ) : null}
+
+                        <Link
+                          href="/app/orders"
+                          className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-[12px] font-extrabold transition text-white/85"
+                        >
+                          Open Orders Center
+                        </Link>
                       </div>
                     </div>
                   </div>

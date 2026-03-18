@@ -42,7 +42,7 @@ export default function RealifeStorePage() {
             </div>
 
             <div className="mt-3 text-[13px] text-white/50 max-w-3xl leading-relaxed">
-              This page is now focused on{" "}
+              This page is focused on{" "}
               <span className="text-white/80 font-black">discovery and selection</span>.
               The full product flow — including delivery checkout, approval and purchase —
               opens on the dedicated NFT product page after the user selects an item.
@@ -50,6 +50,13 @@ export default function RealifeStorePage() {
           </div>
 
           <div className="shrink-0 flex flex-wrap items-center gap-2">
+            <Link
+              href="/app/orders"
+              className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+            >
+              Orders & Delivery
+            </Link>
+
             <Link
               href="/app/trading"
               className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"

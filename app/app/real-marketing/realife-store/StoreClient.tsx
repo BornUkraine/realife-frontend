@@ -263,10 +263,10 @@ export default function StoreClient() {
               </button>
 
               <Link
-                href="/app/trading"
+                href="/app/orders"
                 className="px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100"
               >
-                Open Trading →
+                Orders & Delivery →
               </Link>
             </div>
           </div>
@@ -276,36 +276,28 @@ export default function StoreClient() {
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Total
               </div>
-              <div className="mt-1 text-lg font-black text-white/90">
-                {rows.length}
-              </div>
+              <div className="mt-1 text-lg font-black text-white/90">{rows.length}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Active
               </div>
-              <div className="mt-1 text-lg font-black text-emerald-200">
-                {activeCount}
-              </div>
+              <div className="mt-1 text-lg font-black text-emerald-200">{activeCount}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Visible
               </div>
-              <div className="mt-1 text-lg font-black text-white/90">
-                {filtered.length}
-              </div>
+              <div className="mt-1 text-lg font-black text-white/90">{filtered.length}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Brands
               </div>
-              <div className="mt-1 text-lg font-black text-white/90">
-                {brandCount}
-              </div>
+              <div className="mt-1 text-lg font-black text-white/90">{brandCount}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
@@ -341,9 +333,7 @@ export default function StoreClient() {
               </div>
               <select
                 value={sort}
-                onChange={(e) =>
-                  setSort(e.target.value as "new" | "priceAsc" | "priceDesc")
-                }
+                onChange={(e) => setSort(e.target.value as "new" | "priceAsc" | "priceDesc")}
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
               >
                 <option value="new">Newest</option>
@@ -386,9 +376,7 @@ export default function StoreClient() {
             );
           }
 
-          const href = `/nft/${x.chainId}/${x.contract}/${encodeURIComponent(
-            String(x.tokenId)
-          )}`;
+          const href = `/nft/${x.chainId}/${x.contract}/${encodeURIComponent(String(x.tokenId))}`;
 
           const img = x?.metaImage || ipfsToHttp(x?.image || null) || null;
           const remaining = x?.remaining ?? "—";
@@ -398,9 +386,7 @@ export default function StoreClient() {
           const brandLabel = getBrandLabel(x);
 
           const primaryActionLabel =
-            x.deliveryEnabled || x.physicalItemIncluded
-              ? "Delivery & buy"
-              : "Buy";
+            x.deliveryEnabled || x.physicalItemIncluded ? "Delivery & buy" : "Buy";
 
           return (
             <div
@@ -526,9 +512,7 @@ export default function StoreClient() {
 
                     <div>
                       <div className="text-[11px] text-white/45">Left</div>
-                      <div className="mt-1 text-[13px] font-black text-white/80">
-                        {remaining}
-                      </div>
+                      <div className="mt-1 text-[13px] font-black text-white/80">{remaining}</div>
                     </div>
 
                     <div>
@@ -590,7 +574,7 @@ export default function StoreClient() {
 
                 {x.deliveryEnabled || x.physicalItemIncluded ? (
                   <div className="mt-3 text-[11px] text-white/45 leading-relaxed">
-                    Checkout and delivery form are shown on the product page.
+                    Checkout happens on the product page. After purchase, the order appears in Orders & Delivery.
                   </div>
                 ) : null}
               </div>
