@@ -64,13 +64,21 @@ function fmtEth(value?: string) {
 }
 
 function prettyError(e: any) {
-  return e?.shortMessage || e?.cause?.shortMessage || e?.cause?.message || e?.message || "Something went wrong";
+  return (
+    e?.shortMessage ||
+    e?.cause?.shortMessage ||
+    e?.cause?.message ||
+    e?.message ||
+    "Something went wrong"
+  );
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
 const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
 
-const CONTRACT_1155_NEW = process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT as `0x${string}` | undefined;
+const CONTRACT_1155_NEW =
+  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT as `0x${string}` | undefined;
 
 /* ---------------- UI kit ---------------- */
 
@@ -82,7 +90,13 @@ function Pill({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Card({ className = "", children }: { className?: string; children: React.ReactNode }) {
+function Card({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div
       className={[
@@ -197,7 +211,12 @@ function ipfsToHttp(u?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const s = (u || "").trim();
   if (!s) return null;
 
-  if (s.startsWith("http://") || s.startsWith("https://") || s.startsWith("data:") || s.startsWith("blob:")) {
+  if (
+    s.startsWith("http://") ||
+    s.startsWith("https://") ||
+    s.startsWith("data:") ||
+    s.startsWith("blob:")
+  ) {
     return s;
   }
 
@@ -225,18 +244,22 @@ async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
       const j = await r.json().catch(() => null);
       if (j && typeof j === "object") return j;
     } catch {
-      // next
+      //
     }
   }
   return null;
 }
 
-/** Extract 1155 tokenId from EditionCreated */
-function extractEditionTokenIdFromReceipt(receipt: any, contract?: `0x${string}`): string | null {
+function extractEditionTokenIdFromReceipt(
+  receipt: any,
+  contract?: `0x${string}`
+): string | null {
   const logs = receipt?.logs ?? [];
   for (const log of logs) {
     try {
-      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) continue;
+      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) {
+        continue;
+      }
 
       const decoded = decodeEventLog({
         abi: realife1155Abi,
@@ -252,7 +275,7 @@ function extractEditionTokenIdFromReceipt(receipt: any, contract?: `0x${string}`
         if (typeof tokenId === "string") return tokenId;
       }
     } catch {
-      // ignore
+      //
     }
   }
   return null;
@@ -298,10 +321,38 @@ function Stepper({
   }, [mounted, connected, wrongNetwork, step, tokenURI, isMining, isSuccess]);
 
   const items = [
-    { k: "prepare", n: "01", t: "Prepare", d: "Upload → IPFS", ok: Boolean(tokenURI), active: stage === 1 && !isSuccess },
-    { k: "sign", n: "02", t: "Sign", d: "Wallet signature", ok: step !== "idle" && (stage >= 2 || isMining || isSuccess), active: stage === 2 && !isSuccess },
-    { k: "mint", n: "03", t: "Create Edition", d: "Tx mining", ok: Boolean(txHash) && (isMining || isSuccess || stage >= 3), active: stage === 3 && !isSuccess },
-    { k: "verify", n: "04", t: "Verify", d: "Explorer proof", ok: isSuccess, active: stage === 4 || isSuccess },
+    {
+      k: "prepare",
+      n: "01",
+      t: "Prepare",
+      d: "Upload → IPFS",
+      ok: Boolean(tokenURI),
+      active: stage === 1 && !isSuccess,
+    },
+    {
+      k: "sign",
+      n: "02",
+      t: "Sign",
+      d: "Wallet signature",
+      ok: step !== "idle" && (stage >= 2 || isMining || isSuccess),
+      active: stage === 2 && !isSuccess,
+    },
+    {
+      k: "mint",
+      n: "03",
+      t: "Create Edition",
+      d: "Tx mining",
+      ok: Boolean(txHash) && (isMining || isSuccess || stage >= 3),
+      active: stage === 3 && !isSuccess,
+    },
+    {
+      k: "verify",
+      n: "04",
+      t: "Verify",
+      d: "Explorer proof",
+      ok: isSuccess,
+      active: stage === 4 || isSuccess,
+    },
   ] as const;
 
   const locked = !mounted || !connected || wrongNetwork;
@@ -329,7 +380,13 @@ function Stepper({
 
             <Pill>
               <span className="text-white/70">Delivery access:</span>
-              <span className={approvedPhysicalSeller ? "text-emerald-200 font-extrabold" : "text-white/70 font-extrabold"}>
+              <span
+                className={
+                  approvedPhysicalSeller
+                    ? "text-emerald-200 font-extrabold"
+                    : "text-white/70 font-extrabold"
+                }
+              >
                 {approvedPhysicalSeller ? "Approved" : "Standard"}
               </span>
             </Pill>
@@ -374,7 +431,7 @@ function Stepper({
               approvedPhysicalSeller ? (
                 <>Delivery mode is enabled for this wallet. The NFT will be marked as a physical-item delivery edition.</>
               ) : (
-                <>Delivery mode is reserved for approved seller wallets. Switch to <span className="text-white/75 font-semibold">Without delivery</span> or ask admin for access.</>
+                <>Delivery mode is reserved for approved seller wallets. Switch to <span className="text-white/75 font-semibold">Without delivery</span>.</>
               )
             ) : (
               <>Standard mint mode is active. This edition will be created without delivery flow.</>
@@ -494,7 +551,6 @@ export default function MintForm() {
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const posterInputRef = useRef<HTMLInputElement | null>(null);
-
   const pushedRef = useRef(false);
 
   const { address, isConnected } = useAccount();
@@ -506,12 +562,16 @@ export default function MintForm() {
   const connected = mounted ? isConnected : false;
   const effectiveChainId = mounted ? chainId : undefined;
 
-  const { data: balanceData, isLoading: isBalanceLoading, isFetching: isBalanceFetching, refetch: refetchBalance } =
-    useBalance({
-      address,
-      chainId: baseSepolia.id,
-      query: { enabled: Boolean(address), refetchInterval: 12_000 },
-    });
+  const {
+    data: balanceData,
+    isLoading: isBalanceLoading,
+    isFetching: isBalanceFetching,
+    refetch: refetchBalance,
+  } = useBalance({
+    address,
+    chainId: baseSepolia.id,
+    query: { enabled: Boolean(address), refetchInterval: 12_000 },
+  });
 
   const balanceEth = useMemo(() => {
     if (!mounted || !balanceData) return 0;
@@ -531,8 +591,6 @@ export default function MintForm() {
   const wrongNetwork = connected && effectiveChainId !== baseSepolia.id;
   const hasGas = connected && !wrongNetwork && balanceEth > 0;
 
-  /* ---------- Contract read: mintFeeWei ---------- */
-
   const { data: mintFeeWeiRaw } = useReadContract({
     address: CONTRACT_1155_NEW,
     abi: realife1155Abi,
@@ -541,8 +599,6 @@ export default function MintForm() {
   });
 
   const mintFeeWei = (typeof mintFeeWeiRaw === "bigint" ? mintFeeWeiRaw : 0n) as bigint;
-
-  /* ---------- session / me ---------- */
 
   const [approvedPhysicalSeller, setApprovedPhysicalSeller] = useState(false);
   const [approvedPhysicalAt, setApprovedPhysicalAt] = useState<string | null>(null);
@@ -553,6 +609,8 @@ export default function MintForm() {
     let cancelled = false;
 
     async function loadMe() {
+      setMeLoaded(false);
+
       try {
         const res = await fetch("/api/me", { cache: "no-store" });
         const data = await res.json().catch(() => null);
@@ -584,9 +642,7 @@ export default function MintForm() {
     return () => {
       cancelled = true;
     };
-  }, [mounted, connected]);
-
-  /* ---------- form state ---------- */
+  }, [mounted, address]);
 
   const [file, setFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -606,19 +662,23 @@ export default function MintForm() {
   const [proofUrl, setProofUrl] = useState("");
 
   const [step, setStep] = useState<"idle" | "preparing" | "signing" | "mining">("idle");
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
 
   const [tokenURI, setTokenURI] = useState<string | null>(null);
-
-  // prepared preview (after prepare)
   const [preparedKind, setPreparedKind] = useState<"image" | "video">("image");
   const [preparedMedia, setPreparedMedia] = useState<string | null>(null);
   const [preparedPoster, setPreparedPoster] = useState<string | null>(null);
   const [previewCategory, setPreviewCategory] = useState<string>("Other");
 
-  const selectedCategoryLabel = useMemo(() => (categories.length ? categories.join(", ") : "Other"), [categories]);
+  const selectedCategoryLabel = useMemo(
+    () => (categories.length ? categories.join(", ") : "Other"),
+    [categories]
+  );
 
-  const pickedKind = useMemo<"image" | "video">(() => (file?.type?.startsWith("video/") ? "video" : "image"), [file]);
+  const pickedKind = useMemo<"image" | "video">(
+    () => (file?.type?.startsWith("video/") ? "video" : "image"),
+    [file]
+  );
 
   const effectivePreviewKind = tokenURI ? preparedKind : pickedKind;
   const effectivePreviewSrc = tokenURI ? preparedMedia || filePreviewUrl : filePreviewUrl;
@@ -627,21 +687,31 @@ export default function MintForm() {
   const isDeliveryMode = deliveryMode === "delivery";
   const deliveryBlocked = isDeliveryMode && !approvedPhysicalSeller;
 
+  function resetPreparedState() {
+    setTokenURI(null);
+    setPreparedMedia(null);
+    setPreparedPoster(null);
+    setPreviewCategory("Other");
+    pushedRef.current = false;
+    if (step !== "idle") setStep("idle");
+  }
+
   useEffect(() => {
     if (!approvedPhysicalSeller && deliveryMode === "delivery") {
       setDeliveryMode("none");
+      resetPreparedState();
     }
-  }, [approvedPhysicalSeller, deliveryMode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [approvedPhysicalSeller]);
 
   function toggleCategory(cat: string) {
+    resetPreparedState();
     setCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
   }
 
   function onPickFile(f: File | null) {
     setError("");
-    setTokenURI(null);
-    setPreparedMedia(null);
-    setPreparedPoster(null);
+    resetPreparedState();
 
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
@@ -657,12 +727,12 @@ export default function MintForm() {
 
     const url = URL.createObjectURL(f);
     setFilePreviewUrl(url);
-
-    pushedRef.current = false;
   }
 
   function onPickPoster(f: File | null) {
     setError("");
+    resetPreparedState();
+
     if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
 
     setPosterFile(f);
@@ -670,6 +740,7 @@ export default function MintForm() {
       setPosterPreviewUrl(null);
       return;
     }
+
     const url = URL.createObjectURL(f);
     setPosterPreviewUrl(url);
   }
@@ -691,12 +762,12 @@ export default function MintForm() {
 
   const { data: txHash, writeContractAsync, isPending: isWalletPromptOpen } = useWriteContract();
 
-  const { isLoading: isMining, isSuccess, data: receipt } = useWaitForTransactionReceipt({
-    hash: txHash,
-    query: { enabled: Boolean(txHash) },
-  });
+  const { isLoading: isMining, isSuccess, data: receipt } =
+    useWaitForTransactionReceipt({
+      hash: txHash,
+      query: { enabled: Boolean(txHash) },
+    });
 
-  // on success: save mint and redirect
   useEffect(() => {
     if (!isSuccess || !receipt) return;
     if (pushedRef.current) return;
@@ -710,9 +781,12 @@ export default function MintForm() {
       const tokenId = extractEditionTokenIdFromReceipt(receipt, CONTRACT_1155_NEW);
 
       const posterOrImage =
-        effectivePreviewKind === "video" ? persistableUrl(preparedPoster) : persistableUrl(preparedMedia);
+        effectivePreviewKind === "video"
+          ? persistableUrl(preparedPoster)
+          : persistableUrl(preparedMedia);
 
-      const mediaForQuery = persistableUrl(preparedMedia) || persistableUrl(filePreviewUrl);
+      const mediaForQuery =
+        persistableUrl(preparedMedia) || persistableUrl(filePreviewUrl);
 
       try {
         if (CONTRACT_1155_NEW && tokenId) {
@@ -735,7 +809,7 @@ export default function MintForm() {
           });
         }
       } catch {
-        // ignore
+        //
       }
 
       const qp = new URLSearchParams();
@@ -771,7 +845,6 @@ export default function MintForm() {
   const requiredContractOk = Boolean(CONTRACT_1155_NEW);
   const canPrepare = Boolean(file) && Boolean(name.trim()) && requiredContractOk && !deliveryBlocked;
   const canMint = Boolean(tokenURI) && requiredContractOk && !deliveryBlocked;
-
   const busy = step !== "idle" || isWalletPromptOpen || isMining || isSwitching;
 
   async function handlePrepare() {
@@ -791,6 +864,7 @@ export default function MintForm() {
       setError("Please upload a file (photo/video/design).");
       return;
     }
+
     if (!name.trim()) {
       setError("NFT name is required.");
       return;
@@ -820,18 +894,29 @@ export default function MintForm() {
 
       const res = await fetch(PREPARE_URL, { method: "POST", body: formData });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.message || "Mint preparation failed");
+
+      if (!res.ok) {
+        throw new Error(data?.message || "Mint preparation failed");
+      }
 
       const uri = data?.metadataUri || data?.tokenURI || data?.tokenUri || null;
-      if (!uri || typeof uri !== "string") throw new Error("Backend didn't return metadataUri/tokenURI");
+      if (!uri || typeof uri !== "string") {
+        throw new Error("Backend didn't return metadataUri/tokenURI");
+      }
 
       setTokenURI(uri);
 
       const pKind: "image" | "video" =
-        data?.preview?.kind === "video" ? "video" : data?.preview?.kind === "image" ? "image" : pickedKind;
+        data?.preview?.kind === "video"
+          ? "video"
+          : data?.preview?.kind === "image"
+          ? "image"
+          : pickedKind;
 
-      const pMedia = ipfsToHttp(data?.preview?.media || null, IPFS_GATEWAYS[0]) || null;
-      const pPoster = ipfsToHttp(data?.preview?.poster || null, IPFS_GATEWAYS[0]) || null;
+      const pMedia =
+        ipfsToHttp(data?.preview?.media || null, IPFS_GATEWAYS[0]) || null;
+      const pPoster =
+        ipfsToHttp(data?.preview?.poster || null, IPFS_GATEWAYS[0]) || null;
 
       setPreparedKind(pKind);
       setPreparedMedia(pMedia || filePreviewUrl);
@@ -839,15 +924,22 @@ export default function MintForm() {
 
       const meta = await loadMetadataFromTokenUri(uri);
       const metaImage = typeof meta?.image === "string" ? meta.image : null;
-      const metaAnim = typeof meta?.animation_url === "string" ? meta.animation_url : null;
+      const metaAnim =
+        typeof meta?.animation_url === "string" ? meta.animation_url : null;
 
       if (metaAnim) {
         setPreparedKind("video");
-        setPreparedMedia(ipfsToHttp(metaAnim, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl);
-        setPreparedPoster(ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pPoster || null);
+        setPreparedMedia(
+          ipfsToHttp(metaAnim, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl
+        );
+        setPreparedPoster(
+          ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pPoster || null
+        );
       } else if (metaImage) {
         setPreparedKind("image");
-        setPreparedMedia(ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl);
+        setPreparedMedia(
+          ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl
+        );
         setPreparedPoster(null);
       }
 
@@ -880,7 +972,8 @@ export default function MintForm() {
     try {
       await ensureCorrectNetwork();
 
-      if (balanceEth === 0) {
+      const freshBalance = await refetchBalance();
+      if (freshBalance.data?.value === 0n) {
         setError("No gas on Base Sepolia. Open Faucet, get test ETH, then create.");
         return;
       }
@@ -923,9 +1016,7 @@ export default function MintForm() {
         deliveryMode={deliveryMode}
       />
 
-      {/* LEFT */}
       <div className="space-y-8">
-        {/* PROJECT */}
         <Card>
           <div className="flex items-end justify-between mb-4">
             <div>
@@ -945,7 +1036,10 @@ export default function MintForm() {
                 <button
                   key={p}
                   type="button"
-                  onClick={() => setProject(p)}
+                  onClick={() => {
+                    resetPreparedState();
+                    setProject(p);
+                  }}
                   className={[
                     "px-4 py-2.5 rounded-2xl border text-sm font-extrabold transition",
                     "shadow-[0_16px_40px_rgba(0,0,0,0.35)]",
@@ -961,7 +1055,6 @@ export default function MintForm() {
           </div>
         </Card>
 
-        {/* UPLOAD MEDIA */}
         <Card>
           <div className="flex items-end justify-between mb-4">
             <div>
@@ -1056,7 +1149,6 @@ export default function MintForm() {
               <div className="mt-4 flex items-center gap-4">
                 <div className="h-16 w-16 rounded-2xl border border-white/10 bg-black/30 overflow-hidden flex items-center justify-center">
                   {posterPreviewUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={posterPreviewUrl} alt="Poster" className="h-full w-full object-cover" />
                   ) : (
                     <span className="text-[10px] text-white/45">No poster</span>
@@ -1095,7 +1187,6 @@ export default function MintForm() {
           ) : null}
         </Card>
 
-        {/* CATEGORIES */}
         <Card>
           <div className="flex items-end justify-between mb-4">
             <div>
@@ -1143,7 +1234,6 @@ export default function MintForm() {
           </p>
         </Card>
 
-        {/* ITEM TYPE */}
         <Card>
           <div className="flex items-end justify-between mb-4">
             <div>
@@ -1163,7 +1253,10 @@ export default function MintForm() {
                 <button
                   key={t}
                   type="button"
-                  onClick={() => setItemType(t)}
+                  onClick={() => {
+                    resetPreparedState();
+                    setItemType(t);
+                  }}
                   className={[
                     "flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border text-sm transition",
                     "shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
@@ -1191,7 +1284,6 @@ export default function MintForm() {
           </p>
         </Card>
 
-        {/* DELIVERY MODE */}
         <Card>
           <div className="flex items-end justify-between mb-4">
             <div>
@@ -1209,6 +1301,7 @@ export default function MintForm() {
               type="button"
               onClick={() => {
                 setError("");
+                resetPreparedState();
                 setDeliveryMode("none");
               }}
               className={[
@@ -1230,6 +1323,7 @@ export default function MintForm() {
               onClick={() => {
                 if (!approvedPhysicalSeller) return;
                 setError("");
+                resetPreparedState();
                 setDeliveryMode("delivery");
               }}
               className={[
@@ -1286,9 +1380,7 @@ export default function MintForm() {
         </Card>
       </div>
 
-      {/* RIGHT */}
       <div className="space-y-6">
-        {/* STATUS */}
         <Card>
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -1381,7 +1473,6 @@ export default function MintForm() {
           )}
         </Card>
 
-        {/* NAME */}
         <Card>
           <div className="flex items-end justify-between mb-3">
             <div>
@@ -1398,7 +1489,10 @@ export default function MintForm() {
             type="text"
             placeholder="Create a name for your NFT"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              resetPreparedState();
+              setName(e.target.value);
+            }}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
               "bg-white/[0.04] border border-white/10 text-white",
@@ -1408,7 +1502,6 @@ export default function MintForm() {
           />
         </Card>
 
-        {/* BRAND */}
         <Card>
           <div className="flex items-end justify-between mb-3">
             <div>
@@ -1425,7 +1518,10 @@ export default function MintForm() {
             type="text"
             placeholder="Example: Atelier Realife / Vintage House / Custom Studio"
             value={brand}
-            onChange={(e) => setBrand(e.target.value)}
+            onChange={(e) => {
+              resetPreparedState();
+              setBrand(e.target.value);
+            }}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
               "bg-white/[0.04] border border-white/10 text-white",
@@ -1435,7 +1531,6 @@ export default function MintForm() {
           />
         </Card>
 
-        {/* SUPPLY */}
         <Card>
           <div className="flex items-end justify-between mb-3">
             <div>
@@ -1453,7 +1548,10 @@ export default function MintForm() {
             min={1}
             max={10000}
             value={supply}
-            onChange={(e) => setSupply(clampSupply(Number(e.target.value)))}
+            onChange={(e) => {
+              resetPreparedState();
+              setSupply(clampSupply(Number(e.target.value)));
+            }}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
               "bg-white/[0.04] border border-white/10 text-white",
@@ -1462,7 +1560,6 @@ export default function MintForm() {
           />
         </Card>
 
-        {/* DESCRIPTION */}
         <Card>
           <div className="flex items-end justify-between mb-3">
             <div>
@@ -1478,7 +1575,10 @@ export default function MintForm() {
           <textarea
             placeholder="Tell the story of your work..."
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => {
+              resetPreparedState();
+              setDescription(e.target.value);
+            }}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm min-h-[160px]",
               "bg-white/[0.04] border border-white/10 text-white",
@@ -1489,7 +1589,6 @@ export default function MintForm() {
           />
         </Card>
 
-        {/* PROOF */}
         <Card>
           <div className="flex items-end justify-between mb-3">
             <div>
@@ -1506,7 +1605,10 @@ export default function MintForm() {
             type="url"
             placeholder="https://x.com/yourpostlink"
             value={proofUrl}
-            onChange={(e) => setProofUrl(e.target.value)}
+            onChange={(e) => {
+              resetPreparedState();
+              setProofUrl(e.target.value);
+            }}
             className={[
               "w-full rounded-2xl px-4 py-3 text-sm",
               "bg-white/[0.04] border border-white/10 text-white",
@@ -1522,7 +1624,6 @@ export default function MintForm() {
           </div>
         )}
 
-        {/* ACTIONS */}
         <Card>
           <div className="space-y-3">
             <GhostButton disabled={busy || !canPrepare} onClick={handlePrepare}>
@@ -1547,7 +1648,9 @@ export default function MintForm() {
 
           <div className="mt-3 text-[11px] text-white/55 leading-relaxed">
             Current mode:{" "}
-            <span className="text-white font-semibold">{deliveryMode === "delivery" ? "With delivery" : "Without delivery"}</span>
+            <span className="text-white font-semibold">
+              {deliveryMode === "delivery" ? "With delivery" : "Without delivery"}
+            </span>
             {" · "}
             Item type: <span className="text-white font-semibold">{itemType}</span>
             {brand.trim() ? (

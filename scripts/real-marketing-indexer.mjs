@@ -221,8 +221,10 @@ if (CAFE_STORE) {
     startBlock: CAFE_START_BLOCK,
     iface: new Interface(CAFE_EVENT_ABI),
     contract: new Contract(CAFE_STORE, CAFE_READ_ABI, provider),
+
+    // CAFE: доставки НЕТ вообще
     defaultDeliveryEnabled: false,
-    defaultPhysicalItemIncluded: true,
+    defaultPhysicalItemIncluded: false,
     defaultOfficialItem: true,
   });
 }
@@ -402,6 +404,11 @@ async function buildProductSnapshot(cfg, tokenId, opts = {}) {
     creatorWallet = creatorWallet || cfg.creatorWallet || treasury || null;
     primarySellerWallet =
       primarySellerWallet || treasury || cfg.creatorWallet || null;
+
+    // CAFE: всегда без delivery
+    deliveryEnabled = false;
+    physicalItemIncluded = false;
+    officialItem = true;
   }
 
   return {
@@ -526,7 +533,6 @@ async function ensureMintRecord(cfg, tokenId, opts = {}) {
       name: snapshot.name,
       image: snapshot.image,
       verified: true,
-
       deliveryEnabled: Boolean(snapshot.deliveryEnabled),
       physicalItemIncluded: Boolean(snapshot.physicalItemIncluded),
       officialItem: Boolean(snapshot.officialItem),
@@ -536,7 +542,6 @@ async function ensureMintRecord(cfg, tokenId, opts = {}) {
       name: snapshot.name || undefined,
       image: snapshot.image || undefined,
       verified: true,
-
       deliveryEnabled: Boolean(snapshot.deliveryEnabled),
       physicalItemIncluded: Boolean(snapshot.physicalItemIncluded),
       officialItem: Boolean(snapshot.officialItem),
@@ -640,9 +645,12 @@ async function processLog(cfg, log) {
         price,
         creatorWallet: cfg.creatorWallet,
         primarySellerWallet: null,
+
+        // CAFE: доставки нет вообще
         deliveryEnabled: false,
-        physicalItemIncluded: true,
+        physicalItemIncluded: false,
         officialItem: true,
+
         lastTxHash: txHash,
       });
 

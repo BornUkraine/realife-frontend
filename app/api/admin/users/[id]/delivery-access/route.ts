@@ -17,6 +17,28 @@ function cleanNote(v: unknown, max = 500) {
   return String(v || "").trim().slice(0, max);
 }
 
+function norm(v: unknown) {
+  return String(v || "").trim();
+}
+
+function normAddr(v: unknown) {
+  return String(v || "").trim().toLowerCase();
+}
+
+function isAddressLike(v: unknown) {
+  return /^0x[a-fA-F0-9]{40}$/.test(String(v || "").trim());
+}
+
+const userSelect = {
+  id: true,
+  handle: true,
+  publicId: true,
+  walletAddress: true,
+  approvedPhysicalSeller: true,
+  approvedPhysicalAt: true,
+  approvedPhysicalNote: true,
+} as const;
+
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
 
@@ -41,6 +63,57 @@ async function requireAdmin() {
   };
 }
 
+async function findUserByLookup(rawLookup: string) {
+  const lookup = norm(rawLookup);
+  if (!lookup) return null;
+
+  const byId = await prisma.user.findUnique({
+    where: { id: lookup },
+    select: userSelect,
+  });
+  if (byId) return byId;
+
+  const byPublicId = await prisma.user.findFirst({
+    where: {
+      publicId: {
+        equals: lookup,
+        mode: "insensitive",
+      },
+    },
+    select: userSelect,
+  });
+  if (byPublicId) return byPublicId;
+
+  const byHandle = await prisma.user.findFirst({
+    where: {
+      handle: {
+        equals: lookup,
+        mode: "insensitive",
+      },
+    },
+    select: userSelect,
+  });
+  if (byHandle) return byHandle;
+
+  if (isAddressLike(lookup)) {
+    const wallet = normAddr(lookup);
+
+    const byWallet = await prisma.user.findFirst({
+      where: {
+        walletAddress: {
+          equals: wallet,
+          mode: "insensitive",
+        },
+      },
+      select: userSelect,
+    });
+
+    if (byWallet) return byWallet;
+  }
+
+  return null;
+}
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -49,27 +122,17 @@ export async function GET(
   if (!admin.ok) return admin.response;
 
   const { id } = await params;
+  const lookup = norm(id);
 
-  if (!id?.trim()) {
+  if (!lookup) {
     return NextResponse.json(
-      { ok: false, error: "MISSING_USER_ID" },
+      { ok: false, error: "MISSING_USER_LOOKUP" },
       { status: 400 }
     );
   }
 
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: id.trim() },
-      select: {
-        id: true,
-        handle: true,
-        publicId: true,
-        walletAddress: true,
-        approvedPhysicalSeller: true,
-        approvedPhysicalAt: true,
-        approvedPhysicalNote: true,
-      },
-    });
+    const user = await findUserByLookup(lookup);
 
     if (!user) {
       return NextResponse.json(
@@ -99,10 +162,11 @@ export async function POST(
   if (!admin.ok) return admin.response;
 
   const { id } = await params;
+  const lookup = norm(id);
 
-  if (!id?.trim()) {
+  if (!lookup) {
     return NextResponse.json(
-      { ok: false, error: "MISSING_USER_ID" },
+      { ok: false, error: "MISSING_USER_LOOKUP" },
       { status: 400 }
     );
   }
@@ -111,36 +175,30 @@ export async function POST(
   const note = cleanNote((body as any)?.note);
 
   try {
-    const user = await prisma.user.update({
-      where: { id: id.trim() },
-      data: {
-        approvedPhysicalSeller: true,
-        approvedPhysicalAt: new Date(),
-        approvedPhysicalNote: note || null,
-      },
-      select: {
-        id: true,
-        handle: true,
-        publicId: true,
-        walletAddress: true,
-        approvedPhysicalSeller: true,
-        approvedPhysicalAt: true,
-        approvedPhysicalNote: true,
-      },
-    });
+    const existing = await findUserByLookup(lookup);
 
-    return NextResponse.json({
-      ok: true,
-      user,
-    });
-  } catch (e: any) {
-    if (e?.code === "P2025") {
+    if (!existing) {
       return NextResponse.json(
         { ok: false, error: "USER_NOT_FOUND" },
         { status: 404 }
       );
     }
 
+    const user = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        approvedPhysicalSeller: true,
+        approvedPhysicalAt: existing.approvedPhysicalAt || new Date(),
+        approvedPhysicalNote: note || null,
+      },
+      select: userSelect,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      user,
+    });
+  } catch (e) {
     console.error("[ADMIN_DELIVERY_ACCESS_POST_ERROR]", e);
     return NextResponse.json(
       { ok: false, error: "INTERNAL" },
@@ -157,45 +215,40 @@ export async function DELETE(
   if (!admin.ok) return admin.response;
 
   const { id } = await params;
+  const lookup = norm(id);
 
-  if (!id?.trim()) {
+  if (!lookup) {
     return NextResponse.json(
-      { ok: false, error: "MISSING_USER_ID" },
+      { ok: false, error: "MISSING_USER_LOOKUP" },
       { status: 400 }
     );
   }
 
   try {
-    const user = await prisma.user.update({
-      where: { id: id.trim() },
-      data: {
-        approvedPhysicalSeller: false,
-        approvedPhysicalAt: null,
-        approvedPhysicalNote: null,
-      },
-      select: {
-        id: true,
-        handle: true,
-        publicId: true,
-        walletAddress: true,
-        approvedPhysicalSeller: true,
-        approvedPhysicalAt: true,
-        approvedPhysicalNote: true,
-      },
-    });
+    const existing = await findUserByLookup(lookup);
 
-    return NextResponse.json({
-      ok: true,
-      user,
-    });
-  } catch (e: any) {
-    if (e?.code === "P2025") {
+    if (!existing) {
       return NextResponse.json(
         { ok: false, error: "USER_NOT_FOUND" },
         { status: 404 }
       );
     }
 
+    const user = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        approvedPhysicalSeller: false,
+        approvedPhysicalAt: null,
+        approvedPhysicalNote: null,
+      },
+      select: userSelect,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      user,
+    });
+  } catch (e) {
     console.error("[ADMIN_DELIVERY_ACCESS_DELETE_ERROR]", e);
     return NextResponse.json(
       { ok: false, error: "INTERNAL" },
@@ -212,10 +265,11 @@ export async function PATCH(
   if (!admin.ok) return admin.response;
 
   const { id } = await params;
+  const lookup = norm(id);
 
-  if (!id?.trim()) {
+  if (!lookup) {
     return NextResponse.json(
-      { ok: false, error: "MISSING_USER_ID" },
+      { ok: false, error: "MISSING_USER_LOOKUP" },
       { status: 400 }
     );
   }
@@ -234,6 +288,13 @@ export async function PATCH(
   );
   const hasNote = Object.prototype.hasOwnProperty.call(body, "note");
 
+  if (!hasApproved && !hasNote) {
+    return NextResponse.json(
+      { ok: false, error: "NOTHING_TO_UPDATE" },
+      { status: 400 }
+    );
+  }
+
   const nextApproved = hasApproved
     ? toBool((body as any).approvedPhysicalSeller)
     : undefined;
@@ -243,15 +304,7 @@ export async function PATCH(
     : undefined;
 
   try {
-    const existing = await prisma.user.findUnique({
-      where: { id: id.trim() },
-      select: {
-        id: true,
-        approvedPhysicalSeller: true,
-        approvedPhysicalAt: true,
-        approvedPhysicalNote: true,
-      },
-    });
+    const existing = await findUserByLookup(lookup);
 
     if (!existing) {
       return NextResponse.json(
@@ -260,7 +313,11 @@ export async function PATCH(
       );
     }
 
-    const data: any = {};
+    const data: {
+      approvedPhysicalSeller?: boolean;
+      approvedPhysicalAt?: Date | null;
+      approvedPhysicalNote?: string | null;
+    } = {};
 
     if (hasApproved) {
       data.approvedPhysicalSeller = nextApproved;
@@ -277,17 +334,9 @@ export async function PATCH(
     }
 
     const user = await prisma.user.update({
-      where: { id: id.trim() },
+      where: { id: existing.id },
       data,
-      select: {
-        id: true,
-        handle: true,
-        publicId: true,
-        walletAddress: true,
-        approvedPhysicalSeller: true,
-        approvedPhysicalAt: true,
-        approvedPhysicalNote: true,
-      },
+      select: userSelect,
     });
 
     return NextResponse.json({

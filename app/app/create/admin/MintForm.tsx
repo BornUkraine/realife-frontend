@@ -25,6 +25,7 @@ const CAFE_CONTRACT =
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT as
     | `0x${string}`
     | undefined;
+
 const STORE_CONTRACT =
   process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT as
     | `0x${string}`
@@ -39,9 +40,8 @@ const ADMIN_WALLETS = (
   .map((v) => v.trim().toLowerCase())
   .filter(Boolean);
 
-const DELIVERY_ACCESS_WALLET_LOOKUP_URL = "/api/admin/users/by-wallet";
-
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+const ZERO_ADDRESS =
+  "0x0000000000000000000000000000000000000000" as const;
 const ZERO_BYTES32 = `0x${"0".repeat(64)}` as const;
 
 const CAFE_CATEGORIES = [
@@ -323,14 +323,6 @@ function clampSupply(n: number) {
 function shortAddr(a?: string | null) {
   if (!a) return "—";
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
-}
-
-function normAddr(v?: string | null) {
-  return String(v || "").trim().toLowerCase();
-}
-
-function isAddressLike(v?: string | null) {
-  return /^0x[a-fA-F0-9]{40}$/.test(String(v || "").trim());
 }
 
 function prettyError(e: any) {
@@ -819,7 +811,7 @@ export default function AdminMintForm() {
       setCategory(CAFE_CATEGORIES[0]);
       setItem(CAFE_ITEMS[0]);
       setDeliveryEnabled(false);
-      setPhysicalItemIncluded(true);
+      setPhysicalItemIncluded(false);
       setOfficialItem(true);
     } else {
       setStoreBrand("Realife");
@@ -860,6 +852,14 @@ export default function AdminMintForm() {
   }, [productMode, storeBrand, collection]);
 
   useEffect(() => {
+    if (productMode !== "store") return;
+
+    if (!deliveryEnabled && physicalItemIncluded) {
+      setPhysicalItemIncluded(false);
+    }
+  }, [productMode, deliveryEnabled, physicalItemIncluded]);
+
+  useEffect(() => {
     if (!isSuccess || !receipt || !txMode || !txTarget) return;
 
     if (txMode === "create") {
@@ -876,6 +876,7 @@ export default function AdminMintForm() {
           targetAbi,
           targetContract
         );
+
         setCreatedTokenId(tokenId);
         setCreatedAt(new Date().toLocaleString());
         setCreatedMode(txTarget);
@@ -902,21 +903,23 @@ export default function AdminMintForm() {
                 tokenUri: tokenURI || "",
                 name:
                   name.trim() ||
-                  `${
-                    txTarget === "cafe" ? "Realife Cafe" : "Realife Store"
-                  } Product`,
+                  `${txTarget === "cafe" ? "Realife Cafe" : "Realife Store"} Product`,
                 image: finalImage,
                 verified: true,
                 standard: "ERC1155",
                 catalogOnly: true,
+                deliveryEnabled:
+                  txTarget === "store" ? Boolean(deliveryEnabled) : false,
+                physicalItemIncluded:
+                  txTarget === "store" ? Boolean(physicalItemIncluded) : false,
+                officialItem:
+                  txTarget === "store" ? Boolean(officialItem) : false,
               }),
             });
 
             setManageTokenId(tokenId);
             setManageNotice(
-              `${
-                txTarget === "cafe" ? "Cafe" : "Store"
-              } product created and saved to local catalog cache.`
+              `${txTarget === "cafe" ? "Cafe" : "Store"} product created and saved to local catalog cache.`
             );
           }
         } catch {
@@ -930,6 +933,7 @@ export default function AdminMintForm() {
           void refetchManageStatus();
         }
       })();
+
       return;
     }
 
@@ -959,6 +963,9 @@ export default function AdminMintForm() {
     preparedMedia,
     name,
     storeBrand,
+    deliveryEnabled,
+    physicalItemIncluded,
+    officialItem,
     refetchManageStatus,
     refetchNextTokenId,
   ]);
@@ -974,16 +981,20 @@ export default function AdminMintForm() {
     setManageNotice("");
   }, [manageTokenId]);
 
-  function onPickFile(f: File | null) {
-    setError("");
+  function resetPreparedState() {
     setTokenURI(null);
+    setPreparedMedia(null);
+    setPreparedPoster(null);
     setCreatedTokenId(null);
     setCreatedAt(null);
     setCreatedMode(null);
     setCreatedBrand(null);
-    setPreparedMedia(null);
-    setPreparedPoster(null);
     savedRef.current = false;
+  }
+
+  function onPickFile(f: File | null) {
+    setError("");
+    resetPreparedState();
 
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
@@ -1003,7 +1014,7 @@ export default function AdminMintForm() {
 
   function onPickPoster(f: File | null) {
     setError("");
-    savedRef.current = false;
+    resetPreparedState();
 
     if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
 
@@ -1035,17 +1046,6 @@ export default function AdminMintForm() {
     }
   }
 
-  function resetPreparedState() {
-    setTokenURI(null);
-    setPreparedMedia(null);
-    setPreparedPoster(null);
-    setCreatedTokenId(null);
-    setCreatedAt(null);
-    setCreatedMode(null);
-    setCreatedBrand(null);
-    savedRef.current = false;
-  }
-
   async function resolveDeliveryAccessUser() {
     setDeliveryLookupError("");
     setDeliveryLookupNotice("");
@@ -1059,80 +1059,24 @@ export default function AdminMintForm() {
     setDeliveryLookupLoading(true);
 
     try {
-      const tryAdminGet = async (id: string) => {
-        const r = await fetch(
-          `/api/admin/users/${encodeURIComponent(id)}/delivery-access`,
-          { cache: "no-store" }
-        );
-        const j = await r.json().catch(() => null);
-        return { ok: r.ok, status: r.status, data: j };
-      };
+      const res = await fetch(
+        `/api/admin/users/${encodeURIComponent(raw)}/delivery-access`,
+        { cache: "no-store" }
+      );
 
-      const resolveByAdminId = async (id: string, notice: string) => {
-        const res = await tryAdminGet(id);
-        if (!res.ok || !res.data?.ok || !res.data?.user) {
-          if (res.status === 403) {
-            throw new Error("Admin API access denied for this wallet/session.");
-          }
-          throw new Error(res.data?.error || "Failed to load delivery access.");
-        }
+      const data = await res.json().catch(() => null);
 
-        const u = res.data.user as DeliveryAccessUser;
-        setDeliveryAccessUser(u);
-        setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
-        setDeliveryLookupNotice(notice);
-      };
-
-      if (isAddressLike(raw)) {
-        const wallet = normAddr(raw);
-
-        const walletRes = await fetch(
-          `${DELIVERY_ACCESS_WALLET_LOOKUP_URL}?wallet=${encodeURIComponent(wallet)}`,
-          { cache: "no-store" }
-        );
-        const walletData = await walletRes.json().catch(() => null);
-
-        if (!walletRes.ok || !walletData?.ok || !walletData?.user?.id) {
-          if (walletRes.status === 403) {
-            throw new Error("Admin API access denied for this wallet/session.");
-          }
-          if (walletRes.status === 404) {
-            throw new Error(
-              "Wallet lookup route is missing or user not found. Add /api/admin/users/by-wallet route first."
-            );
-          }
-          throw new Error(walletData?.error || "User not found by wallet.");
-        }
-
-        await resolveByAdminId(String(walletData.user.id), "User resolved by wallet.");
-        return;
-      }
-
-      const direct = await tryAdminGet(raw);
-      if (direct.ok && direct.data?.ok && direct.data?.user) {
-        const u = direct.data.user as DeliveryAccessUser;
-        setDeliveryAccessUser(u);
-        setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
-        setDeliveryLookupNotice("User resolved directly by database user id.");
-        return;
-      }
-
-      const publicRes = await fetch(`/api/u/${encodeURIComponent(raw)}`, {
-        cache: "no-store",
-      });
-      const publicData = await publicRes.json().catch(() => null);
-
-      if (!publicRes.ok || !publicData?.ok || !publicData?.user?.id) {
-        if (direct.status === 403) {
+      if (!res.ok || !data?.ok || !data?.user) {
+        if (res.status === 403) {
           throw new Error("Admin API access denied for this wallet/session.");
         }
-        throw new Error("User not found. Use database user id, publicId, handle or wallet.");
+        throw new Error(data?.error || "User not found.");
       }
 
-      await resolveByAdminId(
-        String(publicData.user.id),
-        "User resolved by publicId / handle."
-      );
+      const u = data.user as DeliveryAccessUser;
+      setDeliveryAccessUser(u);
+      setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
+      setDeliveryLookupNotice("User resolved by admin lookup.");
     } catch (e: any) {
       setDeliveryAccessUser(null);
       setDeliveryAccessNote("");
@@ -1166,7 +1110,9 @@ export default function AdminMintForm() {
 
       const data = await r.json().catch(() => null);
       if (!r.ok || !data?.ok || !data?.user) {
-        throw new Error(data?.error || data?.message || "Failed to grant delivery access");
+        throw new Error(
+          data?.error || data?.message || "Failed to grant delivery access"
+        );
       }
 
       const u = data.user as DeliveryAccessUser;
@@ -1200,7 +1146,9 @@ export default function AdminMintForm() {
 
       const data = await r.json().catch(() => null);
       if (!r.ok || !data?.ok || !data?.user) {
-        throw new Error(data?.error || data?.message || "Failed to revoke delivery access");
+        throw new Error(
+          data?.error || data?.message || "Failed to revoke delivery access"
+        );
       }
 
       const u = data.user as DeliveryAccessUser;
@@ -1225,30 +1173,37 @@ export default function AdminMintForm() {
       );
       return;
     }
+
     if (!file) {
       setError("Upload product media first.");
       return;
     }
+
     if (!name.trim()) {
       setError("Product name is required.");
       return;
     }
+
     if (!collection.trim()) {
       setError("Collection is required.");
       return;
     }
+
     if (!item) {
       setError("Item is required.");
       return;
     }
+
     if (!rarity) {
       setError("Rarity is required.");
       return;
     }
+
     if (!priceParsed || priceParsed < 0n) {
       setError("Enter a valid USDT price.");
       return;
     }
+
     if (!isAuthorized) {
       setError("This page is restricted to the admin moderator wallet.");
       return;
@@ -1280,9 +1235,18 @@ export default function AdminMintForm() {
       formData.append("proofUrl", externalUrl.trim());
       formData.append("externalUrl", externalUrl.trim());
       formData.append("vertical", productMode);
-      formData.append("deliveryEnabled", String(deliveryEnabled));
-      formData.append("physicalItemIncluded", String(physicalItemIncluded));
-      formData.append("officialItem", String(officialItem));
+      formData.append(
+        "deliveryEnabled",
+        productMode === "store" && deliveryEnabled ? "true" : "false"
+      );
+      formData.append(
+        "physicalItemIncluded",
+        productMode === "store" && physicalItemIncluded ? "true" : "false"
+      );
+      formData.append(
+        "officialItem",
+        productMode === "store" && officialItem ? "true" : "false"
+      );
 
       const res = await fetch(PREPARE_URL, { method: "POST", body: formData });
       const data = await res.json().catch(() => ({}));
@@ -1349,6 +1313,7 @@ export default function AdminMintForm() {
       setError("First click: Prepare (Upload → IPFS).");
       return;
     }
+
     if (!selectedContract) {
       setError(
         productMode === "cafe"
@@ -1357,22 +1322,27 @@ export default function AdminMintForm() {
       );
       return;
     }
+
     if (!collection.trim()) {
       setError("Collection is required.");
       return;
     }
+
     if (!item) {
       setError("Item is required.");
       return;
     }
+
     if (!rarity) {
       setError("Rarity is required.");
       return;
     }
+
     if (!priceParsed || priceParsed < 0n) {
       setError("Enter a valid USDT price.");
       return;
     }
+
     if (!isAuthorized) {
       setError("This page is restricted to the admin moderator wallet.");
       return;
@@ -1382,7 +1352,6 @@ export default function AdminMintForm() {
       await ensureCorrectNetwork();
 
       const freshBalance = await refetchBalance();
-
       if (freshBalance.data?.value === 0n) {
         setError("No gas on Base Sepolia. Open Faucet, get test ETH, then create.");
         return;
@@ -1445,14 +1414,17 @@ export default function AdminMintForm() {
       );
       return;
     }
+
     if (!manageTokenIdBI) {
       setError("Enter a valid product token ID.");
       return;
     }
+
     if (!manageTokenExists) {
       setError("This tokenId does not exist in the selected contract.");
       return;
     }
+
     if (!isAuthorized) {
       setError("This page is restricted to the admin moderator wallet.");
       return;
@@ -1462,7 +1434,6 @@ export default function AdminMintForm() {
       await ensureCorrectNetwork();
 
       const freshBalance = await refetchBalance();
-
       if (freshBalance.data?.value === 0n) {
         setError("No gas on Base Sepolia. Open Faucet, get test ETH, then continue.");
         return;
@@ -1752,7 +1723,7 @@ export default function AdminMintForm() {
           </div>
 
           <div className="mt-3 text-[11px] text-white/50 leading-relaxed">
-            Search currently supports <span className="text-white/75 font-semibold">database user id</span>,{" "}
+            Search supports <span className="text-white/75 font-semibold">database user id</span>,{" "}
             <span className="text-white/75 font-semibold">publicId</span>,{" "}
             <span className="text-white/75 font-semibold">handle</span> or{" "}
             <span className="text-white/75 font-semibold">wallet address</span>.
@@ -2408,7 +2379,9 @@ export default function AdminMintForm() {
               <button
                 type="button"
                 onClick={() => {
-                  setDeliveryEnabled((v) => !v);
+                  const next = !deliveryEnabled;
+                  setDeliveryEnabled(next);
+                  if (!next) setPhysicalItemIncluded(false);
                   resetPreparedState();
                 }}
                 className={[
@@ -2424,7 +2397,9 @@ export default function AdminMintForm() {
               <button
                 type="button"
                 onClick={() => {
-                  setPhysicalItemIncluded((v) => !v);
+                  const next = !physicalItemIncluded;
+                  setPhysicalItemIncluded(next);
+                  if (next) setDeliveryEnabled(true);
                   resetPreparedState();
                 }}
                 className={[
@@ -2498,9 +2473,6 @@ export default function AdminMintForm() {
                 <span className="font-black text-white/85">createOfficialProduct()</span> /{" "}
                 <span className="font-black text-white/85">createSellerProduct()</span>{" "}
                 instead of <span className="font-black text-white/85">createProduct()</span>.
-                There is also no{" "}
-                <span className="font-black text-white/85">primarySellerWallet</span>{" "}
-                input in this admin form call.
               </div>
             </div>
           </Card>
@@ -2768,7 +2740,11 @@ export default function AdminMintForm() {
                     setSupply(100);
                     setPrice("5");
                     setExternalUrl("");
-                    setCategory(productMode === "cafe" ? CAFE_CATEGORIES[0] : STORE_CATEGORIES[0]);
+                    setCategory(
+                      productMode === "cafe"
+                        ? CAFE_CATEGORIES[0]
+                        : STORE_CATEGORIES[0]
+                    );
                     setCollection(
                       productMode === "cafe"
                         ? "Realife Crypto Cafe"
@@ -2779,7 +2755,7 @@ export default function AdminMintForm() {
                     setItem(productMode === "cafe" ? CAFE_ITEMS[0] : STORE_ITEMS[0]);
                     setRarity("Common");
                     setDeliveryEnabled(productMode === "store");
-                    setPhysicalItemIncluded(true);
+                    setPhysicalItemIncluded(productMode === "store");
                     setOfficialItem(true);
                     setFile(null);
                     setPosterFile(null);
