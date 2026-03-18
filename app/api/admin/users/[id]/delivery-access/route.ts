@@ -60,14 +60,31 @@ function cleanNote(v: unknown, max = 500) {
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
 
-  const sessionWallet = normAddr(
+  const sessionUserId =
+    (session as any)?.user?.id ||
+    (session as any)?.userId ||
+    null;
+
+  const sessionWalletDirect = normAddr(
     (session as any)?.user?.walletAddress ||
       (session as any)?.walletAddress ||
       ""
   );
 
+  let sessionWallet = sessionWalletDirect;
+
+  if (!sessionWallet && sessionUserId) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: sessionUserId },
+      select: { walletAddress: true },
+    });
+
+    sessionWallet = normAddr(dbUser?.walletAddress || "");
+  }
+
   const isAdminSession = Boolean(
-    (session as any)?.user?.isAdmin || (session as any)?.isAdmin
+    (session as any)?.user?.isAdmin ||
+      (session as any)?.isAdmin
   );
 
   const isAllowlistedWallet =
@@ -246,8 +263,19 @@ export async function POST(
       ok: true,
       user: updated,
     });
-  } catch (e) {
+  } catch (e: any) {
     console.error("[ADMIN_DELIVERY_ACCESS_POST_ERROR]", e);
+
+    if (e?.code === "P2002") {
+      const user = await findUserByLookup(lookupTrim);
+      if (user) {
+        return NextResponse.json({
+          ok: true,
+          user,
+        });
+      }
+    }
+
     return NextResponse.json(
       { ok: false, error: "INTERNAL" },
       { status: 500 }
@@ -340,7 +368,9 @@ export async function PATCH(
     ? toBool((body as any).approvedPhysicalSeller)
     : undefined;
 
-  const nextNote = hasNote ? cleanNote((body as any).note) : undefined;
+  const nextNote = hasNote
+    ? cleanNote((body as any).note)
+    : undefined;
 
   try {
     let user: DeliveryAccessUserRow | null = await findUserByLookup(lookupTrim);
