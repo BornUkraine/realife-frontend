@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -14,13 +15,6 @@ function cx(...a: Array<string | false | null | undefined>) {
 
 function norm(v?: string | null) {
   return String(v || "").trim().toLowerCase();
-}
-
-function shortAddr(addr?: string | null) {
-  if (!addr) return "—";
-  const s = String(addr);
-  if (s.length <= 12) return s;
-  return `${s.slice(0, 6)}…${s.slice(-4)}`;
 }
 
 function fmtDate(v?: Date | string | null) {
@@ -161,7 +155,11 @@ function formatRaw(raw?: bigint | string | null, decimals = 18) {
     const whole = abs / base;
     const frac = abs % base;
     if (frac === 0n) return `${neg ? "-" : ""}${whole.toString()}`;
-    const fracStr = frac.toString().padStart(decimals, "0").slice(0, 6).replace(/0+$/, "");
+    const fracStr = frac
+      .toString()
+      .padStart(decimals, "0")
+      .slice(0, 6)
+      .replace(/0+$/, "");
     return `${neg ? "-" : ""}${whole.toString()}${fracStr ? `.${fracStr}` : ""}`;
   } catch {
     return String(raw || "—");
@@ -172,7 +170,7 @@ function Card({
   children,
   className = "",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   return (
@@ -326,7 +324,9 @@ export default async function ProfileDeliveryPage() {
 
   const totalOrders = hydrated.length;
   const activeShipments = hydrated.filter((x) =>
-    ["PENDING", "READY_TO_SHIP", "SHIPPED", "DELIVERED"].includes(String(x.deliveryStatus || ""))
+    ["PENDING", "READY_TO_SHIP", "SHIPPED", "DELIVERED"].includes(
+      String(x.deliveryStatus || "")
+    )
   ).length;
 
   const trackable = hydrated.filter((x) => x.trackingCode || x.trackingUrl).length;
@@ -382,22 +382,30 @@ export default async function ProfileDeliveryPage() {
 
           <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Orders</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Orders
+              </div>
               <div className="mt-1 text-lg font-black text-white/90">{totalOrders}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Active delivery</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Active delivery
+              </div>
               <div className="mt-1 text-lg font-black text-sky-200">{activeShipments}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Trackable</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Trackable
+              </div>
               <div className="mt-1 text-lg font-black text-white/90">{trackable}</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Issues</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Issues
+              </div>
               <div className="mt-1 text-lg font-black text-amber-100">{issues}</div>
             </div>
           </div>
@@ -464,6 +472,7 @@ export default async function ProfileDeliveryPage() {
                             src={order.productImage}
                             alt={order.productName}
                             className="h-full w-full object-cover"
+                            referrerPolicy="no-referrer"
                           />
                         ) : (
                           <div className="h-full w-full flex items-center justify-center text-white/25 font-black">
@@ -520,24 +529,36 @@ export default async function ProfileDeliveryPage() {
 
                       <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Token</div>
-                          <div className="mt-1 text-[13px] font-extrabold text-white/85">#{order.tokenId}</div>
+                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                            Token
+                          </div>
+                          <div className="mt-1 text-[13px] font-extrabold text-white/85">
+                            #{order.tokenId}
+                          </div>
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Amount</div>
+                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                            Amount
+                          </div>
                           <div className="mt-1 text-[13px] font-extrabold text-white/85">
                             {order.amount.toString()}
                           </div>
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Payment</div>
-                          <div className="mt-1 text-[13px] font-extrabold text-white/85">{moneyLabel}</div>
+                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                            Payment
+                          </div>
+                          <div className="mt-1 text-[13px] font-extrabold text-white/85">
+                            {moneyLabel}
+                          </div>
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Created</div>
+                          <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                            Created
+                          </div>
                           <div className="mt-1 text-[13px] font-extrabold text-white/85 truncate">
                             {fmtDate(order.createdAt)}
                           </div>
@@ -552,7 +573,9 @@ export default async function ProfileDeliveryPage() {
                           <div className="mt-2 text-sm font-extrabold text-white/90">
                             {order.shippingName || "—"}
                           </div>
-                          <div className="mt-1 text-[12px] text-white/65">{order.shippingPhone || "—"}</div>
+                          <div className="mt-1 text-[12px] text-white/65">
+                            {order.shippingPhone || "—"}
+                          </div>
                           <div className="mt-2 text-[12px] text-white/65 leading-relaxed">
                             {[
                               order.shippingCountry,

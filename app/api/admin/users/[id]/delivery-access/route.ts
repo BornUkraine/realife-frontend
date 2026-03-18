@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -6,6 +7,45 @@ import { authOptions } from "@/lib/auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const CHAIN_ID = Number(process.env.CHAIN_ID || "84532");
+
+const ADMIN_WALLETS = (
+  process.env.ADMIN_CREATE_WALLETS ||
+  process.env.ADMIN_WALLETS ||
+  process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
+  process.env.NEXT_PUBLIC_ADMIN_WALLETS ||
+  ""
+)
+  .split(",")
+  .map((v) => v.trim().toLowerCase())
+  .filter(Boolean);
+
+const deliveryAccessSelect = {
+  id: true,
+  handle: true,
+  publicId: true,
+  walletAddress: true,
+  approvedPhysicalSeller: true,
+  approvedPhysicalAt: true,
+  approvedPhysicalNote: true,
+} as const;
+
+type DeliveryAccessUserRow = Prisma.UserGetPayload<{
+  select: typeof deliveryAccessSelect;
+}>;
+
+function norm(v?: string | null) {
+  return String(v || "").trim().toLowerCase();
+}
+
+function normAddr(v?: string | null) {
+  return norm(v);
+}
+
+function isAddressLike(v?: string | null) {
+  return /^0x[a-fA-F0-9]{40}$/.test(String(v || "").trim());
+}
 
 function toBool(v: unknown) {
   if (typeof v === "boolean") return v;
@@ -17,37 +57,25 @@ function cleanNote(v: unknown, max = 500) {
   return String(v || "").trim().slice(0, max);
 }
 
-function norm(v: unknown) {
-  return String(v || "").trim();
-}
-
-function normAddr(v: unknown) {
-  return String(v || "").trim().toLowerCase();
-}
-
-function isAddressLike(v: unknown) {
-  return /^0x[a-fA-F0-9]{40}$/.test(String(v || "").trim());
-}
-
-const userSelect = {
-  id: true,
-  handle: true,
-  publicId: true,
-  walletAddress: true,
-  approvedPhysicalSeller: true,
-  approvedPhysicalAt: true,
-  approvedPhysicalNote: true,
-} as const;
-
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
 
-  const isAdmin = Boolean(
-    (session as any)?.user?.isAdmin ||
-      (session as any)?.isAdmin
+  const sessionWallet = normAddr(
+    (session as any)?.user?.walletAddress ||
+      (session as any)?.walletAddress ||
+      ""
   );
 
-  if (!isAdmin) {
+  const isAdminSession = Boolean(
+    (session as any)?.user?.isAdmin || (session as any)?.isAdmin
+  );
+
+  const isAllowlistedWallet =
+    !!sessionWallet &&
+    ADMIN_WALLETS.length > 0 &&
+    ADMIN_WALLETS.includes(sessionWallet);
+
+  if (!isAdminSession && !isAllowlistedWallet) {
     return {
       ok: false as const,
       response: NextResponse.json(
@@ -63,55 +91,47 @@ async function requireAdmin() {
   };
 }
 
-async function findUserByLookup(rawLookup: string) {
-  const lookup = norm(rawLookup);
-  if (!lookup) return null;
+async function findUserByLookup(
+  rawLookup: string
+): Promise<DeliveryAccessUserRow | null> {
+  const lookupTrim = String(rawLookup || "").trim();
+  const lookup = norm(lookupTrim);
 
-  const byId = await prisma.user.findUnique({
-    where: { id: lookup },
-    select: userSelect,
-  });
-  if (byId) return byId;
+  if (!lookupTrim) return null;
 
-  const byPublicId = await prisma.user.findFirst({
-    where: {
-      publicId: {
-        equals: lookup,
-        mode: "insensitive",
-      },
-    },
-    select: userSelect,
-  });
-  if (byPublicId) return byPublicId;
+  const orWhere: Prisma.UserWhereInput[] = [
+    { id: lookupTrim },
+    { publicId: { equals: lookup, mode: "insensitive" } },
+    { handle: { equals: lookup, mode: "insensitive" } },
+  ];
 
-  const byHandle = await prisma.user.findFirst({
-    where: {
-      handle: {
-        equals: lookup,
-        mode: "insensitive",
-      },
-    },
-    select: userSelect,
-  });
-  if (byHandle) return byHandle;
-
-  if (isAddressLike(lookup)) {
-    const wallet = normAddr(lookup);
-
-    const byWallet = await prisma.user.findFirst({
-      where: {
-        walletAddress: {
-          equals: wallet,
-          mode: "insensitive",
-        },
-      },
-      select: userSelect,
+  if (isAddressLike(lookupTrim)) {
+    orWhere.push({
+      walletAddress: normAddr(lookupTrim),
     });
-
-    if (byWallet) return byWallet;
   }
 
-  return null;
+  return prisma.user.findFirst({
+    where: {
+      OR: orWhere,
+    },
+    select: deliveryAccessSelect,
+  });
+}
+
+function buildVirtualWalletUser(wallet: string) {
+  const w = normAddr(wallet);
+
+  return {
+    id: w,
+    handle: null,
+    publicId: null,
+    walletAddress: w,
+    approvedPhysicalSeller: false,
+    approvedPhysicalAt: null,
+    approvedPhysicalNote: null,
+    userExists: false,
+  };
 }
 
 export async function GET(
@@ -122,29 +142,39 @@ export async function GET(
   if (!admin.ok) return admin.response;
 
   const { id } = await params;
-  const lookup = norm(id);
+  const lookupTrim = String(id || "").trim();
 
-  if (!lookup) {
+  if (!lookupTrim) {
     return NextResponse.json(
-      { ok: false, error: "MISSING_USER_LOOKUP" },
+      { ok: false, error: "MISSING_USER_ID" },
       { status: 400 }
     );
   }
 
   try {
-    const user = await findUserByLookup(lookup);
+    const user = await findUserByLookup(lookupTrim);
 
-    if (!user) {
-      return NextResponse.json(
-        { ok: false, error: "USER_NOT_FOUND" },
-        { status: 404 }
-      );
+    if (user) {
+      return NextResponse.json({
+        ok: true,
+        user: {
+          ...user,
+          userExists: true,
+        },
+      });
     }
 
-    return NextResponse.json({
-      ok: true,
-      user,
-    });
+    if (isAddressLike(lookupTrim)) {
+      return NextResponse.json({
+        ok: true,
+        user: buildVirtualWalletUser(lookupTrim),
+      });
+    }
+
+    return NextResponse.json(
+      { ok: false, error: "USER_NOT_FOUND" },
+      { status: 404 }
+    );
   } catch (e) {
     console.error("[ADMIN_DELIVERY_ACCESS_GET_ERROR]", e);
     return NextResponse.json(
@@ -162,11 +192,11 @@ export async function POST(
   if (!admin.ok) return admin.response;
 
   const { id } = await params;
-  const lookup = norm(id);
+  const lookupTrim = String(id || "").trim();
 
-  if (!lookup) {
+  if (!lookupTrim) {
     return NextResponse.json(
-      { ok: false, error: "MISSING_USER_LOOKUP" },
+      { ok: false, error: "MISSING_USER_ID" },
       { status: 400 }
     );
   }
@@ -175,28 +205,46 @@ export async function POST(
   const note = cleanNote((body as any)?.note);
 
   try {
-    const existing = await findUserByLookup(lookup);
+    let user: DeliveryAccessUserRow | null = await findUserByLookup(lookupTrim);
 
-    if (!existing) {
+    if (!user && isAddressLike(lookupTrim)) {
+      const createdUser: DeliveryAccessUserRow = await prisma.user.create({
+        data: {
+          walletAddress: normAddr(lookupTrim),
+          walletChainId: CHAIN_ID,
+          approvedPhysicalSeller: true,
+          approvedPhysicalAt: new Date(),
+          approvedPhysicalNote: note || null,
+        },
+        select: deliveryAccessSelect,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        user: createdUser,
+      });
+    }
+
+    if (!user) {
       return NextResponse.json(
         { ok: false, error: "USER_NOT_FOUND" },
         { status: 404 }
       );
     }
 
-    const user = await prisma.user.update({
-      where: { id: existing.id },
+    const updated = await prisma.user.update({
+      where: { id: user.id },
       data: {
         approvedPhysicalSeller: true,
-        approvedPhysicalAt: existing.approvedPhysicalAt || new Date(),
+        approvedPhysicalAt: new Date(),
         approvedPhysicalNote: note || null,
       },
-      select: userSelect,
+      select: deliveryAccessSelect,
     });
 
     return NextResponse.json({
       ok: true,
-      user,
+      user: updated,
     });
   } catch (e) {
     console.error("[ADMIN_DELIVERY_ACCESS_POST_ERROR]", e);
@@ -215,38 +263,38 @@ export async function DELETE(
   if (!admin.ok) return admin.response;
 
   const { id } = await params;
-  const lookup = norm(id);
+  const lookupTrim = String(id || "").trim();
 
-  if (!lookup) {
+  if (!lookupTrim) {
     return NextResponse.json(
-      { ok: false, error: "MISSING_USER_LOOKUP" },
+      { ok: false, error: "MISSING_USER_ID" },
       { status: 400 }
     );
   }
 
   try {
-    const existing = await findUserByLookup(lookup);
+    const user = await findUserByLookup(lookupTrim);
 
-    if (!existing) {
+    if (!user) {
       return NextResponse.json(
         { ok: false, error: "USER_NOT_FOUND" },
         { status: 404 }
       );
     }
 
-    const user = await prisma.user.update({
-      where: { id: existing.id },
+    const updated = await prisma.user.update({
+      where: { id: user.id },
       data: {
         approvedPhysicalSeller: false,
         approvedPhysicalAt: null,
         approvedPhysicalNote: null,
       },
-      select: userSelect,
+      select: deliveryAccessSelect,
     });
 
     return NextResponse.json({
       ok: true,
-      user,
+      user: updated,
     });
   } catch (e) {
     console.error("[ADMIN_DELIVERY_ACCESS_DELETE_ERROR]", e);
@@ -265,11 +313,11 @@ export async function PATCH(
   if (!admin.ok) return admin.response;
 
   const { id } = await params;
-  const lookup = norm(id);
+  const lookupTrim = String(id || "").trim();
 
-  if (!lookup) {
+  if (!lookupTrim) {
     return NextResponse.json(
-      { ok: false, error: "MISSING_USER_LOOKUP" },
+      { ok: false, error: "MISSING_USER_ID" },
       { status: 400 }
     );
   }
@@ -288,23 +336,49 @@ export async function PATCH(
   );
   const hasNote = Object.prototype.hasOwnProperty.call(body, "note");
 
-  if (!hasApproved && !hasNote) {
-    return NextResponse.json(
-      { ok: false, error: "NOTHING_TO_UPDATE" },
-      { status: 400 }
-    );
-  }
-
   const nextApproved = hasApproved
     ? toBool((body as any).approvedPhysicalSeller)
     : undefined;
 
-  const nextNote = hasNote
-    ? cleanNote((body as any).note)
-    : undefined;
+  const nextNote = hasNote ? cleanNote((body as any).note) : undefined;
 
   try {
-    const existing = await findUserByLookup(lookup);
+    let user: DeliveryAccessUserRow | null = await findUserByLookup(lookupTrim);
+
+    if (!user && isAddressLike(lookupTrim) && nextApproved === true) {
+      const createdUser: DeliveryAccessUserRow = await prisma.user.create({
+        data: {
+          walletAddress: normAddr(lookupTrim),
+          walletChainId: CHAIN_ID,
+          approvedPhysicalSeller: true,
+          approvedPhysicalAt: new Date(),
+          approvedPhysicalNote: hasNote ? nextNote || null : null,
+        },
+        select: deliveryAccessSelect,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        user: createdUser,
+      });
+    }
+
+    if (!user) {
+      return NextResponse.json(
+        { ok: false, error: "USER_NOT_FOUND" },
+        { status: 404 }
+      );
+    }
+
+    const existing = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: {
+        id: true,
+        approvedPhysicalSeller: true,
+        approvedPhysicalAt: true,
+        approvedPhysicalNote: true,
+      },
+    });
 
     if (!existing) {
       return NextResponse.json(
@@ -313,11 +387,7 @@ export async function PATCH(
       );
     }
 
-    const data: {
-      approvedPhysicalSeller?: boolean;
-      approvedPhysicalAt?: Date | null;
-      approvedPhysicalNote?: string | null;
-    } = {};
+    const data: Prisma.UserUpdateInput = {};
 
     if (hasApproved) {
       data.approvedPhysicalSeller = nextApproved;
@@ -333,15 +403,15 @@ export async function PATCH(
       data.approvedPhysicalNote = nextNote || null;
     }
 
-    const user = await prisma.user.update({
-      where: { id: existing.id },
+    const updated = await prisma.user.update({
+      where: { id: user.id },
       data,
-      select: userSelect,
+      select: deliveryAccessSelect,
     });
 
     return NextResponse.json({
       ok: true,
-      user,
+      user: updated,
     });
   } catch (e) {
     console.error("[ADMIN_DELIVERY_ACCESS_PATCH_ERROR]", e);
