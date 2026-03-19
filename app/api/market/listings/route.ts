@@ -24,6 +24,7 @@ function normAddr(v: string | null) {
 
 const ALLOWED_STATUS = new Set(["ACTIVE", "CANCELLED", "SOLD_OUT"]);
 const ALLOWED_STANDARD = new Set(["ERC721", "ERC1155"]);
+const ALLOWED_MARKET_TYPE = new Set(["STANDARD", "DELIVERY"]);
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -33,12 +34,16 @@ export async function GET(req: NextRequest) {
 
   const contract = normAddr(url.searchParams.get("contract"));
   const seller = normAddr(url.searchParams.get("seller"));
+  const marketplaceContract = normAddr(url.searchParams.get("marketplaceContract"));
 
   const standardRaw = (url.searchParams.get("standard") || "").toUpperCase();
   const standard = ALLOWED_STANDARD.has(standardRaw) ? standardRaw : null;
 
   const statusRaw = (url.searchParams.get("status") || "ACTIVE").toUpperCase();
   const status = ALLOWED_STATUS.has(statusRaw) ? statusRaw : "ACTIVE";
+
+  const marketTypeRaw = (url.searchParams.get("marketType") || "").toUpperCase();
+  const marketType = ALLOWED_MARKET_TYPE.has(marketTypeRaw) ? marketTypeRaw : null;
 
   const take = Math.max(1, Math.min(toInt(url.searchParams.get("take")) ?? 30, 100));
   const skip = Math.max(toInt(url.searchParams.get("skip")) ?? 0, 0);
@@ -49,8 +54,10 @@ export async function GET(req: NextRequest) {
   if (contract) where.contract = contract;
   if (seller) where.sellerWallet = seller;
   if (standard) where.standard = standard;
+  if (marketType) where.marketType = marketType;
+  if (marketplaceContract) where.marketplaceContract = marketplaceContract;
 
-  // закрытый маркет: только то, что есть в Mint и verified=true
+  // закрытый маркет: только verified NFT
   where.mint = {
     is: {
       verified: true,
@@ -94,6 +101,9 @@ export async function GET(req: NextRequest) {
         tokenId: r.tokenId,
         standard: r.standard,
         status: r.status,
+
+        marketType: r.marketType,
+        marketplaceContract: r.marketplaceContract,
 
         sellerWallet: r.sellerWallet,
         seller: r.seller,

@@ -22,6 +22,8 @@ function normAddr(v: string | null) {
   return x.toLowerCase();
 }
 
+const ALLOWED_MARKET_TYPE = new Set(["STANDARD", "DELIVERY"]);
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
 
@@ -30,6 +32,11 @@ export async function GET(req: NextRequest) {
 
   const contract = normAddr(url.searchParams.get("contract"));
   const tokenId = (url.searchParams.get("tokenId") || "").trim();
+
+  const marketTypeRaw = (url.searchParams.get("marketType") || "").toUpperCase();
+  const marketType = ALLOWED_MARKET_TYPE.has(marketTypeRaw) ? marketTypeRaw : null;
+
+  const marketplaceContract = normAddr(url.searchParams.get("marketplaceContract"));
 
   const listingsTake = Math.max(
     1,
@@ -56,6 +63,20 @@ export async function GET(req: NextRequest) {
           tokenId,
         },
       },
+      select: {
+        chainId: true,
+        contract: true,
+        tokenId: true,
+        name: true,
+        image: true,
+        tokenUri: true,
+        txHash: true,
+        verified: true,
+        deliveryEnabled: true,
+        physicalItemIncluded: true,
+        officialItem: true,
+        createdAt: true,
+      },
     });
 
     if (!mint || !mint.verified) {
@@ -65,19 +86,42 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    const listingsWhere: any = {
+      chainId,
+      contract,
+      tokenId,
+      status: "ACTIVE",
+      mint: {
+        is: {
+          verified: true,
+        },
+      },
+    };
+
+    const tradesWhere: any = {
+      chainId,
+      contract,
+      tokenId,
+      mint: {
+        is: {
+          verified: true,
+        },
+      },
+    };
+
+    if (marketType) {
+      listingsWhere.marketType = marketType;
+      tradesWhere.marketType = marketType;
+    }
+
+    if (marketplaceContract) {
+      listingsWhere.marketplaceContract = marketplaceContract;
+      tradesWhere.marketplaceContract = marketplaceContract;
+    }
+
     const [listings, trades] = await Promise.all([
       prisma.listing.findMany({
-        where: {
-          chainId,
-          contract,
-          tokenId,
-          status: "ACTIVE",
-          mint: {
-            is: {
-              verified: true,
-            },
-          },
-        },
+        where: listingsWhere,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: listingsTake,
         include: {
@@ -90,16 +134,7 @@ export async function GET(req: NextRequest) {
         },
       }),
       prisma.trade.findMany({
-        where: {
-          chainId,
-          contract,
-          tokenId,
-          mint: {
-            is: {
-              verified: true,
-            },
-          },
-        },
+        where: tradesWhere,
         orderBy: [{ blockTime: "desc" }, { id: "desc" }],
         take: tradesTake,
       }),
@@ -118,7 +153,20 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      mint,
+      mint: {
+        chainId: mint.chainId,
+        contract: mint.contract,
+        tokenId: mint.tokenId,
+        name: mint.name,
+        image: mint.image,
+        tokenUri: mint.tokenUri,
+        txHash: mint.txHash,
+        verified: mint.verified,
+        createdAt: mint.createdAt,
+        deliveryEnabled: mint.deliveryEnabled,
+        physicalItemIncluded: mint.physicalItemIncluded,
+        officialItem: mint.officialItem,
+      },
       stats: {
         activeListings: listings.length,
         tradesCount: trades.length,
@@ -129,8 +177,12 @@ export async function GET(req: NextRequest) {
       listings: listings.map((r) => ({
         id: r.id,
         standard: r.standard,
+        marketType: r.marketType,
+        marketplaceContract: r.marketplaceContract,
+
         sellerWallet: r.sellerWallet,
         seller: r.seller,
+
         marketplaceListingId: s(r.marketplaceListingId),
         pricePerUnitWei: s(r.pricePerUnitWei),
         amountTotal: s(r.amountTotal),
@@ -147,6 +199,11 @@ export async function GET(req: NextRequest) {
         logIndex: t.logIndex,
         blockNum: s(t.blockNum),
         blockTime: t.blockTime,
+
+        marketType: t.marketType,
+        marketplaceContract: t.marketplaceContract,
+        marketplaceListingId: t.marketplaceListingId ? s(t.marketplaceListingId) : null,
+        marketplacePurchaseId: t.marketplacePurchaseId ? s(t.marketplacePurchaseId) : null,
 
         sellerWallet: t.sellerWallet,
         buyerWallet: t.buyerWallet,
