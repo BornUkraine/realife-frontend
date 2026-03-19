@@ -29,6 +29,10 @@ function s(v: any) {
   return typeof v === "bigint" ? v.toString() : v;
 }
 
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.map((v) => norm(String(v || ""))).filter(Boolean)));
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: keyRaw } = await params;
   const key = normalizeKey(keyRaw);
@@ -41,7 +45,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const take = Math.max(1, Math.min(48, Number(url.searchParams.get("take") || "24")));
   const cursor = url.searchParams.get("cursor"); // Holding.id
 
-  const REALIFE_1155_NEW_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
+  const USER_1155_CONTRACTS = uniqueStrings([
+    process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT,
+    process.env.REALIFE_1155_NEW_CONTRACT,
+    process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT,
+    process.env.REALIFE_1155_DELIVERY_CONTRACT,
+  ]);
 
   try {
     const user = await prisma.user.findFirst({
@@ -63,7 +72,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         userId: user.id,
         amount: { gt: 0n },
         mint: { verified: true },
-        ...(REALIFE_1155_NEW_CONTRACT ? { contract: REALIFE_1155_NEW_CONTRACT } : {}),
+        ...(USER_1155_CONTRACTS.length > 0 ? { contract: { in: USER_1155_CONTRACTS } } : {}),
       },
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: take + 1,

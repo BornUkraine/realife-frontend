@@ -67,7 +67,7 @@ export async function POST(req: Request) {
     standard,
     catalogOnly, // for Cafe/Store product creation via admin form
 
-    // NEW: delivery / physical flags
+    // optional explicit flags for catalog flows
     deliveryEnabled,
     physicalItemIncluded,
     officialItem,
@@ -91,20 +91,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "bad_tokenId" }, { status: 400 });
   }
 
-  // allow BOTH:
-  // 1) public Realife1155New mint flow
-  // 2) cafe catalog entries from RealifeCafeStore
-  // 3) store catalog entries from RealifeStore1155
-  const allowedContracts = uniqueStrings([
+  const STANDARD_USER_CONTRACTS = uniqueStrings([
     process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT,
     process.env.REALIFE_1155_NEW_CONTRACT,
+  ]);
 
+  const DELIVERY_USER_CONTRACTS = uniqueStrings([
+    process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT,
+    process.env.REALIFE_1155_DELIVERY_CONTRACT,
+  ]);
+
+  const CATALOG_CONTRACTS = uniqueStrings([
     process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT,
     process.env.REALIFE_CAFE_STORE_CONTRACT,
 
     process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT,
     process.env.REALIFE_STORE_CONTRACT,
     process.env.STORE_CONTRACT_ADDRESS,
+  ]);
+
+  const allowedContracts = uniqueStrings([
+    ...STANDARD_USER_CONTRACTS,
+    ...DELIVERY_USER_CONTRACTS,
+    ...CATALOG_CONTRACTS,
   ]);
 
   if (allowedContracts.length > 0 && !allowedContracts.includes(cContract)) {
@@ -120,8 +129,33 @@ export async function POST(req: Request) {
   }
 
   const isCatalogOnly = toBool(catalogOnly);
+  const isStandardUserContract = STANDARD_USER_CONTRACTS.includes(cContract);
+  const isDeliveryUserContract = DELIVERY_USER_CONTRACTS.includes(cContract);
+  const isCatalogContract = CATALOG_CONTRACTS.includes(cContract);
 
-  // detect explicitly passed flags
+  if (isCatalogOnly && !isCatalogContract) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "CATALOG_ONLY_INVALID_CONTRACT",
+        message: "catalogOnly flow is allowed only for cafe/store catalog contracts.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (!isCatalogOnly && !isStandardUserContract && !isDeliveryUserContract) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "PUBLIC_MINT_INVALID_CONTRACT",
+        message: "Public mint flow supports only standard user contract or delivery user contract.",
+      },
+      { status: 400 }
+    );
+  }
+
+  // detect explicitly passed flags (used only for catalog/admin flows)
   const hasDeliveryEnabled = hasOwn(body, "deliveryEnabled");
   const hasPhysicalItemIncluded = hasOwn(body, "physicalItemIncluded");
   const hasOfficialItem = hasOwn(body, "officialItem");
@@ -130,51 +164,44 @@ export async function POST(req: Request) {
   const rawPhysicalItemIncluded = hasPhysicalItemIncluded ? toBool(physicalItemIncluded) : undefined;
   const rawOfficialItem = hasOfficialItem ? toBool(officialItem) : undefined;
 
-  // public mint flow UX = two modes:
-  // - without delivery
-  // - with delivery
-  //
-  // so for public mint we treat ANY delivery/physical request as "delivery mode",
-  // and store BOTH flags as true.
-  const wantsDeliveryMode = Boolean(rawDeliveryEnabled || rawPhysicalItemIncluded);
+  let createDeliveryEnabled = false;
+  let createPhysicalItemIncluded = false;
+  let createOfficialItem = false;
 
-  // create values
-  const createDeliveryEnabled = isCatalogOnly
-    ? Boolean(rawDeliveryEnabled)
-    : wantsDeliveryMode;
+  let updateDeliveryEnabled: boolean | undefined = undefined;
+  let updatePhysicalItemIncluded: boolean | undefined = undefined;
+  let updateOfficialItem: boolean | undefined = undefined;
 
-  const createPhysicalItemIncluded = isCatalogOnly
-    ? Boolean(rawPhysicalItemIncluded)
-    : wantsDeliveryMode;
+  if (isCatalogOnly) {
+    createDeliveryEnabled = Boolean(rawDeliveryEnabled);
+    createPhysicalItemIncluded = Boolean(rawPhysicalItemIncluded);
+    createOfficialItem = Boolean(rawOfficialItem);
 
-  // officialItem should remain admin/catalog-only controlled
-  const createOfficialItem = isCatalogOnly
-    ? Boolean(rawOfficialItem)
-    : false;
+    updateDeliveryEnabled =
+      rawDeliveryEnabled === undefined ? undefined : rawDeliveryEnabled;
+    updatePhysicalItemIncluded =
+      rawPhysicalItemIncluded === undefined ? undefined : rawPhysicalItemIncluded;
+    updateOfficialItem =
+      rawOfficialItem === undefined ? undefined : rawOfficialItem;
+  } else if (isDeliveryUserContract) {
+    // delivery user mint is determined by contract choice
+    createDeliveryEnabled = true;
+    createPhysicalItemIncluded = true;
+    createOfficialItem = false;
 
-  // update values
-  // preserve existing DB values if field was not passed
-  const updateDeliveryEnabled = isCatalogOnly
-    ? rawDeliveryEnabled === undefined
-      ? undefined
-      : rawDeliveryEnabled
-    : hasDeliveryEnabled || hasPhysicalItemIncluded
-      ? wantsDeliveryMode
-      : undefined;
+    updateDeliveryEnabled = true;
+    updatePhysicalItemIncluded = true;
+    updateOfficialItem = false;
+  } else {
+    // standard user mint contract
+    createDeliveryEnabled = false;
+    createPhysicalItemIncluded = false;
+    createOfficialItem = false;
 
-  const updatePhysicalItemIncluded = isCatalogOnly
-    ? rawPhysicalItemIncluded === undefined
-      ? undefined
-      : rawPhysicalItemIncluded
-    : hasDeliveryEnabled || hasPhysicalItemIncluded
-      ? wantsDeliveryMode
-      : undefined;
-
-  const updateOfficialItem = isCatalogOnly
-    ? rawOfficialItem === undefined
-      ? undefined
-      : rawOfficialItem
-    : undefined;
+    updateDeliveryEnabled = false;
+    updatePhysicalItemIncluded = false;
+    updateOfficialItem = false;
+  }
 
   // public mint flow => ownership exists immediately
   // cafe/store admin flow => catalogOnly=true => no holding, no points
@@ -214,9 +241,8 @@ export async function POST(req: Request) {
         return { status: 404 as const, body: { ok: false, error: "USER_NOT_FOUND" } };
       }
 
-      // VIP check only for public mint flow with delivery mode
-      // catalogOnly admin/store/cafe flow is not blocked here
-      if (!isCatalogOnly && wantsDeliveryMode && !u.approvedPhysicalSeller) {
+      // delivery mint via separate delivery contract requires VIP/approved wallet
+      if (!isCatalogOnly && isDeliveryUserContract && !u.approvedPhysicalSeller) {
         return {
           status: 403 as const,
           body: {
@@ -246,7 +272,6 @@ export async function POST(req: Request) {
         image: image ? String(image) : null,
         verified: typeof verified === "boolean" ? verified : true,
 
-        // NEW
         deliveryEnabled: createDeliveryEnabled,
         physicalItemIncluded: createPhysicalItemIncluded,
         officialItem: createOfficialItem,
@@ -261,7 +286,6 @@ export async function POST(req: Request) {
         image: image ? String(image) : undefined,
         verified: typeof verified === "boolean" ? verified : true,
 
-        // NEW
         deliveryEnabled: updateDeliveryEnabled,
         physicalItemIncluded: updatePhysicalItemIncluded,
         officialItem: updateOfficialItem,

@@ -13,6 +13,8 @@ const CHAIN_ID = Number(process.env.CHAIN_ID || "84532");
 const MARKETPLACE = (process.env.MARKETPLACE_ADDRESS || "").trim().toLowerCase();
 if (!MARKETPLACE) throw new Error("MARKETPLACE_ADDRESS missing");
 
+const MARKET_TYPE = "STANDARD";
+
 const START_BLOCK = BigInt(process.env.START_BLOCK || "0");
 const CONFIRMATIONS = BigInt(process.env.CONFIRMATIONS || "5");
 const BATCH = BigInt(process.env.BATCH_BLOCKS || "2000");
@@ -45,7 +47,7 @@ function norm(v) {
 }
 
 function stateKey() {
-  return `marketplace:${MARKETPLACE}`;
+  return `marketplace:${MARKET_TYPE}:${MARKETPLACE}`;
 }
 
 async function getLastBlock() {
@@ -85,6 +87,7 @@ async function mainLoop() {
 
   console.log("[INDEXER] start", {
     chainId: CHAIN_ID,
+    marketType: MARKET_TYPE,
     marketplace: MARKETPLACE,
     startFrom: last.toString(),
     confirmations: CONFIRMATIONS.toString(),
@@ -195,12 +198,16 @@ async function mainLoop() {
 
           await prisma.listing.upsert({
             where: {
-              chainId_marketplaceListingId: {
+              chainId_marketType_marketplaceListingId: {
                 chainId: CHAIN_ID,
+                marketType: MARKET_TYPE,
                 marketplaceListingId: listingId,
               },
             },
             update: {
+              marketType: MARKET_TYPE,
+              marketplaceContract: MARKETPLACE,
+
               status: "ACTIVE",
               sellerId,
               sellerWallet: seller,
@@ -221,6 +228,10 @@ async function mainLoop() {
               contract: nft,
               tokenId,
               standard: "ERC1155",
+
+              marketType: MARKET_TYPE,
+              marketplaceContract: MARKETPLACE,
+
               sellerId,
               sellerWallet: seller,
               marketplaceListingId: listingId,
@@ -237,6 +248,7 @@ async function mainLoop() {
           });
 
           console.log("[LISTED]", {
+            marketType: MARKET_TYPE,
             listingId: listingId.toString(),
             seller,
             nft,
@@ -255,13 +267,18 @@ async function mainLoop() {
           await prisma.listing.updateMany({
             where: {
               chainId: CHAIN_ID,
+              marketType: MARKET_TYPE,
+              marketplaceContract: MARKETPLACE,
               marketplaceListingId: listingId,
               status: "ACTIVE",
             },
             data: { status: "CANCELLED", cancelledAt: blockTime },
           });
 
-          console.log("[CANCELLED]", { listingId: listingId.toString() });
+          console.log("[CANCELLED]", {
+            marketType: MARKET_TYPE,
+            listingId: listingId.toString(),
+          });
         }
 
         if (parsed.name === "Bought") {
@@ -317,8 +334,9 @@ async function mainLoop() {
               }),
               prisma.listing.findUnique({
                 where: {
-                  chainId_marketplaceListingId: {
+                  chainId_marketType_marketplaceListingId: {
                     chainId: CHAIN_ID,
+                    marketType: MARKET_TYPE,
                     marketplaceListingId: listingId,
                   },
                 },
@@ -348,11 +366,17 @@ async function mainLoop() {
                 contract: nft,
                 tokenId,
                 standard: "ERC1155",
+
+                marketType: MARKET_TYPE,
+                marketplaceContract: MARKETPLACE,
+                marketplaceListingId: listingId,
+                marketplacePurchaseId: null,
+
                 txHash,
                 logIndex,
                 blockNum: BigInt(log.blockNumber),
                 blockTime,
-                marketplaceListingId: listingId,
+
                 sellerWallet: seller,
                 buyerWallet: buyer,
                 sellerId: sellerUser?.id ?? null,
@@ -390,8 +414,9 @@ async function mainLoop() {
 
               await prisma.listing.update({
                 where: {
-                  chainId_marketplaceListingId: {
+                  chainId_marketType_marketplaceListingId: {
                     chainId: CHAIN_ID,
+                    marketType: MARKET_TYPE,
                     marketplaceListingId: listingId,
                   },
                 },
@@ -462,7 +487,10 @@ async function mainLoop() {
 
           if (tradeRow?.id && deliveryRequired) {
             const existingOrder = await prisma.storeOrder.findFirst({
-              where: { tradeId: tradeRow.id },
+              where: {
+                tradeId: tradeRow.id,
+                marketType: MARKET_TYPE,
+              },
               select: { id: true },
             });
 
@@ -477,6 +505,9 @@ async function mainLoop() {
                   orderKind: "SECONDARY",
                   vertical,
 
+                  marketType: MARKET_TYPE,
+                  marketplaceContract: MARKETPLACE,
+
                   buyerWallet: buyer,
                   sellerWallet: seller,
 
@@ -486,6 +517,7 @@ async function mainLoop() {
                   listingId: currentListing?.id ?? null,
                   tradeId: tradeRow.id,
                   marketplaceListingId: listingId,
+                  marketplacePurchaseId: null,
 
                   amount,
                   unitPrice: pricePerUnitWei,
@@ -505,6 +537,7 @@ async function mainLoop() {
               });
 
               console.log("[STORE_ORDER_CREATED]", {
+                marketType: MARKET_TYPE,
                 tradeId: tradeRow.id,
                 listingId: listingId.toString(),
                 nft,
@@ -519,6 +552,7 @@ async function mainLoop() {
           }
 
           console.log("[BOUGHT]", {
+            marketType: MARKET_TYPE,
             listingId: listingId.toString(),
             seller,
             buyer,
