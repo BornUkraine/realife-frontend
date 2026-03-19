@@ -56,6 +56,11 @@ enum OrderKind {
   SECONDARY
 }
 
+enum MarketType {
+  STANDARD
+  DELIVERY
+}
+
 /**
  * ==========================================================================
  * USER
@@ -302,6 +307,17 @@ model Listing {
   sellerId String?
   seller   User?   @relation(fields: [sellerId], references: [id], onDelete: SetNull)
 
+  /**
+   * STANDARD = old normal marketplace
+   * DELIVERY = new delivery escrow marketplace
+   */
+  marketType MarketType @default(STANDARD)
+
+  /**
+   * specific marketplace contract address
+   */
+  marketplaceContract String?
+
   sellerWallet         String
   marketplaceListingId BigInt
   pricePerUnitWei      BigInt
@@ -321,12 +337,16 @@ model Listing {
 
   createdTxHash String?
 
-  @@unique([chainId, marketplaceListingId])
+  @@unique([chainId, marketType, marketplaceListingId])
   @@index([status])
   @@index([sellerWallet])
   @@index([sellerId])
   @@index([chainId, contract, tokenId])
   @@index([deliveryEnabled, physicalItemIncluded])
+  @@index([marketType])
+  @@index([marketplaceContract])
+  @@index([marketType, marketplaceListingId])
+  @@index([marketplaceContract, marketplaceListingId])
 }
 
 /**
@@ -353,7 +373,11 @@ model Trade {
   blockNum  BigInt
   blockTime DateTime
 
-  marketplaceListingId BigInt?
+  marketplaceListingId  BigInt?
+  marketplacePurchaseId BigInt?
+
+  marketType MarketType @default(STANDARD)
+  marketplaceContract String?
 
   sellerWallet String
   buyerWallet  String
@@ -372,6 +396,14 @@ model Trade {
   @@index([chainId, contract, tokenId, blockTime])
   @@index([sellerWallet])
   @@index([buyerWallet])
+  @@index([marketplaceListingId])
+  @@index([marketplacePurchaseId])
+  @@index([marketType])
+  @@index([marketplaceContract])
+  @@index([marketType, marketplaceListingId])
+  @@index([marketType, marketplacePurchaseId])
+  @@index([marketplaceContract, marketplaceListingId])
+  @@index([marketplaceContract, marketplacePurchaseId])
 }
 
 /**
@@ -469,6 +501,9 @@ model StoreOrder {
    */
   vertical String
 
+  marketType MarketType @default(STANDARD)
+  marketplaceContract String?
+
   buyerWallet  String
   sellerWallet String
 
@@ -484,6 +519,7 @@ model StoreOrder {
   listingId             String?
   tradeId               String?
   marketplaceListingId  BigInt?
+  marketplacePurchaseId BigInt?
 
   amount     BigInt @default(1)
   unitPrice  BigInt
@@ -536,8 +572,15 @@ model StoreOrder {
   @@index([listingId])
   @@index([tradeId])
   @@index([marketplaceListingId])
+  @@index([marketplacePurchaseId])
   @@index([escrowStatus])
   @@index([deliveryStatus])
   @@index([createdAt])
+  @@index([marketType])
+  @@index([marketplaceContract])
+  @@index([marketType, marketplaceListingId])
+  @@index([marketType, marketplacePurchaseId])
+  @@index([marketplaceContract, marketplaceListingId])
+  @@index([marketplaceContract, marketplacePurchaseId])
   @@map("store_orders")
 }
