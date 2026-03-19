@@ -66,6 +66,12 @@ export default function AdminCreatePage() {
   const storeContract =
     process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT || "not-set";
 
+  const publicStandardMintContract =
+    process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "not-set";
+
+  const publicDeliveryMintContract =
+    process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT || "not-set";
+
   return (
     <div className="space-y-6">
       <Reveal>
@@ -107,7 +113,7 @@ export default function AdminCreatePage() {
 
                 <Pill>
                   <span className="text-amber-200 font-black">
-                    User delivery mint access
+                    Delivery mint contract access
                   </span>
                 </Pill>
               </div>
@@ -130,7 +136,11 @@ export default function AdminCreatePage() {
                 </span>
                 . Upload premium metadata to IPFS, create new storefront
                 products on-chain, manage visibility for existing items, and
-                control which public users can mint with delivery-enabled access.
+                control which public users can mint through the{" "}
+                <span className="font-semibold text-white">
+                  delivery mint contract
+                </span>
+                .
               </p>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
@@ -160,11 +170,11 @@ export default function AdminCreatePage() {
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
                 For <span className="font-semibold text-white">public creator mint</span>,
-                this panel can also grant or revoke{" "}
+                this panel now grants or revokes access specifically for the{" "}
                 <span className="font-extrabold text-amber-200">
-                  delivery-enabled mint access
-                </span>{" "}
-                for selected users.
+                  delivery mint contract
+                </span>
+                . Standard public mint remains separate.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
@@ -195,6 +205,20 @@ export default function AdminCreatePage() {
                     {storeContract}
                   </span>
                 </div>
+
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
+                  Public standard mint contract:{" "}
+                  <span className="break-all font-semibold text-white">
+                    {publicStandardMintContract}
+                  </span>
+                </div>
+
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
+                  Public delivery mint contract:{" "}
+                  <span className="break-all font-semibold text-white">
+                    {publicDeliveryMintContract}
+                  </span>
+                </div>
               </div>
 
               <div className="mt-4 max-w-4xl rounded-[24px] border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-xs text-sky-50/85">
@@ -203,8 +227,12 @@ export default function AdminCreatePage() {
                 while the Store can optionally test different{" "}
                 <span className="font-black text-sky-100">brand labels</span>{" "}
                 on product cards and NFT pages without fragmenting the contract
-                architecture. Delivery-enabled public mint access is managed
-                separately at the user level.
+                architecture. Public user delivery mint access is now explicitly
+                tied to the{" "}
+                <span className="font-black text-sky-100">
+                  delivery mint contract
+                </span>
+                , not the standard one.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -263,7 +291,7 @@ export default function AdminCreatePage() {
             <span className="opacity-60">Cafe + Store control</span>
             <span className="opacity-60">Brand label</span>
             <span className="opacity-60">Delivery flags</span>
-            <span className="opacity-60">Delivery mint access</span>
+            <span className="opacity-60">Delivery mint contract access</span>
           </div>
         </div>
       </Reveal>

@@ -31,6 +31,16 @@ const STORE_CONTRACT =
     | `0x${string}`
     | undefined;
 
+const PUBLIC_STANDARD_MINT_CONTRACT =
+  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT as
+    | `0x${string}`
+    | undefined;
+
+const PUBLIC_DELIVERY_MINT_CONTRACT =
+  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT as
+    | `0x${string}`
+    | undefined;
+
 const ADMIN_WALLETS = (
   process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
   process.env.NEXT_PUBLIC_ADMIN_WALLETS ||
@@ -298,6 +308,7 @@ type DeliveryAccessUser = {
   approvedPhysicalSeller: boolean;
   approvedPhysicalAt: string | null;
   approvedPhysicalNote: string | null;
+  userExists?: boolean;
 };
 
 function useMounted() {
@@ -790,6 +801,8 @@ export default function AdminMintForm() {
       !isSwitching
   );
 
+  const deliveryMintContractReady = Boolean(PUBLIC_DELIVERY_MINT_CONTRACT);
+
   const busy = step !== "idle" || isSwitching || txMode !== null;
 
   const { writeContractAsync, isPending: isWalletPromptOpen } =
@@ -1060,7 +1073,7 @@ export default function AdminMintForm() {
 
     try {
       const res = await fetch(
-        `/api/admin/users/${encodeURIComponent(raw)}/delivery-access`,
+        `/api/admin/delivery-access/${encodeURIComponent(raw)}`,
         { cache: "no-store" }
       );
 
@@ -1076,7 +1089,7 @@ export default function AdminMintForm() {
       const u = data.user as DeliveryAccessUser;
       setDeliveryAccessUser(u);
       setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
-      setDeliveryLookupNotice("User resolved by admin lookup.");
+      setDeliveryLookupNotice("User resolved for delivery mint access.");
     } catch (e: any) {
       setDeliveryAccessUser(null);
       setDeliveryAccessNote("");
@@ -1098,7 +1111,7 @@ export default function AdminMintForm() {
 
     try {
       const r = await fetch(
-        `/api/admin/users/${encodeURIComponent(deliveryAccessUser.id)}/delivery-access`,
+        `/api/admin/delivery-access/${encodeURIComponent(deliveryAccessUser.id)}`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -1111,14 +1124,16 @@ export default function AdminMintForm() {
       const data = await r.json().catch(() => null);
       if (!r.ok || !data?.ok || !data?.user) {
         throw new Error(
-          data?.error || data?.message || "Failed to grant delivery access"
+          data?.error || data?.message || "Failed to grant delivery mint access"
         );
       }
 
       const u = data.user as DeliveryAccessUser;
       setDeliveryAccessUser(u);
       setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
-      setDeliveryLookupNotice("Delivery access granted.");
+      setDeliveryLookupNotice(
+        "Delivery mint access granted. User can now mint through the public delivery contract."
+      );
     } catch (e: any) {
       setDeliveryLookupError(prettyError(e));
     } finally {
@@ -1138,7 +1153,7 @@ export default function AdminMintForm() {
 
     try {
       const r = await fetch(
-        `/api/admin/users/${encodeURIComponent(deliveryAccessUser.id)}/delivery-access`,
+        `/api/admin/delivery-access/${encodeURIComponent(deliveryAccessUser.id)}`,
         {
           method: "DELETE",
         }
@@ -1147,14 +1162,16 @@ export default function AdminMintForm() {
       const data = await r.json().catch(() => null);
       if (!r.ok || !data?.ok || !data?.user) {
         throw new Error(
-          data?.error || data?.message || "Failed to revoke delivery access"
+          data?.error || data?.message || "Failed to revoke delivery mint access"
         );
       }
 
       const u = data.user as DeliveryAccessUser;
       setDeliveryAccessUser(u);
       setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
-      setDeliveryLookupNotice("Delivery access revoked.");
+      setDeliveryLookupNotice(
+        "Delivery mint access revoked. User will no longer be allowed to mint through the public delivery contract."
+      );
     } catch (e: any) {
       setDeliveryLookupError(prettyError(e));
     } finally {
@@ -1672,9 +1689,10 @@ export default function AdminMintForm() {
         <Card>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-sm font-extrabold tracking-tight">Delivery Access Manager</div>
+              <div className="text-sm font-extrabold tracking-tight">Delivery Mint Access Manager</div>
               <div className="mt-1 text-[11px] text-white/55">
-                Grant or revoke public mint delivery access for a user wallet/profile.
+                Grant or revoke access for the public user mint form to use the{" "}
+                <span className="font-black text-white/85">delivery mint contract</span>.
               </div>
             </div>
 
@@ -1682,6 +1700,68 @@ export default function AdminMintForm() {
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
               Admin only
             </Pill>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                Public standard mint contract
+              </div>
+              <div className="mt-1 text-sm font-black text-white/90 break-all">
+                {PUBLIC_STANDARD_MINT_CONTRACT || "not-set"}
+              </div>
+              <div className="mt-2 text-[11px] text-white/55">
+                Standard public mint is available without this special access.
+              </div>
+            </div>
+
+            <div
+              className={`rounded-2xl border p-4 ${
+                deliveryMintContractReady
+                  ? "border-emerald-500/20 bg-emerald-500/10"
+                  : "border-rose-500/20 bg-rose-500/10"
+              }`}
+            >
+              <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                Public delivery mint contract
+              </div>
+              <div className="mt-1 text-sm font-black text-white/90 break-all">
+                {PUBLIC_DELIVERY_MINT_CONTRACT || "not-set"}
+              </div>
+              <div className="mt-2 text-[11px] text-white/55">
+                This access should unlock minting through the delivery contract only.
+              </div>
+            </div>
+          </div>
+
+          {!deliveryMintContractReady ? (
+            <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
+              Missing <b>NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT</b>. You can still grant the DB flag,
+              but public delivery mint will not work until this env is set on the frontend.
+            </div>
+          ) : null}
+
+          <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
+            <div className="text-[12px] font-black text-sky-100">
+              What this access now means
+            </div>
+            <div className="mt-2 space-y-2 text-[12px] text-sky-50/85 leading-relaxed">
+              <div>
+                • user can still mint normally via the{" "}
+                <span className="font-black text-sky-100">standard public mint contract</span>
+              </div>
+              <div>
+                • when approved, the same user can also choose{" "}
+                <span className="font-black text-sky-100">With delivery</span> in public MintForm
+              </div>
+              <div>
+                • that delivery mint should go into{" "}
+                <span className="font-black text-sky-100">NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT</span>
+              </div>
+              <div>
+                • this flag is no longer about the old standard mint path
+              </div>
+            </div>
           </div>
 
           <div className="mt-5">
@@ -1772,7 +1852,7 @@ export default function AdminMintForm() {
 
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                   <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
-                    Delivery access
+                    Delivery mint access
                   </div>
                   <div
                     className={`mt-1 text-sm font-black ${
@@ -1782,6 +1862,9 @@ export default function AdminMintForm() {
                     }`}
                   >
                     {deliveryAccessUser.approvedPhysicalSeller ? "Approved" : "Not approved"}
+                  </div>
+                  <div className="mt-2 text-[11px] text-white/55">
+                    Controls whether user can mint via the public delivery contract.
                   </div>
                 </div>
 
@@ -1802,7 +1885,7 @@ export default function AdminMintForm() {
                   Admin note
                 </div>
                 <textarea
-                  placeholder="Optional note for why this wallet has delivery access"
+                  placeholder="Optional note for why this wallet can mint through the delivery contract"
                   value={deliveryAccessNote}
                   onChange={(e) => setDeliveryAccessNote(e.target.value)}
                   className={[
@@ -1820,14 +1903,14 @@ export default function AdminMintForm() {
                   disabled={!isAuthorized || deliveryAccessSaving || deliveryLookupLoading}
                   onClick={grantDeliveryAccess}
                 >
-                  {deliveryAccessSaving ? "Saving…" : "Grant delivery access"}
+                  {deliveryAccessSaving ? "Saving…" : "Grant delivery mint access"}
                 </GoldButton>
 
                 <GhostButton
                   disabled={!isAuthorized || deliveryAccessSaving || deliveryLookupLoading}
                   onClick={revokeDeliveryAccess}
                 >
-                  {deliveryAccessSaving ? "Saving…" : "Revoke delivery access"}
+                  {deliveryAccessSaving ? "Saving…" : "Revoke delivery mint access"}
                 </GhostButton>
               </div>
             </>
@@ -2460,7 +2543,7 @@ export default function AdminMintForm() {
                 <div>• escrow release / refund flow</div>
               </div>
               <div className="mt-3 text-[11px] text-amber-50/80 leading-relaxed">
-                Those actions happen later in the orders flow after buyer purchase.
+                Those actions happen later in the orders flow after purchase.
               </div>
             </div>
 

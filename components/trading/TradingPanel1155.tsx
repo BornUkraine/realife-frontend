@@ -17,6 +17,8 @@ import { formatUnits, parseUnits } from "viem";
 import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
 
+type MarketType = "STANDARD" | "DELIVERY";
+
 type Listing = {
   id: string;
   standard: "ERC1155" | "ERC721";
@@ -31,6 +33,9 @@ type Listing = {
   deliveryEnabled?: boolean;
   physicalItemIncluded?: boolean;
   officialItem?: boolean;
+
+  marketType?: MarketType;
+  marketplaceContract?: string | null;
 };
 
 type Trade = {
@@ -43,6 +48,10 @@ type Trade = {
   amount: string;
   pricePerUnitWei: string;
   totalPriceWei: string;
+
+  marketType?: MarketType;
+  marketplaceContract?: string | null;
+  marketplacePurchaseId?: string | null;
 };
 
 type MarketNftResponse = {
@@ -128,6 +137,22 @@ function explorerTxUrl(chainId: number, txHash: string) {
   return "#";
 }
 
+function marketLabel(mt?: MarketType | null) {
+  return mt === "DELIVERY" ? "DELIVERY" : "STANDARD";
+}
+
+function listingKeyOf(x: {
+  marketplaceListingId: string;
+  marketType?: MarketType;
+  marketplaceContract?: string | null;
+}) {
+  return [
+    toLower(x.marketplaceContract),
+    x.marketType || "STANDARD",
+    String(x.marketplaceListingId || ""),
+  ].join(":");
+}
+
 async function fetchJSON(url: string) {
   const r = await fetch(url, { cache: "no-store" });
   const j = await r.json().catch(() => null);
@@ -178,13 +203,24 @@ export default function TradingPanel1155({
   const { openConnectModal } = useConnectModal();
   const { writeContractAsync } = useWriteContract();
 
-  const MARKETPLACE_ADDRESS = useMemo(() => {
-    return toLower(process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS || "");
+  const STANDARD_MARKETPLACE_ADDRESS = useMemo(() => {
+    return toLower(
+      process.env.NEXT_PUBLIC_MARKETPLACE_STANDARD_ADDRESS ||
+        process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS ||
+        ""
+    );
+  }, []);
+
+  const DELIVERY_MARKETPLACE_ADDRESS = useMemo(() => {
+    return toLower(
+      process.env.NEXT_PUBLIC_MARKETPLACE_DELIVERY_ADDRESS ||
+        process.env.NEXT_PUBLIC_DELIVERY_MARKETPLACE_ADDRESS ||
+        ""
+    );
   }, []);
 
   const nftAddr = useMemo(() => toLower(contract), [contract]);
   const me = useMemo(() => toLower(address), [address]);
-  const hasMarketplace = MARKETPLACE_ADDRESS.startsWith("0x");
   const canTradeOnThisChain = currentChainId === chainId;
 
   const tokenIdBI = useMemo(() => {
@@ -196,7 +232,10 @@ export default function TradingPanel1155({
   }, [tokenId]);
 
   const revalidateMarketTags = useCallback(async () => {
-    const tags = [`market:nft:${chainId}:${nftAddr}:${tokenId}`, `market:contract:${chainId}:${nftAddr}`];
+    const tags = [
+      `market:nft:${chainId}:${nftAddr}:${tokenId}`,
+      `market:contract:${chainId}:${nftAddr}`,
+    ];
 
     try {
       await fetch("/api/revalidate", {
@@ -239,11 +278,28 @@ export default function TradingPanel1155({
     refresh();
   }, [refresh]);
 
+  const nftHasDelivery = useMemo(() => {
+    return Boolean(data?.mint?.deliveryEnabled || data?.mint?.physicalItemIncluded);
+  }, [data?.mint?.deliveryEnabled, data?.mint?.physicalItemIncluded]);
+
+  const sellMarketType: MarketType = nftHasDelivery ? "DELIVERY" : "STANDARD";
+
+  const sellMarketplaceAddress = useMemo(() => {
+    return sellMarketType === "DELIVERY"
+      ? DELIVERY_MARKETPLACE_ADDRESS
+      : STANDARD_MARKETPLACE_ADDRESS;
+  }, [sellMarketType, DELIVERY_MARKETPLACE_ADDRESS, STANDARD_MARKETPLACE_ADDRESS]);
+
+  const hasSellMarketplace = sellMarketplaceAddress.startsWith("0x");
+
   const { data: balanceRaw, refetch: refetchBalance } = useReadContract({
     abi: erc1155CoreAbi,
     address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
     functionName: "balanceOf",
-    args: [((address || "0x0000000000000000000000000000000000000000") as `0x${string}`), tokenIdBI],
+    args: [
+      ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      tokenIdBI,
+    ],
     query: {
       enabled: Boolean(address && nftAddr.startsWith("0x")),
     },
@@ -255,10 +311,10 @@ export default function TradingPanel1155({
     functionName: "isApprovedForAll",
     args: [
       ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
-      ((MARKETPLACE_ADDRESS || "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      ((sellMarketplaceAddress || "0x0000000000000000000000000000000000000000") as `0x${string}`),
     ],
     query: {
-      enabled: Boolean(address && hasMarketplace && nftAddr.startsWith("0x")),
+      enabled: Boolean(address && hasSellMarketplace && nftAddr.startsWith("0x")),
     },
   });
 
@@ -272,7 +328,7 @@ export default function TradingPanel1155({
 
   const isApproved = Boolean(approvedRaw);
 
-  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+  const [selectedListingKey, setSelectedListingKey] = useState<string | null>(null);
   const [buyAmount, setBuyAmount] = useState(1);
   const [sellAmount, setSellAmount] = useState(1);
   const [sellPriceEth, setSellPriceEth] = useState("0.01");
@@ -281,23 +337,60 @@ export default function TradingPanel1155({
   useEffect(() => {
     const list = data?.listings || [];
     if (!list.length) {
-      setSelectedListingId(null);
+      setSelectedListingKey(null);
       return;
     }
 
-    setSelectedListingId((prev) => {
-      if (!prev) return list[0]?.marketplaceListingId ?? null;
-      const exists = list.some((x) => x.marketplaceListingId === prev);
-      return exists ? prev : list[0]?.marketplaceListingId ?? null;
+    setSelectedListingKey((prev) => {
+      if (!prev) return listingKeyOf(list[0]);
+      const exists = list.some((x) => listingKeyOf(x) === prev);
+      return exists ? prev : listingKeyOf(list[0]);
     });
   }, [data?.listings]);
 
   const selectedListing = useMemo(() => {
     const list = data?.listings || [];
     if (!list.length) return null;
-    if (!selectedListingId) return list[0] || null;
-    return list.find((x) => x.marketplaceListingId === selectedListingId) || list[0] || null;
-  }, [data?.listings, selectedListingId]);
+    if (!selectedListingKey) return list[0] || null;
+    return list.find((x) => listingKeyOf(x) === selectedListingKey) || list[0] || null;
+  }, [data?.listings, selectedListingKey]);
+
+  const selectedListingHasDelivery = useMemo(() => {
+    if (!selectedListing) return nftHasDelivery;
+    return Boolean(
+      selectedListing.deliveryEnabled ||
+        selectedListing.physicalItemIncluded ||
+        data?.mint?.deliveryEnabled ||
+        data?.mint?.physicalItemIncluded
+    );
+  }, [
+    selectedListing,
+    nftHasDelivery,
+    data?.mint?.deliveryEnabled,
+    data?.mint?.physicalItemIncluded,
+  ]);
+
+  const selectedListingMarketType: MarketType = useMemo(() => {
+    if (selectedListing?.marketType) return selectedListing.marketType;
+    return selectedListingHasDelivery ? "DELIVERY" : "STANDARD";
+  }, [selectedListing?.marketType, selectedListingHasDelivery]);
+
+  const selectedListingMarketplaceAddress = useMemo(() => {
+    const direct = toLower(selectedListing?.marketplaceContract || "");
+    if (direct.startsWith("0x")) return direct;
+
+    return selectedListingMarketType === "DELIVERY"
+      ? DELIVERY_MARKETPLACE_ADDRESS
+      : STANDARD_MARKETPLACE_ADDRESS;
+  }, [
+    selectedListing?.marketplaceContract,
+    selectedListingMarketType,
+    DELIVERY_MARKETPLACE_ADDRESS,
+    STANDARD_MARKETPLACE_ADDRESS,
+  ]);
+
+  const hasSelectedListingMarketplace =
+    selectedListingMarketplaceAddress.startsWith("0x");
 
   const maxBuyBI = useMemo(() => {
     try {
@@ -341,25 +434,6 @@ export default function TradingPanel1155({
     }
   }, [selectedListing, buyAmount]);
 
-  const nftHasDelivery = useMemo(() => {
-    return Boolean(data?.mint?.deliveryEnabled || data?.mint?.physicalItemIncluded);
-  }, [data?.mint?.deliveryEnabled, data?.mint?.physicalItemIncluded]);
-
-  const selectedListingHasDelivery = useMemo(() => {
-    if (!selectedListing) return nftHasDelivery;
-    return Boolean(
-      selectedListing.deliveryEnabled ||
-        selectedListing.physicalItemIncluded ||
-        data?.mint?.deliveryEnabled ||
-        data?.mint?.physicalItemIncluded
-    );
-  }, [
-    selectedListing,
-    nftHasDelivery,
-    data?.mint?.deliveryEnabled,
-    data?.mint?.physicalItemIncluded,
-  ]);
-
   const refreshAll = useCallback(async () => {
     await Promise.allSettled([refresh(), refetchBalance(), refetchApproved()]);
   }, [refresh, refetchBalance, refetchApproved]);
@@ -386,7 +460,7 @@ export default function TradingPanel1155({
 
   async function approveAll() {
     if (!isConnected) return openConnectModal?.();
-    if (!hasMarketplace) return;
+    if (!hasSellMarketplace) return;
 
     setErr(null);
     setHint(null);
@@ -399,14 +473,14 @@ export default function TradingPanel1155({
         abi: erc1155CoreAbi,
         address: nftAddr as `0x${string}`,
         functionName: "setApprovalForAll",
-        args: [MARKETPLACE_ADDRESS as `0x${string}`, true],
+        args: [sellMarketplaceAddress as `0x${string}`, true],
       });
 
-      setHint("Approval sent. Waiting for confirmation…");
+      setHint(`Approval sent to ${marketLabel(sellMarketType)} market. Waiting for confirmation…`);
       await publicClient?.waitForTransactionReceipt({ hash });
 
       await refetchApproved();
-      setHint("Approved ✅");
+      setHint(`Approved for ${marketLabel(sellMarketType)} ✅`);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Approve failed");
     } finally {
@@ -416,7 +490,7 @@ export default function TradingPanel1155({
 
   async function listNow() {
     if (!isConnected) return openConnectModal?.();
-    if (!hasMarketplace) return;
+    if (!hasSellMarketplace) return;
 
     setErr(null);
     setHint(null);
@@ -430,15 +504,15 @@ export default function TradingPanel1155({
 
       const hash = await writeContractAsync({
         abi: marketplaceSpot1155Abi,
-        address: MARKETPLACE_ADDRESS as `0x${string}`,
+        address: sellMarketplaceAddress as `0x${string}`,
         functionName: "list1155",
         args: [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei],
       });
 
-      setHint("Listing sent. Waiting for confirmation…");
+      setHint(`${marketLabel(sellMarketType)} listing sent. Waiting for confirmation…`);
       await publicClient?.waitForTransactionReceipt({ hash });
 
-      setHint("Listed ✅ Updating…");
+      setHint(`Listed on ${marketLabel(sellMarketType)} ✅ Updating…`);
       await afterMarketTx();
       setHint(null);
     } catch (e: any) {
@@ -448,25 +522,41 @@ export default function TradingPanel1155({
     }
   }
 
-  async function cancelListing(listingId: string) {
+  async function cancelListing(listing: Listing) {
     if (!isConnected) return openConnectModal?.();
-    if (!hasMarketplace) return;
+
+    const listingMarketType: MarketType =
+      listing.marketType ||
+      (listing.deliveryEnabled || listing.physicalItemIncluded ? "DELIVERY" : "STANDARD");
+
+    const listingMarketplaceAddress =
+      toLower(listing.marketplaceContract || "") ||
+      (listingMarketType === "DELIVERY"
+        ? DELIVERY_MARKETPLACE_ADDRESS
+        : STANDARD_MARKETPLACE_ADDRESS);
+
+    if (!listingMarketplaceAddress.startsWith("0x")) {
+      setErr(`Marketplace address missing for ${marketLabel(listingMarketType)} listing`);
+      return;
+    }
+
+    const busyKey = `cancel:${listingKeyOf(listing)}`;
 
     setErr(null);
     setHint(null);
-    setBusy(`cancel:${listingId}`);
+    setBusy(busyKey);
 
     try {
       await ensureChain();
 
       const hash = await writeContractAsync({
         abi: marketplaceSpot1155Abi,
-        address: MARKETPLACE_ADDRESS as `0x${string}`,
+        address: listingMarketplaceAddress as `0x${string}`,
         functionName: "cancel",
-        args: [BigInt(listingId)],
+        args: [BigInt(listing.marketplaceListingId)],
       });
 
-      setHint("Cancel sent. Waiting for confirmation…");
+      setHint(`Cancel sent to ${marketLabel(listingMarketType)} market. Waiting for confirmation…`);
       await publicClient?.waitForTransactionReceipt({ hash });
 
       setHint("Cancelled ✅ Updating…");
@@ -481,7 +571,11 @@ export default function TradingPanel1155({
 
   async function buyNow() {
     if (!isConnected) return openConnectModal?.();
-    if (!hasMarketplace || !selectedListing) return;
+    if (!selectedListing) return;
+    if (!hasSelectedListingMarketplace) {
+      setErr(`Marketplace address missing for ${marketLabel(selectedListingMarketType)} listing`);
+      return;
+    }
 
     setErr(null);
     setHint(null);
@@ -496,18 +590,24 @@ export default function TradingPanel1155({
 
       const hash = await writeContractAsync({
         abi: marketplaceSpot1155Abi,
-        address: MARKETPLACE_ADDRESS as `0x${string}`,
+        address: selectedListingMarketplaceAddress as `0x${string}`,
         functionName: "buy",
         args: [BigInt(selectedListing.marketplaceListingId), amt],
         value: total,
       });
 
-      setHint("Buy sent. Waiting for confirmation…");
+      setHint(
+        selectedListingHasDelivery
+          ? `Buy sent to ${marketLabel(selectedListingMarketType)} market. Waiting for confirmation…`
+          : "Buy sent. Waiting for confirmation…"
+      );
       await publicClient?.waitForTransactionReceipt({ hash });
 
       setHint(
         selectedListingHasDelivery
-          ? "Bought ✅ Updating… Delivery order will appear in Orders & Delivery after indexer sync."
+          ? `Bought on ${marketLabel(
+              selectedListingMarketType
+            )} ✅ Updating… Delivery order will appear in Orders & Delivery after indexer sync.`
           : "Bought ✅ Updating…"
       );
       await afterMarketTx();
@@ -527,10 +627,25 @@ export default function TradingPanel1155({
   const stats = data?.stats;
 
   const sellDisabled =
-    busy !== null || !isConnected || !hasMarketplace || !canTradeOnThisChain || !isApproved || balance <= 0n;
+    busy !== null ||
+    !isConnected ||
+    !hasSellMarketplace ||
+    !canTradeOnThisChain ||
+    !isApproved ||
+    balance <= 0n;
 
   const buyDisabled =
-    busy !== null || !isConnected || !hasMarketplace || !canTradeOnThisChain || !selectedListing || iAmSellerOfSelected;
+    busy !== null ||
+    !isConnected ||
+    !hasSelectedListingMarketplace ||
+    !canTradeOnThisChain ||
+    !selectedListing ||
+    iAmSellerOfSelected;
+
+  const sellEnvMissingText =
+    sellMarketType === "DELIVERY"
+      ? "NEXT_PUBLIC_MARKETPLACE_DELIVERY_ADDRESS missing"
+      : "NEXT_PUBLIC_MARKETPLACE_ADDRESS / NEXT_PUBLIC_MARKETPLACE_STANDARD_ADDRESS missing";
 
   return (
     <div className={wrap}>
@@ -545,14 +660,14 @@ export default function TradingPanel1155({
                 Buy / Sell
               </div>
               <div className="mt-2 text-[12px] text-white/55">
-                Closed market for verified Realife NFTs.
+                Unified trading panel for standard and delivery Realife NFTs.
               </div>
             </div>
 
             <div className="flex items-center gap-2">
-              {!hasMarketplace ? (
+              {!hasSellMarketplace ? (
                 <div className="px-3 py-2 rounded-2xl border border-rose-500/25 bg-rose-500/10 text-[11px] font-black text-rose-100">
-                  NEXT_PUBLIC_MARKETPLACE_ADDRESS missing
+                  {sellEnvMissingText}
                 </div>
               ) : null}
 
@@ -586,11 +701,13 @@ export default function TradingPanel1155({
 
           {nftHasDelivery ? (
             <div className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100">
-              This NFT is delivery-enabled. When a secondary purchase is completed, the delivery order should appear in{" "}
+              This NFT is delivery-enabled and should use the{" "}
+              <span className="font-black">DELIVERY marketplace</span> for new listings.
+              After purchase, the delivery order should appear in{" "}
               <Link href="/app/orders" className="underline font-black">
                 Orders &amp; Delivery
               </Link>
-              {" "}after indexer sync.
+              .
             </div>
           ) : null}
 
@@ -618,6 +735,11 @@ export default function TradingPanel1155({
                 Wallet: <span className="font-mono text-white/80">{shortAddr(address || "")}</span>
               </div>
             ) : null}
+
+            <div className="text-[12px] text-white/55 font-semibold">
+              Sell target:{" "}
+              <span className="text-amber-100 font-black">{marketLabel(sellMarketType)}</span>
+            </div>
 
             {isConnected ? (
               <div className="text-[12px] text-white/55 font-semibold">
@@ -672,7 +794,7 @@ export default function TradingPanel1155({
                   </div>
                 </div>
 
-                {!isApproved && isConnected && hasMarketplace ? (
+                {!isApproved && isConnected && hasSellMarketplace ? (
                   <button
                     disabled={busy !== null}
                     onClick={approveAll}
@@ -681,7 +803,9 @@ export default function TradingPanel1155({
                       busy ? "opacity-60 cursor-not-allowed" : ""
                     )}
                   >
-                    {busy === "approve" ? "Approving…" : "Approve marketplace"}
+                    {busy === "approve"
+                      ? "Approving…"
+                      : `Approve ${marketLabel(sellMarketType).toLowerCase()} market`}
                   </button>
                 ) : (
                   <div className="text-[12px] text-white/50 font-semibold">
@@ -692,7 +816,9 @@ export default function TradingPanel1155({
 
               {nftHasDelivery ? (
                 <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] text-violet-100">
-                  This NFT supports delivery. If your listing is bought on trading, the secondary delivery order should be created by the marketplace indexer and appear in{" "}
+                  This NFT supports delivery, so new listings should go to the{" "}
+                  <span className="font-black">DELIVERY marketplace</span>. When bought, the secondary
+                  delivery order should appear in{" "}
                   <Link href="/app/orders" className="underline font-black">
                     Orders &amp; Delivery
                   </Link>
@@ -734,7 +860,9 @@ export default function TradingPanel1155({
 
                   <input
                     value={sellAmount}
-                    onChange={(e) => setSellAmount(clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxSell)))}
+                    onChange={(e) =>
+                      setSellAmount(clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxSell)))
+                    }
                     type="number"
                     min={1}
                     max={Math.max(1, maxSell)}
@@ -773,7 +901,9 @@ export default function TradingPanel1155({
                     sellDisabled ? "opacity-60 cursor-not-allowed" : ""
                   )}
                 >
-                  {busy === "list" ? "Listing…" : "List for sale"}
+                  {busy === "list"
+                    ? "Listing…"
+                    : `List on ${marketLabel(sellMarketType).toLowerCase()} market`}
                 </button>
 
                 {balance <= 0n ? (
@@ -802,21 +932,29 @@ export default function TradingPanel1155({
                 {data?.listings?.length ? (
                   <div className="mt-4 space-y-2">
                     {data.listings.map((l) => {
-                      const active = l.marketplaceListingId === (selectedListing?.marketplaceListingId || "");
+                      const k = listingKeyOf(l);
+                      const active = k === (selectedListing ? listingKeyOf(selectedListing) : "");
                       const isMine = toLower(l.sellerWallet) === me;
-                      const isCancelling = busy === `cancel:${l.marketplaceListingId}`;
+                      const isCancelling = busy === `cancel:${k}`;
                       const hasDeliveryBadge = Boolean(
-                        l.deliveryEnabled || l.physicalItemIncluded || data?.mint?.deliveryEnabled || data?.mint?.physicalItemIncluded
+                        l.deliveryEnabled ||
+                          l.physicalItemIncluded ||
+                          data?.mint?.deliveryEnabled ||
+                          data?.mint?.physicalItemIncluded
                       );
+
+                      const rowMarketType: MarketType =
+                        l.marketType ||
+                        (l.deliveryEnabled || l.physicalItemIncluded ? "DELIVERY" : "STANDARD");
 
                       return (
                         <div
-                          key={l.marketplaceListingId}
+                          key={k}
                           role="button"
                           tabIndex={0}
-                          onClick={() => setSelectedListingId(l.marketplaceListingId)}
+                          onClick={() => setSelectedListingKey(k)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") setSelectedListingId(l.marketplaceListingId);
+                            if (e.key === "Enter" || e.key === " ") setSelectedListingKey(k);
                           }}
                           className={cx(
                             "rounded-2xl border p-4 transition outline-none cursor-pointer",
@@ -840,6 +978,10 @@ export default function TradingPanel1155({
                                   Left {l.amountRemaining}
                                 </span>
 
+                                <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                                  {marketLabel(rowMarketType)}
+                                </span>
+
                                 {hasDeliveryBadge ? (
                                   <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
                                     DELIVERY
@@ -858,11 +1000,11 @@ export default function TradingPanel1155({
                               {isMine ? (
                                 <button
                                   type="button"
-                                  disabled={isCancelling || busy !== null || !isConnected || !hasMarketplace}
+                                  disabled={isCancelling || busy !== null || !isConnected}
                                   onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
-                                    cancelListing(l.marketplaceListingId);
+                                    cancelListing(l);
                                   }}
                                   className={cx(
                                     "inline-flex items-center justify-center px-3 py-2 rounded-xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[11px] font-black text-white/80",
@@ -917,6 +1059,10 @@ export default function TradingPanel1155({
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                          {marketLabel(selectedListingMarketType)}
+                        </span>
+
                         {selectedListingHasDelivery ? (
                           <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
                             DELIVERY ORDER AFTER BUY
@@ -974,7 +1120,9 @@ export default function TradingPanel1155({
 
                       <input
                         value={buyAmount}
-                        onChange={(e) => setBuyAmount(clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxBuy)))}
+                        onChange={(e) =>
+                          setBuyAmount(clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxBuy)))
+                        }
                         type="number"
                         min={1}
                         max={Math.max(1, maxBuy)}
@@ -1044,11 +1192,17 @@ export default function TradingPanel1155({
                         <span className="ml-2 text-white/70 font-black">x{t.amount}</span>
                       </div>
 
-                      <div className="text-[11px] text-white/40">{new Date(t.blockTime).toLocaleString("en-GB")}</div>
+                      <div className="text-[11px] text-white/40">
+                        {new Date(t.blockTime).toLocaleString("en-GB")}
+                      </div>
                     </div>
 
                     <div className="mt-2 text-[12px] text-white/55">
                       {shortAddr(t.sellerWallet)} → {shortAddr(t.buyerWallet)}
+                      <span className="ml-2 text-white/35">•</span>
+                      <span className="ml-2 text-white/70 font-black">
+                        {marketLabel(t.marketType)}
+                      </span>
                       <span className="ml-2 text-white/35">•</span>
                       <a
                         className="ml-2 text-amber-100/90 hover:text-amber-100 font-black"

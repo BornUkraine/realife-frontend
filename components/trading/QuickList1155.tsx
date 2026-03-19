@@ -16,6 +16,8 @@ import { parseUnits, formatUnits } from "viem";
 import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
 
+type MarketType = "STANDARD" | "DELIVERY";
+
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
@@ -69,18 +71,28 @@ function parsePriceWeiSafe(v: string) {
   }
 }
 
+function marketLabel(mt: MarketType) {
+  return mt === "DELIVERY" ? "DELIVERY" : "STANDARD";
+}
+
 export default function QuickList1155({
   chainId,
   contract,
   tokenId,
   maxAmountHint,
   name,
+  deliveryEnabled,
+  physicalItemIncluded,
+  marketTypeHint,
 }: {
   chainId: number;
   contract: string;
   tokenId: string;
   maxAmountHint?: string;
   name?: string | null;
+  deliveryEnabled?: boolean;
+  physicalItemIncluded?: boolean;
+  marketTypeHint?: MarketType;
 }) {
   const router = useRouter();
 
@@ -91,12 +103,32 @@ export default function QuickList1155({
   const { openConnectModal } = useConnectModal();
   const { writeContractAsync } = useWriteContract();
 
-  const MARKETPLACE_ADDRESS = useMemo(() => {
-    return toLower(process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS || "");
+  const STANDARD_MARKETPLACE_ADDRESS = useMemo(() => {
+    return toLower(
+      process.env.NEXT_PUBLIC_MARKETPLACE_STANDARD_ADDRESS ||
+        process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS ||
+        ""
+    );
+  }, []);
+
+  const DELIVERY_MARKETPLACE_ADDRESS = useMemo(() => {
+    return toLower(
+      process.env.NEXT_PUBLIC_MARKETPLACE_DELIVERY_ADDRESS ||
+        process.env.NEXT_PUBLIC_DELIVERY_MARKETPLACE_ADDRESS ||
+        ""
+    );
+  }, []);
+
+  const DELIVERY_NFT_CONTRACT = useMemo(() => {
+    return toLower(
+      process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
+        process.env.NEXT_PUBLIC_REALIFE_DELIVERY_1155_CONTRACT ||
+        process.env.NEXT_PUBLIC_REALIFE_DELIVERY_NFT_CONTRACT ||
+        ""
+    );
   }, []);
 
   const nftAddr = useMemo(() => toLower(contract), [contract]);
-  const hasMarketplace = MARKETPLACE_ADDRESS.startsWith("0x");
   const needSwitch = isConnected && currentChainId !== chainId;
 
   const tokenIdBI = useMemo(() => {
@@ -109,11 +141,35 @@ export default function QuickList1155({
 
   const hintMax = useMemo(() => toBigIntSafe(maxAmountHint), [maxAmountHint]);
 
+  const inferredMarketType: MarketType = useMemo(() => {
+    if (marketTypeHint) return marketTypeHint;
+    if (deliveryEnabled || physicalItemIncluded) return "DELIVERY";
+    if (DELIVERY_NFT_CONTRACT && nftAddr === DELIVERY_NFT_CONTRACT) return "DELIVERY";
+    return "STANDARD";
+  }, [
+    marketTypeHint,
+    deliveryEnabled,
+    physicalItemIncluded,
+    DELIVERY_NFT_CONTRACT,
+    nftAddr,
+  ]);
+
+  const marketplaceAddress = useMemo(() => {
+    return inferredMarketType === "DELIVERY"
+      ? DELIVERY_MARKETPLACE_ADDRESS
+      : STANDARD_MARKETPLACE_ADDRESS;
+  }, [inferredMarketType, DELIVERY_MARKETPLACE_ADDRESS, STANDARD_MARKETPLACE_ADDRESS]);
+
+  const hasMarketplace = marketplaceAddress.startsWith("0x");
+
   const { data: balanceRaw } = useReadContract({
     abi: erc1155CoreAbi,
     address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
     functionName: "balanceOf",
-    args: [((address || "0x0000000000000000000000000000000000000000") as `0x${string}`), tokenIdBI],
+    args: [
+      ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      tokenIdBI,
+    ],
     query: { enabled: Boolean(address && nftAddr.startsWith("0x")) },
   });
 
@@ -139,7 +195,7 @@ export default function QuickList1155({
     functionName: "isApprovedForAll",
     args: [
       ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
-      ((MARKETPLACE_ADDRESS || "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      ((marketplaceAddress || "0x0000000000000000000000000000000000000000") as `0x${string}`),
     ],
     query: { enabled: Boolean(address && hasMarketplace && nftAddr.startsWith("0x")) },
   });
@@ -232,13 +288,13 @@ export default function QuickList1155({
         abi: erc1155CoreAbi,
         address: nftAddr as `0x${string}`,
         functionName: "setApprovalForAll",
-        args: [MARKETPLACE_ADDRESS as `0x${string}`, true],
+        args: [marketplaceAddress as `0x${string}`, true],
       });
 
       await publicClient?.waitForTransactionReceipt({ hash });
       await refetchApproved();
 
-      setOk("Marketplace approved ✅");
+      setOk(`${marketLabel(inferredMarketType)} marketplace approved ✅`);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Approve failed");
     } finally {
@@ -265,7 +321,7 @@ export default function QuickList1155({
 
       const hash = await writeContractAsync({
         abi: marketplaceSpot1155Abi,
-        address: MARKETPLACE_ADDRESS as `0x${string}`,
+        address: marketplaceAddress as `0x${string}`,
         functionName: "list1155",
         args: [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei],
       });
@@ -275,7 +331,7 @@ export default function QuickList1155({
       await revalidateAfterList();
       router.refresh();
 
-      setOk("Listed ✅");
+      setOk(`Listed on ${marketLabel(inferredMarketType)} ✅`);
 
       setTimeout(() => {
         closeModal();
@@ -288,7 +344,8 @@ export default function QuickList1155({
   }
 
   const disabledOpen = maxAmountBI <= 0n;
-  const disabledApprove = busy !== null || !isConnected || needSwitch || !hasMarketplace || isApproved;
+  const disabledApprove =
+    busy !== null || !isConnected || needSwitch || !hasMarketplace || isApproved;
   const disabledList =
     busy !== null ||
     !isConnected ||
@@ -297,6 +354,11 @@ export default function QuickList1155({
     !isApproved ||
     maxAmountBI <= 0n ||
     !priceWei;
+
+  const missingEnvText =
+    inferredMarketType === "DELIVERY"
+      ? "NEXT_PUBLIC_MARKETPLACE_DELIVERY_ADDRESS missing"
+      : "NEXT_PUBLIC_MARKETPLACE_ADDRESS / NEXT_PUBLIC_MARKETPLACE_STANDARD_ADDRESS missing";
 
   return (
     <>
@@ -355,7 +417,18 @@ export default function QuickList1155({
                   <div className="mt-2 text-[12px] text-white/55">
                     {shortAddr(nftAddr)} • #{tokenId}
                   </div>
+                  <div className="mt-2">
+                    <span className="inline-flex items-center justify-center px-3 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                      {marketLabel(inferredMarketType)}
+                    </span>
+                  </div>
                 </div>
+
+                {!hasMarketplace ? (
+                  <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-[12px] text-rose-100 text-center">
+                    {missingEnvText}
+                  </div>
+                ) : null}
 
                 {err ? (
                   <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-[12px] text-rose-100 text-center">
