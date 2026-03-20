@@ -13,7 +13,9 @@ function norm(v?: string | null) {
   return s ? s.toLowerCase() : "";
 }
 
-function pickViewerKey(u?: { handle: string | null; publicId: string | null } | null) {
+function pickViewerKey(
+  u?: { handle: string | null; publicId: string | null } | null
+) {
   if (!u) return null;
   if (u.handle && u.handle !== "tmp") return u.handle;
   if (u.publicId && u.publicId !== "tmp") return u.publicId;
@@ -23,8 +25,13 @@ function pickViewerKey(u?: { handle: string | null; publicId: string | null } | 
 export default async function TradingPage() {
   const session = await getServerSession(authOptions);
 
-  const viewerId = (session as any)?.user?.id || (session as any)?.userId || null;
-  const sessionWallet = norm((session as any)?.user?.walletAddress || (session as any)?.walletAddress || "");
+  const viewerId =
+    (session as any)?.user?.id || (session as any)?.userId || null;
+  const sessionWallet = norm(
+    (session as any)?.user?.walletAddress ||
+      (session as any)?.walletAddress ||
+      ""
+  );
 
   let viewerKey: string | null = null;
   let viewerWallet: string | null = sessionWallet || null;
@@ -62,9 +69,30 @@ export default async function TradingPage() {
             </div>
 
             <div className="mt-2 text-[13px] text-white/55 max-w-3xl leading-relaxed">
-              Unified trading hub for verified Realife NFTs. Browse the full market, switch into the
-              dedicated <span className="text-amber-100 font-extrabold">Realife Cafe NFT</span> view,
-              and manage your own activity from one place.
+              Premium unified trading hub for verified Realife NFTs. Browse the
+              full market or jump directly into dedicated views for{" "}
+              <span className="text-amber-100 font-extrabold">
+                Realife Cafe
+              </span>
+              ,{" "}
+              <span className="text-sky-100 font-extrabold">
+                Realife Store
+              </span>
+              ,{" "}
+              <span className="text-emerald-100 font-extrabold">
+                Public Mint Standard
+              </span>{" "}
+              and{" "}
+              <span className="text-violet-100 font-extrabold">
+                Public Mint Delivery
+              </span>
+              .
+            </div>
+
+            <div className="mt-3 text-[13px] text-white/50 max-w-3xl leading-relaxed">
+              One page for discovery, filtering and your own activity. Market
+              cards keep the premium Realife look while separating collections
+              more clearly for users.
             </div>
           </div>
 

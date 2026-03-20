@@ -37,10 +37,21 @@ function norm(a: string) {
 /* ------------------------------- Config ------------------------------ */
 
 const API_BASE = (
-  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app"
+  process.env.NEXT_PUBLIC_API_BASE ||
+  "https://accurate-art-production.up.railway.app"
 ).replace(/\/$/, "");
 
-const USER_1155_CONTRACT = norm(process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "");
+const USER_1155_STANDARD_CONTRACT = norm(
+  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT ||
+    process.env.REALIFE_1155_NEW_CONTRACT ||
+    ""
+);
+
+const USER_1155_DELIVERY_CONTRACT = norm(
+  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
+    process.env.REALIFE_1155_DELIVERY_CONTRACT ||
+    ""
+);
 
 const CAFE_1155_CONTRACT = norm(
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
@@ -54,8 +65,13 @@ const STORE_1155_CONTRACT = norm(
     ""
 );
 
+const USER_1155_CONTRACTS = [
+  USER_1155_STANDARD_CONTRACT,
+  USER_1155_DELIVERY_CONTRACT,
+].filter(Boolean);
+
 const ALLOWED_1155_CONTRACTS = [
-  USER_1155_CONTRACT,
+  ...USER_1155_CONTRACTS,
   CAFE_1155_CONTRACT,
   STORE_1155_CONTRACT,
 ].filter(Boolean);
@@ -120,27 +136,46 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
   return null;
 }
 
-async function loadMetadataFromBackend1155(tokenId: string) {
+async function loadMetadataFromBackend1155(tokenId: string, contract?: string | null) {
   const base = String(API_BASE || "").replace(/\/$/, "");
+  const c = String(contract || "").trim().toLowerCase();
+
   if (!base || !tokenId) return null;
 
   try {
-    const r = await fetch(`${base}/metadata1155/${encodeURIComponent(tokenId)}`, {
-      cache: "no-store",
-    });
+    const url =
+      c && c.startsWith("0x")
+        ? `${base}/metadata1155/${encodeURIComponent(c)}/${encodeURIComponent(tokenId)}`
+        : `${base}/metadata1155/${encodeURIComponent(tokenId)}`;
+
+    const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) return null;
+
     const j = await r.json().catch(() => null);
-    if (j && typeof j === "object") return j;
+    if (!j || typeof j !== "object") return null;
+
+    const returnedContract = String((j as any)?.contract || "")
+      .trim()
+      .toLowerCase();
+
+    if (c && returnedContract && returnedContract !== c) {
+      return null;
+    }
+
+    return j;
   } catch {
     // ignore
   }
+
   return null;
 }
 
 function pickAttrValue(meta: any, trait: string): string | null {
   const attrs = Array.isArray(meta?.attributes) ? meta.attributes : [];
   const t = trait.toLowerCase();
-  const hit = attrs.find((a: any) => String(a?.trait_type || "").toLowerCase() === t);
+  const hit = attrs.find(
+    (a: any) => String(a?.trait_type || "").toLowerCase() === t
+  );
   const v = hit?.value;
   if (v === undefined || v === null) return null;
   return String(v);
@@ -154,13 +189,16 @@ async function mapLimit<T, R>(
   const out: R[] = new Array(items.length);
   let i = 0;
 
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (true) {
-      const idx = i++;
-      if (idx >= items.length) break;
-      out[idx] = await fn(items[idx]);
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    async () => {
+      while (true) {
+        const idx = i++;
+        if (idx >= items.length) break;
+        out[idx] = await fn(items[idx]);
+      }
     }
-  });
+  );
 
   await Promise.all(workers);
   return out;
@@ -189,7 +227,9 @@ function buildNftHref(
   tokenId: string,
   fromHref?: string | null
 ) {
-  const base = `/nft/${chainId}/${contract}/${encodeURIComponent(String(tokenId))}`;
+  const base = `/nft/${chainId}/${contract}/${encodeURIComponent(
+    String(tokenId)
+  )}`;
   if (!fromHref) return base;
   return `${base}?from=${encodeURIComponent(fromHref)}`;
 }
@@ -246,7 +286,8 @@ export default async function PublicNFTsPage({
   if (!key || key.length > 64) notFound();
 
   const rawTab = typeof sp?.tab === "string" ? sp.tab : "nfts";
-  const tab = String(rawTab || "nfts").toLowerCase() === "activity" ? "activity" : "nfts";
+  const tab =
+    String(rawTab || "nfts").toLowerCase() === "activity" ? "activity" : "nfts";
 
   const user = await prisma.user.findFirst({
     where: {
@@ -282,7 +323,8 @@ export default async function PublicNFTsPage({
   const avatar = user.twitterImage || user.discordImage || null;
   const publicKey = user.handle || user.publicId || null;
   const publicUrl = publicKey && publicKey !== "tmp" ? `/u/${publicKey}` : null;
-  const pageBase = publicKey && publicKey !== "tmp" ? `/u/${publicKey}/nfts` : `/u/${key}/nfts`;
+  const pageBase =
+    publicKey && publicKey !== "tmp" ? `/u/${publicKey}/nfts` : `/u/${key}/nfts`;
 
   const session = await getServerSession(authOptions);
   const viewerId = (session as any)?.user?.id || (session as any)?.userId || null;
@@ -342,9 +384,14 @@ export default async function PublicNFTsPage({
 
     enriched = await mapLimit(holdings, 8, async (x) => {
       const contract = String(x.contract || "").toLowerCase();
+
       const isCafeNft = !!CAFE_1155_CONTRACT && contract === CAFE_1155_CONTRACT;
       const isStoreNft = !!STORE_1155_CONTRACT && contract === STORE_1155_CONTRACT;
-      const isUser1155Nft = !!USER_1155_CONTRACT && contract === USER_1155_CONTRACT;
+      const isUser1155Nft = USER_1155_CONTRACTS.includes(contract);
+
+      const isDeliveryUserNft =
+        !!USER_1155_DELIVERY_CONTRACT &&
+        contract === USER_1155_DELIVERY_CONTRACT;
 
       const fallbackPoster = ipfsToHttp(x.mint?.image, IPFS_GATEWAYS[0]);
 
@@ -353,7 +400,10 @@ export default async function PublicNFTsPage({
       let poster: string | null = null;
       let supply: string | null = null;
 
-      const liveMeta = isUser1155Nft ? await loadMetadataFromBackend1155(String(x.tokenId)) : null;
+      const liveMeta = isUser1155Nft
+        ? await loadMetadataFromBackend1155(String(x.tokenId), contract)
+        : null;
+
       let meta: any = liveMeta;
 
       if (!meta && x.mint?.tokenUri) {
@@ -381,7 +431,8 @@ export default async function PublicNFTsPage({
 
         const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackPoster;
         const animHttp =
-          ipfsToHttp(metaAnimation, PINATA_IPFS) || ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
+          ipfsToHttp(metaAnimation, PINATA_IPFS) ||
+          ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
 
         if (isLikelyVideoMeta(meta)) {
           kind = "video";
@@ -422,6 +473,8 @@ export default async function PublicNFTsPage({
         supply,
         isCafeNft,
         isStoreNft,
+        isUser1155Nft,
+        isDeliveryUserNft,
       };
     });
   }
@@ -458,7 +511,6 @@ export default async function PublicNFTsPage({
               <div className="flex flex-col lg:flex-row lg:items-center gap-5">
                 <div className="h-16 w-16 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15 shrink-0">
                   {avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={avatar}
                       alt="avatar"
@@ -533,9 +585,18 @@ export default async function PublicNFTsPage({
 
               <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatChip label="Items" value={itemsCount} tone="gold" />
-                <StatChip label="Tab" value={effectiveTab === "activity" ? "My Activity" : "NFTs"} />
-                <StatChip label="Cafe NFTs" value={effectiveTab === "nfts" ? cafeCount : "—"} />
-                <StatChip label="Store NFTs" value={effectiveTab === "nfts" ? storeCount : "—"} />
+                <StatChip
+                  label="Tab"
+                  value={effectiveTab === "activity" ? "My Activity" : "NFTs"}
+                />
+                <StatChip
+                  label="Cafe NFTs"
+                  value={effectiveTab === "nfts" ? cafeCount : "—"}
+                />
+                <StatChip
+                  label="Store NFTs"
+                  value={effectiveTab === "nfts" ? storeCount : "—"}
+                />
               </div>
             </div>
           </div>
@@ -651,10 +712,18 @@ export default async function PublicNFTsPage({
                                   ? "text-amber-100"
                                   : x.isStoreNft
                                   ? "text-sky-200"
+                                  : x.isDeliveryUserNft
+                                  ? "text-emerald-200"
                                   : "text-emerald-200"
                               )}
                             >
-                              {x.isCafeNft ? "CAFE" : x.isStoreNft ? "STORE" : "EDITION"}
+                              {x.isCafeNft
+                                ? "CAFE"
+                                : x.isStoreNft
+                                ? "STORE"
+                                : x.isDeliveryUserNft
+                                ? "DELIVERY"
+                                : "EDITION"}
                             </div>
 
                             <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
@@ -716,7 +785,9 @@ export default async function PublicNFTsPage({
 
             {enriched.length === 0 && (
               <div className="reveal rounded-[26px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60">
-                <div className="text-lg font-black text-white/85">This user doesn&apos;t own any NFTs yet.</div>
+                <div className="text-lg font-black text-white/85">
+                  This user doesn&apos;t own any NFTs yet.
+                </div>
                 {publicUrl ? (
                   <div className="mt-4">
                     <Link

@@ -53,7 +53,13 @@ function GoldEdgeWrap({
   );
 }
 
-function Card({ className = "", children }: { className?: string; children: React.ReactNode }) {
+function Card({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div
       className={[
@@ -139,10 +145,13 @@ function shortAddr(a?: string) {
 }
 
 const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
-const IPFS_GATEWAY = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
+  process.env.NEXT_PUBLIC_API_BASE ||
+  "https://accurate-art-production.up.railway.app";
 
-/** allow blob:, data:, ipfs:// and http(s) + /ipfs/... */
+const IPFS_GATEWAY = (
+  process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link"
+).replace(/\/$/, "");
+
 function safeUrl(input?: string) {
   const url = (input || "").trim();
   if (!url) return "";
@@ -261,19 +270,35 @@ export default function SuccessClient() {
   const standard = "ERC1155";
 
   const qpContract = useMemo(() => (sp.get("contract") || "").trim(), [sp]);
+
   const contract = useMemo(() => {
     if (qpContract && qpContract.startsWith("0x")) return qpContract;
     return (process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "").trim();
   }, [qpContract]);
 
-  const initialName = useMemo(() => (sp.get("name") || "Untitled NFT").trim(), [sp]);
-  const initialCategory = useMemo(() => (sp.get("category") || "Other").trim(), [sp]);
-  const initialProject = useMemo(() => (sp.get("project") || "Realife").trim(), [sp]);
+  const initialName = useMemo(
+    () => (sp.get("name") || "Untitled NFT").trim(),
+    [sp]
+  );
+  const initialCategory = useMemo(
+    () => (sp.get("category") || "Other").trim(),
+    [sp]
+  );
+  const initialProject = useMemo(
+    () => (sp.get("project") || "Realife").trim(),
+    [sp]
+  );
   const initialBrand = useMemo(() => (sp.get("brand") || "").trim(), [sp]);
-  const initialItemType = useMemo(() => (sp.get("itemType") || "").trim(), [sp]);
+  const initialItemType = useMemo(
+    () => (sp.get("itemType") || "").trim(),
+    [sp]
+  );
+
   const initialDelivery = useMemo(() => {
     const v = (sp.get("delivery") || "").trim();
-    return v === "1" || v.toLowerCase() === "true" ? "With delivery" : "Without delivery";
+    return v === "1" || v.toLowerCase() === "true"
+      ? "With delivery"
+      : "Without delivery";
   }, [sp]);
 
   const qpKind = useMemo(() => (sp.get("kind") || "").toLowerCase(), [sp]);
@@ -298,72 +323,56 @@ export default function SuccessClient() {
   const [brand, setBrand] = useState(initialBrand);
   const [itemType, setItemType] = useState(initialItemType);
   const [deliveryLabel, setDeliveryLabel] = useState(initialDelivery);
-  const [deliveryEnabled, setDeliveryEnabled] = useState(initialDelivery === "With delivery");
-  const [physicalItemIncluded, setPhysicalItemIncluded] = useState(initialDelivery === "With delivery");
+  const [deliveryEnabled, setDeliveryEnabled] = useState(
+    initialDelivery === "With delivery"
+  );
+  const [physicalItemIncluded, setPhysicalItemIncluded] = useState(
+    initialDelivery === "With delivery"
+  );
 
   const [mediaUrl, setMediaUrl] = useState(initialMedia);
   const [mediaKind, setMediaKind] = useState<"image" | "video">(initialKind);
 
-  const savedKeyRef = useRef<string>("");
-
   const basescanTx = tx ? `https://sepolia.basescan.org/tx/${tx}` : "";
   const [copied, setCopied] = useState<"" | "tx" | "link">("");
-
-  useEffect(() => {
-    const key = tokenId && tx && contract ? `${contract}:${tokenId}:${tx}` : "";
-    if (!key) return;
-    if (savedKeyRef.current === key) return;
-    savedKeyRef.current = key;
-
-    const posterToSave = posterUrl && !posterUrl.startsWith("blob:") ? posterUrl : null;
-    const imageToSave =
-      mediaKind === "image" && mediaUrl && !mediaUrl.startsWith("blob:")
-        ? mediaUrl
-        : posterToSave;
-
-    (async () => {
-      try {
-        await fetch("/api/mints", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          credentials: "include",
-          cache: "no-store",
-          body: JSON.stringify({
-            chainId: baseSepolia.id,
-            contract,
-            tokenId,
-            txHash: tx,
-            name: name || null,
-            image: imageToSave,
-            verified: true,
-            standard,
-          }),
-        });
-      } catch {
-        //
-      }
-    })();
-  }, [tokenId, tx, name, mediaUrl, mediaKind, posterUrl, contract]);
 
   useEffect(() => {
     let alive = true;
 
     async function hydrateFromBackend1155() {
       if (!tokenId) return;
+
       const base = (API_BASE || "").replace(/\/$/, "");
       if (!base) return;
 
       try {
-        const res = await fetch(`${base}/metadata1155/${encodeURIComponent(tokenId)}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) return;
-        const json = await res.json();
+        let url = "";
 
+        if (contract && contract.startsWith("0x")) {
+          url = `${base}/metadata1155/${encodeURIComponent(contract)}/${encodeURIComponent(
+            tokenId
+          )}`;
+        } else {
+          url = `${base}/metadata1155/${encodeURIComponent(tokenId)}`;
+        }
+
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) return;
+
+        const json = await res.json();
         if (!alive) return;
 
+        const backendContract = String(json?.contract || "").trim().toLowerCase();
+        const expectedContract = String(contract || "").trim().toLowerCase();
+
+        if (expectedContract && backendContract && backendContract !== expectedContract) {
+          return;
+        }
+
         const img = safeUrl(json?.image);
-        const anim = safeUrl(json?.animation_url || json?.animationUrl || json?.animation);
+        const anim = safeUrl(
+          json?.animation_url || json?.animationUrl || json?.animation
+        );
 
         if (anim) {
           setMediaUrl(anim);
@@ -391,6 +400,7 @@ export default function SuccessClient() {
 
         const hydratedDeliveryEnabled = Boolean(json?.deliveryEnabled);
         const hydratedPhysicalItemIncluded = Boolean(json?.physicalItemIncluded);
+
         const hydratedDeliveryMode =
           String(json?.deliveryMode || "").trim().toLowerCase() === "delivery"
             ? "With delivery"
@@ -402,33 +412,60 @@ export default function SuccessClient() {
         setPhysicalItemIncluded(hydratedPhysicalItemIncluded);
         setDeliveryLabel(hydratedDeliveryMode);
 
-        const attrs: Array<{ trait_type?: string; value?: any }> = Array.isArray(json?.attributes)
+        const attrs: Array<{ trait_type?: string; value?: any }> = Array.isArray(
+          json?.attributes
+        )
           ? json.attributes
           : [];
 
-        const cat = attrs.find((a) => (a.trait_type || "").toLowerCase() === "category")?.value;
-        const proj = attrs.find((a) => (a.trait_type || "").toLowerCase() === "project")?.value;
-        const br = attrs.find((a) => (a.trait_type || "").toLowerCase() === "brand")?.value;
-        const itemTypeAttr = attrs.find((a) => (a.trait_type || "").toLowerCase() === "item type")?.value;
-        const deliveryModeAttr = attrs.find((a) => (a.trait_type || "").toLowerCase() === "delivery mode")?.value;
-        const deliveryEnabledAttr = attrs.find((a) => (a.trait_type || "").toLowerCase() === "delivery enabled")?.value;
+        const cat = attrs.find(
+          (a) => (a.trait_type || "").toLowerCase() === "category"
+        )?.value;
+
+        const proj = attrs.find(
+          (a) => (a.trait_type || "").toLowerCase() === "project"
+        )?.value;
+
+        const br = attrs.find(
+          (a) => (a.trait_type || "").toLowerCase() === "brand"
+        )?.value;
+
+        const itemTypeAttr = attrs.find(
+          (a) => (a.trait_type || "").toLowerCase() === "item type"
+        )?.value;
+
+        const deliveryModeAttr = attrs.find(
+          (a) => (a.trait_type || "").toLowerCase() === "delivery mode"
+        )?.value;
+
+        const deliveryEnabledAttr = attrs.find(
+          (a) => (a.trait_type || "").toLowerCase() === "delivery enabled"
+        )?.value;
+
         const physicalAttr = attrs.find(
-          (a) => (a.trait_type || "").toLowerCase() === "physical item included"
+          (a) =>
+            (a.trait_type || "").toLowerCase() === "physical item included"
         )?.value;
 
         if (cat && String(cat).trim()) setCategory(String(cat).trim());
         if (proj && String(proj).trim()) setProject(String(proj).trim());
         if (br && String(br).trim()) setBrand(String(br).trim());
-        if (itemTypeAttr && String(itemTypeAttr).trim()) setItemType(String(itemTypeAttr).trim());
+        if (itemTypeAttr && String(itemTypeAttr).trim()) {
+          setItemType(String(itemTypeAttr).trim());
+        }
 
         if (deliveryModeAttr && String(deliveryModeAttr).trim()) {
           setDeliveryLabel(String(deliveryModeAttr).trim());
         }
         if (deliveryEnabledAttr !== undefined) {
-          setDeliveryEnabled(String(deliveryEnabledAttr).trim().toLowerCase() === "yes");
+          setDeliveryEnabled(
+            String(deliveryEnabledAttr).trim().toLowerCase() === "yes"
+          );
         }
         if (physicalAttr !== undefined) {
-          setPhysicalItemIncluded(String(physicalAttr).trim().toLowerCase() === "yes");
+          setPhysicalItemIncluded(
+            String(physicalAttr).trim().toLowerCase() === "yes"
+          );
         }
       } catch {
         //
@@ -436,10 +473,11 @@ export default function SuccessClient() {
     }
 
     hydrateFromBackend1155();
+
     return () => {
       alive = false;
     };
-  }, [tokenId]);
+  }, [tokenId, contract]);
 
   async function copyText(kind: "tx" | "link") {
     if (!mounted) return;
@@ -480,19 +518,25 @@ export default function SuccessClient() {
                   {contract ? (
                     <Pill>
                       <span className="text-white/55">Contract:</span>
-                      <span className="text-white/80 font-extrabold">{shortAddr(contract)}</span>
+                      <span className="text-white/80 font-extrabold">
+                        {shortAddr(contract)}
+                      </span>
                     </Pill>
                   ) : null}
 
                   <Pill>
                     <span className="text-white/55">Mode:</span>
-                    <span className="text-white/80 font-extrabold">{deliveryLabel}</span>
+                    <span className="text-white/80 font-extrabold">
+                      {deliveryLabel}
+                    </span>
                   </Pill>
 
                   {itemType ? (
                     <Pill>
                       <span className="text-white/55">Item type:</span>
-                      <span className="text-white/80 font-extrabold">{itemType}</span>
+                      <span className="text-white/80 font-extrabold">
+                        {itemType}
+                      </span>
                     </Pill>
                   ) : null}
                 </div>
@@ -551,10 +595,14 @@ export default function SuccessClient() {
                     <span className="text-white/45">Delivery:</span>
                     <span className="font-semibold text-white/85">{deliveryLabel}</span>
                     {deliveryEnabled ? (
-                      <span className="font-semibold text-emerald-200">• delivery enabled</span>
+                      <span className="font-semibold text-emerald-200">
+                        • delivery enabled
+                      </span>
                     ) : null}
                     {physicalItemIncluded ? (
-                      <span className="font-semibold text-amber-200">• physical item</span>
+                      <span className="font-semibold text-amber-200">
+                        • physical item
+                      </span>
                     ) : null}
                   </div>
                 </div>
@@ -564,7 +612,9 @@ export default function SuccessClient() {
                 <Card className="rounded-[32px]">
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <div className="text-xs font-semibold text-white/60">NFT preview</div>
+                      <div className="text-xs font-semibold text-white/60">
+                        NFT preview
+                      </div>
                       <div className="mt-1 text-lg font-black tracking-tight truncate">
                         {name || "Untitled NFT"}
                       </div>
@@ -583,9 +633,11 @@ export default function SuccessClient() {
                     <div className="relative aspect-[16/10]">
                       {mediaUrl ? (
                         mediaKind === "video" ? (
-                          <VideoPlayOverlay src={mediaUrl} poster={posterUrl || undefined} />
+                          <VideoPlayOverlay
+                            src={mediaUrl}
+                            poster={posterUrl || undefined}
+                          />
                         ) : (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={mediaUrl}
                             alt="NFT media"
@@ -604,7 +656,9 @@ export default function SuccessClient() {
 
                   <div className="mt-5 grid grid-cols-1 gap-3">
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                      <div className="text-[11px] font-semibold text-white/55">Transaction</div>
+                      <div className="text-[11px] font-semibold text-white/55">
+                        Transaction
+                      </div>
                       <div className="mt-1 flex items-center justify-between gap-3">
                         <div className="text-sm font-extrabold text-white/85 truncate">
                           {tx ? shortAddr(tx) : "—"}
@@ -621,7 +675,9 @@ export default function SuccessClient() {
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                      <div className="text-[11px] font-semibold text-white/55">Explorer link</div>
+                      <div className="text-[11px] font-semibold text-white/55">
+                        Explorer link
+                      </div>
                       <div className="mt-1 flex items-center justify-between gap-3">
                         <div className="text-sm font-extrabold text-white/85 truncate">
                           {basescanTx ? "BaseScan /tx/…" : "—"}
@@ -641,25 +697,39 @@ export default function SuccessClient() {
                   <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
                     {brand ? (
                       <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                        <div className="text-[11px] font-semibold text-white/55">Brand</div>
-                        <div className="mt-1 text-sm font-extrabold text-white/85">{brand}</div>
+                        <div className="text-[11px] font-semibold text-white/55">
+                          Brand
+                        </div>
+                        <div className="mt-1 text-sm font-extrabold text-white/85">
+                          {brand}
+                        </div>
                       </div>
                     ) : null}
 
                     {itemType ? (
                       <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                        <div className="text-[11px] font-semibold text-white/55">Item type</div>
-                        <div className="mt-1 text-sm font-extrabold text-white/85">{itemType}</div>
+                        <div className="text-[11px] font-semibold text-white/55">
+                          Item type
+                        </div>
+                        <div className="mt-1 text-sm font-extrabold text-white/85">
+                          {itemType}
+                        </div>
                       </div>
                     ) : null}
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                      <div className="text-[11px] font-semibold text-white/55">Delivery mode</div>
-                      <div className="mt-1 text-sm font-extrabold text-white/85">{deliveryLabel}</div>
+                      <div className="text-[11px] font-semibold text-white/55">
+                        Delivery mode
+                      </div>
+                      <div className="mt-1 text-sm font-extrabold text-white/85">
+                        {deliveryLabel}
+                      </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                      <div className="text-[11px] font-semibold text-white/55">Physical item</div>
+                      <div className="text-[11px] font-semibold text-white/55">
+                        Physical item
+                      </div>
                       <div className="mt-1 text-sm font-extrabold text-white/85">
                         {physicalItemIncluded ? "Yes" : "No"}
                       </div>
