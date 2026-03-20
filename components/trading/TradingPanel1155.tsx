@@ -190,10 +190,16 @@ export default function TradingPanel1155({
   chainId,
   contract,
   tokenId,
+  marketType,
+  preferredMarketType,
+  deliveryEnabled,
 }: {
   chainId: number;
   contract: string;
   tokenId: string;
+  marketType?: MarketType;
+  preferredMarketType?: MarketType;
+  deliveryEnabled?: boolean;
 }) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
@@ -223,6 +229,8 @@ export default function TradingPanel1155({
   const me = useMemo(() => toLower(address), [address]);
   const canTradeOnThisChain = currentChainId === chainId;
 
+  const explicitMarketType = preferredMarketType || marketType || null;
+
   const tokenIdBI = useMemo(() => {
     try {
       return BigInt(tokenId);
@@ -235,6 +243,10 @@ export default function TradingPanel1155({
     const tags = [
       `market:nft:${chainId}:${nftAddr}:${tokenId}`,
       `market:contract:${chainId}:${nftAddr}`,
+      `market:nft:${chainId}:${nftAddr}:${tokenId}:STANDARD`,
+      `market:nft:${chainId}:${nftAddr}:${tokenId}:DELIVERY`,
+      `market:contract:${chainId}:${nftAddr}:STANDARD`,
+      `market:contract:${chainId}:${nftAddr}:DELIVERY`,
     ];
 
     try {
@@ -263,6 +275,9 @@ export default function TradingPanel1155({
         `/api/market/nft?chainId=${encodeURIComponent(String(chainId))}` +
         `&contract=${encodeURIComponent(nftAddr)}` +
         `&tokenId=${encodeURIComponent(String(tokenId))}` +
+        (explicitMarketType
+          ? `&marketType=${encodeURIComponent(explicitMarketType)}`
+          : "") +
         `&listingsTake=50&tradesTake=50`;
 
       const j = (await fetchJSON(url)) as MarketNftResponse;
@@ -272,17 +287,28 @@ export default function TradingPanel1155({
     } finally {
       setLoading(false);
     }
-  }, [chainId, nftAddr, tokenId]);
+  }, [chainId, nftAddr, tokenId, explicitMarketType]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
   const nftHasDelivery = useMemo(() => {
-    return Boolean(data?.mint?.deliveryEnabled || data?.mint?.physicalItemIncluded);
-  }, [data?.mint?.deliveryEnabled, data?.mint?.physicalItemIncluded]);
+    return Boolean(
+      deliveryEnabled ||
+        data?.mint?.deliveryEnabled ||
+        data?.mint?.physicalItemIncluded
+    );
+  }, [
+    deliveryEnabled,
+    data?.mint?.deliveryEnabled,
+    data?.mint?.physicalItemIncluded,
+  ]);
 
-  const sellMarketType: MarketType = nftHasDelivery ? "DELIVERY" : "STANDARD";
+  const sellMarketType: MarketType = useMemo(() => {
+    if (explicitMarketType) return explicitMarketType;
+    return nftHasDelivery ? "DELIVERY" : "STANDARD";
+  }, [explicitMarketType, nftHasDelivery]);
 
   const sellMarketplaceAddress = useMemo(() => {
     return sellMarketType === "DELIVERY"
@@ -311,7 +337,8 @@ export default function TradingPanel1155({
     functionName: "isApprovedForAll",
     args: [
       ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
-      ((sellMarketplaceAddress || "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      ((sellMarketplaceAddress ||
+        "0x0000000000000000000000000000000000000000") as `0x${string}`),
     ],
     query: {
       enabled: Boolean(address && hasSellMarketplace && nftAddr.startsWith("0x")),
@@ -360,20 +387,23 @@ export default function TradingPanel1155({
     return Boolean(
       selectedListing.deliveryEnabled ||
         selectedListing.physicalItemIncluded ||
+        deliveryEnabled ||
         data?.mint?.deliveryEnabled ||
         data?.mint?.physicalItemIncluded
     );
   }, [
     selectedListing,
     nftHasDelivery,
+    deliveryEnabled,
     data?.mint?.deliveryEnabled,
     data?.mint?.physicalItemIncluded,
   ]);
 
   const selectedListingMarketType: MarketType = useMemo(() => {
     if (selectedListing?.marketType) return selectedListing.marketType;
+    if (explicitMarketType) return explicitMarketType;
     return selectedListingHasDelivery ? "DELIVERY" : "STANDARD";
-  }, [selectedListing?.marketType, selectedListingHasDelivery]);
+  }, [selectedListing?.marketType, explicitMarketType, selectedListingHasDelivery]);
 
   const selectedListingMarketplaceAddress = useMemo(() => {
     const direct = toLower(selectedListing?.marketplaceContract || "");
@@ -476,7 +506,11 @@ export default function TradingPanel1155({
         args: [sellMarketplaceAddress as `0x${string}`, true],
       });
 
-      setHint(`Approval sent to ${marketLabel(sellMarketType)} market. Waiting for confirmation…`);
+      setHint(
+        `Approval sent to ${marketLabel(
+          sellMarketType
+        )} market. Waiting for confirmation…`
+      );
       await publicClient?.waitForTransactionReceipt({ hash });
 
       await refetchApproved();
@@ -509,7 +543,9 @@ export default function TradingPanel1155({
         args: [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei],
       });
 
-      setHint(`${marketLabel(sellMarketType)} listing sent. Waiting for confirmation…`);
+      setHint(
+        `${marketLabel(sellMarketType)} listing sent. Waiting for confirmation…`
+      );
       await publicClient?.waitForTransactionReceipt({ hash });
 
       setHint(`Listed on ${marketLabel(sellMarketType)} ✅ Updating…`);
@@ -556,7 +592,11 @@ export default function TradingPanel1155({
         args: [BigInt(listing.marketplaceListingId)],
       });
 
-      setHint(`Cancel sent to ${marketLabel(listingMarketType)} market. Waiting for confirmation…`);
+      setHint(
+        `Cancel sent to ${marketLabel(
+          listingMarketType
+        )} market. Waiting for confirmation…`
+      );
       await publicClient?.waitForTransactionReceipt({ hash });
 
       setHint("Cancelled ✅ Updating…");
@@ -573,7 +613,11 @@ export default function TradingPanel1155({
     if (!isConnected) return openConnectModal?.();
     if (!selectedListing) return;
     if (!hasSelectedListingMarketplace) {
-      setErr(`Marketplace address missing for ${marketLabel(selectedListingMarketType)} listing`);
+      setErr(
+        `Marketplace address missing for ${marketLabel(
+          selectedListingMarketType
+        )} listing`
+      );
       return;
     }
 
@@ -598,7 +642,9 @@ export default function TradingPanel1155({
 
       setHint(
         selectedListingHasDelivery
-          ? `Buy sent to ${marketLabel(selectedListingMarketType)} market. Waiting for confirmation…`
+          ? `Buy sent to ${marketLabel(
+              selectedListingMarketType
+            )} market. Waiting for confirmation…`
           : "Buy sent. Waiting for confirmation…"
       );
       await publicClient?.waitForTransactionReceipt({ hash });
@@ -699,6 +745,15 @@ export default function TradingPanel1155({
             </div>
           ) : null}
 
+          {explicitMarketType ? (
+            <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/75">
+              Viewing market:{" "}
+              <span className="font-black text-amber-100">
+                {marketLabel(explicitMarketType)}
+              </span>
+            </div>
+          ) : null}
+
           {nftHasDelivery ? (
             <div className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100">
               This NFT is delivery-enabled and should use the{" "}
@@ -732,13 +787,18 @@ export default function TradingPanel1155({
 
             {isConnected ? (
               <div className="text-[12px] text-white/55 font-semibold">
-                Wallet: <span className="font-mono text-white/80">{shortAddr(address || "")}</span>
+                Wallet:{" "}
+                <span className="font-mono text-white/80">
+                  {shortAddr(address || "")}
+                </span>
               </div>
             ) : null}
 
             <div className="text-[12px] text-white/55 font-semibold">
               Sell target:{" "}
-              <span className="text-amber-100 font-black">{marketLabel(sellMarketType)}</span>
+              <span className="text-amber-100 font-black">
+                {marketLabel(sellMarketType)}
+              </span>
             </div>
 
             {isConnected ? (
@@ -753,23 +813,39 @@ export default function TradingPanel1155({
 
           <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Floor</div>
-              <div className="mt-1 text-lg font-black text-amber-100">{fmtEth(stats?.floorWei)} ETH</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Floor
+              </div>
+              <div className="mt-1 text-lg font-black text-amber-100">
+                {fmtEth(stats?.floorWei)} ETH
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Last sale</div>
-              <div className="mt-1 text-lg font-black text-white/90">{fmtEth(stats?.lastSaleWei)} ETH</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Last sale
+              </div>
+              <div className="mt-1 text-lg font-black text-white/90">
+                {fmtEth(stats?.lastSaleWei)} ETH
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Active</div>
-              <div className="mt-1 text-lg font-black text-white/90">{stats?.activeListings ?? 0}</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                Active
+              </div>
+              <div className="mt-1 text-lg font-black text-white/90">
+                {stats?.activeListings ?? 0}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">You own</div>
-              <div className="mt-1 text-lg font-black text-emerald-200">{balance.toString()}</div>
+              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                You own
+              </div>
+              <div className="mt-1 text-lg font-black text-emerald-200">
+                {balance.toString()}
+              </div>
             </div>
           </div>
 
@@ -809,7 +885,11 @@ export default function TradingPanel1155({
                   </button>
                 ) : (
                   <div className="text-[12px] text-white/50 font-semibold">
-                    {isConnected ? (isApproved ? "Approved ✅" : "Approval required") : "Connect wallet"}
+                    {isConnected
+                      ? isApproved
+                        ? "Approved ✅"
+                        : "Approval required"
+                      : "Connect wallet"}
                   </div>
                 )}
               </div>
@@ -817,8 +897,8 @@ export default function TradingPanel1155({
               {nftHasDelivery ? (
                 <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] text-violet-100">
                   This NFT supports delivery, so new listings should go to the{" "}
-                  <span className="font-black">DELIVERY marketplace</span>. When bought, the secondary
-                  delivery order should appear in{" "}
+                  <span className="font-black">DELIVERY marketplace</span>. When bought, the
+                  secondary delivery order should appear in{" "}
                   <Link href="/app/orders" className="underline font-black">
                     Orders &amp; Delivery
                   </Link>
@@ -828,7 +908,9 @@ export default function TradingPanel1155({
 
               <div className="mt-5 grid md:grid-cols-2 gap-4">
                 <label className="block">
-                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Amount</div>
+                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    Amount
+                  </div>
 
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <button
@@ -861,7 +943,13 @@ export default function TradingPanel1155({
                   <input
                     value={sellAmount}
                     onChange={(e) =>
-                      setSellAmount(clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxSell)))
+                      setSellAmount(
+                        clampInt(
+                          Number(e.target.value || "1"),
+                          1,
+                          Math.max(1, maxSell)
+                        )
+                      )
                     }
                     type="number"
                     min={1}
@@ -870,7 +958,9 @@ export default function TradingPanel1155({
                     placeholder="1"
                   />
 
-                  <div className="mt-1 text-[11px] text-white/40">Available: {balance.toString()}</div>
+                  <div className="mt-1 text-[11px] text-white/40">
+                    Available: {balance.toString()}
+                  </div>
                 </label>
 
                 <label className="block">
@@ -907,7 +997,9 @@ export default function TradingPanel1155({
                 </button>
 
                 {balance <= 0n ? (
-                  <div className="text-[12px] text-white/55 font-semibold">You have 0 balance.</div>
+                  <div className="text-[12px] text-white/55 font-semibold">
+                    You have 0 balance.
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -920,32 +1012,40 @@ export default function TradingPanel1155({
                       Active listings
                     </div>
                     <div className="mt-1 text-[12px] text-white/50">
-                      {loading ? "Loading…" : `${data?.listings?.length ?? 0} listing(s) available`}
+                      {loading
+                        ? "Loading…"
+                        : `${data?.listings?.length ?? 0} listing(s) available`}
                     </div>
                   </div>
                 </div>
 
                 {(!data?.listings || data.listings.length === 0) && !loading ? (
-                  <div className="mt-4 text-[12px] text-white/60">No active listings yet.</div>
+                  <div className="mt-4 text-[12px] text-white/60">
+                    No active listings yet.
+                  </div>
                 ) : null}
 
                 {data?.listings?.length ? (
                   <div className="mt-4 space-y-2">
                     {data.listings.map((l) => {
                       const k = listingKeyOf(l);
-                      const active = k === (selectedListing ? listingKeyOf(selectedListing) : "");
+                      const active =
+                        k === (selectedListing ? listingKeyOf(selectedListing) : "");
                       const isMine = toLower(l.sellerWallet) === me;
                       const isCancelling = busy === `cancel:${k}`;
                       const hasDeliveryBadge = Boolean(
                         l.deliveryEnabled ||
                           l.physicalItemIncluded ||
+                          deliveryEnabled ||
                           data?.mint?.deliveryEnabled ||
                           data?.mint?.physicalItemIncluded
                       );
 
                       const rowMarketType: MarketType =
                         l.marketType ||
-                        (l.deliveryEnabled || l.physicalItemIncluded ? "DELIVERY" : "STANDARD");
+                        (l.deliveryEnabled || l.physicalItemIncluded
+                          ? "DELIVERY"
+                          : explicitMarketType || "STANDARD");
 
                       return (
                         <div
@@ -954,7 +1054,9 @@ export default function TradingPanel1155({
                           tabIndex={0}
                           onClick={() => setSelectedListingKey(k)}
                           onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") setSelectedListingKey(k);
+                            if (e.key === "Enter" || e.key === " ") {
+                              setSelectedListingKey(k);
+                            }
                           }}
                           className={cx(
                             "rounded-2xl border p-4 transition outline-none cursor-pointer",
@@ -967,10 +1069,15 @@ export default function TradingPanel1155({
                             <div className="min-w-0">
                               <div className="text-sm font-extrabold text-white/92">
                                 {fmtEth(l.pricePerUnitWei)} ETH
-                                <span className="ml-2 text-white/35 text-[12px] font-black">per unit</span>
+                                <span className="ml-2 text-white/35 text-[12px] font-black">
+                                  per unit
+                                </span>
                               </div>
                               <div className="mt-1 text-[12px] text-white/55">
-                                Seller: <span className="font-mono text-white/82">{shortAddr(l.sellerWallet)}</span>
+                                Seller:{" "}
+                                <span className="font-mono text-white/82">
+                                  {shortAddr(l.sellerWallet)}
+                                </span>
                               </div>
 
                               <div className="mt-2 flex flex-wrap gap-2">
@@ -1008,7 +1115,9 @@ export default function TradingPanel1155({
                                   }}
                                   className={cx(
                                     "inline-flex items-center justify-center px-3 py-2 rounded-xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[11px] font-black text-white/80",
-                                    isCancelling || busy !== null ? "opacity-60 cursor-not-allowed" : ""
+                                    isCancelling || busy !== null
+                                      ? "opacity-60 cursor-not-allowed"
+                                      : ""
                                   )}
                                 >
                                   {isCancelling ? "Cancelling…" : "Cancel"}
@@ -1049,13 +1158,21 @@ export default function TradingPanel1155({
                       </div>
                       <div className="mt-2 text-sm font-extrabold text-white/92">
                         {fmtEth(selectedListing.pricePerUnitWei)} ETH
-                        <span className="ml-2 text-white/35 text-[12px] font-black">per unit</span>
+                        <span className="ml-2 text-white/35 text-[12px] font-black">
+                          per unit
+                        </span>
                       </div>
                       <div className="mt-2 text-[12px] text-white/55">
-                        Seller: <span className="font-mono text-white/82">{shortAddr(selectedListing.sellerWallet)}</span>
+                        Seller:{" "}
+                        <span className="font-mono text-white/82">
+                          {shortAddr(selectedListing.sellerWallet)}
+                        </span>
                       </div>
                       <div className="mt-2 text-[12px] text-white/55">
-                        Remaining: <span className="text-white/82 font-black">{selectedListing.amountRemaining}</span>
+                        Remaining:{" "}
+                        <span className="text-white/82 font-black">
+                          {selectedListing.amountRemaining}
+                        </span>
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -1082,13 +1199,15 @@ export default function TradingPanel1155({
                         This purchase should create a delivery order in{" "}
                         <Link href="/app/orders" className="underline font-black">
                           Orders &amp; Delivery
-                        </Link>
-                        {" "}after the marketplace indexer syncs the trade.
+                        </Link>{" "}
+                        after the marketplace indexer syncs the trade.
                       </div>
                     ) : null}
 
                     <label className="block mt-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Amount</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Amount
+                      </div>
 
                       <div className="mt-2 grid grid-cols-2 gap-2">
                         <button
@@ -1121,7 +1240,13 @@ export default function TradingPanel1155({
                       <input
                         value={buyAmount}
                         onChange={(e) =>
-                          setBuyAmount(clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxBuy)))
+                          setBuyAmount(
+                            clampInt(
+                              Number(e.target.value || "1"),
+                              1,
+                              Math.max(1, maxBuy)
+                            )
+                          )
                         }
                         type="number"
                         min={1}
@@ -1129,11 +1254,15 @@ export default function TradingPanel1155({
                         className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                       />
 
-                      <div className="mt-1 text-[11px] text-white/40">Max: {maxBuy}</div>
+                      <div className="mt-1 text-[11px] text-white/40">
+                        Max: {maxBuy}
+                      </div>
                     </label>
 
                     <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Total</div>
+                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                        Total
+                      </div>
                       <div className="mt-1 text-lg font-black text-amber-100">
                         {fmtEth(buyTotalWei.toString())} ETH
                       </div>
@@ -1163,7 +1292,9 @@ export default function TradingPanel1155({
                     ) : null}
                   </>
                 ) : (
-                  <div className="mt-4 text-[12px] text-white/60">Select a listing from the left block.</div>
+                  <div className="mt-4 text-[12px] text-white/60">
+                    Select a listing from the left block.
+                  </div>
                 )}
               </div>
             </div>
@@ -1175,16 +1306,23 @@ export default function TradingPanel1155({
                 <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
                   Recent trades
                 </div>
-                <div className="mt-1 text-[12px] text-white/50">Latest fills for this NFT.</div>
+                <div className="mt-1 text-[12px] text-white/50">
+                  Latest fills for this NFT.
+                </div>
               </div>
 
-              <div className="text-[12px] text-white/55 font-semibold">{data?.trades?.length ?? 0}</div>
+              <div className="text-[12px] text-white/55 font-semibold">
+                {data?.trades?.length ?? 0}
+              </div>
             </div>
 
             {data?.trades?.length ? (
               <div className="mt-4 space-y-2">
                 {data.trades.slice(0, 6).map((t) => (
-                  <div key={`${t.txHash}:${t.logIndex}`} className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                  <div
+                    key={`${t.txHash}:${t.logIndex}`}
+                    className="rounded-2xl border border-white/10 bg-black/10 p-4"
+                  >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-[12px] font-black text-amber-100">
                         {fmtEth(t.totalPriceWei)} ETH
@@ -1201,7 +1339,7 @@ export default function TradingPanel1155({
                       {shortAddr(t.sellerWallet)} → {shortAddr(t.buyerWallet)}
                       <span className="ml-2 text-white/35">•</span>
                       <span className="ml-2 text-white/70 font-black">
-                        {marketLabel(t.marketType)}
+                        {marketLabel(t.marketType || explicitMarketType || "STANDARD")}
                       </span>
                       <span className="ml-2 text-white/35">•</span>
                       <a
@@ -1222,7 +1360,8 @@ export default function TradingPanel1155({
           </div>
 
           <div className="mt-6 text-[11px] text-white/35">
-            After buy / list / cancel, the indexer may take a few seconds to update listings, trades and delivery orders.
+            After buy / list / cancel, the indexer may take a few seconds to update
+            listings, trades and delivery orders.
           </div>
         </div>
       </div>

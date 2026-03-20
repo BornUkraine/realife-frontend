@@ -84,6 +84,11 @@ export async function GET(
         orderKind: true,
         vertical: true,
 
+        marketType: true,
+        marketplaceContract: true,
+        marketplaceListingId: true,
+        marketplacePurchaseId: true,
+
         buyerWallet: true,
         sellerWallet: true,
         buyerId: true,
@@ -91,7 +96,6 @@ export async function GET(
 
         listingId: true,
         tradeId: true,
-        marketplaceListingId: true,
 
         amount: true,
         unitPrice: true,
@@ -207,15 +211,22 @@ export async function GET(
         orderKind: order.orderKind,
         vertical: order.vertical,
 
+        marketType: order.marketType || null,
+        marketplaceContract: order.marketplaceContract || null,
+        marketplaceListingId:
+          order.marketplaceListingId != null
+            ? order.marketplaceListingId.toString()
+            : null,
+        marketplacePurchaseId:
+          order.marketplacePurchaseId != null
+            ? order.marketplacePurchaseId.toString()
+            : null,
+
         buyerWallet: order.buyerWallet,
         sellerWallet: order.sellerWallet,
 
         listingId: order.listingId || null,
         tradeId: order.tradeId || null,
-        marketplaceListingId:
-          order.marketplaceListingId != null
-            ? order.marketplaceListingId.toString()
-            : null,
 
         amount: order.amount.toString(),
         unitPrice: order.unitPrice.toString(),

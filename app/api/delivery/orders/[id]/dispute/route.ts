@@ -71,6 +71,17 @@ function nextDeliveryStatusForDispute(
   return current;
 }
 
+function isOnchainDeliveryOrder(order: {
+  marketType?: string | null;
+  sourceType?: string | null;
+  marketplacePurchaseId?: bigint | null;
+}) {
+  return (
+    order.marketType === "DELIVERY" ||
+    (order.sourceType === "MARKETPLACE" && order.marketplacePurchaseId != null)
+  );
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -100,6 +111,11 @@ export async function POST(
         deliveryRequired: true,
         deliveryStatus: true,
         escrowStatus: true,
+
+        sourceType: true,
+        marketType: true,
+        marketplaceContract: true,
+        marketplacePurchaseId: true,
       },
     });
 
@@ -111,6 +127,22 @@ export async function POST(
 
     if (!viewerRole) {
       return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+    }
+
+    if (isOnchainDeliveryOrder(order)) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "ONCHAIN_DISPUTE_REQUIRED",
+          marketType: order.marketType || null,
+          marketplaceContract: order.marketplaceContract || null,
+          marketplacePurchaseId:
+            order.marketplacePurchaseId != null
+              ? order.marketplacePurchaseId.toString()
+              : null,
+        },
+        { status: 409 }
+      );
     }
 
     const finalizedEscrowStatuses: EscrowStatus[] = [

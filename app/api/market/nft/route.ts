@@ -148,7 +148,7 @@ export async function GET(req: NextRequest) {
             listings[0].pricePerUnitWei
           );
 
-    const lastSaleWei = trades[0]?.pricePerUnitWei ?? null;
+    const lastSaleWei = trades[0]?.totalPriceWei ?? null;
     const volumeTotalWei = trades.reduce((acc, t) => acc + t.totalPriceWei, 0n);
 
     return NextResponse.json({
@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
         tokenUri: mint.tokenUri,
         txHash: mint.txHash,
         verified: mint.verified,
-        createdAt: mint.createdAt,
+        createdAt: mint.createdAt.toISOString(),
         deliveryEnabled: mint.deliveryEnabled,
         physicalItemIncluded: mint.physicalItemIncluded,
         officialItem: mint.officialItem,
@@ -192,13 +192,13 @@ export async function GET(req: NextRequest) {
         physicalItemIncluded: r.physicalItemIncluded,
         officialItem: r.officialItem,
 
-        createdAt: r.createdAt,
+        createdAt: r.createdAt.toISOString(),
       })),
       trades: trades.map((t) => ({
         txHash: t.txHash,
         logIndex: t.logIndex,
         blockNum: s(t.blockNum),
-        blockTime: t.blockTime,
+        blockTime: t.blockTime.toISOString(),
 
         marketType: t.marketType,
         marketplaceContract: t.marketplaceContract,

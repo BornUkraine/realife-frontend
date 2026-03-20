@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createPublicClient, http, parseEventLogs } from "viem";
 import { baseSepolia } from "viem/chains";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,6 +84,17 @@ function isSourceType(v?: string | null) {
 
 function isOrderKind(v?: string | null) {
   return v === "PRIMARY" || v === "SECONDARY";
+}
+
+function pickViewer(session: any) {
+  const id = String(session?.user?.id || session?.userId || "").trim() || null;
+  const wallet = normAddr(
+    session?.user?.walletAddress || session?.walletAddress || ""
+  );
+  return {
+    id,
+    wallet: wallet || null,
+  };
 }
 
 async function ensureUserByWallet(wallet?: string | null) {
@@ -223,6 +236,16 @@ function findMatchedBoughtEvent(args: {
 
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    const viewer = pickViewer(session);
+
+    if (!viewer.id && !viewer.wallet) {
+      return NextResponse.json(
+        { ok: false, error: "UNAUTHORIZED" },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json().catch(() => null);
 
     const chainId = Number(body?.chainId || CHAIN_ID);
@@ -426,6 +449,17 @@ export async function POST(req: Request) {
 
     const buyerId = await ensureUserByWallet(buyerWallet);
     const sellerId = await ensureUserByWallet(sellerWallet);
+
+    const viewerMatchesBuyer =
+      (viewer.id && buyerId && viewer.id === buyerId) ||
+      (viewer.wallet && viewer.wallet === buyerWallet);
+
+    if (!viewerMatchesBuyer) {
+      return NextResponse.json(
+        { ok: false, error: "FORBIDDEN_BUYER_ONLY" },
+        { status: 403 }
+      );
+    }
 
     const eventAmount = matchedEvent.amount;
     const eventTotalPrice = matchedEvent.totalPrice;

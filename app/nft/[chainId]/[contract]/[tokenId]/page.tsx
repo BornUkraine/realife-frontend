@@ -53,8 +53,16 @@ const API_BASE = (
   "https://accurate-art-production.up.railway.app"
 ).replace(/\/$/, "");
 
-const USER_1155_CONTRACT = norm(
-  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || ""
+const USER_STANDARD_1155_CONTRACT = norm(
+  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT ||
+    process.env.REALIFE_1155_NEW_CONTRACT ||
+    ""
+);
+
+const USER_DELIVERY_1155_CONTRACT = norm(
+  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
+    process.env.REALIFE_1155_DELIVERY_CONTRACT ||
+    ""
 );
 
 const CAFE_1155_CONTRACT = norm(
@@ -76,7 +84,8 @@ const PAYMENT_TOKEN_FALLBACK = norm(
 );
 
 const ALLOWED_1155_CONTRACTS = [
-  USER_1155_CONTRACT,
+  USER_STANDARD_1155_CONTRACT,
+  USER_DELIVERY_1155_CONTRACT,
   CAFE_1155_CONTRACT,
   STORE_1155_CONTRACT,
 ].filter(Boolean);
@@ -407,12 +416,21 @@ async function fetchJsonWithTimeout(
 
 /* ------------------------------- Cache tags ------------------------------ */
 
-function marketTagNft(chainId: number, contract: string, tokenId: string) {
-  return `market:nft:${chainId}:${contract}:${tokenId}`;
+function marketTagNft(
+  chainId: number,
+  contract: string,
+  tokenId: string,
+  marketType?: "STANDARD" | "DELIVERY"
+) {
+  return `market:nft:${chainId}:${contract}:${tokenId}:${marketType || "ALL"}`;
 }
 
-function marketTagContract(chainId: number, contract: string) {
-  return `market:contract:${chainId}:${contract}`;
+function marketTagContract(
+  chainId: number,
+  contract: string,
+  marketType?: "STANDARD" | "DELIVERY"
+) {
+  return `market:contract:${chainId}:${contract}:${marketType || "ALL"}`;
 }
 
 /* ------------------------------- IPFS helpers ------------------------------ */
@@ -461,7 +479,7 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
   return null;
 }
 
-/* ----------------------------- Backend metadata (legacy 1155-only) ---------------------------- */
+/* ----------------------------- Backend metadata (legacy standard public 1155 only) ---------------------------- */
 
 async function loadMetadataFromBackend1155(tokenId: string) {
   const base = String(API_BASE || "").replace(/\/$/, "");
@@ -578,19 +596,23 @@ async function loadMarketNft(
   origin: string | null,
   chainId: number,
   contract: string,
-  tokenId: string
+  tokenId: string,
+  marketType: "STANDARD" | "DELIVERY"
 ) {
   const qs =
     `chainId=${encodeURIComponent(String(chainId))}` +
     `&contract=${encodeURIComponent(contract)}` +
     `&tokenId=${encodeURIComponent(tokenId)}` +
+    `&marketType=${encodeURIComponent(marketType)}` +
     `&listingsTake=50&tradesTake=50`;
 
   const url = origin ? `${origin}/api/market/nft?${qs}` : `/api/market/nft?${qs}`;
 
   const tags = [
-    marketTagNft(chainId, contract, tokenId),
-    marketTagContract(chainId, contract),
+    marketTagNft(chainId, contract, tokenId, marketType),
+    marketTagContract(chainId, contract, marketType),
+    `market:nft:${chainId}:${contract}:${tokenId}`,
+    `market:contract:${chainId}:${contract}`,
   ];
 
   const res = await fetchJsonWithTimeout(
@@ -754,7 +776,11 @@ export default async function NftDetailsPage({
 
   const isCafeNft = !!CAFE_1155_CONTRACT && contract === CAFE_1155_CONTRACT;
   const isStoreNft = !!STORE_1155_CONTRACT && contract === STORE_1155_CONTRACT;
-  const isUser1155Nft = !!USER_1155_CONTRACT && contract === USER_1155_CONTRACT;
+  const isUserStandard1155Nft =
+    !!USER_STANDARD_1155_CONTRACT && contract === USER_STANDARD_1155_CONTRACT;
+  const isUserDelivery1155Nft =
+    !!USER_DELIVERY_1155_CONTRACT && contract === USER_DELIVERY_1155_CONTRACT;
+  const isUser1155Nft = isUserStandard1155Nft || isUserDelivery1155Nft;
 
   const nft = await prisma.mint.findFirst({
     where: { chainId, contract, tokenId, verified: true },
@@ -874,9 +900,10 @@ export default async function NftDetailsPage({
 
   const fallbackPoster = ipfsToHttp(nft.image, IPFS_GATEWAYS[0]);
 
-  const liveMeta = isUser1155Nft
+  const liveMeta = isUserStandard1155Nft
     ? await loadMetadataFromBackend1155(tokenId)
     : null;
+
   const meta =
     liveMeta || (nft.tokenUri ? await loadMetadataFromTokenUri(nft.tokenUri) : null);
 
@@ -988,24 +1015,37 @@ export default async function NftDetailsPage({
     ? Boolean(storeStore?.officialItem || dbOfficialItem || metaOfficialItem)
     : false;
 
-  const effectiveUserDeliveryEnabled = isUser1155Nft
+  const effectiveUserStandardDeliveryEnabled = isUserStandard1155Nft
     ? Boolean(dbDeliveryEnabled || metaDeliveryEnabled)
     : false;
 
-  const effectiveUserPhysicalItemIncluded = isUser1155Nft
+  const effectiveUserStandardPhysicalItemIncluded = isUserStandard1155Nft
     ? Boolean(dbPhysicalItemIncluded || metaPhysicalItemIncluded)
     : false;
 
-  const isUserDeliveryNft =
-    isUser1155Nft &&
-    (effectiveUserDeliveryEnabled ||
-      effectiveUserPhysicalItemIncluded ||
-      String(metaDeliveryMode || "").trim().toLowerCase() === "delivery");
+  const effectiveUserDeliveryDeliveryEnabled = isUserDelivery1155Nft
+    ? true
+    : false;
+
+  const effectiveUserDeliveryPhysicalItemIncluded = isUserDelivery1155Nft
+    ? true
+    : false;
+
+  const effectiveUserDeliveryNft =
+    isUserDelivery1155Nft ||
+    (isUserStandard1155Nft &&
+      (effectiveUserStandardDeliveryEnabled ||
+        effectiveUserStandardPhysicalItemIncluded ||
+        String(metaDeliveryMode || "").trim().toLowerCase() === "delivery"));
 
   const isDeliveryCapableNft =
     (isStoreNft &&
       (effectiveStoreDeliveryEnabled || effectiveStorePhysicalItemIncluded)) ||
-    isUserDeliveryNft;
+    effectiveUserDeliveryNft;
+
+  const preferredMarketType: "STANDARD" | "DELIVERY" = isDeliveryCapableNft
+    ? "DELIVERY"
+    : "STANDARD";
 
   let kind: "image" | "video" = "image";
   let media: string | null = fallbackPoster;
@@ -1055,8 +1095,10 @@ export default async function NftDetailsPage({
     ? "ERC-1155 • CAFE"
     : isStoreNft
     ? "ERC-1155 • STORE"
-    : isUserDeliveryNft
+    : isUserDelivery1155Nft
     ? "ERC-1155 • DELIVERY"
+    : isUserStandard1155Nft
+    ? "ERC-1155 • STANDARD"
     : "ERC-1155";
 
   const origin = await getOrigin();
@@ -1064,7 +1106,8 @@ export default async function NftDetailsPage({
     origin,
     chainId,
     contract,
-    tokenId
+    tokenId,
+    preferredMarketType
   );
 
   const stats = market?.stats || null;
@@ -1086,13 +1129,15 @@ export default async function NftDetailsPage({
   );
 
   const hasStorefrontPanel = isCafeNft || isStoreNft;
-  const hasSecondaryActionPanel = hasStorefrontPanel || isUserDeliveryNft;
+  const hasSecondaryActionPanel = hasStorefrontPanel || effectiveUserDeliveryNft;
   const showMyDeliveryButton = viewerAuthed && isDeliveryCapableNft;
 
   const storeCheckoutMode =
     effectiveStoreDeliveryEnabled || effectiveStorePhysicalItemIncluded
       ? "delivery"
       : "simple";
+
+  const TradingPanelAny = TradingPanel1155 as any;
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
@@ -1128,7 +1173,7 @@ export default async function NftDetailsPage({
               <InfoPill>{standardLabel}</InfoPill>
               {metaRarity ? <InfoPill>{metaRarity}</InfoPill> : null}
 
-              {isUserDeliveryNft ? (
+              {effectiveUserDeliveryNft ? (
                 <InfoPill tone="violet">Marketplace Delivery Item</InfoPill>
               ) : null}
 
@@ -1139,6 +1184,10 @@ export default async function NftDetailsPage({
               {isStoreNft && effectiveStorePhysicalItemIncluded ? (
                 <InfoPill tone="gold">Physical item</InfoPill>
               ) : null}
+
+              <InfoPill tone={preferredMarketType === "DELIVERY" ? "violet" : "sky"}>
+                Market: {preferredMarketType}
+              </InfoPill>
             </div>
           </div>
 
@@ -1222,8 +1271,10 @@ export default async function NftDetailsPage({
                         ? "Realife Cafe Edition"
                         : isStoreNft
                         ? "Realife Store Edition"
-                        : isUserDeliveryNft
+                        : isUserDelivery1155Nft
                         ? "Realife Delivery Edition"
+                        : isUserStandard1155Nft
+                        ? "Realife Standard Edition"
                         : "Realife Edition"}
                     </div>
                     <div className="mt-2 text-2xl md:text-3xl font-black tracking-tight text-white">
@@ -1318,6 +1369,7 @@ export default async function NftDetailsPage({
                     <StatCard label="Chain ID" value={String(nft.chainId)} />
                     <StatCard label="Minted" value={fmtDate(nft.createdAt)} />
                     <StatCard label="Total Supply" value={supplyLabel || "—"} />
+                    <StatCard label="Market Type" value={preferredMarketType} />
                     {isStoreNft && storeStore?.primarySellerWallet ? (
                       <StatCard
                         label="Primary Seller"
@@ -1382,8 +1434,10 @@ export default async function NftDetailsPage({
                         ? "Realife Cafe Edition"
                         : isStoreNft
                         ? "Realife Store Edition"
-                        : isUserDeliveryNft
+                        : isUserDelivery1155Nft
                         ? "Marketplace Delivery Edition"
+                        : isUserStandard1155Nft
+                        ? "Marketplace Standard Edition"
                         : "Realife Edition"}
                     </div>
                     <div className="px-3 py-1.5 rounded-full border border-white/15 bg-white/[0.06] text-[11px] font-black text-amber-100">
@@ -1396,7 +1450,7 @@ export default async function NftDetailsPage({
                     {metaCollection ? <InfoPill>{metaCollection}</InfoPill> : null}
                     {metaRarity ? <InfoPill>{metaRarity}</InfoPill> : null}
 
-                    {isUserDeliveryNft ? <InfoPill tone="violet">Delivery</InfoPill> : null}
+                    {effectiveUserDeliveryNft ? <InfoPill tone="violet">Delivery</InfoPill> : null}
                     {isStoreNft && effectiveStoreDeliveryEnabled ? (
                       <InfoPill tone="emerald">Delivery available</InfoPill>
                     ) : null}
@@ -1406,6 +1460,9 @@ export default async function NftDetailsPage({
                     {isStoreNft && effectiveStoreOfficialItem ? (
                       <InfoPill>Official item</InfoPill>
                     ) : null}
+                    <InfoPill tone={preferredMarketType === "DELIVERY" ? "violet" : "sky"}>
+                      {preferredMarketType} market
+                    </InfoPill>
                   </div>
 
                   <div className="mt-4 text-3xl md:text-4xl font-black tracking-tight">
@@ -1445,21 +1502,25 @@ export default async function NftDetailsPage({
                     </div>
                   ) : null}
 
-                  {isUserDeliveryNft ? (
+                  {effectiveUserDeliveryNft ? (
                     <div className="mt-5 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
                       <div className="text-[12px] font-black text-violet-100">
                         Marketplace delivery flow
                       </div>
                       <div className="mt-2 text-[12px] text-violet-50/90 leading-relaxed">
-                        This NFT is traded through the marketplace. If a buyer purchases it, delivery and escrow are
-                        handled later in the site UI order flow.
+                        This NFT is traded through the delivery marketplace. If a buyer purchases it, delivery and escrow
+                        are handled later in the site UI order flow.
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <InfoPill tone="emerald">
-                          {effectiveUserDeliveryEnabled ? "Delivery enabled" : "Delivery off"}
+                          {isUserDelivery1155Nft || effectiveUserStandardDeliveryEnabled
+                            ? "Delivery enabled"
+                            : "Delivery off"}
                         </InfoPill>
                         <InfoPill tone="gold">
-                          {effectiveUserPhysicalItemIncluded ? "Physical item included" : "Digital only"}
+                          {isUserDelivery1155Nft || effectiveUserStandardPhysicalItemIncluded
+                            ? "Physical item included"
+                            : "Digital only"}
                         </InfoPill>
                         {metaDeliveryMode ? <InfoPill tone="violet">{metaDeliveryMode}</InfoPill> : null}
                       </div>
@@ -1593,7 +1654,7 @@ export default async function NftDetailsPage({
             </div>
           ) : null}
 
-          {isUserDeliveryNft ? (
+          {effectiveUserDeliveryNft ? (
             <div className="reveal" style={{ animationDelay: "180ms" }}>
               <div
                 className={cx(
@@ -1612,20 +1673,34 @@ export default async function NftDetailsPage({
                   </div>
 
                   <div className="mt-3 text-[13px] text-white/60 leading-relaxed">
-                    This item is not a store primary sale. It is bought through the trading marketplace. After a successful
+                    This item is not a store primary sale. It is bought through the delivery marketplace. After a successful
                     purchase, delivery details and escrow are handled in the site UI orders flow.
                   </div>
 
                   <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
                     <StatCard
                       label="Delivery enabled"
-                      value={effectiveUserDeliveryEnabled ? "Yes" : "No"}
-                      tone={effectiveUserDeliveryEnabled ? "gold" : "default"}
+                      value={
+                        isUserDelivery1155Nft || effectiveUserStandardDeliveryEnabled ? "Yes" : "No"
+                      }
+                      tone={
+                        isUserDelivery1155Nft || effectiveUserStandardDeliveryEnabled
+                          ? "gold"
+                          : "default"
+                      }
                     />
                     <StatCard
                       label="Physical item"
-                      value={effectiveUserPhysicalItemIncluded ? "Included" : "No"}
-                      tone={effectiveUserPhysicalItemIncluded ? "gold" : "default"}
+                      value={
+                        isUserDelivery1155Nft || effectiveUserStandardPhysicalItemIncluded
+                          ? "Included"
+                          : "No"
+                      }
+                      tone={
+                        isUserDelivery1155Nft || effectiveUserStandardPhysicalItemIncluded
+                          ? "gold"
+                          : "default"
+                      }
                     />
                     <StatCard label="Delivery mode" value={metaDeliveryMode || "—"} />
                     <StatCard label="Item type" value={metaItemType || "—"} />
@@ -1636,7 +1711,7 @@ export default async function NftDetailsPage({
                       Buyer journey
                     </div>
                     <div className="mt-2 space-y-2 text-[12px] text-violet-50/90 leading-relaxed">
-                      <div>• buyer purchases NFT in marketplace trading</div>
+                      <div>• buyer purchases NFT in delivery marketplace trading</div>
                       <div>• delivery order is created in site UI flow</div>
                       <div>• seller ships physical item and adds tracking</div>
                       <div>• buyer confirms delivery, escrow is released</div>
@@ -1663,7 +1738,14 @@ export default async function NftDetailsPage({
           ) : null}
 
           <div className="reveal" style={{ animationDelay: "200ms" }}>
-            <TradingPanel1155 chainId={chainId} contract={contract} tokenId={tokenId} />
+            <TradingPanelAny
+              chainId={chainId}
+              contract={contract}
+              tokenId={tokenId}
+              marketType={preferredMarketType}
+              preferredMarketType={preferredMarketType}
+              deliveryEnabled={isDeliveryCapableNft}
+            />
           </div>
         </div>
 
@@ -1690,7 +1772,7 @@ export default async function NftDetailsPage({
                 <div className="mt-4 space-y-2">
                   {listings.slice(0, 10).map((l) => (
                     <div
-                      key={l.marketplaceListingId}
+                      key={`${l.marketType || preferredMarketType}:${l.marketplaceListingId}`}
                       className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1710,6 +1792,10 @@ export default async function NftDetailsPage({
                         <span className="text-white/35">•</span>
                         <span className="font-black text-white/70">
                           Listing #{l.marketplaceListingId}
+                        </span>
+                        <span className="text-white/35">•</span>
+                        <span className="font-black text-white/70">
+                          {l.marketType || preferredMarketType}
                         </span>
                       </div>
                     </div>
@@ -1759,6 +1845,10 @@ export default async function NftDetailsPage({
 
                       <div className="mt-2 text-[12px] text-white/55">
                         {shortAddr(t.sellerWallet)} → {shortAddr(t.buyerWallet)}
+                        <span className="text-white/35"> • </span>
+                        <span className="font-black text-white/70">
+                          {t.marketType || preferredMarketType}
+                        </span>
                         <span className="text-white/35"> • </span>
                         <a
                           className="text-amber-100/90 hover:text-amber-100 font-black"

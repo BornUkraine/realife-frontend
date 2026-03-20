@@ -266,6 +266,7 @@ async function handleCancelled(parsed, blockTime) {
     where: {
       chainId: CHAIN_ID,
       marketType: "DELIVERY",
+      marketplaceContract: MARKETPLACE,
       marketplaceListingId: listingId,
       status: "ACTIVE",
     },
@@ -512,7 +513,6 @@ async function handleBought(parsed, log, blockTime) {
           unitPrice: pricePerUnitWei,
           totalPrice: totalPriceWei,
 
-          // delivery market is ETH payable, not payment token
           paymentToken: null,
 
           deliveryRequired: true,
@@ -573,18 +573,20 @@ async function handleReleased(parsed, log, blockTime) {
     select: {
       id: true,
       escrowStatus: true,
+      deliveryStatus: true,
+      confirmedAt: true,
     },
   });
 
   for (const row of rows) {
-    if (row.escrowStatus === "RELEASED") continue;
-
     await prisma.storeOrder.update({
       where: { id: row.id },
       data: {
         escrowStatus: "RELEASED",
         releasedAt: blockTime,
         escrowReleaseTxHash: txHash,
+        deliveryStatus: "CONFIRMED",
+        confirmedAt: row.confirmedAt || blockTime,
       },
     });
   }

@@ -57,6 +57,13 @@ function txUrl(chainId: number, txHash?: string | null) {
   return null;
 }
 
+function shortAddr(addr?: string | null) {
+  if (!addr) return "—";
+  const s = String(addr);
+  if (s.length <= 12) return s;
+  return `${s.slice(0, 6)}…${s.slice(-4)}`;
+}
+
 function deliveryLabel(v?: string | null) {
   switch (String(v || "")) {
     case "NOT_REQUIRED":
@@ -135,8 +142,22 @@ function escrowTone(v?: string | null) {
   }
 }
 
-function sourceLabel(sourceType?: string | null, orderKind?: string | null) {
+function marketTone(v?: string | null) {
+  if (v === "DELIVERY") {
+    return "border-sky-500/25 bg-sky-500/10 text-sky-200";
+  }
+  return "border-white/10 bg-white/[0.06] text-white/70";
+}
+
+function sourceLabel(
+  sourceType?: string | null,
+  orderKind?: string | null,
+  marketType?: string | null
+) {
   if (sourceType === "STORE" && orderKind === "PRIMARY") return "PRIMARY STORE";
+  if (sourceType === "MARKETPLACE" && orderKind === "SECONDARY" && marketType === "DELIVERY") {
+    return "SECONDARY DELIVERY";
+  }
   if (sourceType === "MARKETPLACE" && orderKind === "SECONDARY") return "SECONDARY";
   return `${sourceType || "UNKNOWN"} / ${orderKind || "UNKNOWN"}`;
 }
@@ -245,6 +266,11 @@ export default async function ProfileDeliveryPage() {
       vertical: true,
       sourceType: true,
       orderKind: true,
+
+      marketType: true,
+      marketplaceContract: true,
+      marketplaceListingId: true,
+      marketplacePurchaseId: true,
 
       buyerWallet: true,
       sellerWallet: true,
@@ -359,7 +385,7 @@ export default async function ProfileDeliveryPage() {
                 My Delivery
               </div>
               <div className="mt-2 text-[12px] text-white/55 max-w-2xl">
-                Private buyer-side shipping and delivery view across store and future delivery-enabled NFT orders.
+                Private buyer-side shipping and delivery view across store and delivery marketplace orders.
               </div>
             </div>
 
@@ -493,8 +519,19 @@ export default async function ProfileDeliveryPage() {
                           </div>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <div className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/80">
-                              {sourceLabel(order.sourceType, order.orderKind)}
+                              {sourceLabel(order.sourceType, order.orderKind, order.marketType)}
                             </div>
+
+                            {order.marketType ? (
+                              <div
+                                className={cx(
+                                  "px-3 py-1.5 rounded-full border text-[11px] font-black",
+                                  marketTone(order.marketType)
+                                )}
+                              >
+                                MARKET {order.marketType}
+                              </div>
+                            ) : null}
 
                             <div
                               className={cx(
@@ -564,6 +601,28 @@ export default async function ProfileDeliveryPage() {
                           </div>
                         </div>
                       </div>
+
+                      {(order.marketplacePurchaseId || order.marketplaceContract) ? (
+                        <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
+                          <div className="text-[11px] text-sky-100 font-semibold uppercase tracking-wider">
+                            Delivery marketplace
+                          </div>
+                          <div className="mt-2 text-[12px] text-sky-50/85">
+                            Purchase ID:{" "}
+                            <span className="font-black text-sky-100">
+                              {order.marketplacePurchaseId || "—"}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-[12px] text-sky-50/85">
+                            Contract:{" "}
+                            <span className="font-black text-sky-100">
+                              {order.marketplaceContract
+                                ? shortAddr(order.marketplaceContract)
+                                : "—"}
+                            </span>
+                          </div>
+                        </div>
+                      ) : null}
 
                       <div className="mt-4 grid md:grid-cols-2 gap-3">
                         <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">

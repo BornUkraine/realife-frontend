@@ -6,6 +6,8 @@ import { formatUnits } from "viem";
 import { useAccount } from "wagmi";
 import ActivityPanel from "@/components/trading/ActivityPanel";
 
+type MarketType = "STANDARD" | "DELIVERY";
+
 type MarketListing = {
   id: string;
   chainId: number;
@@ -20,7 +22,22 @@ type MarketListing = {
   amountTotal: string;
   amountRemaining: string;
   createdAt: string;
-  mint?: { name?: string | null; image?: string | null; tokenUri?: string | null; verified?: boolean };
+
+  marketType?: MarketType;
+  marketplaceContract?: string | null;
+  deliveryEnabled?: boolean;
+  physicalItemIncluded?: boolean;
+  officialItem?: boolean;
+
+  mint?: {
+    name?: string | null;
+    image?: string | null;
+    tokenUri?: string | null;
+    verified?: boolean;
+    deliveryEnabled?: boolean;
+    physicalItemIncluded?: boolean;
+    officialItem?: boolean;
+  };
 };
 
 type ProductMeta = {
@@ -65,6 +82,10 @@ function fmtEth(weiStr?: string | null) {
   } catch {
     return "—";
   }
+}
+
+function marketLabel(mt?: MarketType | null) {
+  return mt === "DELIVERY" ? "DELIVERY" : "STANDARD";
 }
 
 const PRIMARY_IPFS_ORIGIN = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
@@ -166,6 +187,7 @@ export default function TradingClient({
         const collection = String(x.collection || "").toLowerCase();
         const item = String(x.item || "").toLowerCase();
         const rarity = String(x.rarity || "").toLowerCase();
+        const market = String(x.marketType || "").toLowerCase();
 
         return (
           name.includes(qq) ||
@@ -173,7 +195,8 @@ export default function TradingClient({
           tokenId.includes(qq) ||
           collection.includes(qq) ||
           item.includes(qq) ||
-          rarity.includes(qq)
+          rarity.includes(qq) ||
+          market.includes(qq)
         );
       });
     }
@@ -265,7 +288,7 @@ export default function TradingClient({
   const marketSubtitle =
     marketView === "cafe"
       ? "Secondary market for Realife Cafe products and branded NFTs."
-      : "All verified Realife NFTs across supported contracts.";
+      : "All verified Realife NFTs across supported contracts, including standard and delivery market listings.";
 
   return (
     <div className="space-y-6">
@@ -426,7 +449,7 @@ export default function TradingClient({
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="name / token id / seller / rarity / item…"
+                    placeholder="name / token id / seller / rarity / item / delivery…"
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                   />
                 </div>
@@ -527,10 +550,18 @@ export default function TradingClient({
               const isMine = Boolean(wallet && normAddr(x.sellerWallet) === wallet);
               const isCafe = Boolean(CAFE_CONTRACT) && normAddr(x.contract) === CAFE_CONTRACT;
               const img = x?.metaImage || ipfsToHttp(x?.mint?.image || null) || null;
+              const rowMarketType: MarketType = x.marketType || "STANDARD";
+              const rowHasDelivery = Boolean(
+                rowMarketType === "DELIVERY" ||
+                  x.deliveryEnabled ||
+                  x.physicalItemIncluded ||
+                  x.mint?.deliveryEnabled ||
+                  x.mint?.physicalItemIncluded
+              );
 
               return (
                 <Link
-                  key={x.marketplaceListingId}
+                  key={`${rowMarketType}:${normAddr(x.marketplaceContract || "")}:${x.marketplaceListingId}`}
                   href={href}
                   className={cx(
                     "group rounded-[26px] overflow-hidden border border-white/10 bg-white/[0.04]",
@@ -564,9 +595,13 @@ export default function TradingClient({
                       ) : null}
                     </div>
 
-                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-white/85">
                         x{x.amountRemaining}
+                      </div>
+
+                      <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-white/85">
+                        {marketLabel(rowMarketType)}
                       </div>
                     </div>
 
@@ -578,21 +613,35 @@ export default function TradingClient({
                       {x.mint?.name || `Token #${x.tokenId}`}
                     </div>
 
-                    {isCafe ? (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {x.item ? (
-                          <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
-                            {x.item}
-                          </span>
-                        ) : null}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                        {marketLabel(rowMarketType)}
+                      </span>
 
-                        {x.rarity ? (
-                          <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
-                            {x.rarity}
-                          </span>
-                        ) : null}
-                      </div>
-                    ) : null}
+                      {rowHasDelivery ? (
+                        <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
+                          DELIVERY
+                        </span>
+                      ) : null}
+
+                      {x.officialItem || x.mint?.officialItem ? (
+                        <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                          OFFICIAL
+                        </span>
+                      ) : null}
+
+                      {isCafe && x.item ? (
+                        <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                          {x.item}
+                        </span>
+                      ) : null}
+
+                      {isCafe && x.rarity ? (
+                        <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                          {x.rarity}
+                        </span>
+                      ) : null}
+                    </div>
 
                     <div className="mt-3 flex items-center justify-between gap-2 text-[12px] text-white/55">
                       <span className="truncate font-mono">{shortAddr(x.contract)}</span>

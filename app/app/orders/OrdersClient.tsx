@@ -16,7 +16,12 @@ type OrderRow = {
 
   sourceType?: "STORE" | "MARKETPLACE" | null;
   orderKind?: "PRIMARY" | "SECONDARY" | null;
+
+  marketType?: "STANDARD" | "DELIVERY" | null;
+  marketplaceContract?: string | null;
   marketplaceListingId?: string | null;
+  marketplacePurchaseId?: string | null;
+
   listingId?: string | null;
   tradeId?: string | null;
 
@@ -69,6 +74,8 @@ type OrderRow = {
   carrier: string | null;
 
   buyTxHash: string | null;
+  escrowReleaseTxHash?: string | null;
+  escrowRefundTxHash?: string | null;
 
   noteBuyer: string | null;
   noteSeller: string | null;
@@ -210,6 +217,20 @@ function kindTone(v?: string | null) {
     return "border-violet-500/20 bg-violet-500/10 text-violet-100";
   }
   return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
+}
+
+function marketTone(v?: string | null) {
+  if (v === "DELIVERY") {
+    return "border-sky-500/20 bg-sky-500/10 text-sky-100";
+  }
+  return "border-white/10 bg-white/[0.06] text-white/80";
+}
+
+function isOnchainDeliveryOrder(x: OrderRow) {
+  return (
+    x.marketType === "DELIVERY" ||
+    (x.sourceType === "MARKETPLACE" && Boolean(x.marketplacePurchaseId))
+  );
 }
 
 export default function OrdersClient() {
@@ -398,6 +419,7 @@ export default function OrdersClient() {
           rows.map((x) => {
             const img = ipfsToHttp(x.product?.image || null);
             const nftHref = `/nft/${x.chainId}/${x.contract}/${encodeURIComponent(String(x.tokenId))}`;
+            const onchainDelivery = isOnchainDeliveryOrder(x);
 
             const canShip =
               x.viewerRole === "seller" &&
@@ -411,7 +433,19 @@ export default function OrdersClient() {
               x.viewerRole === "buyer" &&
               x.deliveryRequired &&
               x.deliveryStatus === "SHIPPED" &&
-              x.escrowStatus !== "RELEASED";
+              x.escrowStatus !== "RELEASED" &&
+              !onchainDelivery;
+
+            const showOnchainConfirmNotice =
+              x.viewerRole === "buyer" &&
+              x.deliveryRequired &&
+              (x.deliveryStatus === "SHIPPED" ||
+                x.deliveryStatus === "DELIVERED" ||
+                x.deliveryStatus === "CONFIRMED") &&
+              onchainDelivery &&
+              x.escrowStatus !== "RELEASED" &&
+              x.escrowStatus !== "REFUNDED" &&
+              x.escrowStatus !== "CANCELLED";
 
             return (
               <div
@@ -423,7 +457,6 @@ export default function OrdersClient() {
                     <div className="w-full lg:w-[140px] shrink-0">
                       <div className="aspect-square rounded-2xl overflow-hidden bg-black/30 border border-white/10">
                         {img ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={img}
                             alt={x.product?.name || `Token #${x.tokenId}`}
@@ -468,6 +501,17 @@ export default function OrdersClient() {
                                 )}
                               >
                                 {x.orderKind}
+                              </span>
+                            ) : null}
+
+                            {x.marketType ? (
+                              <span
+                                className={cx(
+                                  "px-2 py-1 rounded-full border text-[10px] font-black",
+                                  marketTone(x.marketType)
+                                )}
+                              >
+                                MARKET {x.marketType}
                               </span>
                             ) : null}
 
@@ -604,6 +648,33 @@ export default function OrdersClient() {
                         </div>
                       ) : null}
 
+                      {onchainDelivery ? (
+                        <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-50/85">
+                          <div className="font-black text-sky-100">
+                            On-chain delivery escrow
+                          </div>
+                          <div className="mt-2 leading-relaxed">
+                            This order uses the delivery marketplace contract. Confirm / release / refund
+                            must be executed through the on-chain delivery flow, and the database is updated
+                            later by the indexer.
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                            {x.marketplacePurchaseId ? (
+                              <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 font-black text-sky-100">
+                                Purchase #{x.marketplacePurchaseId}
+                              </span>
+                            ) : null}
+
+                            {x.marketplaceContract ? (
+                              <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 font-black text-sky-100">
+                                {shortAddr(x.marketplaceContract)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : null}
+
                       {canShip ? (
                         <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                           <div className="text-[12px] font-black text-white/85">
@@ -673,6 +744,18 @@ export default function OrdersClient() {
                         </div>
                       ) : null}
 
+                      {showOnchainConfirmNotice ? (
+                        <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
+                          <div className="text-[12px] text-sky-100 font-black">
+                            Buyer confirmation is on-chain for this order
+                          </div>
+                          <div className="mt-2 text-[12px] text-sky-50/85 leading-relaxed">
+                            This delivery purchase is controlled by the delivery marketplace contract.
+                            Do not use the old off-chain confirm route for it.
+                          </div>
+                        </div>
+                      ) : null}
+
                       {(x.noteBuyer || x.noteSeller || x.adminNote) ? (
                         <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
                           {x.noteBuyer ? (
@@ -723,6 +806,12 @@ export default function OrdersClient() {
                         Order ID: {x.id}
                         <span className="mx-2">•</span>
                         TX: {shortHash(x.buyTxHash)}
+                        {x.marketplacePurchaseId ? (
+                          <>
+                            <span className="mx-2">•</span>
+                            Purchase #{x.marketplacePurchaseId}
+                          </>
+                        ) : null}
                         {x.marketplaceListingId ? (
                           <>
                             <span className="mx-2">•</span>

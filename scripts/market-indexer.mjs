@@ -10,8 +10,17 @@ const RPC_URL =
   "https://sepolia.base.org";
 
 const CHAIN_ID = Number(process.env.CHAIN_ID || "84532");
-const MARKETPLACE = (process.env.MARKETPLACE_ADDRESS || "").trim().toLowerCase();
-if (!MARKETPLACE) throw new Error("MARKETPLACE_ADDRESS missing");
+
+const MARKETPLACE = (
+  process.env.REALIFE_MARKETPLACE_STANDARD_ADDRESS ||
+  process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_STANDARD_ADDRESS ||
+  process.env.MARKETPLACE_ADDRESS ||
+  ""
+)
+  .trim()
+  .toLowerCase();
+
+if (!MARKETPLACE) throw new Error("STANDARD marketplace address missing");
 
 const MARKET_TYPE = "STANDARD";
 

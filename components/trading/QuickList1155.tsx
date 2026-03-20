@@ -84,6 +84,7 @@ export default function QuickList1155({
   deliveryEnabled,
   physicalItemIncluded,
   marketTypeHint,
+  preferredMarketType,
 }: {
   chainId: number;
   contract: string;
@@ -93,6 +94,7 @@ export default function QuickList1155({
   deliveryEnabled?: boolean;
   physicalItemIncluded?: boolean;
   marketTypeHint?: MarketType;
+  preferredMarketType?: MarketType;
 }) {
   const router = useRouter();
 
@@ -142,11 +144,13 @@ export default function QuickList1155({
   const hintMax = useMemo(() => toBigIntSafe(maxAmountHint), [maxAmountHint]);
 
   const inferredMarketType: MarketType = useMemo(() => {
+    if (preferredMarketType) return preferredMarketType;
     if (marketTypeHint) return marketTypeHint;
     if (deliveryEnabled || physicalItemIncluded) return "DELIVERY";
     if (DELIVERY_NFT_CONTRACT && nftAddr === DELIVERY_NFT_CONTRACT) return "DELIVERY";
     return "STANDARD";
   }, [
+    preferredMarketType,
     marketTypeHint,
     deliveryEnabled,
     physicalItemIncluded,
@@ -260,6 +264,10 @@ export default function QuickList1155({
     const tags = [
       `market:nft:${chainId}:${nftAddr}:${tokenId}`,
       `market:contract:${chainId}:${nftAddr}`,
+      `market:nft:${chainId}:${nftAddr}:${tokenId}:STANDARD`,
+      `market:nft:${chainId}:${nftAddr}:${tokenId}:DELIVERY`,
+      `market:contract:${chainId}:${nftAddr}:STANDARD`,
+      `market:contract:${chainId}:${nftAddr}:DELIVERY`,
     ];
 
     try {
@@ -423,6 +431,12 @@ export default function QuickList1155({
                     </span>
                   </div>
                 </div>
+
+                {(deliveryEnabled || physicalItemIncluded || inferredMarketType === "DELIVERY") ? (
+                  <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 px-4 py-3 text-[12px] text-violet-100 text-center">
+                    This NFT should be listed in the <span className="font-black">DELIVERY</span> market.
+                  </div>
+                ) : null}
 
                 {!hasMarketplace ? (
                   <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-[12px] text-rose-100 text-center">

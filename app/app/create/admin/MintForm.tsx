@@ -16,6 +16,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { decodeEventLog, formatUnits, parseUnits } from "viem";
 
 import NftMedia from "@/components/NftMedia";
+import { realife1155DeliveryAbi } from "@/lib/realife1155DeliveryAbi";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
@@ -353,6 +354,10 @@ function persistableUrl(input?: string | null) {
   return s;
 }
 
+function isAddressLike(v?: string | null) {
+  return /^0x[a-fA-F0-9]{40}$/.test(String(v || "").trim());
+}
+
 const IPFS_GATEWAYS = [
   "https://nftstorage.link/ipfs/",
   "https://gateway.pinata.cloud/ipfs/",
@@ -542,6 +547,10 @@ function GhostButton({
   );
 }
 
+function deliveryAccessRoute(key: string) {
+  return `/api/admin/users/${encodeURIComponent(key)}/delivery-access`;
+}
+
 export default function AdminMintForm() {
   const mounted = useMounted();
   const savedRef = useRef(false);
@@ -653,6 +662,9 @@ export default function AdminMintForm() {
   const isAuthorized =
     connected && !wrongNetwork && allowlistOk && hasModeratorRole;
 
+  const canUseDeliveryAccessManager =
+    connected && !wrongNetwork && allowlistOk;
+
   const [file, setFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
@@ -690,7 +702,7 @@ export default function AdminMintForm() {
   const [createdMode, setCreatedMode] = useState<ProductMode | null>(null);
   const [createdBrand, setCreatedBrand] = useState<string | null>(null);
 
-  const [txMode, setTxMode] = useState<"create" | "toggle" | null>(null);
+  const [txMode, setTxMode] = useState<"create" | "toggle" | "deliveryAccess" | null>(null);
   const [txTarget, setTxTarget] = useState<ProductMode | null>(null);
   const [pendingTxHash, setPendingTxHash] = useState<
     `0x${string}` | undefined
@@ -709,6 +721,12 @@ export default function AdminMintForm() {
   const [deliveryAccessUser, setDeliveryAccessUser] = useState<DeliveryAccessUser | null>(null);
   const [deliveryAccessNote, setDeliveryAccessNote] = useState("");
   const [deliveryAccessSaving, setDeliveryAccessSaving] = useState(false);
+
+  const [pendingDeliveryAccessLookupKey, setPendingDeliveryAccessLookupKey] = useState<string | null>(null);
+  const [pendingDeliveryAccessWallet, setPendingDeliveryAccessWallet] = useState<`0x${string}` | null>(null);
+  const [pendingDeliveryAccessAllowed, setPendingDeliveryAccessAllowed] = useState<boolean | null>(null);
+  const [pendingDeliveryAccessNote, setPendingDeliveryAccessNote] = useState("");
+  const [pendingDeliveryAccessUserExists, setPendingDeliveryAccessUserExists] = useState(false);
 
   const pickedKind = useMemo<"image" | "video">(
     () => (file?.type?.startsWith("video/") ? "video" : "image"),
@@ -771,6 +789,32 @@ export default function AdminMintForm() {
 
   const manageIsActive = Boolean(manageIsActiveRaw);
 
+  const resolvedDeliveryWallet = useMemo(() => {
+    const raw = String(deliveryAccessUser?.walletAddress || "").trim();
+    return isAddressLike(raw) ? (raw as `0x${string}`) : undefined;
+  }, [deliveryAccessUser]);
+
+  const {
+    data: deliveryOnchainAllowedRaw,
+    isLoading: isDeliveryOnchainLoading,
+    isFetching: isDeliveryOnchainFetching,
+    refetch: refetchDeliveryOnchainAccess,
+  } = useReadContract({
+    address: PUBLIC_DELIVERY_MINT_CONTRACT,
+    abi: realife1155DeliveryAbi as any,
+    functionName: "allowedDeliveryMinters" as any,
+    args: [resolvedDeliveryWallet ?? ZERO_ADDRESS],
+    query: { enabled: Boolean(PUBLIC_DELIVERY_MINT_CONTRACT && resolvedDeliveryWallet) },
+  });
+
+  const deliveryOnchainAllowed = Boolean(deliveryOnchainAllowedRaw);
+  const deliveryStateMismatch =
+    Boolean(deliveryAccessUser) &&
+    Boolean(resolvedDeliveryWallet) &&
+    Boolean(PUBLIC_DELIVERY_MINT_CONTRACT) &&
+    !isDeliveryOnchainLoading &&
+    deliveryAccessUser!.approvedPhysicalSeller !== deliveryOnchainAllowed;
+
   const canPrepare = Boolean(
     file &&
       name.trim() &&
@@ -816,6 +860,7 @@ export default function AdminMintForm() {
 
   const isMiningCreate = txMode === "create" && isReceiptLoading;
   const isMiningToggle = txMode === "toggle" && isReceiptLoading;
+  const isMiningDeliveryAccess = txMode === "deliveryAccess" && isReceiptLoading;
 
   useEffect(() => {
     if (productMode === "cafe") {
@@ -873,9 +918,9 @@ export default function AdminMintForm() {
   }, [productMode, deliveryEnabled, physicalItemIncluded]);
 
   useEffect(() => {
-    if (!isSuccess || !receipt || !txMode || !txTarget) return;
+    if (!isSuccess || !receipt || !txMode) return;
 
-    if (txMode === "create") {
+    if (txMode === "create" && txTarget) {
       if (savedRef.current) return;
       savedRef.current = true;
 
@@ -950,7 +995,7 @@ export default function AdminMintForm() {
       return;
     }
 
-    if (txMode === "toggle") {
+    if (txMode === "toggle" && txTarget) {
       setManageNotice(
         toggleIntent === "disable"
           ? `${txTarget === "cafe" ? "Cafe" : "Store"} product successfully disabled.`
@@ -962,6 +1007,81 @@ export default function AdminMintForm() {
       setToggleIntent(null);
       void refetchNextTokenId();
       void refetchManageStatus();
+      return;
+    }
+
+    if (txMode === "deliveryAccess") {
+      (async () => {
+        try {
+          if (
+            pendingDeliveryAccessAllowed === null ||
+            !pendingDeliveryAccessWallet ||
+            !pendingDeliveryAccessLookupKey
+          ) {
+            throw new Error("Missing pending delivery access context.");
+          }
+
+          if (pendingDeliveryAccessAllowed || pendingDeliveryAccessUserExists) {
+            const r = await fetch(
+              deliveryAccessRoute(pendingDeliveryAccessLookupKey),
+              {
+                method: "PATCH",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({
+                  approvedPhysicalSeller: pendingDeliveryAccessAllowed,
+                  note: pendingDeliveryAccessAllowed ? pendingDeliveryAccessNote : "",
+                }),
+              }
+            );
+
+            const data = await r.json().catch(() => null);
+            if (!r.ok || !data?.ok || !data?.user) {
+              throw new Error(
+                data?.error || data?.message || "Failed to sync delivery access to DB"
+              );
+            }
+
+            const u = data.user as DeliveryAccessUser;
+            setDeliveryAccessUser(u);
+            setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
+          } else {
+            setDeliveryAccessUser((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    approvedPhysicalSeller: false,
+                    approvedPhysicalAt: null,
+                    approvedPhysicalNote: null,
+                    userExists: false,
+                  }
+                : prev
+            );
+            setDeliveryAccessNote("");
+          }
+
+          setDeliveryLookupNotice(
+            pendingDeliveryAccessAllowed
+              ? "Delivery mint access granted on-chain and synced to DB."
+              : "Delivery mint access revoked on-chain and synced to DB."
+          );
+          setDeliveryLookupError("");
+          await refetchDeliveryOnchainAccess();
+        } catch (e: any) {
+          setDeliveryLookupError(prettyError(e));
+          setDeliveryLookupNotice("");
+        } finally {
+          setPendingTxHash(undefined);
+          setTxMode(null);
+          setTxTarget(null);
+          setToggleIntent(null);
+          setPendingDeliveryAccessLookupKey(null);
+          setPendingDeliveryAccessWallet(null);
+          setPendingDeliveryAccessAllowed(null);
+          setPendingDeliveryAccessNote("");
+          setPendingDeliveryAccessUserExists(false);
+          setDeliveryAccessSaving(false);
+        }
+      })();
     }
   }, [
     isSuccess,
@@ -981,6 +1101,12 @@ export default function AdminMintForm() {
     officialItem,
     refetchManageStatus,
     refetchNextTokenId,
+    pendingDeliveryAccessAllowed,
+    pendingDeliveryAccessLookupKey,
+    pendingDeliveryAccessNote,
+    pendingDeliveryAccessUserExists,
+    pendingDeliveryAccessWallet,
+    refetchDeliveryOnchainAccess,
   ]);
 
   useEffect(() => {
@@ -1072,10 +1198,9 @@ export default function AdminMintForm() {
     setDeliveryLookupLoading(true);
 
     try {
-      const res = await fetch(
-        `/api/admin/delivery-access/${encodeURIComponent(raw)}`,
-        { cache: "no-store" }
-      );
+      const res = await fetch(deliveryAccessRoute(raw), {
+        cache: "no-store",
+      });
 
       const data = await res.json().catch(() => null);
 
@@ -1090,18 +1215,35 @@ export default function AdminMintForm() {
       setDeliveryAccessUser(u);
       setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
       setDeliveryLookupNotice("User resolved for delivery mint access.");
+      setDeliveryLookupError("");
     } catch (e: any) {
       setDeliveryAccessUser(null);
       setDeliveryAccessNote("");
       setDeliveryLookupError(prettyError(e));
+      setDeliveryLookupNotice("");
     } finally {
       setDeliveryLookupLoading(false);
     }
   }
 
-  async function grantDeliveryAccess() {
-    if (!deliveryAccessUser?.id) {
+  async function handleDeliveryAccessUpdate(nextAllowed: boolean) {
+    if (!deliveryAccessUser) {
       setDeliveryLookupError("Resolve a user first.");
+      return;
+    }
+
+    if (!resolvedDeliveryWallet) {
+      setDeliveryLookupError("Resolved user wallet is missing or invalid.");
+      return;
+    }
+
+    if (!deliveryMintContractReady || !PUBLIC_DELIVERY_MINT_CONTRACT) {
+      setDeliveryLookupError("Missing NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT.");
+      return;
+    }
+
+    if (!canUseDeliveryAccessManager) {
+      setDeliveryLookupError("Connect the admin wallet on Base Sepolia and make sure it is allowlisted.");
       return;
     }
 
@@ -1110,71 +1252,52 @@ export default function AdminMintForm() {
     setDeliveryAccessSaving(true);
 
     try {
-      const r = await fetch(
-        `/api/admin/delivery-access/${encodeURIComponent(deliveryAccessUser.id)}`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            note: deliveryAccessNote.trim(),
-          }),
-        }
-      );
+      await ensureCorrectNetwork();
 
-      const data = await r.json().catch(() => null);
-      if (!r.ok || !data?.ok || !data?.user) {
-        throw new Error(
-          data?.error || data?.message || "Failed to grant delivery mint access"
-        );
+      const freshBalance = await refetchBalance();
+      if (freshBalance.data?.value === 0n) {
+        setDeliveryLookupError("No gas on Base Sepolia. Open Faucet, get test ETH, then continue.");
+        setDeliveryAccessSaving(false);
+        return;
       }
 
-      const u = data.user as DeliveryAccessUser;
-      setDeliveryAccessUser(u);
-      setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
-      setDeliveryLookupNotice(
-        "Delivery mint access granted. User can now mint through the public delivery contract."
+      setTxMode("deliveryAccess");
+      setPendingDeliveryAccessLookupKey(
+        deliveryAccessUser.userExists ? deliveryAccessUser.id : resolvedDeliveryWallet
       );
-    } catch (e: any) {
-      setDeliveryLookupError(prettyError(e));
-    } finally {
-      setDeliveryAccessSaving(false);
-    }
-  }
+      setPendingDeliveryAccessWallet(resolvedDeliveryWallet);
+      setPendingDeliveryAccessAllowed(nextAllowed);
+      setPendingDeliveryAccessNote(deliveryAccessNote.trim());
+      setPendingDeliveryAccessUserExists(Boolean(deliveryAccessUser.userExists));
 
-  async function revokeDeliveryAccess() {
-    if (!deliveryAccessUser?.id) {
-      setDeliveryLookupError("Resolve a user first.");
-      return;
-    }
+      const hash = await writeContractAsync({
+        address: PUBLIC_DELIVERY_MINT_CONTRACT,
+        abi: realife1155DeliveryAbi as any,
+        functionName: "setAllowedDeliveryMinter" as any,
+        args: [resolvedDeliveryWallet, nextAllowed],
+      });
 
-    setDeliveryLookupError("");
-    setDeliveryLookupNotice("");
-    setDeliveryAccessSaving(true);
-
-    try {
-      const r = await fetch(
-        `/api/admin/delivery-access/${encodeURIComponent(deliveryAccessUser.id)}`,
-        {
-          method: "DELETE",
-        }
-      );
-
-      const data = await r.json().catch(() => null);
-      if (!r.ok || !data?.ok || !data?.user) {
-        throw new Error(
-          data?.error || data?.message || "Failed to revoke delivery mint access"
-        );
+      if (hash) {
+        setPendingTxHash(hash);
+      } else {
+        setTxMode(null);
+        setPendingDeliveryAccessLookupKey(null);
+        setPendingDeliveryAccessWallet(null);
+        setPendingDeliveryAccessAllowed(null);
+        setPendingDeliveryAccessNote("");
+        setPendingDeliveryAccessUserExists(false);
+        setDeliveryAccessSaving(false);
       }
-
-      const u = data.user as DeliveryAccessUser;
-      setDeliveryAccessUser(u);
-      setDeliveryAccessNote(String(u.approvedPhysicalNote || ""));
-      setDeliveryLookupNotice(
-        "Delivery mint access revoked. User will no longer be allowed to mint through the public delivery contract."
-      );
     } catch (e: any) {
       setDeliveryLookupError(prettyError(e));
-    } finally {
+      setDeliveryLookupNotice("");
+      setTxMode(null);
+      setPendingTxHash(undefined);
+      setPendingDeliveryAccessLookupKey(null);
+      setPendingDeliveryAccessWallet(null);
+      setPendingDeliveryAccessAllowed(null);
+      setPendingDeliveryAccessNote("");
+      setPendingDeliveryAccessUserExists(false);
       setDeliveryAccessSaving(false);
     }
   }
@@ -1597,6 +1720,7 @@ export default function AdminMintForm() {
                   void refetchBalance();
                   void refetchNextTokenId();
                   void refetchManageStatus();
+                  void refetchDeliveryOnchainAccess();
                 }}
                 disabled={!mounted || !connected || isBalanceFetching}
                 className="h-10 px-4 rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition text-xs font-extrabold disabled:opacity-40 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
@@ -1736,30 +1860,28 @@ export default function AdminMintForm() {
 
           {!deliveryMintContractReady ? (
             <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-              Missing <b>NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT</b>. You can still grant the DB flag,
-              but public delivery mint will not work until this env is set on the frontend.
+              Missing <b>NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT</b>. On-chain delivery access management cannot work until this env is set.
             </div>
           ) : null}
 
           <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
             <div className="text-[12px] font-black text-sky-100">
-              What this access now means
+              New access flow
             </div>
             <div className="mt-2 space-y-2 text-[12px] text-sky-50/85 leading-relaxed">
               <div>
-                • user can still mint normally via the{" "}
-                <span className="font-black text-sky-100">standard public mint contract</span>
+                • standard public mint stays separate and does not need this access
               </div>
               <div>
-                • when approved, the same user can also choose{" "}
-                <span className="font-black text-sky-100">With delivery</span> in public MintForm
+                • grant / revoke first changes the{" "}
+                <span className="font-black text-sky-100">delivery contract allowlist on-chain</span>
               </div>
               <div>
-                • that delivery mint should go into{" "}
-                <span className="font-black text-sky-100">NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT</span>
+                • after successful tx, the panel syncs{" "}
+                <span className="font-black text-sky-100">approvedPhysicalSeller</span> in DB
               </div>
               <div>
-                • this flag is no longer about the old standard mint path
+                • you can now see DB status and on-chain allowlist status separately
               </div>
             </div>
           </div>
@@ -1788,14 +1910,14 @@ export default function AdminMintForm() {
 
           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
             <GhostButton
-              disabled={!isAuthorized || deliveryLookupLoading || deliveryAccessSaving || !deliveryLookup.trim()}
+              disabled={!canUseDeliveryAccessManager || deliveryLookupLoading || deliveryAccessSaving || !deliveryLookup.trim()}
               onClick={resolveDeliveryAccessUser}
             >
               {deliveryLookupLoading ? "Resolving user…" : "Resolve user"}
             </GhostButton>
 
             <GhostButton
-              disabled={!isAuthorized || deliveryLookupLoading || deliveryAccessSaving || !deliveryAccessUser}
+              disabled={!canUseDeliveryAccessManager || deliveryLookupLoading || deliveryAccessSaving || !deliveryAccessUser}
               onClick={resolveDeliveryAccessUser}
             >
               Refresh access
@@ -1808,6 +1930,12 @@ export default function AdminMintForm() {
             <span className="text-white/75 font-semibold">handle</span> or{" "}
             <span className="text-white/75 font-semibold">wallet address</span>.
           </div>
+
+          {!canUseDeliveryAccessManager && connected && !wrongNetwork ? (
+            <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
+              Delivery access manager uses front-end wallet allowlist plus delivery contract admin permissions. This panel does not depend on current Cafe/Store mode role checks.
+            </div>
+          ) : null}
 
           {deliveryLookupError ? (
             <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
@@ -1852,7 +1980,7 @@ export default function AdminMintForm() {
 
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
                   <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
-                    Delivery mint access
+                    DB delivery access
                   </div>
                   <div
                     className={`mt-1 text-sm font-black ${
@@ -1864,7 +1992,31 @@ export default function AdminMintForm() {
                     {deliveryAccessUser.approvedPhysicalSeller ? "Approved" : "Not approved"}
                   </div>
                   <div className="mt-2 text-[11px] text-white/55">
-                    Controls whether user can mint via the public delivery contract.
+                    App-level profile flag stored in database.
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                    On-chain allowlist
+                  </div>
+                  <div
+                    className={`mt-1 text-sm font-black ${
+                      isDeliveryOnchainLoading || isDeliveryOnchainFetching
+                        ? "text-white"
+                        : deliveryOnchainAllowed
+                        ? "text-emerald-200"
+                        : "text-rose-200"
+                    }`}
+                  >
+                    {isDeliveryOnchainLoading || isDeliveryOnchainFetching
+                      ? "Checking…"
+                      : deliveryOnchainAllowed
+                      ? "Allowed"
+                      : "Not allowed"}
+                  </div>
+                  <div className="mt-2 text-[11px] text-white/55">
+                    Read directly from the delivery mint contract.
                   </div>
                 </div>
 
@@ -1878,7 +2030,22 @@ export default function AdminMintForm() {
                       : "—"}
                   </div>
                 </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                    User row
+                  </div>
+                  <div className="mt-1 text-sm font-black text-white/90">
+                    {deliveryAccessUser.userExists === false ? "Virtual wallet only" : "Existing DB user"}
+                  </div>
+                </div>
               </div>
+
+              {deliveryStateMismatch ? (
+                <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                  DB flag and on-chain allowlist are not in sync for this wallet.
+                </div>
+              ) : null}
 
               <div className="mt-5">
                 <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
@@ -1900,17 +2067,41 @@ export default function AdminMintForm() {
 
               <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
                 <GoldButton
-                  disabled={!isAuthorized || deliveryAccessSaving || deliveryLookupLoading}
-                  onClick={grantDeliveryAccess}
+                  disabled={
+                    !canUseDeliveryAccessManager ||
+                    !deliveryMintContractReady ||
+                    !resolvedDeliveryWallet ||
+                    deliveryAccessSaving ||
+                    deliveryLookupLoading ||
+                    isWalletPromptOpen ||
+                    isMiningDeliveryAccess
+                  }
+                  onClick={() => handleDeliveryAccessUpdate(true)}
                 >
-                  {deliveryAccessSaving ? "Saving…" : "Grant delivery mint access"}
+                  {txMode === "deliveryAccess" && pendingDeliveryAccessAllowed === true
+                    ? isMiningDeliveryAccess
+                      ? "Granting on-chain…"
+                      : "Waiting for wallet signature…"
+                    : "Grant delivery mint access"}
                 </GoldButton>
 
                 <GhostButton
-                  disabled={!isAuthorized || deliveryAccessSaving || deliveryLookupLoading}
-                  onClick={revokeDeliveryAccess}
+                  disabled={
+                    !canUseDeliveryAccessManager ||
+                    !deliveryMintContractReady ||
+                    !resolvedDeliveryWallet ||
+                    deliveryAccessSaving ||
+                    deliveryLookupLoading ||
+                    isWalletPromptOpen ||
+                    isMiningDeliveryAccess
+                  }
+                  onClick={() => handleDeliveryAccessUpdate(false)}
                 >
-                  {deliveryAccessSaving ? "Saving…" : "Revoke delivery mint access"}
+                  {txMode === "deliveryAccess" && pendingDeliveryAccessAllowed === false
+                    ? isMiningDeliveryAccess
+                      ? "Revoking on-chain…"
+                      : "Waiting for wallet signature…"
+                    : "Revoke delivery mint access"}
                 </GhostButton>
               </div>
             </>

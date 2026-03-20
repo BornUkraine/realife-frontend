@@ -221,8 +221,6 @@ if (CAFE_STORE) {
     startBlock: CAFE_START_BLOCK,
     iface: new Interface(CAFE_EVENT_ABI),
     contract: new Contract(CAFE_STORE, CAFE_READ_ABI, provider),
-
-    // CAFE: доставки НЕТ вообще
     defaultDeliveryEnabled: false,
     defaultPhysicalItemIncluded: false,
     defaultOfficialItem: true,
@@ -405,7 +403,6 @@ async function buildProductSnapshot(cfg, tokenId, opts = {}) {
     primarySellerWallet =
       primarySellerWallet || treasury || cfg.creatorWallet || null;
 
-    // CAFE: всегда без delivery
     deliveryEnabled = false;
     physicalItemIncluded = false;
     officialItem = true;
@@ -645,12 +642,9 @@ async function processLog(cfg, log) {
         price,
         creatorWallet: cfg.creatorWallet,
         primarySellerWallet: null,
-
-        // CAFE: доставки нет вообще
         deliveryEnabled: false,
         physicalItemIncluded: false,
         officialItem: true,
-
         lastTxHash: txHash,
       });
 

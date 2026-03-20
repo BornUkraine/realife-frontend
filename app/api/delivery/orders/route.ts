@@ -63,6 +63,10 @@ export async function GET(req: Request) {
     const orderKind =
       orderKindRaw === "PRIMARY" || orderKindRaw === "SECONDARY" ? orderKindRaw : null;
 
+    const marketTypeRaw = String(url.searchParams.get("marketType") || "").trim().toUpperCase();
+    const marketType =
+      marketTypeRaw === "STANDARD" || marketTypeRaw === "DELIVERY" ? marketTypeRaw : null;
+
     const take = clamp(Number(url.searchParams.get("take") || "50"), 1, 100);
 
     const buyerClauses: any[] = [];
@@ -85,6 +89,7 @@ export async function GET(req: Request) {
     if (vertical) where.vertical = vertical;
     if (sourceType) where.sourceType = sourceType;
     if (orderKind) where.orderKind = orderKind;
+    if (marketType) where.marketType = marketType;
 
     if (role === "buyer") {
       where.OR = buyerClauses;
@@ -111,6 +116,11 @@ export async function GET(req: Request) {
         orderKind: true,
         vertical: true,
 
+        marketType: true,
+        marketplaceContract: true,
+        marketplaceListingId: true,
+        marketplacePurchaseId: true,
+
         buyerWallet: true,
         sellerWallet: true,
         buyerId: true,
@@ -118,7 +128,6 @@ export async function GET(req: Request) {
 
         listingId: true,
         tradeId: true,
-        marketplaceListingId: true,
 
         amount: true,
         unitPrice: true,
@@ -223,13 +232,18 @@ export async function GET(req: Request) {
           orderKind: row.orderKind,
           vertical: row.vertical,
 
+          marketType: row.marketType || null,
+          marketplaceContract: row.marketplaceContract || null,
+          marketplaceListingId:
+            row.marketplaceListingId != null ? row.marketplaceListingId.toString() : null,
+          marketplacePurchaseId:
+            row.marketplacePurchaseId != null ? row.marketplacePurchaseId.toString() : null,
+
           buyerWallet: row.buyerWallet,
           sellerWallet: row.sellerWallet,
 
           listingId: row.listingId || null,
           tradeId: row.tradeId || null,
-          marketplaceListingId:
-            row.marketplaceListingId != null ? row.marketplaceListingId.toString() : null,
 
           amount: row.amount.toString(),
           unitPrice: row.unitPrice.toString(),

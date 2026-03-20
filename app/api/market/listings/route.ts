@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
   if (marketType) where.marketType = marketType;
   if (marketplaceContract) where.marketplaceContract = marketplaceContract;
 
-  // закрытый маркет: только verified NFT
+  // Только verified NFT
   where.mint = {
     is: {
       verified: true,
@@ -78,6 +78,9 @@ export async function GET(req: NextRequest) {
               image: true,
               tokenUri: true,
               verified: true,
+              deliveryEnabled: true,
+              physicalItemIncluded: true,
+              officialItem: true,
             },
           },
           seller: {
@@ -117,8 +120,16 @@ export async function GET(req: NextRequest) {
         physicalItemIncluded: r.physicalItemIncluded,
         officialItem: r.officialItem,
 
-        createdAt: r.createdAt,
-        mint: r.mint,
+        createdAt: r.createdAt.toISOString(),
+
+        mint: r.mint
+          ? {
+              ...r.mint,
+              deliveryEnabled: r.mint.deliveryEnabled,
+              physicalItemIncluded: r.mint.physicalItemIncluded,
+              officialItem: r.mint.officialItem,
+            }
+          : null,
       })),
     });
   } catch (e) {

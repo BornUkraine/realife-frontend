@@ -17,6 +17,7 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { decodeEventLog, formatUnits } from "viem";
 
 import { realife1155Abi } from "@/lib/realife1155Abi";
+import { realife1155DeliveryAbi } from "@/lib/realife1155DeliveryAbi";
 import NftMedia from "@/components/NftMedia";
 
 const PROJECTS = ["Sentient", "Billions", "Rialo", "Neura", "Realife", "Other"] as const;
@@ -42,6 +43,10 @@ const ITEM_TYPES = [
 ] as const;
 
 type DeliveryMode = "none" | "delivery";
+type ActiveMintMode = "standard" | "delivery";
+
+const ZERO_ADDRESS =
+  "0x0000000000000000000000000000000000000000" as const;
 
 function useMounted() {
   const [mounted, setMounted] = useState(false);
@@ -77,8 +82,11 @@ const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE || "https://accurate-art-production.up.railway.app";
 const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
 
-const CONTRACT_1155_NEW =
+const CONTRACT_1155_STANDARD =
   process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT as `0x${string}` | undefined;
+
+const CONTRACT_1155_DELIVERY =
+  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT as `0x${string}` | undefined;
 
 /* ---------------- UI kit ---------------- */
 
@@ -250,34 +258,55 @@ async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
   return null;
 }
 
-function extractEditionTokenIdFromReceipt(
+function extractMintTokenIdFromReceipt(
   receipt: any,
+  mode: ActiveMintMode,
   contract?: `0x${string}`
 ): string | null {
   const logs = receipt?.logs ?? [];
+
   for (const log of logs) {
     try {
       if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) {
         continue;
       }
 
-      const decoded = decodeEventLog({
-        abi: realife1155Abi,
-        data: log.data,
-        topics: log.topics,
-      });
+      if (mode === "delivery") {
+        const decoded = decodeEventLog({
+          abi: realife1155DeliveryAbi,
+          data: log.data,
+          topics: log.topics,
+        }) as { eventName?: string; args?: any };
 
-      if (decoded?.eventName === "EditionCreated") {
-        const args: any = decoded.args;
-        const tokenId = args?.tokenId ?? args?.[0];
-        if (typeof tokenId === "bigint") return tokenId.toString();
-        if (typeof tokenId === "number") return String(tokenId);
-        if (typeof tokenId === "string") return tokenId;
+        if (decoded.eventName === "ProductCreated") {
+          const args = decoded.args;
+          const tokenId = args?.tokenId ?? args?.[0];
+
+          if (typeof tokenId === "bigint") return tokenId.toString();
+          if (typeof tokenId === "number") return String(tokenId);
+          if (typeof tokenId === "string") return tokenId;
+        }
+      } else {
+        const decoded = decodeEventLog({
+          abi: realife1155Abi,
+          data: log.data,
+          topics: log.topics,
+        }) as { eventName?: string; args?: any };
+
+        if (decoded.eventName === "EditionCreated") {
+          const args = decoded.args;
+          const tokenId = args?.tokenId ?? args?.[0];
+
+          if (typeof tokenId === "bigint") return tokenId.toString();
+          if (typeof tokenId === "number") return String(tokenId);
+          if (typeof tokenId === "string") return tokenId;
+        }
       }
     } catch {
       //
     }
   }
+
   return null;
 }
 
@@ -294,6 +323,9 @@ function Stepper({
   mintFeeWei,
   approvedPhysicalSeller,
   deliveryMode,
+  activeMintMode,
+  deliveryOnchainApproved,
+  deliveryAccessLoading,
 }: {
   mounted: boolean;
   connected: boolean;
@@ -307,6 +339,9 @@ function Stepper({
   mintFeeWei: bigint;
   approvedPhysicalSeller: boolean;
   deliveryMode: DeliveryMode;
+  activeMintMode: ActiveMintMode;
+  deliveryOnchainApproved: boolean;
+  deliveryAccessLoading: boolean;
 }) {
   const stage = useMemo(() => {
     if (!mounted) return 0;
@@ -379,7 +414,14 @@ function Stepper({
             </Pill>
 
             <Pill>
-              <span className="text-white/70">Delivery access:</span>
+              <span className="text-white/70">Mint contract:</span>
+              <span className="text-white font-extrabold">
+                {activeMintMode === "delivery" ? "Delivery" : "Standard"}
+              </span>
+            </Pill>
+
+            <Pill>
+              <span className="text-white/70">Delivery DB access:</span>
               <span
                 className={
                   approvedPhysicalSeller
@@ -390,6 +432,27 @@ function Stepper({
                 {approvedPhysicalSeller ? "Approved" : "Standard"}
               </span>
             </Pill>
+
+            {deliveryMode === "delivery" ? (
+              <Pill>
+                <span className="text-white/70">On-chain allowlist:</span>
+                <span
+                  className={
+                    deliveryAccessLoading
+                      ? "text-white font-extrabold"
+                      : deliveryOnchainApproved
+                      ? "text-emerald-200 font-extrabold"
+                      : "text-rose-200 font-extrabold"
+                  }
+                >
+                  {deliveryAccessLoading
+                    ? "Checking"
+                    : deliveryOnchainApproved
+                    ? "Granted"
+                    : "Missing"}
+                </span>
+              </Pill>
+            ) : null}
 
             <Pill>
               <span className="text-white/70">Fee:</span>
@@ -429,12 +492,18 @@ function Stepper({
           <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
             {deliveryMode === "delivery" ? (
               approvedPhysicalSeller ? (
-                <>Delivery mode is enabled for this wallet. The NFT will be marked as a physical-item delivery edition.</>
+                deliveryAccessLoading ? (
+                  <>Delivery wallet access is being checked on-chain…</>
+                ) : deliveryOnchainApproved ? (
+                  <>Delivery mode is enabled for this wallet. The NFT will be created through the delivery mint contract.</>
+                ) : (
+                  <>Your app profile is approved, but the wallet is not yet allowlisted on-chain for the delivery mint contract.</>
+                )
               ) : (
                 <>Delivery mode is reserved for approved seller wallets. Switch to <span className="text-white/75 font-semibold">Without delivery</span>.</>
               )
             ) : (
-              <>Standard mint mode is active. This edition will be created without delivery flow.</>
+              <>Standard mint mode is active. This edition will be created through the standard public mint contract.</>
             )}
           </div>
 
@@ -591,15 +660,6 @@ export default function MintForm() {
   const wrongNetwork = connected && effectiveChainId !== baseSepolia.id;
   const hasGas = connected && !wrongNetwork && balanceEth > 0;
 
-  const { data: mintFeeWeiRaw } = useReadContract({
-    address: CONTRACT_1155_NEW,
-    abi: realife1155Abi,
-    functionName: "mintFeeWei",
-    query: { enabled: Boolean(CONTRACT_1155_NEW) },
-  });
-
-  const mintFeeWei = (typeof mintFeeWeiRaw === "bigint" ? mintFeeWeiRaw : 0n) as bigint;
-
   const [approvedPhysicalSeller, setApprovedPhysicalSeller] = useState(false);
   const [approvedPhysicalAt, setApprovedPhysicalAt] = useState<string | null>(null);
   const [approvedPhysicalNote, setApprovedPhysicalNote] = useState<string>("");
@@ -670,6 +730,9 @@ export default function MintForm() {
   const [preparedPoster, setPreparedPoster] = useState<string | null>(null);
   const [previewCategory, setPreviewCategory] = useState<string>("Other");
 
+  const [submittedMintMode, setSubmittedMintMode] = useState<ActiveMintMode>("standard");
+  const [submittedMintContract, setSubmittedMintContract] = useState<`0x${string}` | undefined>(undefined);
+
   const selectedCategoryLabel = useMemo(
     () => (categories.length ? categories.join(", ") : "Other"),
     [categories]
@@ -685,13 +748,57 @@ export default function MintForm() {
   const effectivePoster = tokenURI ? preparedPoster : posterPreviewUrl;
 
   const isDeliveryMode = deliveryMode === "delivery";
-  const deliveryBlocked = isDeliveryMode && !approvedPhysicalSeller;
+  const activeMintMode: ActiveMintMode = isDeliveryMode ? "delivery" : "standard";
+  const activeMintContract =
+    activeMintMode === "delivery" ? CONTRACT_1155_DELIVERY : CONTRACT_1155_STANDARD;
+  const activeMintAbi =
+    activeMintMode === "delivery" ? realife1155DeliveryAbi : realife1155Abi;
+  const activeMintEnvName =
+    activeMintMode === "delivery"
+      ? "NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT"
+      : "NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT";
+
+  const { data: mintFeeWeiRaw } = useReadContract({
+    address: activeMintContract,
+    abi: activeMintAbi as any,
+    functionName: "mintFeeWei" as any,
+    query: { enabled: Boolean(activeMintContract) },
+  });
+
+  const mintFeeWei = (typeof mintFeeWeiRaw === "bigint" ? mintFeeWeiRaw : 0n) as bigint;
+
+  const {
+    data: deliveryOnchainApprovedRaw,
+    isLoading: isDeliveryAccessLoading,
+    isFetching: isDeliveryAccessFetching,
+    refetch: refetchDeliveryOnchainAccess,
+  } = useReadContract({
+    address: CONTRACT_1155_DELIVERY,
+    abi: realife1155DeliveryAbi as any,
+    functionName: "allowedDeliveryMinters" as any,
+    args: [((address || ZERO_ADDRESS) as `0x${string}`)],
+    query: { enabled: Boolean(CONTRACT_1155_DELIVERY && address) },
+  });
+
+  const deliveryOnchainApproved = Boolean(deliveryOnchainApprovedRaw);
+
+  const deliveryDbBlocked = isDeliveryMode && !approvedPhysicalSeller;
+  const deliveryChainBlocked =
+    isDeliveryMode &&
+    Boolean(CONTRACT_1155_DELIVERY) &&
+    Boolean(address) &&
+    !isDeliveryAccessLoading &&
+    !deliveryOnchainApproved;
+
+  const deliveryBlocked = deliveryDbBlocked || deliveryChainBlocked;
 
   function resetPreparedState() {
     setTokenURI(null);
     setPreparedMedia(null);
     setPreparedPoster(null);
     setPreviewCategory("Other");
+    setSubmittedMintMode("standard");
+    setSubmittedMintContract(undefined);
     pushedRef.current = false;
     if (step !== "idle") setStep("idle");
   }
@@ -777,8 +884,10 @@ export default function MintForm() {
     (async () => {
       const finalName = name.trim() || "Untitled NFT";
       const finalCategory = previewCategory || selectedCategoryLabel;
+      const targetMode = submittedMintMode;
+      const targetContract = submittedMintContract;
 
-      const tokenId = extractEditionTokenIdFromReceipt(receipt, CONTRACT_1155_NEW);
+      const tokenId = extractMintTokenIdFromReceipt(receipt, targetMode, targetContract);
 
       const posterOrImage =
         effectivePreviewKind === "video"
@@ -789,13 +898,13 @@ export default function MintForm() {
         persistableUrl(preparedMedia) || persistableUrl(filePreviewUrl);
 
       try {
-        if (CONTRACT_1155_NEW && tokenId) {
+        if (targetContract && tokenId) {
           await fetch("/api/mints", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               chainId: baseSepolia.id,
-              contract: CONTRACT_1155_NEW,
+              contract: targetContract,
               tokenId,
               txHash: txHash || "",
               tokenUri: tokenURI || "",
@@ -803,8 +912,8 @@ export default function MintForm() {
               image: posterOrImage || null,
               verified: true,
               supply: clampSupply(supply),
-              deliveryEnabled: isDeliveryMode,
-              physicalItemIncluded: isDeliveryMode,
+              deliveryEnabled: targetMode === "delivery",
+              physicalItemIncluded: targetMode === "delivery",
             }),
           });
         }
@@ -821,11 +930,11 @@ export default function MintForm() {
       qp.set("project", project);
       qp.set("itemType", itemType);
       qp.set("brand", brand.trim());
-      qp.set("delivery", isDeliveryMode ? "1" : "0");
+      qp.set("delivery", targetMode === "delivery" ? "1" : "0");
       qp.set("tx", txHash || "");
       qp.set("tokenId", tokenId || "");
       qp.set("standard", "ERC1155");
-      qp.set("contract", CONTRACT_1155_NEW || "");
+      qp.set("contract", targetContract || "");
 
       router.push(`/app/success?${qp.toString()}`);
     })();
@@ -842,7 +951,7 @@ export default function MintForm() {
     }
   }
 
-  const requiredContractOk = Boolean(CONTRACT_1155_NEW);
+  const requiredContractOk = Boolean(activeMintContract);
   const canPrepare = Boolean(file) && Boolean(name.trim()) && requiredContractOk && !deliveryBlocked;
   const canMint = Boolean(tokenURI) && requiredContractOk && !deliveryBlocked;
   const busy = step !== "idle" || isWalletPromptOpen || isMining || isSwitching;
@@ -850,13 +959,18 @@ export default function MintForm() {
   async function handlePrepare() {
     setError("");
 
-    if (!CONTRACT_1155_NEW) {
-      setError("Missing NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT in Railway/ENV");
+    if (!activeMintContract) {
+      setError(`Missing ${activeMintEnvName} in Railway/ENV`);
       return;
     }
 
-    if (deliveryBlocked) {
+    if (deliveryDbBlocked) {
       setError("Delivery mode is available only for approved seller wallets.");
+      return;
+    }
+
+    if (deliveryChainBlocked) {
+      setError("This wallet is not allowlisted on-chain for the delivery mint contract.");
       return;
     }
 
@@ -954,19 +1068,27 @@ export default function MintForm() {
   async function handleOnchainCreate() {
     setError("");
 
-    if (deliveryBlocked) {
-      setError("Delivery mode is available only for approved seller wallets.");
-      return;
-    }
-
     if (!tokenURI) {
       setError("First click: Prepare (Upload → IPFS).");
       return;
     }
 
-    if (!CONTRACT_1155_NEW) {
-      setError("Missing NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT in Railway/ENV");
+    if (!activeMintContract) {
+      setError(`Missing ${activeMintEnvName} in Railway/ENV`);
       return;
+    }
+
+    if (activeMintMode === "delivery") {
+      if (!approvedPhysicalSeller) {
+        setError("Delivery mode is available only for approved seller wallets.");
+        return;
+      }
+
+      const freshAllowed = await refetchDeliveryOnchainAccess();
+      if (!freshAllowed.data) {
+        setError("This wallet is not allowlisted on-chain for the delivery mint contract.");
+        return;
+      }
     }
 
     try {
@@ -978,21 +1100,35 @@ export default function MintForm() {
         return;
       }
 
+      pushedRef.current = false;
+      setSubmittedMintMode(activeMintMode);
+      setSubmittedMintContract(activeMintContract);
       setStep("signing");
 
       const amount = BigInt(clampSupply(supply));
 
-      const hash = await writeContractAsync({
-        address: CONTRACT_1155_NEW,
-        abi: realife1155Abi,
-        functionName: "createEdition",
-        args: [amount, tokenURI],
-        value: mintFeeWei > 0n ? mintFeeWei : undefined,
-      });
+      const hash =
+        activeMintMode === "delivery"
+          ? await writeContractAsync({
+              address: activeMintContract,
+              abi: realife1155DeliveryAbi as any,
+              functionName: "createDeliveryEdition" as any,
+              args: [amount, tokenURI],
+              value: mintFeeWei > 0n ? mintFeeWei : undefined,
+            })
+          : await writeContractAsync({
+              address: activeMintContract,
+              abi: realife1155Abi as any,
+              functionName: "createEdition" as any,
+              args: [amount, tokenURI],
+              value: mintFeeWei > 0n ? mintFeeWei : undefined,
+            });
 
       if (hash) setStep("mining");
     } catch (e: any) {
       setError(prettyError(e));
+      setSubmittedMintMode("standard");
+      setSubmittedMintContract(undefined);
       setStep("idle");
     }
   }
@@ -1014,6 +1150,9 @@ export default function MintForm() {
         mintFeeWei={mintFeeWei}
         approvedPhysicalSeller={approvedPhysicalSeller}
         deliveryMode={deliveryMode}
+        activeMintMode={activeMintMode}
+        deliveryOnchainApproved={deliveryOnchainApproved}
+        deliveryAccessLoading={isDeliveryAccessLoading || isDeliveryAccessFetching}
       />
 
       <div className="space-y-8">
@@ -1352,9 +1491,18 @@ export default function MintForm() {
 
           <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/65">
             {meLoaded ? (
-              approvedPhysicalSeller ? (
-                <>
-                  Delivery access: <span className="text-emerald-200 font-extrabold">approved</span>
+              <>
+                <div>
+                  Delivery DB access:{" "}
+                  <span
+                    className={
+                      approvedPhysicalSeller
+                        ? "text-emerald-200 font-extrabold"
+                        : "text-white font-extrabold"
+                    }
+                  >
+                    {approvedPhysicalSeller ? "approved" : "standard wallet"}
+                  </span>
                   {approvedPhysicalAt ? (
                     <>
                       {" "}
@@ -1367,12 +1515,37 @@ export default function MintForm() {
                       • note: <span className="text-white">{approvedPhysicalNote}</span>
                     </>
                   ) : null}
-                </>
-              ) : (
-                <>
-                  Delivery access: <span className="text-white font-extrabold">standard wallet</span>. Mint with delivery is disabled until admin approval.
-                </>
-              )
+                </div>
+
+                <div className="mt-2">
+                  Delivery contract allowlist:{" "}
+                  <span
+                    className={
+                      isDeliveryAccessLoading || isDeliveryAccessFetching
+                        ? "text-white font-extrabold"
+                        : deliveryOnchainApproved
+                        ? "text-emerald-200 font-extrabold"
+                        : "text-rose-200 font-extrabold"
+                    }
+                  >
+                    {isDeliveryAccessLoading || isDeliveryAccessFetching
+                      ? "checking…"
+                      : deliveryOnchainApproved
+                      ? "granted"
+                      : "missing"}
+                  </span>
+                </div>
+
+                {!approvedPhysicalSeller ? (
+                  <div className="mt-2">
+                    Mint with delivery is disabled until admin approval.
+                  </div>
+                ) : !deliveryOnchainApproved ? (
+                  <div className="mt-2 text-rose-200">
+                    Your profile is approved, but the wallet still needs on-chain allowlist access for the delivery mint contract.
+                  </div>
+                ) : null}
+              </>
             ) : (
               <>Checking delivery access…</>
             )}
@@ -1438,7 +1611,10 @@ export default function MintForm() {
             <div className="shrink-0 flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => refetchBalance()}
+                onClick={() => {
+                  void refetchBalance();
+                  void refetchDeliveryOnchainAccess();
+                }}
                 disabled={!mounted || !connected || isBalanceFetching}
                 className="h-10 px-4 rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition text-xs font-extrabold disabled:opacity-40 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
@@ -1466,9 +1642,9 @@ export default function MintForm() {
             </div>
           </div>
 
-          {!CONTRACT_1155_NEW && (
+          {!activeMintContract && (
             <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
-              Missing <b>NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT</b> in Railway env
+              Missing <b>{activeMintEnvName}</b> in Railway env
             </div>
           )}
         </Card>
@@ -1635,6 +1811,8 @@ export default function MintForm() {
                 ? "Waiting for wallet signature…"
                 : step === "mining" || isMining
                 ? "Creating on-chain (mining)…"
+                : activeMintMode === "delivery"
+                ? "2) Mint via delivery contract"
                 : "2) Mint"}
             </GoldButton>
           </div>
@@ -1650,6 +1828,11 @@ export default function MintForm() {
             Current mode:{" "}
             <span className="text-white font-semibold">
               {deliveryMode === "delivery" ? "With delivery" : "Without delivery"}
+            </span>
+            {" · "}
+            Mint contract:{" "}
+            <span className="text-white font-semibold">
+              {activeMintMode === "delivery" ? "Delivery" : "Standard"}
             </span>
             {" · "}
             Item type: <span className="text-white font-semibold">{itemType}</span>
