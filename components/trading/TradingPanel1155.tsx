@@ -211,7 +211,8 @@ export default function TradingPanel1155({
 
   const STANDARD_MARKETPLACE_ADDRESS = useMemo(() => {
     return toLower(
-      process.env.NEXT_PUBLIC_MARKETPLACE_STANDARD_ADDRESS ||
+      process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_ADDRESS ||
+        process.env.NEXT_PUBLIC_MARKETPLACE_STANDARD_ADDRESS ||
         process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS ||
         ""
     );
@@ -219,7 +220,8 @@ export default function TradingPanel1155({
 
   const DELIVERY_MARKETPLACE_ADDRESS = useMemo(() => {
     return toLower(
-      process.env.NEXT_PUBLIC_MARKETPLACE_DELIVERY_ADDRESS ||
+      process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_DELIVERY_ADDRESS ||
+        process.env.NEXT_PUBLIC_MARKETPLACE_DELIVERY_ADDRESS ||
         process.env.NEXT_PUBLIC_DELIVERY_MARKETPLACE_ADDRESS ||
         ""
     );
@@ -690,8 +692,8 @@ export default function TradingPanel1155({
 
   const sellEnvMissingText =
     sellMarketType === "DELIVERY"
-      ? "NEXT_PUBLIC_MARKETPLACE_DELIVERY_ADDRESS missing"
-      : "NEXT_PUBLIC_MARKETPLACE_ADDRESS / NEXT_PUBLIC_MARKETPLACE_STANDARD_ADDRESS missing";
+      ? "Missing delivery marketplace env (NEXT_PUBLIC_REALIFE_MARKETPLACE_DELIVERY_ADDRESS)"
+      : "Missing standard marketplace env (NEXT_PUBLIC_REALIFE_MARKETPLACE_ADDRESS or NEXT_PUBLIC_MARKETPLACE_ADDRESS)";
 
   return (
     <div className={wrap}>

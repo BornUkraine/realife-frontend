@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import NftMedia from "@/components/NftMedia";
 import TradingPanel1155 from "@/components/trading/TradingPanel1155";
@@ -653,7 +654,7 @@ function StatCard({
   return (
     <div
       className={cx(
-        "rounded-2xl border p-4",
+        "rounded-2xl border px-4 py-3",
         tone === "gold"
           ? "border-amber-500/20 bg-amber-500/10"
           : "border-white/10 bg-white/[0.04]"
@@ -669,8 +670,8 @@ function StatCard({
       </div>
       <div
         className={cx(
-          "mt-1 text-[13px] font-extrabold truncate",
-          tone === "gold" ? "text-amber-100" : "text-white/85"
+          "mt-1 text-sm font-extrabold truncate",
+          tone === "gold" ? "text-amber-100" : "text-white/90"
         )}
       >
         {value}
@@ -734,7 +735,7 @@ function InfoPill({
   children,
   tone = "default",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   tone?: "default" | "gold" | "emerald" | "sky" | "violet";
 }) {
   const cls =
@@ -752,6 +753,54 @@ function InfoPill({
     <span className={cx("px-3 py-1.5 rounded-full border text-[11px] font-black", cls)}>
       {children}
     </span>
+  );
+}
+
+function AccordionSection({
+  title,
+  subtitle,
+  children,
+  defaultOpen = false,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  return (
+    <details
+      open={defaultOpen}
+      className={cx(
+        "rounded-[30px] p-px overflow-hidden",
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
+        "shadow-[0_26px_100px_rgba(0,0,0,0.55)]"
+      )}
+    >
+      <div className="rounded-[30px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10">
+        <summary className="list-none cursor-pointer select-none">
+          <div className="flex items-center justify-between gap-4 px-6 py-5 md:px-7">
+            <div className="min-w-0">
+              <div className="text-[12px] font-black text-white/90 tracking-tight">
+                {title}
+              </div>
+              {subtitle ? (
+                <div className="mt-1 text-[12px] text-white/50 leading-relaxed">
+                  {subtitle}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="shrink-0 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/70">
+              Open / Close
+            </div>
+          </div>
+        </summary>
+
+        <div className="border-t border-white/10 px-6 py-6 md:px-7">
+          {children}
+        </div>
+      </div>
+    </details>
   );
 }
 
@@ -1289,132 +1338,6 @@ export default async function NftDetailsPage({
                 </div>
               </div>
             </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              <div
-                className={cx(
-                  "reveal rounded-[34px] p-px overflow-hidden",
-                  "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
-                  "shadow-[0_34px_130px_rgba(0,0,0,0.55)]"
-                )}
-                style={{ animationDelay: "120ms" }}
-              >
-                <div className="rounded-[34px] h-full overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                    About
-                  </div>
-
-                  {metaDescription ? (
-                    <div className="mt-3 text-[13px] text-white/80 leading-relaxed whitespace-pre-wrap">
-                      {metaDescription}
-                    </div>
-                  ) : (
-                    <div className="mt-3 text-[13px] text-white/50 leading-relaxed">
-                      This NFT doesn&apos;t have an extended description yet.
-                    </div>
-                  )}
-
-                  <div className="mt-5 grid grid-cols-1 gap-3">
-                    {metaBrand ? (
-                      <StatCard label="Brand / Project" value={metaBrand} tone="gold" />
-                    ) : null}
-                    {metaCollection ? <StatCard label="Collection" value={metaCollection} /> : null}
-                    {metaCategory ? <StatCard label="Category" value={metaCategory} /> : null}
-                    {metaItemType ? <StatCard label="Item Type" value={metaItemType} /> : null}
-                    {metaItem && metaItem !== metaItemType ? (
-                      <StatCard label="Item" value={metaItem} />
-                    ) : null}
-                    {metaRarity ? <StatCard label="Rarity" value={metaRarity} /> : null}
-                    {!metaBrand && metaProject ? (
-                      <StatCard label="Project" value={metaProject} />
-                    ) : null}
-                    {metaVertical ? <StatCard label="Vertical" value={metaVertical} /> : null}
-                  </div>
-
-                  {metaProofUrl ? (
-                    <div className="mt-5">
-                      <a
-                        href={metaProofUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
-                      >
-                        Proof / X ↗
-                      </a>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 text-[11px] text-white/35">
-                    This block is filled from token metadata created in MintForm.
-                  </div>
-                </div>
-              </div>
-
-              <div
-                className={cx(
-                  "reveal rounded-[34px] p-px overflow-hidden",
-                  "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
-                  "shadow-[0_34px_130px_rgba(0,0,0,0.55)]"
-                )}
-                style={{ animationDelay: "150ms" }}
-              >
-                <div className="rounded-[34px] h-full overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                    Blockchain details
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-1 gap-3">
-                    <StatCard label="Contract" value={shortAddr(nft.contract)} />
-                    <StatCard label="Token ID" value={`#${nft.tokenId}`} />
-                    <StatCard label="Chain ID" value={String(nft.chainId)} />
-                    <StatCard label="Minted" value={fmtDate(nft.createdAt)} />
-                    <StatCard label="Total Supply" value={supplyLabel || "—"} />
-                    <StatCard label="Market Type" value={preferredMarketType} />
-                    {isStoreNft && storeStore?.primarySellerWallet ? (
-                      <StatCard
-                        label="Primary Seller"
-                        value={shortAddr(storeStore.primarySellerWallet)}
-                      />
-                    ) : null}
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    {tokenUriHttp ? (
-                      <a
-                        href={tokenUriHttp}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl hover:bg-white/10 transition"
-                      >
-                        Token URI ↗
-                      </a>
-                    ) : null}
-
-                    {txUrl ? (
-                      <a
-                        href={txUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl hover:bg-white/10 transition"
-                      >
-                        Tx ↗
-                      </a>
-                    ) : null}
-
-                    {contractUrl ? (
-                      <a
-                        href={contractUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl hover:bg-white/10 transition"
-                      >
-                        Contract ↗
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
 
           <div className="space-y-6 xl:sticky xl:top-24">
@@ -1452,10 +1375,10 @@ export default async function NftDetailsPage({
 
                     {effectiveUserDeliveryNft ? <InfoPill tone="violet">Delivery</InfoPill> : null}
                     {isStoreNft && effectiveStoreDeliveryEnabled ? (
-                      <InfoPill tone="emerald">Delivery available</InfoPill>
+                      <InfoPill tone="emerald">Delivery enabled</InfoPill>
                     ) : null}
                     {isStoreNft && effectiveStorePhysicalItemIncluded ? (
-                      <InfoPill tone="gold">Physical item</InfoPill>
+                      <InfoPill tone="gold">Physical item included</InfoPill>
                     ) : null}
                     {isStoreNft && effectiveStoreOfficialItem ? (
                       <InfoPill>Official item</InfoPill>
@@ -1538,12 +1461,12 @@ export default async function NftDetailsPage({
                       value={stats?.lastSaleWei ? `${fmtEth(stats.lastSaleWei)} ETH` : "—"}
                     />
                     <StatCard
-                      label="Active listings"
+                      label="Active"
                       value={String(toInt(stats?.activeListings ?? 0))}
                     />
                     <StatCard
-                      label="Volume"
-                      value={stats?.volumeTotalWei ? `${fmtEth(stats.volumeTotalWei)} ETH` : "0"}
+                      label="You own"
+                      value={topHolder?.amount ? topHolder.amount.toString() : "—"}
                     />
                   </div>
 
@@ -1554,7 +1477,7 @@ export default async function NftDetailsPage({
                   ) : null}
 
                   <div className="mt-6 text-[11px] text-white/35">
-                    The page is focused on media + key info first. Buy, delivery and trading stay below in separate premium blocks.
+                    The page is focused on media + key info first. Buy, delivery and details stay below in premium collapsible sections.
                   </div>
                 </div>
               </div>
@@ -1749,125 +1672,284 @@ export default async function NftDetailsPage({
           </div>
         </div>
 
-        <div className="grid xl:grid-cols-2 gap-6">
+        <div className="space-y-4">
           <div
-            className={cx(
-              "reveal rounded-[34px] p-px overflow-hidden",
-              "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
-              "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
-            )}
-            style={{ animationDelay: "240ms" }}
+            className="reveal text-[11px] uppercase tracking-[0.24em] text-white/40 font-black"
+            style={{ animationDelay: "230ms" }}
           >
-            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
-                  Active Listings
-                </div>
-                <div className="text-[12px] text-white/55 font-semibold">{listings.length}</div>
-              </div>
-
-              {listings.length === 0 ? (
-                <div className="mt-4 text-[12px] text-white/60">No active listings yet.</div>
-              ) : (
-                <div className="mt-4 space-y-2">
-                  {listings.slice(0, 10).map((l) => (
-                    <div
-                      key={`${l.marketType || preferredMarketType}:${l.marketplaceListingId}`}
-                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="text-[13px] font-black text-amber-100">
-                          {fmtEth(l.pricePerUnitWei)} ETH{" "}
-                          <span className="text-white/35 text-[11px] font-black">/ unit</span>
-                        </div>
-                        <div className="text-[12px] text-white/70 font-semibold">
-                          Remaining:{" "}
-                          <span className="text-white/90 font-black">{l.amountRemaining}</span>
-                        </div>
-                      </div>
-
-                      <div className="mt-2 text-[12px] text-white/55 flex flex-wrap items-center gap-2">
-                        <span>Seller:</span>
-                        <span className="font-mono text-white/80">{shortAddr(l.sellerWallet)}</span>
-                        <span className="text-white/35">•</span>
-                        <span className="font-black text-white/70">
-                          Listing #{l.marketplaceListingId}
-                        </span>
-                        <span className="text-white/35">•</span>
-                        <span className="font-black text-white/70">
-                          {l.marketType || preferredMarketType}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            Details
           </div>
 
-          <div
-            className={cx(
-              "reveal rounded-[34px] p-px overflow-hidden",
-              "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
-              "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
-            )}
-            style={{ animationDelay: "280ms" }}
-          >
-            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
-                  Recent Trades
+          <div className="reveal" style={{ animationDelay: "240ms" }}>
+            <AccordionSection
+              title="About"
+              subtitle="Description, collection, category, item type and premium metadata."
+            >
+              <div className="grid xl:grid-cols-[minmax(0,0.92fr)_minmax(340px,1.08fr)] gap-6">
+                <div>
+                  {metaDescription ? (
+                    <div className="text-[13px] text-white/80 leading-relaxed whitespace-pre-wrap">
+                      {metaDescription}
+                    </div>
+                  ) : (
+                    <div className="text-[13px] text-white/50 leading-relaxed">
+                      This NFT doesn&apos;t have an extended description yet.
+                    </div>
+                  )}
+
+                  {metaProofUrl ? (
+                    <div className="mt-5">
+                      <a
+                        href={metaProofUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
+                      >
+                        Proof / X ↗
+                      </a>
+                    </div>
+                  ) : null}
                 </div>
-                <div className="text-[12px] text-white/55 font-semibold">{trades.length}</div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {metaBrand ? (
+                    <StatCard label="Brand / Project" value={metaBrand} tone="gold" />
+                  ) : null}
+                  {metaCollection ? <StatCard label="Collection" value={metaCollection} /> : null}
+                  {metaCategory ? <StatCard label="Category" value={metaCategory} /> : null}
+                  {metaItemType ? <StatCard label="Item Type" value={metaItemType} /> : null}
+                  {metaItem && metaItem !== metaItemType ? (
+                    <StatCard label="Item" value={metaItem} />
+                  ) : null}
+                  {metaRarity ? <StatCard label="Rarity" value={metaRarity} /> : null}
+                  {!metaBrand && metaProject ? (
+                    <StatCard label="Project" value={metaProject} />
+                  ) : null}
+                  {metaVertical ? <StatCard label="Vertical" value={metaVertical} /> : null}
+                </div>
+              </div>
+            </AccordionSection>
+          </div>
+
+          <div className="reveal" style={{ animationDelay: "260ms" }}>
+            <AccordionSection
+              title="Blockchain details"
+              subtitle="Contract, token, mint time, supply, market type and on-chain links."
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                <StatCard label="Contract" value={shortAddr(nft.contract)} />
+                <StatCard label="Token ID" value={`#${nft.tokenId}`} />
+                <StatCard label="Chain ID" value={String(nft.chainId)} />
+                <StatCard label="Minted" value={fmtDate(nft.createdAt)} />
+                <StatCard label="Total Supply" value={supplyLabel || "—"} />
+                <StatCard label="Market Type" value={preferredMarketType} />
+                {isStoreNft && storeStore?.primarySellerWallet ? (
+                  <StatCard
+                    label="Primary Seller"
+                    value={shortAddr(storeStore.primarySellerWallet)}
+                  />
+                ) : null}
+                {txUrl ? <StatCard label="Tx Hash" value={shortAddr(nft.txHash)} /> : null}
+                {tokenUriHttp ? <StatCard label="Token URI" value="Available" /> : null}
               </div>
 
-              {trades.length === 0 ? (
-                <div className="mt-4 text-[12px] text-white/60">No trades yet.</div>
-              ) : (
-                <div className="mt-4 space-y-2">
-                  {trades.slice(0, 10).map((t) => (
-                    <div
-                      key={`${t.txHash}:${t.logIndex}`}
-                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="text-[13px] font-black text-amber-100">
-                          {fmtEth(t.totalPriceWei)} ETH{" "}
-                          <span className="text-white/35 text-[11px] font-black">•</span>
-                          <span className="ml-2 text-white/80 text-[12px] font-black">
-                            x{t.amount}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-white/40">
-                          {fmtDate(t.blockTime)}
-                        </div>
-                      </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                {tokenUriHttp ? (
+                  <a
+                    href={tokenUriHttp}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl hover:bg-white/10 transition"
+                  >
+                    Token URI ↗
+                  </a>
+                ) : null}
 
-                      <div className="mt-2 text-[12px] text-white/55">
-                        {shortAddr(t.sellerWallet)} → {shortAddr(t.buyerWallet)}
-                        <span className="text-white/35"> • </span>
-                        <span className="font-black text-white/70">
-                          {t.marketType || preferredMarketType}
-                        </span>
-                        <span className="text-white/35"> • </span>
-                        <a
-                          className="text-amber-100/90 hover:text-amber-100 font-black"
-                          href={
-                            chainId === 84532
-                              ? `https://sepolia.basescan.org/tx/${t.txHash}`
-                              : `https://basescan.org/tx/${t.txHash}`
-                          }
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Tx ↗
-                        </a>
+                {txUrl ? (
+                  <a
+                    href={txUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl hover:bg-white/10 transition"
+                  >
+                    Tx ↗
+                  </a>
+                ) : null}
+
+                {contractUrl ? (
+                  <a
+                    href={contractUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl hover:bg-white/10 transition"
+                  >
+                    Contract ↗
+                  </a>
+                ) : null}
+              </div>
+            </AccordionSection>
+          </div>
+
+          <div className="reveal" style={{ animationDelay: "280ms" }}>
+            <AccordionSection
+              title="Ownership & profiles"
+              subtitle="Current owner, creator and holder context."
+            >
+              <div className="grid xl:grid-cols-2 gap-4">
+                <PersonCard
+                  label={ownershipLabel}
+                  avatar={currentOwnerAvatar}
+                  name={currentOwnerName}
+                  href={currentOwnerUrl}
+                  secondaryHref={currentOwnerNftsUrl}
+                />
+
+                <PersonCard
+                  label="Creator / Profile"
+                  avatar={creatorAvatar}
+                  name={creatorName}
+                  href={creatorUrl}
+                  secondaryHref={creatorNftsUrl}
+                />
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <StatCard label="Holders" value={String(holdersCount)} />
+                <StatCard
+                  label="Top Holder Amount"
+                  value={topHolder?.amount ? topHolder.amount.toString() : "—"}
+                />
+                <StatCard
+                  label="Creator Wallet"
+                  value={shortAddr(creator?.walletAddress || null)}
+                />
+              </div>
+            </AccordionSection>
+          </div>
+
+          <div className="reveal" style={{ animationDelay: "300ms" }}>
+            <AccordionSection
+              title="Market activity"
+              subtitle="Open listings and recent sales for this NFT."
+            >
+              {marketError ? (
+                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
+                  Market data temporarily unavailable ({marketError}).
+                </div>
+              ) : (
+                <div className="grid xl:grid-cols-2 gap-6">
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
+                        Active Listings
+                      </div>
+                      <div className="text-[12px] text-white/55 font-semibold">
+                        {listings.length}
                       </div>
                     </div>
-                  ))}
+
+                    {listings.length === 0 ? (
+                      <div className="mt-4 text-[12px] text-white/60">
+                        No active listings yet.
+                      </div>
+                    ) : (
+                      <div className="mt-4 space-y-2">
+                        {listings.slice(0, 10).map((l) => (
+                          <div
+                            key={`${l.marketType || preferredMarketType}:${l.marketplaceListingId}`}
+                            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-[13px] font-black text-amber-100">
+                                {fmtEth(l.pricePerUnitWei)} ETH{" "}
+                                <span className="text-white/35 text-[11px] font-black">/ unit</span>
+                              </div>
+                              <div className="text-[12px] text-white/70 font-semibold">
+                                Remaining:{" "}
+                                <span className="text-white/90 font-black">{l.amountRemaining}</span>
+                              </div>
+                            </div>
+
+                            <div className="mt-2 text-[12px] text-white/55 flex flex-wrap items-center gap-2">
+                              <span>Seller:</span>
+                              <span className="font-mono text-white/80">{shortAddr(l.sellerWallet)}</span>
+                              <span className="text-white/35">•</span>
+                              <span className="font-black text-white/70">
+                                Listing #{l.marketplaceListingId}
+                              </span>
+                              <span className="text-white/35">•</span>
+                              <span className="font-black text-white/70">
+                                {l.marketType || preferredMarketType}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
+                        Recent Trades
+                      </div>
+                      <div className="text-[12px] text-white/55 font-semibold">
+                        {trades.length}
+                      </div>
+                    </div>
+
+                    {trades.length === 0 ? (
+                      <div className="mt-4 text-[12px] text-white/60">
+                        No trades yet.
+                      </div>
+                    ) : (
+                      <div className="mt-4 space-y-2">
+                        {trades.slice(0, 10).map((t) => (
+                          <div
+                            key={`${t.txHash}:${t.logIndex}`}
+                            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="text-[13px] font-black text-amber-100">
+                                {fmtEth(t.totalPriceWei)} ETH{" "}
+                                <span className="text-white/35 text-[11px] font-black">•</span>
+                                <span className="ml-2 text-white/80 text-[12px] font-black">
+                                  x{t.amount}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-white/40">
+                                {fmtDate(t.blockTime)}
+                              </div>
+                            </div>
+
+                            <div className="mt-2 text-[12px] text-white/55">
+                              {shortAddr(t.sellerWallet)} → {shortAddr(t.buyerWallet)}
+                              <span className="text-white/35"> • </span>
+                              <span className="font-black text-white/70">
+                                {t.marketType || preferredMarketType}
+                              </span>
+                              <span className="text-white/35"> • </span>
+                              <a
+                                className="text-amber-100/90 hover:text-amber-100 font-black"
+                                href={
+                                  chainId === 84532
+                                    ? `https://sepolia.basescan.org/tx/${t.txHash}`
+                                    : `https://basescan.org/tx/${t.txHash}`
+                                }
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                Tx ↗
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
+            </AccordionSection>
           </div>
         </div>
 
