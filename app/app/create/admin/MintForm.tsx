@@ -408,6 +408,13 @@ async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
   return null;
 }
 
+function normalizeTokenIdValue(v: unknown): string | null {
+  if (typeof v === "bigint") return v.toString();
+  if (typeof v === "number") return String(v);
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
+}
+
 function extractProductTokenIdFromReceipt(
   receipt: any,
   abi: readonly any[],
@@ -424,14 +431,19 @@ function extractProductTokenIdFromReceipt(
         abi,
         data: log.data,
         topics: log.topics,
-      });
+      }) as { eventName?: string; args?: any };
 
-      if (decoded?.eventName === "ProductCreated") {
+      if (
+        decoded?.eventName === "ProductCreated" ||
+        decoded?.eventName === "EditionCreated"
+      ) {
         const args: any = decoded.args;
-        const tokenId = args?.tokenId ?? args?.[0];
-        if (typeof tokenId === "bigint") return tokenId.toString();
-        if (typeof tokenId === "number") return String(tokenId);
-        if (typeof tokenId === "string") return tokenId;
+        return (
+          normalizeTokenIdValue(args?.tokenId) ||
+          normalizeTokenIdValue(args?.id) ||
+          normalizeTokenIdValue(args?.editionId) ||
+          normalizeTokenIdValue(args?.[0])
+        );
       }
     } catch {
       //
@@ -950,7 +962,7 @@ export default function AdminMintForm() {
             null;
 
           if (targetContract && tokenId) {
-            await fetch("/api/mints", {
+            const saveRes = await fetch("/api/mints", {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({
@@ -975,13 +987,18 @@ export default function AdminMintForm() {
               }),
             });
 
+            if (!saveRes.ok) {
+              const saveData = await saveRes.json().catch(() => null);
+              console.warn("[ADMIN_PRODUCT_SAVE_WARNING]", saveData || saveRes.status);
+            }
+
             setManageTokenId(tokenId);
             setManageNotice(
               `${txTarget === "cafe" ? "Cafe" : "Store"} product created and saved to local catalog cache.`
             );
           }
-        } catch {
-          //
+        } catch (e) {
+          console.warn("[ADMIN_PRODUCT_SAVE_ERROR]", e);
         } finally {
           setPendingTxHash(undefined);
           setTxMode(null);

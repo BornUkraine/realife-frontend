@@ -258,6 +258,13 @@ async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
   return null;
 }
 
+function normalizeTokenIdValue(v: unknown): string | null {
+  if (typeof v === "bigint") return v.toString();
+  if (typeof v === "number") return String(v);
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
+}
+
 function extractMintTokenIdFromReceipt(
   receipt: any,
   mode: ActiveMintMode,
@@ -278,13 +285,18 @@ function extractMintTokenIdFromReceipt(
           topics: log.topics,
         }) as { eventName?: string; args?: any };
 
-        if (decoded.eventName === "ProductCreated") {
+        if (
+          decoded.eventName === "ProductCreated" ||
+          decoded.eventName === "EditionCreated" ||
+          decoded.eventName === "DeliveryEditionCreated"
+        ) {
           const args = decoded.args;
-          const tokenId = args?.tokenId ?? args?.[0];
-
-          if (typeof tokenId === "bigint") return tokenId.toString();
-          if (typeof tokenId === "number") return String(tokenId);
-          if (typeof tokenId === "string") return tokenId;
+          return (
+            normalizeTokenIdValue(args?.tokenId) ||
+            normalizeTokenIdValue(args?.id) ||
+            normalizeTokenIdValue(args?.editionId) ||
+            normalizeTokenIdValue(args?.[0])
+          );
         }
       } else {
         const decoded = decodeEventLog({
@@ -295,11 +307,12 @@ function extractMintTokenIdFromReceipt(
 
         if (decoded.eventName === "EditionCreated") {
           const args = decoded.args;
-          const tokenId = args?.tokenId ?? args?.[0];
-
-          if (typeof tokenId === "bigint") return tokenId.toString();
-          if (typeof tokenId === "number") return String(tokenId);
-          if (typeof tokenId === "string") return tokenId;
+          return (
+            normalizeTokenIdValue(args?.tokenId) ||
+            normalizeTokenIdValue(args?.id) ||
+            normalizeTokenIdValue(args?.editionId) ||
+            normalizeTokenIdValue(args?.[0])
+          );
         }
       }
     } catch {
@@ -899,7 +912,7 @@ export default function MintForm() {
 
       try {
         if (targetContract && tokenId) {
-          await fetch("/api/mints", {
+          const saveRes = await fetch("/api/mints", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
@@ -911,14 +924,22 @@ export default function MintForm() {
               name: finalName,
               image: posterOrImage || null,
               verified: true,
+              standard: "ERC1155",
               supply: clampSupply(supply),
+              catalogOnly: false,
               deliveryEnabled: targetMode === "delivery",
               physicalItemIncluded: targetMode === "delivery",
+              officialItem: false,
             }),
           });
+
+          if (!saveRes.ok) {
+            const saveData = await saveRes.json().catch(() => null);
+            console.warn("[PUBLIC_MINT_SAVE_WARNING]", saveData || saveRes.status);
+          }
         }
-      } catch {
-        //
+      } catch (e) {
+        console.warn("[PUBLIC_MINT_SAVE_ERROR]", e);
       }
 
       const qp = new URLSearchParams();

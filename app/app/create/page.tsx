@@ -1,10 +1,20 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import type { Metadata } from "next";
 import Reveal from "@/components/Reveal";
 import MintForm from "./MintForm";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+export const metadata: Metadata = {
+  title: "Create Realife NFT",
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 function Pill({ children }: { children: ReactNode }) {
   return (
@@ -50,9 +60,14 @@ function GoldEdgeWrap({
 export default function CreatePage() {
   const year = new Date().getFullYear();
 
+  const publicStandardMintContract =
+    process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "not-set";
+
+  const publicDeliveryMintContract =
+    process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT || "not-set";
+
   return (
     <div className="space-y-6">
-      {/* HERO */}
       <Reveal>
         <GoldEdgeWrap className="rounded-[40px]">
           <div className="relative p-7 md:p-10 overflow-hidden">
@@ -72,11 +87,15 @@ export default function CreatePage() {
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">ERC-1155 (Unique + Editions)</span>
+                  <span className="text-white/80 font-extrabold">
+                    ERC-1155 (Unique + Editions)
+                  </span>
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">Optional delivery mode</span>
+                  <span className="text-white/80 font-extrabold">
+                    Standard + delivery contracts
+                  </span>
                 </Pill>
               </div>
 
@@ -88,21 +107,45 @@ export default function CreatePage() {
               </h1>
 
               <p className="mt-4 text-sm md:text-base text-white/70 max-w-3xl leading-relaxed">
-                Prepare (IPFS) → Sign → Mint. Public ERC-1155 mint for creators, collectors and product-backed editions.
+                Prepare metadata on IPFS → sign wallet tx → mint ERC-1155 edition
+                on Base Sepolia.
               </p>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
-                Choose your mint mode:{" "}
-                <span className="text-white font-semibold">Without delivery</span> or{" "}
-                <span className="text-white font-semibold">With delivery</span>.{" "}
-                <span className="text-white/55">
-                  Delivery mode is available only for approved seller wallets.
-                </span>
+                <span className="text-white font-semibold">
+                  Without delivery
+                </span>{" "}
+                is public standard mint.
+                {" "}
+                <span className="text-white font-semibold">
+                  With delivery
+                </span>{" "}
+                uses the delivery mint contract and is available only for wallets
+                that are approved in app profile access and allowlisted on-chain.
               </div>
 
               <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
-                Mint and earn <span className="text-amber-200 font-extrabold">+10 points</span>.{" "}
-                <span className="text-white/55">More mints → more points → stronger creator reputation.</span>
+                Mint and earn{" "}
+                <span className="text-amber-200 font-extrabold">+10 points</span>.
+                <span className="text-white/55">
+                  {" "}More mints → more points → stronger creator reputation.
+                </span>
+              </div>
+
+              <div className="mt-4 grid max-w-4xl grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
+                  Public standard mint contract:{" "}
+                  <span className="break-all font-semibold text-white">
+                    {publicStandardMintContract}
+                  </span>
+                </div>
+
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
+                  Public delivery mint contract:{" "}
+                  <span className="break-all font-semibold text-white">
+                    {publicDeliveryMintContract}
+                  </span>
+                </div>
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -134,7 +177,6 @@ export default function CreatePage() {
         </GoldEdgeWrap>
       </Reveal>
 
-      {/* FORM */}
       <Reveal delayMs={120}>
         <GoldEdgeWrap className="rounded-[40px]">
           <div className="p-6 md:p-10">
@@ -143,7 +185,6 @@ export default function CreatePage() {
         </GoldEdgeWrap>
       </Reveal>
 
-      {/* footer */}
       <Reveal delayMs={200}>
         <div className="pt-2 pb-6 text-xs text-white/45 flex flex-wrap items-center justify-between gap-4">
           <div>© {year} Realife</div>
@@ -151,7 +192,7 @@ export default function CreatePage() {
             <span className="opacity-60">ERC-1155</span>
             <span className="opacity-60">IPFS</span>
             <span className="opacity-60">Public mint</span>
-            <span className="opacity-60">Optional delivery mode</span>
+            <span className="opacity-60">Standard + delivery</span>
           </div>
         </div>
       </Reveal>

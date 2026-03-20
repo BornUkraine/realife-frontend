@@ -162,19 +162,23 @@ export default function AdminCreatePage() {
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                For <span className="font-semibold text-white">store products</span>,
+                For{" "}
+                <span className="font-semibold text-white">store products</span>,
                 this panel configures the product itself plus delivery flags.
                 Actual shipping, tracking, confirmation and escrow control
                 happens later in the orders flow after purchase.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                For <span className="font-semibold text-white">public creator mint</span>,
-                this panel now grants or revokes access specifically for the{" "}
+                For{" "}
+                <span className="font-semibold text-white">
+                  public creator mint
+                </span>
+                , this panel grants or revokes access specifically for the{" "}
                 <span className="font-extrabold text-amber-200">
                   delivery mint contract
                 </span>
-                . Standard public mint remains separate.
+                . Standard public mint remains separate and public.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
@@ -227,7 +231,7 @@ export default function AdminCreatePage() {
                 while the Store can optionally test different{" "}
                 <span className="font-black text-sky-100">brand labels</span>{" "}
                 on product cards and NFT pages without fragmenting the contract
-                architecture. Public user delivery mint access is now explicitly
+                architecture. Public user delivery mint access is explicitly
                 tied to the{" "}
                 <span className="font-black text-sky-100">
                   delivery mint contract
