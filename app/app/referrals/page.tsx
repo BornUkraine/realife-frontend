@@ -65,7 +65,9 @@ function Card({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="text-sm md:text-base font-extrabold">{title}</div>
-          {subtitle ? <div className="mt-1 text-xs text-white/60">{subtitle}</div> : null}
+          {subtitle ? (
+            <div className="mt-1 text-xs text-white/60">{subtitle}</div>
+          ) : null}
         </div>
       </div>
       <div className="mt-6">{children}</div>
@@ -150,8 +152,14 @@ function Pill({
       : tone === "warn"
       ? "border-rose-500/25 bg-rose-500/10 text-rose-200"
       : "border-white/10 bg-white/[0.06] text-white/70";
+
   return (
-    <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>
+    <div
+      className={cx(
+        "text-[11px] font-semibold px-3 py-1.5 rounded-full border",
+        cls
+      )}
+    >
       {children}
     </div>
   );
@@ -160,6 +168,7 @@ function Pill({
 function normalizeCode(raw: string) {
   return raw.trim().toUpperCase().replace(/\s+/g, "");
 }
+
 function isValidCode(raw: string) {
   return /^[A-Z0-9_]{3,16}$/.test(raw);
 }
@@ -194,9 +203,10 @@ export default function ReferralsPage() {
 
   const [pendingRef, setPendingRef] = useState<string | null>(null);
 
-  const [notice, setNotice] = useState<{ tone: "ok" | "warn"; text: string } | null>(
-    null
-  );
+  const [notice, setNotice] = useState<{
+    tone: "ok" | "warn";
+    text: string;
+  } | null>(null);
 
   const canSetCode = useMemo(() => {
     const c = normalizeCode(newCode);
@@ -286,10 +296,14 @@ export default function ReferralsPage() {
   }
 
   async function requireWalletReady() {
-    // Client wallet must be connected + server walletAddress must be set (TopBar verify)
     if (!isConnected || !address) throw new Error("Connect wallet first.");
-    if (!serverWalletOk) throw new Error("Verify wallet in top bar (signature once) first.");
-    if (me?.walletAddress && address.toLowerCase() !== me.walletAddress.toLowerCase()) {
+    if (!serverWalletOk) {
+      throw new Error("Verify wallet in top bar (signature once) first.");
+    }
+    if (
+      me?.walletAddress &&
+      address.toLowerCase() !== me.walletAddress.toLowerCase()
+    ) {
       throw new Error("Connected wallet differs from verified wallet.");
     }
   }
@@ -308,7 +322,13 @@ export default function ReferralsPage() {
       const issuedAt = new Date().toISOString();
       const origin = window.location.origin;
 
-      const message = buildMsg({ action: "SET_CODE", code, nonce, origin, issuedAt });
+      const message = buildMsg({
+        action: "SET_CODE",
+        code,
+        nonce,
+        origin,
+        issuedAt,
+      });
       const signature = await signMessageAsync({ message });
 
       const r = await fetch("/api/referral/set-code", {
@@ -333,8 +353,16 @@ export default function ReferralsPage() {
     }
   }
 
-  async function onApply() {
-    if (!canApply || isSelf || alreadyApplied) return;
+  async function onApply(codeOverride?: string) {
+    const code = normalizeCode(codeOverride ?? applyCode);
+
+    if (!code || !isValidCode(code) || alreadyApplied) return;
+
+    if (me?.referralCode && code === me.referralCode) {
+      setNotice({ tone: "warn", text: "You can’t apply your own code." });
+      window.setTimeout(() => setNotice(null), 1800);
+      return;
+    }
 
     setApplying(true);
     setNotice(null);
@@ -342,12 +370,17 @@ export default function ReferralsPage() {
     try {
       await requireWalletReady();
 
-      const code = normalizeCode(applyCode);
       const nonce = await getNonce("APPLY", code);
       const issuedAt = new Date().toISOString();
       const origin = window.location.origin;
 
-      const message = buildMsg({ action: "APPLY", code, nonce, origin, issuedAt });
+      const message = buildMsg({
+        action: "APPLY",
+        code,
+        nonce,
+        origin,
+        issuedAt,
+      });
       const signature = await signMessageAsync({ message });
 
       const r = await fetch("/api/referral/apply", {
@@ -358,6 +391,7 @@ export default function ReferralsPage() {
       const j = await r.json().catch(() => ({}));
 
       if (r.ok && j?.ok) {
+        setApplyCode(code);
         setNotice({ tone: "ok", text: `Applied. +${j.joinerAdd ?? 50} points` });
         try {
           localStorage.removeItem("rl_ref_pending");
@@ -392,7 +426,8 @@ export default function ReferralsPage() {
             </h1>
 
             <p className="mt-3 text-sm md:text-base text-white/70 max-w-2xl leading-relaxed">
-              Creating a code and applying a code requires a wallet <b>signature</b> (no transaction).
+              Creating a code and applying a code requires a wallet{" "}
+              <b>signature</b> (no transaction).
             </p>
 
             <div className="mt-6 flex flex-wrap gap-2">
@@ -411,20 +446,22 @@ export default function ReferralsPage() {
             {pendingRef && !alreadyApplied ? (
               <div className="mt-6 rounded-[22px] border border-amber-500/25 bg-amber-500/10 px-4 py-3 backdrop-blur-md">
                 <div className="text-sm font-extrabold text-amber-50">
-                  Apply referral code <span className="text-amber-200">{pendingRef}</span>?
+                  Apply referral code{" "}
+                  <span className="text-amber-200">{pendingRef}</span>?
                 </div>
                 <div className="mt-1 text-xs text-amber-100/80">
-                  You get <span className="font-extrabold">+50</span>, and the inviter gets{" "}
-                  <span className="font-extrabold">+50</span>.
+                  You get <span className="font-extrabold">+50</span>, and the
+                  inviter gets <span className="font-extrabold">+50</span>.
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-3">
                   <Btn
                     variant="gold"
-                    disabled={!isValidCode(pendingRef) || applying || alreadyApplied || isSelf}
+                    disabled={
+                      !isValidCode(pendingRef) || applying || alreadyApplied
+                    }
                     onClick={() => {
-                      setApplyCode(pendingRef);
-                      void onApply();
+                      void onApply(pendingRef);
                     }}
                   >
                     {applying ? "Applying…" : "Apply +50"}
@@ -443,7 +480,7 @@ export default function ReferralsPage() {
                   </Btn>
                 </div>
 
-                {isSelf ? (
+                {me?.referralCode && pendingRef === me.referralCode ? (
                   <div className="mt-3 text-[11px] text-rose-100/90">
                     You can’t apply your own code.
                   </div>
@@ -471,7 +508,9 @@ export default function ReferralsPage() {
                 <div
                   className={cx(
                     "mt-1 text-sm",
-                    notice.tone === "ok" ? "text-emerald-100/90" : "text-rose-100/90"
+                    notice.tone === "ok"
+                      ? "text-emerald-100/90"
+                      : "text-rose-100/90"
                   )}
                 >
                   {notice.text}
@@ -479,7 +518,9 @@ export default function ReferralsPage() {
               </div>
             ) : null}
 
-            {loading ? <div className="mt-6 text-sm text-white/60">Loading…</div> : null}
+            {loading ? (
+              <div className="mt-6 text-sm text-white/60">Loading…</div>
+            ) : null}
           </div>
         </GoldEdgeWrap>
       </Reveal>
@@ -503,7 +544,11 @@ export default function ReferralsPage() {
                   </div>
 
                   <div className="flex gap-3">
-                    <Btn variant="gold" className="flex-1 min-w-0" onClick={() => copy(me.referralCode!)}>
+                    <Btn
+                      variant="gold"
+                      className="flex-1 min-w-0"
+                      onClick={() => copy(me.referralCode!)}
+                    >
                       Copy code
                     </Btn>
                     <Btn
@@ -516,7 +561,9 @@ export default function ReferralsPage() {
                     </Btn>
                   </div>
 
-                  <div className="text-[11px] text-white/55">Code is locked to prevent abuse.</div>
+                  <div className="text-[11px] text-white/55">
+                    Code is locked to prevent abuse.
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -528,13 +575,21 @@ export default function ReferralsPage() {
                   />
 
                   <div className="flex items-center justify-between gap-3">
-                    <Pill tone={canSetCode ? "ok" : "muted"}>{canSetCode ? "Valid code" : "Invalid code"}</Pill>
-                    <Btn variant="gold" disabled={!canSetCode || saving} onClick={onSaveCode}>
+                    <Pill tone={canSetCode ? "ok" : "muted"}>
+                      {canSetCode ? "Valid code" : "Invalid code"}
+                    </Pill>
+                    <Btn
+                      variant="gold"
+                      disabled={!canSetCode || saving}
+                      onClick={onSaveCode}
+                    >
                       {saving ? "Signing…" : "Save code"}
                     </Btn>
                   </div>
 
-                  <div className="text-[11px] text-white/55">Requires wallet signature (no transaction).</div>
+                  <div className="text-[11px] text-white/55">
+                    Requires wallet signature (no transaction).
+                  </div>
                 </div>
               )}
             </Card>
@@ -543,7 +598,10 @@ export default function ReferralsPage() {
 
         <Reveal delayMs={120}>
           <GoldEdgeWrap>
-            <Card title="Enter friend’s code" subtitle="You get +50, and the inviter gets +50. One-time only.">
+            <Card
+              title="Enter friend’s code"
+              subtitle="You get +50, and the inviter gets +50. One-time only."
+            >
               <div className="space-y-4">
                 <Input
                   value={applyCode}
@@ -558,10 +616,16 @@ export default function ReferralsPage() {
                   ) : isSelf ? (
                     <Pill tone="warn">Can’t use your own code</Pill>
                   ) : (
-                    <Pill tone={canApply ? "gold" : "muted"}>{canApply ? "Ready" : "Enter valid code"}</Pill>
+                    <Pill tone={canApply ? "gold" : "muted"}>
+                      {canApply ? "Ready" : "Enter valid code"}
+                    </Pill>
                   )}
 
-                  <Btn variant="gold" disabled={!canApply || applying || alreadyApplied || isSelf} onClick={onApply}>
+                  <Btn
+                    variant="gold"
+                    disabled={!canApply || applying || alreadyApplied || isSelf}
+                    onClick={() => void onApply()}
+                  >
                     {alreadyApplied ? "Applied" : applying ? "Signing…" : "Apply"}
                   </Btn>
                 </div>
@@ -569,10 +633,14 @@ export default function ReferralsPage() {
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/65">
                   <div className="font-extrabold text-white/85">Reward</div>
                   <div className="mt-1">
-                    You: <span className="text-amber-200 font-extrabold">+50</span> • Inviter:{" "}
+                    You:{" "}
+                    <span className="text-amber-200 font-extrabold">+50</span>{" "}
+                    • Inviter:{" "}
                     <span className="text-amber-200 font-extrabold">+50</span>
                   </div>
-                  <div className="mt-2 text-[11px] text-white/55">Requires wallet signature (no transaction).</div>
+                  <div className="mt-2 text-[11px] text-white/55">
+                    Requires wallet signature (no transaction).
+                  </div>
                 </div>
               </div>
             </Card>
@@ -581,16 +649,27 @@ export default function ReferralsPage() {
 
         <Reveal delayMs={160}>
           <GoldEdgeWrap>
-            <Card title="Invite link" subtitle="Share it anywhere. We’ll track invites safely.">
+            <Card
+              title="Invite link"
+              subtitle="Share it anywhere. We’ll track invites safely."
+            >
               <div className="space-y-4">
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Invited</div>
-                  <div className="mt-1 text-2xl font-black tracking-tight text-white/90">{me?.invitedCount ?? 0}</div>
-                  <div className="mt-2 text-[11px] text-white/55">Total invites that earned you rewards.</div>
+                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    Invited
+                  </div>
+                  <div className="mt-1 text-2xl font-black tracking-tight text-white/90">
+                    {me?.invitedCount ?? 0}
+                  </div>
+                  <div className="mt-2 text-[11px] text-white/55">
+                    Total invites that earned you rewards.
+                  </div>
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Link</div>
+                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    Link
+                  </div>
                   <div className="mt-2 text-[12px] font-mono text-white/75 break-all">
                     {inviteLink ?? "Create your code to generate a link."}
                   </div>
@@ -605,7 +684,11 @@ export default function ReferralsPage() {
                   >
                     Copy link
                   </Btn>
-                  <Btn variant="ghost" className="flex-1 min-w-0" onClick={load}>
+                  <Btn
+                    variant="ghost"
+                    className="flex-1 min-w-0"
+                    onClick={() => void load()}
+                  >
                     Refresh
                   </Btn>
                 </div>
@@ -617,7 +700,8 @@ export default function ReferralsPage() {
 
       <Reveal delayMs={220}>
         <div className="text-[11px] text-white/45 text-center">
-          Note: you must be wallet-verified (top bar signature once) before referral actions.
+          Note: you must be wallet-verified (top bar signature once) before
+          referral actions.
         </div>
       </Reveal>
     </div>

@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
+import Reveal from "@/components/Reveal";
 import NftMedia from "@/components/NftMedia";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -32,6 +34,77 @@ function shortAddr(addr?: string | null) {
 
 function norm(a: string) {
   return String(a || "").trim().toLowerCase();
+}
+
+function Pill({ children }: { children: ReactNode }) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
+      {children}
+    </div>
+  );
+}
+
+function GoldEdgeWrap({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cx(
+        "relative overflow-hidden rounded-[34px] p-px",
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.35),rgba(212,175,55,0.16),rgba(184,135,10,0.10))]",
+        "shadow-[0_34px_130px_rgba(0,0,0,0.60)]",
+        className
+      )}
+    >
+      <div
+        className={cx(
+          "relative overflow-hidden rounded-[34px]",
+          "border border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl",
+          "ring-1 ring-black/10",
+          "before:pointer-events-none before:absolute before:inset-0",
+          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.12),transparent_45%)]",
+          "after:pointer-events-none after:absolute after:inset-0",
+          "after:bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]"
+        )}
+      >
+        <div className="relative z-10">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function ActionLink({
+  href,
+  children,
+  primary = false,
+}: {
+  href: string;
+  children: ReactNode;
+  primary?: boolean;
+}) {
+  if (primary) {
+    return (
+      <Link
+        href={href}
+        className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+      >
+        {children}
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+    >
+      {children}
+    </Link>
+  );
 }
 
 /* ------------------------------- Config ------------------------------ */
@@ -136,7 +209,10 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
   return null;
 }
 
-async function loadMetadataFromBackend1155(tokenId: string, contract?: string | null) {
+async function loadMetadataFromBackend1155(
+  tokenId: string,
+  contract?: string | null
+) {
   const base = String(API_BASE || "").replace(/\/$/, "");
   const c = String(contract || "").trim().toLowerCase();
 
@@ -145,7 +221,9 @@ async function loadMetadataFromBackend1155(tokenId: string, contract?: string | 
   try {
     const url =
       c && c.startsWith("0x")
-        ? `${base}/metadata1155/${encodeURIComponent(c)}/${encodeURIComponent(tokenId)}`
+        ? `${base}/metadata1155/${encodeURIComponent(c)}/${encodeURIComponent(
+            tokenId
+          )}`
         : `${base}/metadata1155/${encodeURIComponent(tokenId)}`;
 
     const r = await fetch(url, { cache: "no-store" });
@@ -386,7 +464,8 @@ export default async function PublicNFTsPage({
       const contract = String(x.contract || "").toLowerCase();
 
       const isCafeNft = !!CAFE_1155_CONTRACT && contract === CAFE_1155_CONTRACT;
-      const isStoreNft = !!STORE_1155_CONTRACT && contract === STORE_1155_CONTRACT;
+      const isStoreNft =
+        !!STORE_1155_CONTRACT && contract === STORE_1155_CONTRACT;
       const isUser1155Nft = USER_1155_CONTRACTS.includes(contract);
 
       const isDeliveryUserNft =
@@ -483,33 +562,16 @@ export default async function PublicNFTsPage({
   const storeCount = enriched.filter((x) => x.isStoreNft).length;
 
   return (
-    <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
-        <div className="absolute -top-80 -left-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/12 blur-3xl animate-pulse" />
-        <div className="absolute -bottom-80 -right-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/10 blur-3xl animate-pulse" />
-        <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,rgba(255,255,255,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.22)_1px,transparent_1px)] bg-[length:56px_56px]" />
-        <div className="absolute inset-x-0 top-0 h-48 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.65),transparent)]" />
-      </div>
+    <div className="space-y-8">
+      <Reveal>
+        <GoldEdgeWrap className="rounded-[40px]">
+          <div className="relative overflow-hidden p-7 md:p-10">
+            <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/14 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
 
-      <div className="relative mx-auto max-w-7xl px-6 py-10 space-y-8">
-        <div
-          className={cx(
-            "reveal rounded-[34px] p-px overflow-hidden",
-            "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.11),rgba(184,135,10,0.10))]",
-            "shadow-[0_26px_100px_rgba(0,0,0,0.60)]"
-          )}
-        >
-          <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
-            <div className="pointer-events-none absolute inset-0">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
-            </div>
-
-            <div className="relative z-10 p-6 md:p-7">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-5">
-                <div className="h-16 w-16 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15 shrink-0">
+            <div className="relative">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-center">
+                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
                   {avatar ? (
                     <img
                       src={avatar}
@@ -518,7 +580,7 @@ export default async function PublicNFTsPage({
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="h-full w-full flex items-center justify-center text-white/35 font-black text-xs">
+                    <div className="flex h-full w-full items-center justify-center text-xs font-black text-white/35">
                       RL
                     </div>
                   )}
@@ -526,22 +588,34 @@ export default async function PublicNFTsPage({
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/80">
-                      Public gallery
-                    </span>
+                    <Pill>Public gallery</Pill>
 
                     {isOwner ? (
-                      <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-black text-amber-100">
-                        Owner view
-                      </span>
+                      <Pill>
+                        <span className="font-extrabold text-amber-100">
+                          Owner view
+                        </span>
+                      </Pill>
                     ) : null}
+
+                    <Pill>
+                      <span className="font-extrabold text-white/80">
+                        {itemsCount} items
+                      </span>
+                    </Pill>
                   </div>
 
-                  <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight truncate">
+                  <h1 className="mt-5 truncate text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
                     {displayName}
-                  </div>
+                  </h1>
 
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
+                  <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
+                    Public NFT gallery inside the Realife ecosystem. Explore
+                    verified holdings, media previews and collection activity
+                    from one profile view.
+                  </p>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
                     {publicUrl ? (
                       <>
                         <Link className="hover:underline" href={publicUrl}>
@@ -550,8 +624,11 @@ export default async function PublicNFTsPage({
                         <span>•</span>
                       </>
                     ) : null}
-                    <span>{itemsCount} items</span>
-                    {(cafeCount > 0 || storeCount > 0) && effectiveTab === "nfts" ? (
+                    <span>
+                      {effectiveTab === "activity" ? "My Activity" : "NFT Gallery"}
+                    </span>
+                    {(cafeCount > 0 || storeCount > 0) &&
+                    effectiveTab === "nfts" ? (
                       <>
                         <span>•</span>
                         <span>
@@ -566,24 +643,15 @@ export default async function PublicNFTsPage({
 
                 <div className="flex flex-wrap gap-3">
                   {publicUrl ? (
-                    <Link
-                      href={publicUrl}
-                      className="px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
-                    >
-                      Profile
-                    </Link>
+                    <ActionLink href={publicUrl}>Profile</ActionLink>
                   ) : null}
-
-                  <Link
-                    href="/app/trading"
-                    className="px-5 py-3 rounded-2xl text-sm font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 transition"
-                  >
+                  <ActionLink href="/app/trading" primary>
                     Trading →
-                  </Link>
+                  </ActionLink>
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
                 <StatChip label="Items" value={itemsCount} tone="gold" />
                 <StatChip
                   label="Tab"
@@ -600,12 +668,11 @@ export default async function PublicNFTsPage({
               </div>
             </div>
           </div>
-        </div>
+        </GoldEdgeWrap>
+      </Reveal>
 
-        <div
-          className="reveal flex flex-wrap items-center gap-2"
-          style={{ animationDelay: "60ms" }}
-        >
+      <Reveal delayMs={70}>
+        <div className="flex flex-wrap items-center gap-2">
           <Link
             href={tabHref(pageBase, "nfts")}
             className={cx(
@@ -616,7 +683,7 @@ export default async function PublicNFTsPage({
             )}
           >
             NFTs
-            <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-white/80 bg-black/25 ring-1 ring-white/10">
+            <span className="ml-2 inline-flex h-5 items-center justify-center rounded-full bg-black/25 px-2 text-[10px] font-black text-white/80 ring-1 ring-white/10">
               {itemsCount}
             </span>
           </Link>
@@ -632,23 +699,22 @@ export default async function PublicNFTsPage({
               )}
             >
               My Activity
-              <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-black/80 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15">
+              <span className="ml-2 inline-flex h-5 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-2 text-[10px] font-black text-black/80 ring-1 ring-black/15">
                 NEW
               </span>
             </Link>
           ) : null}
         </div>
+      </Reveal>
 
-        {effectiveTab === "activity" ? (
-          <div className="reveal mt-2" style={{ animationDelay: "90ms" }}>
-            <ActivityPanel userKey={key} />
-          </div>
-        ) : (
-          <>
-            <div
-              className="reveal grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
-              style={{ animationDelay: "90ms" }}
-            >
+      {effectiveTab === "activity" ? (
+        <Reveal delayMs={100}>
+          <ActivityPanel userKey={key} />
+        </Reveal>
+      ) : (
+        <>
+          <Reveal delayMs={100}>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
               {enriched.map((x: any) => {
                 const storefrontHref = x.isCafeNft
                   ? CAFE_STOREFRONT_HREF
@@ -673,9 +739,9 @@ export default async function PublicNFTsPage({
                       "shadow-[0_24px_90px_rgba(0,0,0,0.55)] hover:-translate-y-1 transition-all duration-300 hover:bg-white/[0.08]"
                     )}
                   >
-                    <div className="aspect-square w-full bg-black/30 relative">
+                    <div className="relative aspect-square w-full bg-black/30">
                       {isOwner ? (
-                        <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute right-3 top-3 z-10 opacity-0 transition-opacity group-hover:opacity-100">
                           <QuickList1155
                             chainId={x.chainId}
                             contract={x.contract}
@@ -698,16 +764,16 @@ export default async function PublicNFTsPage({
                             roundedClass="rounded-none"
                           />
 
-                          <div className="absolute top-3 left-3 flex flex-col gap-2">
+                          <div className="absolute left-3 top-3 flex flex-col gap-2">
                             {x.kind === "video" ? (
-                              <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-amber-100">
+                              <div className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-black text-amber-100">
                                 VIDEO
                               </div>
                             ) : null}
 
                             <div
                               className={cx(
-                                "px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black",
+                                "rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-black",
                                 x.isCafeNft
                                   ? "text-amber-100"
                                   : x.isStoreNft
@@ -726,32 +792,32 @@ export default async function PublicNFTsPage({
                                 : "EDITION"}
                             </div>
 
-                            <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
+                            <div className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-black text-white/85">
                               Owned x{x.ownedAmount}
                             </div>
                           </div>
 
                           {x.supply ? (
-                            <div className="absolute bottom-3 right-3 px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
+                            <div className="absolute bottom-3 right-3 rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-black text-white/85">
                               Supply x{x.supply}
                             </div>
                           ) : null}
                         </>
                       ) : (
-                        <div className="h-full w-full flex items-center justify-center text-white/25 font-black">
+                        <div className="flex h-full w-full items-center justify-center text-white/25 font-black">
                           No media
                         </div>
                       )}
 
-                      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.4)_0%,transparent_40%)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.4)_0%,transparent_40%)] opacity-0 transition-opacity group-hover:opacity-100" />
                     </div>
 
                     <div className="p-5">
-                      <div className="text-sm font-extrabold text-white/90 truncate">
+                      <div className="truncate text-sm font-extrabold text-white/90">
                         {x.name || `Token #${x.tokenId}`}
                       </div>
 
-                      <div className="mt-1.5 text-[12px] text-white/55 flex items-center justify-between gap-2">
+                      <div className="mt-1.5 flex items-center justify-between gap-2 text-[12px] text-white/55">
                         <span className="truncate">{shortAddr(x.contract)}</span>
                         <span className="font-mono">#{x.tokenId}</span>
                       </div>
@@ -760,7 +826,7 @@ export default async function PublicNFTsPage({
                         <div className="mt-3">
                           <span
                             className={cx(
-                              "inline-flex items-center px-2.5 py-1 rounded-full border text-[10px] font-black",
+                              "inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black",
                               x.isCafeNft
                                 ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
                                 : "border-sky-500/20 bg-sky-500/10 text-sky-200"
@@ -773,7 +839,7 @@ export default async function PublicNFTsPage({
 
                       <div className="mt-4 h-[1px] bg-white/10" />
 
-                      <div className="mt-4 text-[12px] font-extrabold text-amber-100/90 group-hover:text-amber-100 flex items-center justify-between">
+                      <div className="mt-4 flex items-center justify-between text-[12px] font-extrabold text-amber-100/90 group-hover:text-amber-100">
                         <span>View Details</span>
                         <span>→</span>
                       </div>
@@ -782,9 +848,11 @@ export default async function PublicNFTsPage({
                 );
               })}
             </div>
+          </Reveal>
 
-            {enriched.length === 0 && (
-              <div className="reveal rounded-[26px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60">
+          {enriched.length === 0 && (
+            <Reveal delayMs={120}>
+              <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-8 text-center text-white/60 backdrop-blur-xl">
                 <div className="text-lg font-black text-white/85">
                   This user doesn&apos;t own any NFTs yet.
                 </div>
@@ -792,21 +860,23 @@ export default async function PublicNFTsPage({
                   <div className="mt-4">
                     <Link
                       href={publicUrl}
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                      className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-extrabold transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                     >
                       Back to profile
                     </Link>
                   </div>
                 ) : null}
               </div>
-            )}
-          </>
-        )}
+            </Reveal>
+          )}
+        </>
+      )}
 
-        <footer className="reveal pt-6 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]">
+      <Reveal delayMs={180}>
+        <div className="pb-6 pt-2 text-center text-[10px] font-black uppercase tracking-[0.4em] text-white/20">
           Realife Ecosystem • Gallery
-        </footer>
-      </div>
-    </main>
+        </div>
+      </Reveal>
+    </div>
   );
 }

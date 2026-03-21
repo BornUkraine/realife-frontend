@@ -985,7 +985,7 @@ export default function ProfilePage() {
 
             {authed && (
               <a
-                href="/app/profile/delivery"
+                href="/app/orders"
                 className={cx(
                   "inline-flex items-center justify-center px-3 py-2 rounded-xl",
                   "text-[12px] font-extrabold",
@@ -995,7 +995,7 @@ export default function ProfilePage() {
                   "hover:bg-white/10 hover:-translate-y-px active:translate-y-0 transition"
                 )}
               >
-                My Delivery →
+                My Orders →
               </a>
             )}
 
