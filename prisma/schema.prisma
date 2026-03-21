@@ -61,6 +61,13 @@ enum MarketType {
   DELIVERY
 }
 
+enum DeliveryMessageRole {
+  BUYER
+  SELLER
+  SUPPORT
+  SYSTEM
+}
+
 /**
  * ==========================================================================
  * USER
@@ -376,7 +383,7 @@ model Trade {
   marketplaceListingId  BigInt?
   marketplacePurchaseId BigInt?
 
-  marketType MarketType @default(STANDARD)
+  marketType          MarketType @default(STANDARD)
   marketplaceContract String?
 
   sellerWallet String
@@ -501,7 +508,7 @@ model StoreOrder {
    */
   vertical String
 
-  marketType MarketType @default(STANDARD)
+  marketType          MarketType @default(STANDARD)
   marketplaceContract String?
 
   buyerWallet  String
@@ -534,14 +541,14 @@ model StoreOrder {
   escrowStatus   EscrowStatus   @default(PENDING)
   deliveryStatus DeliveryStatus @default(PENDING)
 
-  escrowFundedAt   DateTime?
-  shippedAt        DateTime?
-  deliveredAt      DateTime?
-  confirmedAt      DateTime?
-  releasedAt       DateTime?
-  refundedAt       DateTime?
-  disputedAt       DateTime?
-  cancelledAt      DateTime?
+  escrowFundedAt DateTime?
+  shippedAt      DateTime?
+  deliveredAt    DateTime?
+  confirmedAt    DateTime?
+  releasedAt     DateTime?
+  refundedAt     DateTime?
+  disputedAt     DateTime?
+  cancelledAt    DateTime?
 
   shippingName    String?
   shippingPhone   String?
@@ -561,6 +568,8 @@ model StoreOrder {
   noteBuyer  String?
   noteSeller String?
   adminNote  String?
+
+  deliveryMessages DeliveryMessage[]
 
   @@index([buyerWallet])
   @@index([sellerWallet])
@@ -583,4 +592,27 @@ model StoreOrder {
   @@index([marketplaceContract, marketplaceListingId])
   @@index([marketplaceContract, marketplacePurchaseId])
   @@map("store_orders")
+}
+
+/**
+ * ==========================================================================
+ * DELIVERY CHAT / ORDER ROOM MESSAGES
+ * ==========================================================================
+ */
+
+model DeliveryMessage {
+  id           String              @id @default(cuid())
+  orderId       String
+  senderUserId  String?
+  senderWallet  String?
+  senderRole    DeliveryMessageRole
+  body          String
+  isInternal    Boolean             @default(false)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  order         StoreOrder          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("delivery_messages")
 }
