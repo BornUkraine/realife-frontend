@@ -7,6 +7,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+type SupportRoleValue = "USER" | "MODERATOR" | "ADMIN";
+
 const ADMIN_WALLETS = (
   process.env.ADMIN_CREATE_WALLETS ||
   process.env.ADMIN_WALLETS ||
@@ -44,10 +46,39 @@ async function getActor() {
   const isAllowlistedWallet =
     !!walletAddress && ADMIN_WALLETS.includes(walletAddress);
 
+  let dbSupportRole: SupportRoleValue | null = null;
+
+  if (userId) {
+    const dbUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { supportRole: true },
+    });
+
+    dbSupportRole = (dbUser?.supportRole as SupportRoleValue | null) || null;
+  } else if (walletAddress) {
+    const dbUser = await prisma.user.findFirst({
+      where: {
+        walletAddress: {
+          equals: walletAddress,
+          mode: "insensitive",
+        },
+      },
+      select: { supportRole: true },
+    });
+
+    dbSupportRole = (dbUser?.supportRole as SupportRoleValue | null) || null;
+  }
+
+  const isDbSupport =
+    dbSupportRole === "MODERATOR" || dbSupportRole === "ADMIN";
+
   return {
     userId,
     walletAddress,
-    isSupport: isAdminSession || isAllowlistedWallet,
+    isSupport: isAdminSession || isAllowlistedWallet || isDbSupport,
+    dbSupportRole,
+    isAdminSession,
+    isAllowlistedWallet,
   };
 }
 
@@ -222,6 +253,7 @@ export async function GET(
       ok: true,
       viewerRole: viewerRole || "unknown",
       isSupport: actor.isSupport,
+      supportRole: actor.dbSupportRole || null,
       order: {
         id: order.id,
         createdAt: order.createdAt.toISOString(),

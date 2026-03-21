@@ -116,6 +116,12 @@ export default function AdminCreatePage() {
                     Delivery mint contract access
                   </span>
                 </Pill>
+
+                <Pill>
+                  <span className="text-amber-200 font-black">
+                    Support role manager
+                  </span>
+                </Pill>
               </div>
 
               <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
@@ -135,12 +141,16 @@ export default function AdminCreatePage() {
                   RealifeStore1155
                 </span>
                 . Upload premium metadata to IPFS, create new storefront
-                products on-chain, manage visibility for existing items, and
-                control which public users can mint through the{" "}
+                products on-chain, manage visibility for existing items, control
+                which public users can mint through the{" "}
                 <span className="font-semibold text-white">
                   delivery mint contract
                 </span>
-                .
+                , and assign internal{" "}
+                <span className="font-semibold text-white">
+                  support / moderator / admin
+                </span>{" "}
+                access for delivery chats and order rooms.
               </p>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
@@ -182,6 +192,15 @@ export default function AdminCreatePage() {
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
+                The same admin panel can now also manage{" "}
+                <span className="font-semibold text-white">DB support roles</span>{" "}
+                for your internal ops flow. That means selected users can later
+                enter delivery rooms as support, read the full order context,
+                view chat history, and reply as{" "}
+                <span className="font-semibold text-white">SUPPORT</span>.
+              </div>
+
+              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
                 User lookup and access control can be tied to the user profile
                 and wallet identity used inside your app flow.
               </div>
@@ -192,7 +211,8 @@ export default function AdminCreatePage() {
                 <span className="font-extrabold text-amber-200">
                   MODERATOR_ROLE
                 </span>{" "}
-                in the selected contract.
+                in the selected contract. Support-role management is intended for
+                the bootstrap admin / future DB-admin flow.
               </div>
 
               <div className="mt-4 grid max-w-4xl grid-cols-1 gap-3 md:grid-cols-2">
@@ -236,7 +256,9 @@ export default function AdminCreatePage() {
                 <span className="font-black text-sky-100">
                   delivery mint contract
                 </span>
-                , not the standard one.
+                , not the standard one. Internal support access for order rooms
+                is now intended to live in the database via{" "}
+                <span className="font-black text-sky-100">supportRole</span>.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -296,6 +318,7 @@ export default function AdminCreatePage() {
             <span className="opacity-60">Brand label</span>
             <span className="opacity-60">Delivery flags</span>
             <span className="opacity-60">Delivery mint contract access</span>
+            <span className="opacity-60">Support roles</span>
           </div>
         </div>
       </Reveal>

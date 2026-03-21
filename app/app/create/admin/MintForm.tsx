@@ -300,6 +300,7 @@ const storeAdminAbi = [
 
 type ProductMode = "cafe" | "store";
 type StoreBrand = (typeof STORE_BRANDS)[number];
+type SupportRoleValue = "USER" | "MODERATOR" | "ADMIN";
 
 type DeliveryAccessUser = {
   id: string;
@@ -310,6 +311,14 @@ type DeliveryAccessUser = {
   approvedPhysicalAt: string | null;
   approvedPhysicalNote: string | null;
   userExists?: boolean;
+};
+
+type SupportAccessUser = {
+  id: string;
+  handle: string | null;
+  publicId: string | null;
+  walletAddress: string;
+  supportRole: SupportRoleValue;
 };
 
 function useMounted() {
@@ -563,6 +572,21 @@ function deliveryAccessRoute(key: string) {
   return `/api/admin/users/${encodeURIComponent(key)}/delivery-access`;
 }
 
+function supportAccessRoute(key: string) {
+  return `/api/admin/users/${encodeURIComponent(key)}/support-access`;
+}
+
+function supportTone(role?: SupportRoleValue | null) {
+  switch (role) {
+    case "ADMIN":
+      return "border-rose-500/20 bg-rose-500/10 text-rose-100";
+    case "MODERATOR":
+      return "border-sky-500/20 bg-sky-500/10 text-sky-100";
+    default:
+      return "border-white/10 bg-white/[0.06] text-white/80";
+  }
+}
+
 export default function AdminMintForm() {
   const mounted = useMounted();
   const savedRef = useRef(false);
@@ -677,6 +701,9 @@ export default function AdminMintForm() {
   const canUseDeliveryAccessManager =
     connected && !wrongNetwork && allowlistOk;
 
+  const canUseSupportAccessManager =
+    connected && !wrongNetwork && allowlistOk;
+
   const [file, setFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
@@ -739,6 +766,13 @@ export default function AdminMintForm() {
   const [pendingDeliveryAccessAllowed, setPendingDeliveryAccessAllowed] = useState<boolean | null>(null);
   const [pendingDeliveryAccessNote, setPendingDeliveryAccessNote] = useState("");
   const [pendingDeliveryAccessUserExists, setPendingDeliveryAccessUserExists] = useState(false);
+
+  const [supportLookup, setSupportLookup] = useState("");
+  const [supportLookupLoading, setSupportLookupLoading] = useState(false);
+  const [supportLookupError, setSupportLookupError] = useState("");
+  const [supportLookupNotice, setSupportLookupNotice] = useState("");
+  const [supportAccessUser, setSupportAccessUser] = useState<SupportAccessUser | null>(null);
+  const [supportAccessSaving, setSupportAccessSaving] = useState(false);
 
   const pickedKind = useMemo<"image" | "video">(
     () => (file?.type?.startsWith("video/") ? "video" : "image"),
@@ -1319,6 +1353,85 @@ export default function AdminMintForm() {
     }
   }
 
+  async function resolveSupportAccessUser() {
+    setSupportLookupError("");
+    setSupportLookupNotice("");
+
+    const raw = supportLookup.trim();
+    if (!raw) {
+      setSupportLookupError("Enter user id, publicId, handle or wallet.");
+      return;
+    }
+
+    setSupportLookupLoading(true);
+
+    try {
+      const res = await fetch(supportAccessRoute(raw), {
+        cache: "no-store",
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok || !data?.user) {
+        if (res.status === 403) {
+          throw new Error("Support access API denied for this wallet/session.");
+        }
+        throw new Error(data?.error || "User not found.");
+      }
+
+      const u = data.user as SupportAccessUser;
+      setSupportAccessUser(u);
+      setSupportLookupNotice("User resolved for support role access.");
+      setSupportLookupError("");
+    } catch (e: any) {
+      setSupportAccessUser(null);
+      setSupportLookupError(prettyError(e));
+      setSupportLookupNotice("");
+    } finally {
+      setSupportLookupLoading(false);
+    }
+  }
+
+  async function handleSupportRoleUpdate(nextRole: SupportRoleValue) {
+    if (!supportAccessUser) {
+      setSupportLookupError("Resolve a user first.");
+      return;
+    }
+
+    if (!canUseSupportAccessManager) {
+      setSupportLookupError("Connect the admin wallet on Base Sepolia and make sure it is allowlisted.");
+      return;
+    }
+
+    setSupportLookupError("");
+    setSupportLookupNotice("");
+    setSupportAccessSaving(true);
+
+    try {
+      const res = await fetch(supportAccessRoute(supportAccessUser.id), {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ supportRole: nextRole }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok || !data?.user) {
+        throw new Error(data?.error || "Failed to update support role.");
+      }
+
+      const u = data.user as SupportAccessUser;
+      setSupportAccessUser(u);
+      setSupportLookupNotice(`Support role updated to ${u.supportRole}.`);
+      setSupportLookupError("");
+    } catch (e: any) {
+      setSupportLookupError(prettyError(e));
+      setSupportLookupNotice("");
+    } finally {
+      setSupportAccessSaving(false);
+    }
+  }
+
   async function handlePrepare() {
     setError("");
 
@@ -1824,6 +1937,180 @@ export default function AdminMintForm() {
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/70">
               Wallet balance is still loading. You can refresh once if needed.
             </div>
+          ) : null}
+        </Card>
+
+        <Card>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">Support Role Manager</div>
+              <div className="mt-1 text-[11px] text-white/55">
+                Give DB support access for order rooms, chat visibility and support replies.
+              </div>
+            </div>
+
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+              Admin only
+            </Pill>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
+            <div className="text-[12px] font-black text-sky-100">
+              What this controls
+            </div>
+            <div className="mt-2 space-y-2 text-[12px] text-sky-50/85 leading-relaxed">
+              <div>• who can open delivery order rooms as support</div>
+              <div>• who can read buyer/seller chat history</div>
+              <div>• who can reply in chat as SUPPORT</div>
+              <div>• who can investigate disputes and delivery flow</div>
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+              User lookup
+            </div>
+            <input
+              type="text"
+              placeholder="User id / publicId / handle / 0xwallet"
+              value={supportLookup}
+              onChange={(e) => {
+                setSupportLookup(e.target.value);
+                setSupportLookupError("");
+                setSupportLookupNotice("");
+              }}
+              className={[
+                "mt-2 w-full rounded-2xl px-4 py-3 text-sm",
+                "bg-white/[0.04] border border-white/10 text-white",
+                "placeholder:text-white/35",
+                "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              ].join(" ")}
+            />
+          </div>
+
+          <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <GhostButton
+              disabled={!canUseSupportAccessManager || supportLookupLoading || supportAccessSaving || !supportLookup.trim()}
+              onClick={resolveSupportAccessUser}
+            >
+              {supportLookupLoading ? "Resolving user…" : "Resolve user"}
+            </GhostButton>
+
+            <GhostButton
+              disabled={!canUseSupportAccessManager || supportLookupLoading || supportAccessSaving || !supportAccessUser}
+              onClick={resolveSupportAccessUser}
+            >
+              Refresh support role
+            </GhostButton>
+          </div>
+
+          {!canUseSupportAccessManager && connected && !wrongNetwork ? (
+            <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
+              Support role manager requires the bootstrap admin wallet / allowlisted admin wallet.
+            </div>
+          ) : null}
+
+          {supportLookupError ? (
+            <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              {supportLookupError}
+            </div>
+          ) : null}
+
+          {supportLookupNotice ? (
+            <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+              {supportLookupNotice}
+            </div>
+          ) : null}
+
+          {supportAccessUser ? (
+            <>
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                    User
+                  </div>
+                  <div className="mt-1 text-sm font-black text-white/90">
+                    {supportAccessUser.handle
+                      ? `@${supportAccessUser.handle}`
+                      : supportAccessUser.publicId || supportAccessUser.id}
+                  </div>
+                  <div className="mt-2 text-xs text-white/60 break-all">
+                    DB id: <span className="text-white/85">{supportAccessUser.id}</span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                    Wallet
+                  </div>
+                  <div className="mt-1 text-sm font-black text-white/90">
+                    {shortAddr(supportAccessUser.walletAddress)}
+                  </div>
+                  <div className="mt-2 text-xs text-white/60 break-all">
+                    <span className="text-white/85">{supportAccessUser.walletAddress}</span>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-wider text-white/45 font-semibold">
+                    Current support role
+                  </div>
+                  <div
+                    className={[
+                      "mt-2 inline-flex items-center rounded-full border px-3 py-1 text-xs font-black",
+                      supportTone(supportAccessUser.supportRole),
+                    ].join(" ")}
+                  >
+                    {supportAccessUser.supportRole}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+                <GhostButton
+                  disabled={
+                    !canUseSupportAccessManager ||
+                    supportAccessSaving ||
+                    supportLookupLoading ||
+                    supportAccessUser.supportRole === "USER"
+                  }
+                  onClick={() => handleSupportRoleUpdate("USER")}
+                >
+                  {supportAccessSaving && supportAccessUser.supportRole !== "USER"
+                    ? "Saving…"
+                    : "Set USER"}
+                </GhostButton>
+
+                <GhostButton
+                  disabled={
+                    !canUseSupportAccessManager ||
+                    supportAccessSaving ||
+                    supportLookupLoading ||
+                    supportAccessUser.supportRole === "MODERATOR"
+                  }
+                  onClick={() => handleSupportRoleUpdate("MODERATOR")}
+                >
+                  {supportAccessSaving && supportAccessUser.supportRole !== "MODERATOR"
+                    ? "Saving…"
+                    : "Set MODERATOR"}
+                </GhostButton>
+
+                <GoldButton
+                  disabled={
+                    !canUseSupportAccessManager ||
+                    supportAccessSaving ||
+                    supportLookupLoading ||
+                    supportAccessUser.supportRole === "ADMIN"
+                  }
+                  onClick={() => handleSupportRoleUpdate("ADMIN")}
+                >
+                  {supportAccessSaving && supportAccessUser.supportRole !== "ADMIN"
+                    ? "Saving…"
+                    : "Set ADMIN"}
+                </GoldButton>
+              </div>
+            </>
           ) : null}
         </Card>
 
