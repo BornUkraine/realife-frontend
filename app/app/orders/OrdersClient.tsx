@@ -233,6 +233,25 @@ function isOnchainDeliveryOrder(x: OrderRow) {
   );
 }
 
+function isShippingLocked(status: OrderRow["deliveryStatus"]) {
+  return (
+    status === "SHIPPED" ||
+    status === "DELIVERED" ||
+    status === "CONFIRMED" ||
+    status === "CANCELLED" ||
+    status === "RETURNED"
+  );
+}
+
+function hasShippingMinimumFromRow(x: OrderRow) {
+  return Boolean(
+    String(x.shippingName || "").trim() &&
+      String(x.shippingCountry || "").trim() &&
+      String(x.shippingCity || "").trim() &&
+      String(x.shippingAddress || "").trim()
+  );
+}
+
 export default function OrdersClient() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -244,6 +263,51 @@ export default function OrdersClient() {
   const [trackingUrl, setTrackingUrl] = useState<Record<string, string>>({});
   const [carrier, setCarrier] = useState<Record<string, string>>({});
 
+  const [shippingName, setShippingName] = useState<Record<string, string>>({});
+  const [shippingPhone, setShippingPhone] = useState<Record<string, string>>({});
+  const [shippingCountry, setShippingCountry] = useState<Record<string, string>>({});
+  const [shippingCity, setShippingCity] = useState<Record<string, string>>({});
+  const [shippingAddress, setShippingAddress] = useState<Record<string, string>>({});
+  const [shippingZip, setShippingZip] = useState<Record<string, string>>({});
+
+  function hydrateShippingForms(items: OrderRow[]) {
+    setShippingName((prev) => {
+      const next = { ...prev };
+      for (const x of items) next[x.id] = x.shippingName || "";
+      return next;
+    });
+
+    setShippingPhone((prev) => {
+      const next = { ...prev };
+      for (const x of items) next[x.id] = x.shippingPhone || "";
+      return next;
+    });
+
+    setShippingCountry((prev) => {
+      const next = { ...prev };
+      for (const x of items) next[x.id] = x.shippingCountry || "";
+      return next;
+    });
+
+    setShippingCity((prev) => {
+      const next = { ...prev };
+      for (const x of items) next[x.id] = x.shippingCity || "";
+      return next;
+    });
+
+    setShippingAddress((prev) => {
+      const next = { ...prev };
+      for (const x of items) next[x.id] = x.shippingAddress || "";
+      return next;
+    });
+
+    setShippingZip((prev) => {
+      const next = { ...prev };
+      for (const x of items) next[x.id] = x.shippingZip || "";
+      return next;
+    });
+  }
+
   async function load() {
     setLoading(true);
     setErr(null);
@@ -252,7 +316,9 @@ export default function OrdersClient() {
       const j = await fetchJSON<OrdersResponse>(
         `/api/delivery/orders?role=${role}&take=100`
       );
-      setRows(Array.isArray(j?.items) ? j.items : []);
+      const items = Array.isArray(j?.items) ? j.items : [];
+      setRows(items);
+      hydrateShippingForms(items);
     } catch (e: any) {
       setErr(e?.message || "Failed to load delivery orders");
     } finally {
@@ -273,6 +339,31 @@ export default function OrdersClient() {
     () => rows.filter((x) => x.viewerRole === "seller").length,
     [rows]
   );
+
+  async function saveShipping(id: string) {
+    setBusyId(id);
+    setErr(null);
+
+    try {
+      await fetchJSON(`/api/delivery/orders/${id}/shipping`, {
+        method: "POST",
+        body: JSON.stringify({
+          shippingName: shippingName[id] || "",
+          shippingPhone: shippingPhone[id] || "",
+          shippingCountry: shippingCountry[id] || "",
+          shippingCity: shippingCity[id] || "",
+          shippingAddress: shippingAddress[id] || "",
+          shippingZip: shippingZip[id] || "",
+        }),
+      });
+
+      await load();
+    } catch (e: any) {
+      setErr(e?.message || "Save shipping failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function shipOrder(id: string) {
     setBusyId(id);
@@ -332,7 +423,7 @@ export default function OrdersClient() {
                 My Delivery Orders
               </div>
               <div className="mt-2 text-[12px] text-white/55 max-w-2xl">
-                Unified delivery flow for primary storefront purchases and secondary market delivery NFTs.
+                Buyer fills shipping details here. Seller then adds tracking and ships the order.
               </div>
             </div>
 
@@ -419,21 +510,48 @@ export default function OrdersClient() {
           rows.map((x) => {
             const img = ipfsToHttp(x.product?.image || null);
             const nftHref = `/nft/${x.chainId}/${x.contract}/${encodeURIComponent(String(x.tokenId))}`;
+            const roomHref = `/app/orders/${x.id}`;
             const onchainDelivery = isOnchainDeliveryOrder(x);
+
+            const shippingDraftMinimum = Boolean(
+              String(shippingName[x.id] || "").trim() &&
+                String(shippingCountry[x.id] || "").trim() &&
+                String(shippingCity[x.id] || "").trim() &&
+                String(shippingAddress[x.id] || "").trim()
+            );
+
+            const shippingSavedMinimum = hasShippingMinimumFromRow(x);
+
+            const canEditShipping =
+              x.viewerRole === "buyer" &&
+              x.deliveryRequired &&
+              !isShippingLocked(x.deliveryStatus);
 
             const canShip =
               x.viewerRole === "seller" &&
               x.deliveryRequired &&
+              shippingSavedMinimum &&
               x.deliveryStatus !== "SHIPPED" &&
               x.deliveryStatus !== "CONFIRMED" &&
               x.deliveryStatus !== "DELIVERED" &&
               x.deliveryStatus !== "CANCELLED";
 
+            const showWaitingForBuyerShipping =
+              x.viewerRole === "seller" &&
+              x.deliveryRequired &&
+              !shippingSavedMinimum &&
+              x.deliveryStatus !== "CANCELLED" &&
+              x.deliveryStatus !== "SHIPPED" &&
+              x.deliveryStatus !== "DELIVERED" &&
+              x.deliveryStatus !== "CONFIRMED";
+
             const canConfirm =
               x.viewerRole === "buyer" &&
               x.deliveryRequired &&
               x.deliveryStatus === "SHIPPED" &&
-              x.escrowStatus !== "RELEASED" &&
+              x.escrowStatus !== "REFUNDED" &&
+              x.escrowStatus !== "CANCELLED" &&
+              x.escrowStatus !== "DISPUTED" &&
               !onchainDelivery;
 
             const showOnchainConfirmNotice =
@@ -609,6 +727,94 @@ export default function OrdersClient() {
                         </div>
                       </div>
 
+                      {canEditShipping ? (
+                        <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+                          <div className="text-[12px] font-black text-amber-100">
+                            Delivery details
+                          </div>
+                          <div className="mt-2 text-[12px] text-amber-50/85 leading-relaxed">
+                            Fill your shipping info here. Seller will see it in this order and can ship the item after that.
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <input
+                              value={shippingName[x.id] || ""}
+                              onChange={(e) =>
+                                setShippingName((s) => ({ ...s, [x.id]: e.target.value }))
+                              }
+                              placeholder="Full name *"
+                              className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                            />
+
+                            <input
+                              value={shippingPhone[x.id] || ""}
+                              onChange={(e) =>
+                                setShippingPhone((s) => ({ ...s, [x.id]: e.target.value }))
+                              }
+                              placeholder="Phone"
+                              className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                            />
+
+                            <input
+                              value={shippingCountry[x.id] || ""}
+                              onChange={(e) =>
+                                setShippingCountry((s) => ({ ...s, [x.id]: e.target.value }))
+                              }
+                              placeholder="Country *"
+                              className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                            />
+
+                            <input
+                              value={shippingCity[x.id] || ""}
+                              onChange={(e) =>
+                                setShippingCity((s) => ({ ...s, [x.id]: e.target.value }))
+                              }
+                              placeholder="City *"
+                              className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                            />
+
+                            <input
+                              value={shippingZip[x.id] || ""}
+                              onChange={(e) =>
+                                setShippingZip((s) => ({ ...s, [x.id]: e.target.value }))
+                              }
+                              placeholder="ZIP / Postal code"
+                              className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                            />
+
+                            <div className="hidden md:block" />
+
+                            <textarea
+                              value={shippingAddress[x.id] || ""}
+                              onChange={(e) =>
+                                setShippingAddress((s) => ({ ...s, [x.id]: e.target.value }))
+                              }
+                              placeholder="Address *"
+                              rows={4}
+                              className="md:col-span-2 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20 resize-none"
+                            />
+                          </div>
+
+                          <div className="mt-3 text-[11px] text-white/45">
+                            Required: full name, country, city, address.
+                          </div>
+
+                          <button
+                            onClick={() => saveShipping(x.id)}
+                            disabled={busyId === x.id || !shippingDraftMinimum}
+                            className={cx(
+                              "mt-4 inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold transition",
+                              "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)]",
+                              busyId === x.id || !shippingDraftMinimum
+                                ? "opacity-60 cursor-not-allowed"
+                                : "hover:brightness-110"
+                            )}
+                          >
+                            {busyId === x.id ? "Saving..." : "Save delivery details"}
+                          </button>
+                        </div>
+                      ) : null}
+
                       {x.deliveryRequired ? (
                         <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
                           <div className="text-[12px] font-black text-white/80">
@@ -645,6 +851,26 @@ export default function OrdersClient() {
                               ) : null}
                             </div>
                           ) : null}
+                        </div>
+                      ) : null}
+
+                      {showWaitingForBuyerShipping ? (
+                        <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+                          <div className="text-[12px] font-black text-amber-100">
+                            Waiting for buyer shipping details
+                          </div>
+                          <div className="mt-2 text-[12px] text-amber-50/85 leading-relaxed">
+                            Buyer has not saved delivery address yet. Seller shipping block will unlock after buyer fills it in.
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {x.escrowStatus === "NOT_REQUIRED" && !onchainDelivery ? (
+                        <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-50/85">
+                          <div className="font-black text-amber-100">Official store delivery</div>
+                          <div className="mt-2 leading-relaxed">
+                            This order does not use escrow. Use the order room for shipping, support and refund communication.
+                          </div>
                         </div>
                       ) : null}
 
@@ -727,7 +953,9 @@ export default function OrdersClient() {
                       {canConfirm ? (
                         <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
                           <div className="text-[12px] text-emerald-100 font-black">
-                            Order shipped. Confirm receipt to release escrow.
+                            {x.escrowStatus === "NOT_REQUIRED"
+                              ? "Order shipped. Confirm receipt to complete the delivery status."
+                              : "Order shipped. Confirm receipt to release escrow."}
                           </div>
 
                           <button
@@ -794,6 +1022,13 @@ export default function OrdersClient() {
                       ) : null}
 
                       <div className="mt-4 flex flex-wrap gap-2">
+                        <Link
+                          href={roomHref}
+                          className="inline-flex items-center justify-center px-4 py-2 rounded-2xl text-black font-extrabold transition bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] hover:brightness-110 text-[12px]"
+                        >
+                          Open room
+                        </Link>
+
                         <Link
                           href={nftHref}
                           className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"

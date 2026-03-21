@@ -7,6 +7,17 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const ADMIN_WALLETS = (
+  process.env.ADMIN_CREATE_WALLETS ||
+  process.env.ADMIN_WALLETS ||
+  process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
+  process.env.NEXT_PUBLIC_ADMIN_WALLETS ||
+  ""
+)
+  .split(",")
+  .map((v) => v.trim().toLowerCase())
+  .filter(Boolean);
+
 function normAddr(v?: string | null) {
   return String(v || "").trim().toLowerCase();
 }
@@ -25,7 +36,19 @@ async function getActor() {
       ""
   );
 
-  return { userId, walletAddress };
+  const isAdminSession = Boolean(
+    (session as any)?.user?.isAdmin ||
+      (session as any)?.isAdmin
+  );
+
+  const isAllowlistedWallet =
+    !!walletAddress && ADMIN_WALLETS.includes(walletAddress);
+
+  return {
+    userId,
+    walletAddress,
+    isSupport: isAdminSession || isAllowlistedWallet,
+  };
 }
 
 function getViewerRole(
@@ -148,7 +171,7 @@ export async function GET(
 
     const viewerRole = getViewerRole(actor, order);
 
-    if (!viewerRole) {
+    if (!viewerRole && !actor.isSupport) {
       return NextResponse.json(
         { ok: false, error: "FORBIDDEN" },
         { status: 403 }
@@ -197,7 +220,8 @@ export async function GET(
 
     return NextResponse.json({
       ok: true,
-      viewerRole,
+      viewerRole: viewerRole || "unknown",
+      isSupport: actor.isSupport,
       order: {
         id: order.id,
         createdAt: order.createdAt.toISOString(),

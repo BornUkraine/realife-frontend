@@ -2,11 +2,21 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { DeliveryStatus, EscrowStatus } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const ADMIN_WALLETS = (
+  process.env.ADMIN_CREATE_WALLETS ||
+  process.env.ADMIN_WALLETS ||
+  process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
+  process.env.NEXT_PUBLIC_ADMIN_WALLETS ||
+  ""
+)
+  .split(",")
+  .map((v) => v.trim().toLowerCase())
+  .filter(Boolean);
 
 function normAddr(v?: string | null) {
   return String(v || "").trim().toLowerCase();
@@ -21,64 +31,28 @@ function isTxHash(v?: string | null) {
   return /^0x([A-Fa-f0-9]{64})$/.test(s);
 }
 
-async function getActor() {
+async function requireSupport() {
   const session = await getServerSession(authOptions);
-
-  const userId = (session as any)?.user?.id || (session as any)?.userId || null;
-
-  const walletAddress = normAddr(
+  const wallet = normAddr(
     (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
   );
-
-  return { userId, walletAddress };
-}
-
-function getViewerRole(
-  actor: { userId: string | null; walletAddress: string },
-  order: {
-    buyerId: string | null;
-    sellerId: string | null;
-    buyerWallet: string;
-    sellerWallet: string;
-  }
-): "buyer" | "seller" | null {
-  const isBuyer =
-    (actor.userId && order.buyerId && actor.userId === order.buyerId) ||
-    (actor.walletAddress && actor.walletAddress === normAddr(order.buyerWallet));
-
-  if (isBuyer) return "buyer";
-
-  const isSeller =
-    (actor.userId && order.sellerId && actor.userId === order.sellerId) ||
-    (actor.walletAddress && actor.walletAddress === normAddr(order.sellerWallet));
-
-  if (isSeller) return "seller";
-
-  return null;
+  const isAdminSession = Boolean((session as any)?.user?.isAdmin || (session as any)?.isAdmin);
+  const isAllowlistedWallet = !!wallet && ADMIN_WALLETS.includes(wallet);
+  return isAdminSession || isAllowlistedWallet;
 }
 
 function nextDeliveryStatusForRefund(
   deliveryRequired: boolean,
-  current: DeliveryStatus
-): DeliveryStatus {
-  if (!deliveryRequired) return DeliveryStatus.NOT_REQUIRED;
+  current: string
+): string {
+  if (!deliveryRequired) return "NOT_REQUIRED";
 
-  const returnedStatuses: DeliveryStatus[] = [
-    DeliveryStatus.SHIPPED,
-    DeliveryStatus.DELIVERED,
-    DeliveryStatus.CONFIRMED,
-    DeliveryStatus.RETURN_REQUESTED,
-  ];
-
-  if (returnedStatuses.includes(current)) {
-    return DeliveryStatus.RETURNED;
+  if (["SHIPPED", "DELIVERED", "CONFIRMED", "RETURN_REQUESTED"].includes(current)) {
+    return "RETURNED";
   }
 
-  if (current === DeliveryStatus.NOT_REQUIRED) {
-    return DeliveryStatus.NOT_REQUIRED;
-  }
-
-  return DeliveryStatus.CANCELLED;
+  if (current === "NOT_REQUIRED") return "NOT_REQUIRED";
+  return "CANCELLED";
 }
 
 function isOnchainDeliveryOrder(order: {
@@ -98,13 +72,13 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const body = await req.json().catch(() => null);
-    const actor = await getActor();
+    const isSupport = await requireSupport();
 
-    if (!actor.userId && !actor.walletAddress) {
-      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+    if (!isSupport) {
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
+    const body = await req.json().catch(() => null);
     const escrowRefundTxHash = String(body?.escrowRefundTxHash || "").trim();
     const note = clean(body?.note, 500);
 
@@ -119,14 +93,9 @@ export async function POST(
       where: { id },
       select: {
         id: true,
-        buyerId: true,
-        sellerId: true,
-        buyerWallet: true,
-        sellerWallet: true,
         deliveryRequired: true,
         deliveryStatus: true,
         escrowStatus: true,
-
         sourceType: true,
         marketType: true,
         marketplaceContract: true,
@@ -136,12 +105,6 @@ export async function POST(
 
     if (!order) {
       return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
-    }
-
-    const viewerRole = getViewerRole(actor, order);
-
-    if (!viewerRole) {
-      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     if (isOnchainDeliveryOrder(order)) {
@@ -160,47 +123,54 @@ export async function POST(
       );
     }
 
-    if (order.escrowStatus === EscrowStatus.NOT_REQUIRED) {
-      return NextResponse.json({ ok: false, error: "ESCROW_NOT_REQUIRED" }, { status: 400 });
-    }
-
-    if (order.escrowStatus === EscrowStatus.REFUNDED) {
+    if (order.escrowStatus === "REFUNDED") {
       return NextResponse.json({ ok: true, alreadyRefunded: true });
     }
 
-    if (order.escrowStatus === EscrowStatus.RELEASED) {
+    if (order.escrowStatus === "RELEASED") {
       return NextResponse.json({ ok: false, error: "ESCROW_ALREADY_RELEASED" }, { status: 400 });
     }
 
-    if (order.escrowStatus === EscrowStatus.CANCELLED) {
+    if (order.escrowStatus === "CANCELLED") {
       return NextResponse.json({ ok: false, error: "ESCROW_ALREADY_CANCELLED" }, { status: 400 });
     }
 
     const now = new Date();
+    const nextEscrowStatus =
+      order.escrowStatus === "NOT_REQUIRED" ? "NOT_REQUIRED" : "REFUNDED";
 
-    const updated = await prisma.storeOrder.update({
-      where: { id: order.id },
-      data: {
-        escrowStatus: EscrowStatus.REFUNDED,
-        refundedAt: now,
-        escrowRefundTxHash: escrowRefundTxHash || undefined,
-        deliveryStatus: nextDeliveryStatusForRefund(
-          order.deliveryRequired,
-          order.deliveryStatus
-        ),
-        ...(note
-          ? viewerRole === "buyer"
-            ? { noteBuyer: note }
-            : { noteSeller: note }
-          : {}),
-      },
-      select: {
-        id: true,
-        escrowStatus: true,
-        deliveryStatus: true,
-        refundedAt: true,
-        escrowRefundTxHash: true,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.storeOrder.update({
+        where: { id: order.id },
+        data: {
+          escrowStatus: nextEscrowStatus as any,
+          refundedAt: now,
+          escrowRefundTxHash: escrowRefundTxHash || undefined,
+          deliveryStatus: nextDeliveryStatusForRefund(order.deliveryRequired, order.deliveryStatus) as any,
+          ...(note ? { adminNote: note } : {}),
+        },
+        select: {
+          id: true,
+          escrowStatus: true,
+          deliveryStatus: true,
+          refundedAt: true,
+          escrowRefundTxHash: true,
+        },
+      });
+
+      await tx.deliveryMessage.create({
+        data: {
+          orderId: order.id,
+          senderRole: "SYSTEM",
+          body:
+            nextEscrowStatus === "NOT_REQUIRED"
+              ? "Support marked this official store order as refunded."
+              : "Support executed final refund for this order.",
+          isInternal: false,
+        },
+      });
+
+      return next;
     });
 
     return NextResponse.json({

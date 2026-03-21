@@ -68,6 +68,12 @@ enum DeliveryMessageRole {
   SYSTEM
 }
 
+enum SupportRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
 /**
  * ==========================================================================
  * USER
@@ -92,6 +98,11 @@ model User {
   walletChainId Int?
 
   /**
+   * ---------------- Site support/admin role ----------------
+   */
+  supportRole SupportRole @default(USER)
+
+  /**
    * ---------------- Delivery / VIP seller access ----------------
    */
   approvedPhysicalSeller Boolean   @default(false)
@@ -105,7 +116,7 @@ model User {
   referredById String?
   referredAt   DateTime?
 
-  referredBy User? @relation("UserReferrals", fields: [referredById], references: [id])
+  referredBy User?  @relation("UserReferrals", fields: [referredById], references: [id])
   referrals  User[] @relation("UserReferrals")
 
   /**
@@ -158,6 +169,7 @@ model User {
   @@index([referralCode])
   @@index([referredById])
   @@index([approvedPhysicalSeller])
+  @@index([supportRole])
 }
 
 /**
@@ -602,16 +614,16 @@ model StoreOrder {
 
 model DeliveryMessage {
   id           String              @id @default(cuid())
-  orderId       String
-  senderUserId  String?
-  senderWallet  String?
-  senderRole    DeliveryMessageRole
-  body          String
-  isInternal    Boolean             @default(false)
-  createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  orderId      String
+  senderUserId String?
+  senderWallet String?
+  senderRole   DeliveryMessageRole
+  body         String
+  isInternal   Boolean             @default(false)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
-  order         StoreOrder          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order StoreOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId, createdAt])
   @@map("delivery_messages")

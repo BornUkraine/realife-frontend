@@ -22,10 +22,7 @@ function pickViewer(session: any) {
 
 function isBuyer(
   viewer: { id: string | null; wallet: string | null },
-  row: {
-    buyerId: string | null;
-    buyerWallet: string;
-  }
+  row: { buyerId: string | null; buyerWallet: string }
 ) {
   return Boolean(
     (viewer.id && row.buyerId && viewer.id === row.buyerId) ||
@@ -75,7 +72,6 @@ export async function POST(
         deliveredAt: true,
         confirmedAt: true,
         releasedAt: true,
-
         sourceType: true,
         marketType: true,
         marketplaceContract: true,
@@ -112,10 +108,7 @@ export async function POST(
       order.deliveryStatus !== "DELIVERED" &&
       order.deliveryStatus !== "CONFIRMED"
     ) {
-      return NextResponse.json(
-        { ok: false, error: "ORDER_NOT_SHIPPED_YET" },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "ORDER_NOT_SHIPPED_YET" }, { status: 400 });
     }
 
     if (
@@ -123,13 +116,12 @@ export async function POST(
       order.escrowStatus === "CANCELLED" ||
       order.escrowStatus === "DISPUTED"
     ) {
-      return NextResponse.json(
-        { ok: false, error: "ORDER_NOT_CONFIRMABLE" },
-        { status: 400 }
-      );
+      return NextResponse.json({ ok: false, error: "ORDER_NOT_CONFIRMABLE" }, { status: 400 });
     }
 
     const now = new Date();
+    const shouldReleaseEscrow =
+      order.escrowStatus !== "NOT_REQUIRED" && order.escrowStatus !== "RELEASED";
 
     const updated = await prisma.storeOrder.update({
       where: { id: order.id },
@@ -137,12 +129,8 @@ export async function POST(
         deliveryStatus: "CONFIRMED",
         deliveredAt: order.deliveredAt || now,
         confirmedAt: order.confirmedAt || now,
-        escrowStatus:
-          order.escrowStatus === "NOT_REQUIRED" ? "NOT_REQUIRED" : "RELEASED",
-        releasedAt:
-          order.escrowStatus === "NOT_REQUIRED"
-            ? order.releasedAt
-            : order.releasedAt || now,
+        escrowStatus: shouldReleaseEscrow ? "RELEASED" : order.escrowStatus,
+        releasedAt: shouldReleaseEscrow ? order.releasedAt || now : order.releasedAt,
       },
       select: {
         id: true,

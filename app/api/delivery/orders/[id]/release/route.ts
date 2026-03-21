@@ -2,11 +2,21 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { DeliveryStatus, EscrowStatus } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+const ADMIN_WALLETS = (
+  process.env.ADMIN_CREATE_WALLETS ||
+  process.env.ADMIN_WALLETS ||
+  process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
+  process.env.NEXT_PUBLIC_ADMIN_WALLETS ||
+  ""
+)
+  .split(",")
+  .map((v) => v.trim().toLowerCase())
+  .filter(Boolean);
 
 function normAddr(v?: string | null) {
   return String(v || "").trim().toLowerCase();
@@ -21,40 +31,14 @@ function isTxHash(v?: string | null) {
   return /^0x([A-Fa-f0-9]{64})$/.test(s);
 }
 
-async function getActor() {
+async function requireSupport() {
   const session = await getServerSession(authOptions);
-
-  const userId = (session as any)?.user?.id || (session as any)?.userId || null;
-
-  const walletAddress = normAddr(
+  const wallet = normAddr(
     (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
   );
-
-  return { userId, walletAddress };
-}
-
-function getViewerRole(
-  actor: { userId: string | null; walletAddress: string },
-  order: {
-    buyerId: string | null;
-    sellerId: string | null;
-    buyerWallet: string;
-    sellerWallet: string;
-  }
-): "buyer" | "seller" | null {
-  const isBuyer =
-    (actor.userId && order.buyerId && actor.userId === order.buyerId) ||
-    (actor.walletAddress && actor.walletAddress === normAddr(order.buyerWallet));
-
-  if (isBuyer) return "buyer";
-
-  const isSeller =
-    (actor.userId && order.sellerId && actor.userId === order.sellerId) ||
-    (actor.walletAddress && actor.walletAddress === normAddr(order.sellerWallet));
-
-  if (isSeller) return "seller";
-
-  return null;
+  const isAdminSession = Boolean((session as any)?.user?.isAdmin || (session as any)?.isAdmin);
+  const isAllowlistedWallet = !!wallet && ADMIN_WALLETS.includes(wallet);
+  return isAdminSession || isAllowlistedWallet;
 }
 
 function isOnchainDeliveryOrder(order: {
@@ -74,13 +58,13 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const body = await req.json().catch(() => null);
-    const actor = await getActor();
+    const isSupport = await requireSupport();
 
-    if (!actor.userId && !actor.walletAddress) {
-      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+    if (!isSupport) {
+      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
+    const body = await req.json().catch(() => null);
     const escrowReleaseTxHash = String(body?.escrowReleaseTxHash || "").trim();
     const note = clean(body?.note, 500);
 
@@ -95,14 +79,9 @@ export async function POST(
       where: { id },
       select: {
         id: true,
-        buyerId: true,
-        sellerId: true,
-        buyerWallet: true,
-        sellerWallet: true,
         deliveryRequired: true,
         deliveryStatus: true,
         escrowStatus: true,
-
         sourceType: true,
         marketType: true,
         marketplaceContract: true,
@@ -112,12 +91,6 @@ export async function POST(
 
     if (!order) {
       return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
-    }
-
-    const viewerRole = getViewerRole(actor, order);
-
-    if (!viewerRole) {
-      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
     }
 
     if (isOnchainDeliveryOrder(order)) {
@@ -136,63 +109,61 @@ export async function POST(
       );
     }
 
-    if (order.escrowStatus === EscrowStatus.NOT_REQUIRED) {
+    if (order.escrowStatus === "NOT_REQUIRED") {
       return NextResponse.json({ ok: false, error: "ESCROW_NOT_REQUIRED" }, { status: 400 });
     }
 
-    if (order.escrowStatus === EscrowStatus.RELEASED) {
+    if (order.escrowStatus === "RELEASED") {
       return NextResponse.json({ ok: true, alreadyReleased: true });
     }
 
-    if (
-      order.escrowStatus === EscrowStatus.REFUNDED ||
-      order.escrowStatus === EscrowStatus.CANCELLED
-    ) {
+    if (order.escrowStatus === "REFUNDED" || order.escrowStatus === "CANCELLED") {
       return NextResponse.json({ ok: false, error: "ESCROW_ALREADY_FINALIZED" }, { status: 400 });
     }
 
-    const releasableDeliveryStatuses: DeliveryStatus[] = [
-      DeliveryStatus.CONFIRMED,
-      DeliveryStatus.DELIVERED,
-    ];
-
-    if (
-      order.deliveryRequired &&
-      !releasableDeliveryStatuses.includes(order.deliveryStatus)
-    ) {
+    if (order.deliveryRequired && !["CONFIRMED", "DELIVERED"].includes(order.deliveryStatus)) {
       return NextResponse.json({ ok: false, error: "DELIVERY_NOT_CONFIRMED" }, { status: 400 });
     }
 
     const now = new Date();
 
-    const updated = await prisma.storeOrder.update({
-      where: { id: order.id },
-      data: {
-        escrowStatus: EscrowStatus.RELEASED,
-        releasedAt: now,
-        escrowReleaseTxHash: escrowReleaseTxHash || undefined,
-        deliveryStatus:
-          order.deliveryRequired && order.deliveryStatus === DeliveryStatus.DELIVERED
-            ? DeliveryStatus.CONFIRMED
-            : order.deliveryStatus,
-        confirmedAt:
-          order.deliveryRequired && order.deliveryStatus === DeliveryStatus.DELIVERED
-            ? now
-            : undefined,
-        ...(note
-          ? viewerRole === "buyer"
-            ? { noteBuyer: note }
-            : { noteSeller: note }
-          : {}),
-      },
-      select: {
-        id: true,
-        escrowStatus: true,
-        deliveryStatus: true,
-        releasedAt: true,
-        confirmedAt: true,
-        escrowReleaseTxHash: true,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.storeOrder.update({
+        where: { id: order.id },
+        data: {
+          escrowStatus: "RELEASED",
+          releasedAt: now,
+          escrowReleaseTxHash: escrowReleaseTxHash || undefined,
+          deliveryStatus:
+            order.deliveryRequired && order.deliveryStatus === "DELIVERED"
+              ? "CONFIRMED"
+              : order.deliveryStatus,
+          confirmedAt:
+            order.deliveryRequired && order.deliveryStatus === "DELIVERED"
+              ? now
+              : undefined,
+          ...(note ? { adminNote: note } : {}),
+        },
+        select: {
+          id: true,
+          escrowStatus: true,
+          deliveryStatus: true,
+          releasedAt: true,
+          confirmedAt: true,
+          escrowReleaseTxHash: true,
+        },
+      });
+
+      await tx.deliveryMessage.create({
+        data: {
+          orderId: order.id,
+          senderRole: "SYSTEM",
+          body: "Support released escrow for this order.",
+          isInternal: false,
+        },
+      });
+
+      return next;
     });
 
     return NextResponse.json({
