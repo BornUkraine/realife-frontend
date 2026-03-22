@@ -3,148 +3,116 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { APP_NAV, isNavActive } from "@/components/appNav";
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
 
-type NavItem = {
-  label: string;
-  href?: string;
-  soon?: boolean;
-  match?: (pathname: string) => boolean;
-};
-
-const NAV_ITEMS: NavItem[] = [
-  {
-    label: "Home",
-    href: "/app",
-    match: (pathname) => pathname === "/app",
-  },
-  {
-    label: "Create NFT",
-    href: "/app/create",
-    match: (pathname) => pathname.startsWith("/app/create"),
-  },
-  {
-    label: "Trading NFTs",
-    href: "/app/trading",
-    match: (pathname) => pathname.startsWith("/app/trading"),
-  },
-  {
-    label: "Real Marketing",
-    href: "/app/real-marketing",
-    match: (pathname) => pathname.startsWith("/app/real-marketing"),
-  },
-  {
-    label: "Social Learning",
-    soon: true,
-    match: (pathname) => pathname.startsWith("/app/social-learning"),
-  },
-  {
-    label: "Profile",
-    href: "/app/profile",
-    match: (pathname) => pathname.startsWith("/app/profile"),
-  },
-  {
-    label: "Contact",
-    href: "/app/contact",
-    match: (pathname) => pathname.startsWith("/app/contact"),
-  },
-];
-
-function LogoMark() {
+function GoldEdgeCard({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="flex items-center gap-4">
-      <div className="relative flex h-[72px] w-[72px] items-center justify-center rounded-full border border-[#f3d46a]/70 bg-[radial-gradient(circle_at_30%_30%,rgba(255,224,130,0.16),rgba(212,175,55,0.06)_45%,rgba(0,0,0,0.18)_100%)] shadow-[0_0_30px_rgba(212,175,55,0.18),inset_0_0_20px_rgba(255,220,120,0.08)]">
-        <div className="pointer-events-none absolute inset-[6px] rounded-full border border-[#f3d46a]/18" />
-        <div className="text-center leading-none">
-          <div className="text-[34px] font-black tracking-[-0.06em] text-[#f1c84a] drop-shadow-[0_0_18px_rgba(241,200,74,0.22)]">
-            R
-          </div>
-          <div className="-mt-0.5 text-[8px] font-bold uppercase tracking-[0.28em] text-[#f3d46a]/90">
-            Realife
-          </div>
-        </div>
-      </div>
-
-      <div className="min-w-0">
-        <div className="truncate text-[22px] font-black uppercase tracking-[0.06em] text-[#f1c84a] drop-shadow-[0_0_18px_rgba(241,200,74,0.20)]">
-          REALIFE ®
-        </div>
+    <div
+      className={[
+        "relative rounded-[34px] p-px overflow-hidden",
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))]",
+        "shadow-[0_34px_140px_rgba(0,0,0,0.60)]",
+        className,
+      ].join(" ")}
+    >
+      <div
+        className={[
+          "relative rounded-[34px] overflow-hidden",
+          "border border-white/10",
+          "bg-[#0b0a09]/70 backdrop-blur-2xl",
+          "ring-1 ring-black/10",
+          "before:pointer-events-none before:absolute before:inset-0",
+          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.12),transparent_45%)]",
+          "after:pointer-events-none after:absolute after:inset-0",
+          "after:bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]",
+        ].join(" ")}
+      >
+        <div className="relative z-10">{children}</div>
       </div>
     </div>
   );
 }
 
-function NavPill({
-  label,
+function SidebarNavItem({
   href,
-  active,
-  soon,
+  label,
+  enabled = true,
+  active = false,
+  badge,
 }: {
+  href: string;
   label: string;
-  href?: string;
+  enabled?: boolean;
   active?: boolean;
-  soon?: boolean;
+  badge?: string;
 }) {
-  const baseClass = cx(
-    "group relative flex min-h-[58px] w-full items-center justify-between rounded-[20px] px-5",
-    "border backdrop-blur-xl transition-all duration-200",
-    "shadow-[0_18px_50px_rgba(0,0,0,0.24)]",
-    active
-      ? [
-          "border-[#f1c84a]/55",
-          "bg-[linear-gradient(135deg,rgba(241,200,74,0.95),rgba(214,171,53,0.90))]",
-          "text-[#15120a]",
-          "shadow-[0_16px_40px_rgba(212,175,55,0.26),inset_0_1px_0_rgba(255,245,200,0.22)]",
-        ].join(" ")
-      : [
-          "border-white/10",
-          "bg-[linear-gradient(135deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))]",
-          "text-white/88",
-          "hover:border-[#f1c84a]/25",
-          "hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))]",
-          "hover:text-white",
-        ].join(" ")
+  const base = cx(
+    "group block w-full rounded-2xl",
+    "px-4 py-3 text-sm font-semibold",
+    "transition duration-200"
+  );
+
+  const activeCls = cx(
+    "text-black",
+    "border border-[#f3d46a]/45",
+    "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
+    "shadow-[0_18px_56px_rgba(212,175,55,0.18)]",
+    "ring-1 ring-black/15"
+  );
+
+  const idleCls = cx(
+    "text-white/85 hover:text-white",
+    "border border-white/10",
+    "bg-white/[0.04] hover:bg-white/[0.07]",
+    "shadow-[0_14px_44px_rgba(0,0,0,0.32)]",
+    "hover:-translate-y-[1px] active:translate-y-0"
+  );
+
+  const disabledCls = cx(
+    "opacity-45 cursor-not-allowed select-none",
+    "border border-white/10 bg-white/[0.03]"
   );
 
   const content = (
-    <>
-      <span
-        className={cx(
-          "truncate text-[15px] font-semibold tracking-[-0.01em]",
-          active ? "text-[#15120a]" : "text-inherit"
-        )}
-      >
-        {label}
-      </span>
+    <div className="flex items-center justify-between gap-3">
+      <span className="truncate">{label}</span>
 
-      {soon ? (
-        <span
-          className={cx(
-            "ml-3 inline-flex shrink-0 items-center rounded-full px-3 py-1 text-[11px] font-bold",
-            active
-              ? "bg-black/12 text-[#15120a]/80"
-              : "border border-white/10 bg-white/[0.05] text-white/45"
-          )}
-        >
-          Soon
+      {!enabled ? (
+        <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[11px] text-white/70">
+          {badge || "Soon"}
         </span>
       ) : active ? (
-        <span className="ml-3 inline-flex shrink-0 items-center rounded-full bg-black/14 px-3 py-1 text-[11px] font-bold text-[#15120a]">
+        <span className="rounded-full border border-black/10 bg-black/10 px-2 py-1 text-[11px]">
           Active
         </span>
-      ) : null}
-    </>
+      ) : (
+        <span className="text-[11px] text-white/60 opacity-0 transition group-hover:opacity-100">
+          →
+        </span>
+      )}
+    </div>
   );
 
-  if (!href || soon) {
-    return <div className={cx(baseClass, soon && "cursor-default opacity-80")}>{content}</div>;
+  if (!enabled) {
+    return <div className={cx(base, disabledCls)}>{content}</div>;
   }
 
   return (
-    <Link href={href} className={baseClass}>
+    <Link
+      href={href}
+      className={cx(base, active ? activeCls : idleCls)}
+      aria-current={active ? "page" : undefined}
+    >
       {content}
     </Link>
   );
@@ -164,55 +132,70 @@ export default function AppSidebar({
   const pathname = usePathname();
 
   return (
-    <div
-      className={cx(
-        "relative overflow-hidden rounded-[34px] border border-[#f1c84a]/10",
-        "bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.025))]",
-        "p-5 sm:p-6",
-        "shadow-[0_24px_90px_rgba(0,0,0,0.40),inset_0_1px_0_rgba(255,255,255,0.04)]",
-        "backdrop-blur-2xl"
-      )}
-    >
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_12%,rgba(247,231,167,0.18),transparent_30%),radial-gradient(circle_at_82%_18%,rgba(212,175,55,0.12),transparent_28%),linear-gradient(135deg,rgba(212,175,55,0.10),transparent_36%,transparent_64%,rgba(212,175,55,0.08))]" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(255,255,255,0.035),transparent_18%,transparent_82%,rgba(0,0,0,0.18))]" />
-      </div>
+    <div className="sticky top-24">
+      <GoldEdgeCard>
+        <div className="p-5 xl:p-6">
+          <Link
+            href="/app"
+            className="flex items-center mb-8 relative overflow-visible"
+          >
+            <div className="z-10 shrink-0 relative w-16 h-16 flex items-center justify-center -ml-2">
+              <img
+                src="/brand/logo-mark.png"
+                alt="Realife"
+                className="w-full h-full object-contain mix-blend-screen scale-[4.5]"
+                draggable={false}
+              />
+            </div>
 
-      <div className="relative z-10">
-        <LogoMark />
+            <div className="relative flex-1 h-12 overflow-visible z-0">
+              <img
+                src="/brand/logo-wordmark.png"
+                alt="Realife"
+                className="absolute top-1/2 left-[-72px] -translate-y-1/2 w-[300px] max-w-none object-contain object-left mix-blend-screen"
+                draggable={false}
+              />
+            </div>
+          </Link>
 
-        <div className="mt-8 space-y-2">
-          <div className="text-[12px] font-black uppercase tracking-[0.34em] text-white/42">
-            {title || "REALIFE"}
-          </div>
+          {(title || subtitle) && (
+            <div className="mb-5">
+              {title ? (
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/38 font-black">
+                  {title}
+                </div>
+              ) : null}
 
-          {subtitle ? (
-            <div className="max-w-[18rem] text-[15px] leading-6 text-white/68">
-              {subtitle}
+              {subtitle ? (
+                <div className="mt-2 text-[12px] text-white/52 leading-relaxed">
+                  {subtitle}
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          {topBadge ? (
+            <div className="mb-4 rounded-3xl bg-white/5 border border-white/10 p-4">
+              {topBadge}
             </div>
           ) : null}
 
-          {topBadge ? <div className="pt-1">{topBadge}</div> : null}
-        </div>
-
-        <nav className="mt-7 space-y-3">
-          {NAV_ITEMS.map((item) => {
-            const active = item.match ? item.match(pathname) : Boolean(item.href && pathname === item.href);
-
-            return (
-              <NavPill
-                key={item.label}
-                label={item.label}
+          <nav className="space-y-2.5">
+            {APP_NAV.map((item) => (
+              <SidebarNavItem
+                key={item.href}
                 href={item.href}
-                active={active}
-                soon={item.soon}
+                label={item.label}
+                enabled={item.enabled ?? true}
+                badge={item.badge}
+                active={isNavActive(pathname, item.href)}
               />
-            );
-          })}
-        </nav>
+            ))}
+          </nav>
 
-        {bottom ? <div className="mt-6">{bottom}</div> : null}
-      </div>
+          {bottom ? <div className="mt-6">{bottom}</div> : null}
+        </div>
+      </GoldEdgeCard>
     </div>
   );
 }
