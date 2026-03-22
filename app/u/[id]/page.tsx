@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
-import Reveal from "@/components/Reveal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,13 +61,7 @@ function GoldEdgeWrap({
   );
 }
 
-function Card({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cx(
@@ -120,12 +113,7 @@ function Chip({
       : "border-white/10 bg-white/[0.06] text-white/70";
 
   return (
-    <div
-      className={cx(
-        "text-[11px] font-semibold px-3 py-1.5 rounded-full border",
-        cls
-      )}
-    >
+    <div className={cx("text-[11px] font-semibold px-3 py-1.5 rounded-full border", cls)}>
       {children}
     </div>
   );
@@ -140,8 +128,7 @@ function Avatar({
   fallback: string;
   size?: "sm" | "md" | "lg";
 }) {
-  const s =
-    size === "lg" ? "h-16 w-16" : size === "sm" ? "h-12 w-12" : "h-14 w-14";
+  const s = size === "lg" ? "h-16 w-16" : size === "sm" ? "h-12 w-12" : "h-14 w-14";
   return (
     <div
       className={cx(
@@ -151,6 +138,7 @@ function Avatar({
       )}
     >
       {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={src}
           alt={fallback}
@@ -273,14 +261,32 @@ export default async function PublicProfilePage({
   const xUrl = user.twitterUser ? `https://x.com/${user.twitterUser}` : null;
 
   return (
-    <div className="space-y-8">
-      <Reveal>
-        <GoldEdgeWrap className="rounded-[44px]">
-          <div className="relative overflow-hidden p-7 md:p-10">
+    <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
+        <div className="absolute -top-80 -left-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/12 blur-3xl animate-pulse" />
+        <div className="absolute -bottom-80 -right-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/10 blur-3xl animate-pulse" />
+
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage:
+              "linear-gradient(to right, rgba(255,255,255,.22) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.22) 1px, transparent 1px)",
+            backgroundSize: "56px 56px",
+          }}
+        />
+        <div className="absolute inset-0 opacity-[0.055] bg-[radial-gradient(circle,rgba(255,255,255,.18)_1px,transparent_1px)] [background-size:18px_18px]" />
+        <div className="absolute inset-x-0 top-0 h-48 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.65),transparent)]" />
+      </div>
+
+      <div className="relative mx-auto max-w-5xl px-6 py-10 space-y-8">
+        <GoldEdgeWrap className="reveal rounded-[44px]">
+          <div className="relative p-7 md:p-10">
             <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/10 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.04] blur-3xl" />
 
-            <div className="relative flex flex-col gap-6 md:flex-row md:items-center">
+            <div className="relative flex flex-col md:flex-row items-start md:items-center gap-6">
               <Avatar src={heroAvatar} fallback="RL" size="lg" />
 
               <div className="min-w-0 flex-1">
@@ -289,16 +295,14 @@ export default async function PublicProfilePage({
                   Verified public identity
                 </Pill>
 
-                <h1 className="mt-4 truncate text-3xl font-black leading-tight tracking-tighter md:text-5xl">
+                <div className="mt-4 text-3xl md:text-5xl font-black tracking-tighter truncate leading-tight">
                   {displayName}
-                </h1>
+                </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  {xHandle ? <Chip tone="gold">{xHandle}</Chip> : null}
-                  {dcHandle ? <Chip tone="brand">{dcHandle}</Chip> : null}
-                  {user.handle && user.handle !== user.twitterUser ? (
-                    <Chip>@{user.handle}</Chip>
-                  ) : null}
+                  {xHandle && <Chip tone="gold">{xHandle}</Chip>}
+                  {dcHandle && <Chip tone="brand">{dcHandle}</Chip>}
+                  {user.handle && user.handle !== user.twitterUser && <Chip>@{user.handle}</Chip>}
 
                   <StatusPill
                     ok={walletConnected}
@@ -314,25 +318,15 @@ export default async function PublicProfilePage({
                   />
                 </div>
 
-                <div className="mt-7 grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="mt-7 grid grid-cols-2 md:grid-cols-4 gap-3">
                   <KeyValue label="Points" value={user.points ?? 0} />
                   <KeyValue label="NFTs" value={nftCount} />
                   <KeyValue
                     label="Public Link"
-                    value={
-                      publicUrl ? (
-                        <span className="text-amber-400/90">{publicKey}</span>
-                      ) : (
-                        "—"
-                      )
-                    }
+                    value={publicUrl ? <span className="text-amber-400/90">{publicKey}</span> : "—"}
                     mono
                   />
-                  <KeyValue
-                    label="EVM Wallet"
-                    value={shortAddr(user.walletAddress)}
-                    mono
-                  />
+                  <KeyValue label="EVM Wallet" value={shortAddr(user.walletAddress)} mono />
                 </div>
 
                 <div className="mt-6 flex flex-wrap gap-3">
@@ -341,7 +335,7 @@ export default async function PublicProfilePage({
                       href={xUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-5 py-3 font-extrabold backdrop-blur-2xl transition hover:bg-white/10 hover:-translate-y-px active:translate-y-0 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-extrabold backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
                     >
                       Open X ↗
                     </a>
@@ -350,7 +344,7 @@ export default async function PublicProfilePage({
                   {publicUrl ? (
                     <Link
                       href={publicUrl}
-                      className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-5 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
                     >
                       Public URL
                     </Link>
@@ -359,7 +353,10 @@ export default async function PublicProfilePage({
                   {nftsUrl ? (
                     <Link
                       href={nftsUrl}
-                      className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-5 py-3 text-[13px] font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 hover:-translate-y-px active:translate-y-0 shadow-[0_18px_60px_rgba(212,175,55,0.18)]"
+                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-[13px] font-extrabold text-black
+                        bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]
+                        shadow-[0_18px_60px_rgba(212,175,55,0.18)]
+                        ring-1 ring-black/15 hover:brightness-110 hover:-translate-y-px active:translate-y-0 transition"
                     >
                       NFTs →
                     </Link>
@@ -369,32 +366,25 @@ export default async function PublicProfilePage({
             </div>
           </div>
         </GoldEdgeWrap>
-      </Reveal>
 
-      <Reveal delayMs={110}>
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="reveal grid md:grid-cols-2 gap-6" style={{ animationDelay: "110ms" }}>
           <Card className="ring-1 ring-white/5">
-            <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center justify-between mb-6">
               <div>
                 <div className="text-sm font-extrabold">X (Twitter)</div>
-                <div className="mt-1 text-xs text-white/60">
-                  Verified Social Identity
-                </div>
+                <div className="text-xs text-white/60 mt-1">Verified Social Identity</div>
               </div>
-              <StatusPill
-                ok={twitterConnected}
-                text={twitterConnected ? "Active" : "Unlinked"}
-              />
+              <StatusPill ok={twitterConnected} text={twitterConnected ? "Active" : "Unlinked"} />
             </div>
 
             {twitterConnected ? (
-              <div className="flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+              <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
                 <Avatar src={user.twitterImage} fallback="X" size="md" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-extrabold text-white/90">
+                  <div className="text-sm font-extrabold truncate text-white/90">
                     {user.twitterName || "—"}
                   </div>
-                  <div className="truncate font-mono text-xs text-white/40">
+                  <div className="text-xs text-white/40 font-mono truncate">
                     @{user.twitterUser}
                   </div>
                 </div>
@@ -403,7 +393,7 @@ export default async function PublicProfilePage({
                     href={xUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="shrink-0 text-xs font-semibold text-[#d4af37] transition hover:brightness-110"
+                    className="shrink-0 text-xs font-semibold text-[#d4af37] hover:brightness-110 transition"
                   >
                     View ↗
                   </a>
@@ -419,10 +409,8 @@ export default async function PublicProfilePage({
                 <div className="relative z-10 flex items-center gap-4">
                   <Avatar src={null} fallback="X" size="md" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-extrabold text-white/80">
-                      Not connected
-                    </div>
-                    <div className="mt-0.5 text-xs text-white/40">
+                    <div className="text-sm font-extrabold truncate text-white/80">Not connected</div>
+                    <div className="text-xs text-white/40 mt-0.5">
                       This user hasn’t linked X yet.
                     </div>
                   </div>
@@ -440,27 +428,22 @@ export default async function PublicProfilePage({
           </Card>
 
           <Card className="ring-1 ring-white/5">
-            <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center justify-between mb-6">
               <div>
                 <div className="text-sm font-extrabold">Discord</div>
-                <div className="mt-1 text-xs text-white/60">
-                  Verified Social Identity
-                </div>
+                <div className="text-xs text-white/60 mt-1">Verified Social Identity</div>
               </div>
-              <StatusPill
-                ok={discordConnected}
-                text={discordConnected ? "Active" : "Unlinked"}
-              />
+              <StatusPill ok={discordConnected} text={discordConnected ? "Active" : "Unlinked"} />
             </div>
 
             {discordConnected ? (
-              <div className="flex items-center gap-4 rounded-2xl border border-white/5 bg-white/[0.03] p-4">
+              <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
                 <Avatar src={user.discordImage} fallback="DC" size="md" />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-extrabold text-white/90">
+                  <div className="text-sm font-extrabold truncate text-white/90">
                     {user.discordName || "—"}
                   </div>
-                  <div className="truncate font-mono text-xs text-white/40">
+                  <div className="text-xs text-white/40 font-mono truncate">
                     {user.discordUser ? `@${user.discordUser}` : "—"}
                   </div>
                 </div>
@@ -475,10 +458,8 @@ export default async function PublicProfilePage({
                 <div className="relative z-10 flex items-center gap-4">
                   <Avatar src={null} fallback="DC" size="md" />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-extrabold text-white/80">
-                      Not connected
-                    </div>
-                    <div className="mt-0.5 text-xs text-white/40">
+                    <div className="text-sm font-extrabold truncate text-white/80">Not connected</div>
+                    <div className="text-xs text-white/40 mt-0.5">
                       This user hasn’t linked Discord yet.
                     </div>
                   </div>
@@ -495,13 +476,14 @@ export default async function PublicProfilePage({
             )}
           </Card>
         </div>
-      </Reveal>
 
-      <Reveal delayMs={190}>
-        <footer className="pt-6 text-center text-[10px] font-black uppercase tracking-[0.4em] text-white/20">
+        <footer
+          className="reveal pt-6 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]"
+          style={{ animationDelay: "190ms" }}
+        >
           Realife Ecosystem • Identity Verified
         </footer>
-      </Reveal>
-    </div>
+      </div>
+    </main>
   );
 }

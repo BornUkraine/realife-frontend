@@ -17,7 +17,7 @@ export default function AppShell({
   children: React.ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-[#070606] text-white overflow-x-hidden relative">
+    <main className="relative min-h-screen overflow-x-hidden bg-[#070606] text-white">
       <style
         dangerouslySetInnerHTML={{
           __html: `
@@ -33,6 +33,7 @@ export default function AppShell({
             0%, 100% { opacity: 0.05; transform: scale(1) translateX(-50%); }
             50% { opacity: 0.25; transform: scale(1.1) translateX(-48%); }
           }
+
           .animate-orb-1 { animation: slow-float 12s ease-in-out infinite; }
           .animate-orb-2 { animation: slow-float-reverse 15s ease-in-out infinite; }
           .animate-top-glow { animation: slow-pulse-top 10s ease-in-out infinite; left: 50%; }
@@ -40,10 +41,10 @@ export default function AppShell({
         }}
       />
 
-      <div className="pointer-events-none fixed inset-0 overflow-hidden z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_20%,#040303_100%)] z-10 opacity-90" />
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute inset-0 z-10 bg-[radial-gradient(circle_at_50%_50%,transparent_20%,#040303_100%)] opacity-90" />
 
-        <div className="animate-orb-1 absolute -top-[30%] -left-[10%] h-[800px] w-[800px] rounded-full bg-[#d4af37] blur-[140px]" />
+        <div className="animate-orb-1 absolute -left-[10%] -top-[30%] h-[800px] w-[800px] rounded-full bg-[#d4af37] blur-[140px]" />
         <div className="animate-orb-2 absolute -bottom-[20%] -right-[10%] h-[900px] w-[900px] rounded-full bg-[#d4af37] blur-[160px]" />
         <div className="animate-top-glow absolute top-0 h-[400px] w-[600px] rounded-full bg-[#f7e7a7] blur-[120px]" />
 
@@ -60,11 +61,11 @@ export default function AppShell({
           }}
         />
 
-        <div className="absolute inset-0 opacity-[0.03] z-20 mix-blend-screen bg-[radial-gradient(circle,rgba(255,255,255,1)_1px,transparent_1px)] [background-size:12px_12px]" />
+        <div className="absolute inset-0 z-20 bg-[radial-gradient(circle,rgba(255,255,255,1)_1px,transparent_1px)] opacity-[0.03] mix-blend-screen [background-size:12px_12px]" />
       </div>
 
-      <div className="relative z-30 mx-auto w-full max-w-[1720px] px-4 sm:px-6 lg:px-8 2xl:px-10 pt-8 pb-8 md:pt-10 md:pb-10">
-        <div className="grid grid-cols-1 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)] gap-6 xl:gap-8">
+      <div className="relative z-30 mx-auto w-full max-w-[1760px] px-4 pb-8 pt-8 sm:px-6 lg:px-8 lg:pb-10 lg:pt-10 2xl:px-10">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[316px_minmax(0,1fr)] lg:gap-7 xl:grid-cols-[332px_minmax(0,1fr)] xl:gap-8 2xl:grid-cols-[340px_minmax(0,1fr)]">
           <aside className="min-w-0">
             <AppSidebar
               title={title}
@@ -74,7 +75,7 @@ export default function AppShell({
             />
           </aside>
 
-          <section className="min-w-0 space-y-6">
+          <section className="min-w-0 space-y-6 xl:space-y-7">
             {children}
           </section>
         </div>

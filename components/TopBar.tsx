@@ -27,7 +27,7 @@ function StatusDot({ state }: { state: "ok" | "warn" | "off" }) {
   return (
     <span
       className={cn(
-        "inline-block w-2 h-2 rounded-full",
+        "inline-block h-2 w-2 rounded-full",
         state === "ok"
           ? "bg-emerald-400"
           : state === "warn"
@@ -49,7 +49,7 @@ function GoldEdgeWrap({
   return (
     <div
       className={cn(
-        "relative rounded-2xl p-px overflow-hidden",
+        "relative overflow-hidden rounded-[22px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))]",
         "shadow-[0_18px_70px_rgba(0,0,0,0.35)]",
         className
@@ -57,7 +57,7 @@ function GoldEdgeWrap({
     >
       <div
         className={cn(
-          "relative rounded-2xl",
+          "relative rounded-[22px]",
           "border border-white/10",
           "bg-[#0b0a09]/70 backdrop-blur-2xl",
           "ring-1 ring-black/10"
@@ -68,6 +68,21 @@ function GoldEdgeWrap({
     </div>
   );
 }
+
+type NetworkStatusContentProps = {
+  mounted: boolean;
+  connected: boolean;
+  wrongNetwork: boolean;
+  hasGas: boolean;
+  networkTitle: string;
+  balanceLabel: string;
+  dotState: "ok" | "warn" | "off";
+  isFetching: boolean;
+  isSwitching: boolean;
+  canSwitch: boolean;
+  onRefresh: () => void;
+  onSwitch: () => void;
+};
 
 function NetworkStatusContent({
   mounted,
@@ -82,38 +97,39 @@ function NetworkStatusContent({
   canSwitch,
   onRefresh,
   onSwitch,
-}: any) {
+}: NetworkStatusContentProps) {
   const refreshGlyph = !mounted ? "↻" : isFetching ? "…" : "↻";
 
   return (
-    <div className="relative px-3 py-2">
+    <div className="relative px-3.5 py-2.5">
       <div className="pointer-events-none absolute inset-0 opacity-80">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]" />
       </div>
 
-      <div className="relative flex items-center gap-2">
+      <div className="relative flex items-center gap-2.5">
         <StatusDot state={dotState} />
 
-        <div className="text-sm font-semibold whitespace-nowrap">
+        <div className="whitespace-nowrap text-sm font-semibold">
           {mounted ? (connected ? networkTitle : "Wallet") : "Wallet"}
         </div>
 
         {mounted && connected && !wrongNetwork ? (
           <span
             className={cn(
-              "ml-1 text-xs font-semibold px-2 py-1 rounded-full border",
+              "ml-0.5 rounded-full border px-2 py-1 text-[11px] font-semibold",
               hasGas
-                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-200"
-                : "bg-rose-500/10 border-rose-500/20 text-rose-200"
+                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+                : "border-rose-500/20 bg-rose-500/10 text-rose-200"
             )}
           >
             {hasGas ? "Gas OK" : "No gas"}
           </span>
         ) : null}
 
-        <span className="ml-2 text-xs text-white/65 truncate">
-          Balance: <span className="text-white/90 font-semibold">{balanceLabel}</span>
+        <span className="ml-1 truncate text-xs text-white/65">
+          Balance:{" "}
+          <span className="font-semibold text-white/90">{balanceLabel}</span>
         </span>
 
         <button
@@ -121,9 +137,9 @@ function NetworkStatusContent({
           onClick={onRefresh}
           disabled={!mounted || !connected || isFetching}
           className={cn(
-            "ml-2 h-9 w-9 rounded-xl",
+            "ml-1 h-9 w-9 rounded-xl",
             "border border-white/10 bg-white/[0.06] backdrop-blur-2xl",
-            "hover:bg-white/10 transition text-xs font-semibold",
+            "text-xs font-semibold transition hover:bg-white/10",
             "disabled:opacity-40"
           )}
           title="Refresh balance"
@@ -137,18 +153,86 @@ function NetworkStatusContent({
             disabled={!canSwitch || isSwitching}
             onClick={onSwitch}
             className={cn(
-              "h-9 px-3 rounded-xl text-xs font-extrabold",
+              "h-9 rounded-xl px-3 text-xs font-extrabold",
               "text-black",
               "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
               "shadow-[0_18px_60px_rgba(212,175,55,0.18)]",
               "ring-1 ring-black/15",
-              "hover:brightness-110 disabled:opacity-60 transition"
+              "transition hover:brightness-110 disabled:opacity-60"
             )}
-            title={!canSwitch ? "This wallet cannot switch network automatically" : "Switch network"}
+            title={
+              !canSwitch
+                ? "This wallet cannot switch network automatically"
+                : "Switch network"
+            }
           >
             {isSwitching ? "Switching…" : "Switch"}
           </button>
         ) : null}
+      </div>
+    </div>
+  );
+}
+
+function BrandLink() {
+  return (
+    <Link
+      href="/"
+      className="group relative inline-flex min-w-0 items-center gap-3"
+    >
+      <span
+        className={cn(
+          "sm:hidden relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full",
+          "border border-white/10 bg-black",
+          "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
+        )}
+      >
+        <img
+          src="/brand/logo-mark.png"
+          alt="Realife"
+          className="pointer-events-none h-full w-full scale-[3.2] object-cover mix-blend-screen"
+          draggable={false}
+        />
+      </span>
+
+      <span className="hidden sm:flex relative h-14 w-[250px] items-center overflow-visible">
+        <img
+          src="/brand/logo-wordmark.png"
+          alt="Realife"
+          className={cn(
+            "pointer-events-none h-full w-full origin-left object-contain object-left",
+            "mix-blend-screen scale-[5.4]"
+          )}
+          draggable={false}
+        />
+      </span>
+    </Link>
+  );
+}
+
+function LoadingHeader() {
+  return (
+    <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
+      <div className="mx-auto w-full max-w-[1720px] px-4 py-3 sm:px-6 lg:px-8 2xl:px-10">
+        <div className="flex items-center justify-between gap-3 md:hidden">
+          <div className="flex items-center gap-3">
+            <span className="h-11 w-11 rounded-full border border-white/10 bg-white/5" />
+            <span className="h-8 w-40 rounded-xl border border-white/10 bg-white/5" />
+          </div>
+          <div className="h-10 w-36 rounded-2xl border border-white/10 bg-white/5" />
+        </div>
+
+        <div className="hidden md:grid md:grid-cols-[minmax(220px,1fr)_auto_minmax(220px,1fr)] md:items-center md:gap-4">
+          <div className="flex items-center">
+            <span className="h-10 w-48 rounded-xl border border-white/10 bg-white/5" />
+          </div>
+          <div className="flex justify-center">
+            <div className="h-11 w-[420px] rounded-[22px] border border-white/10 bg-white/5" />
+          </div>
+          <div className="flex justify-end">
+            <div className="h-10 w-40 rounded-2xl border border-white/10 bg-white/5" />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -164,7 +248,10 @@ export default function TopBar() {
   const { data: balanceData, isLoading, refetch, isFetching } = useBalance({
     address,
     chainId: chainId ?? baseSepolia.id,
-    query: { enabled: mounted && Boolean(address), refetchInterval: 12_000 },
+    query: {
+      enabled: mounted && Boolean(address),
+      refetchInterval: 12_000,
+    },
   });
 
   const connected = mounted && Boolean(address);
@@ -182,7 +269,9 @@ export default function TopBar() {
   const balanceLabel = useMemo(() => {
     if (!mounted || !connected) return "—";
     if (isLoading) return "loading…";
-    if (!balanceData) return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
+    if (!balanceData) {
+      return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
+    }
     const s = formatUnits(balanceData.value, balanceData.decimals);
     return `${fmtBalance(s)} ${balanceData.symbol ?? "ETH"}`;
   }, [mounted, connected, isLoading, balanceData]);
@@ -203,10 +292,15 @@ export default function TopBar() {
         ? "warn"
         : "ok";
 
-  const showGetEth = mounted ? (connected ? wrongNetwork || !hasGas : false) : false;
+  const showGetEth = mounted
+    ? connected
+      ? wrongNetwork || !hasGas
+      : false
+    : false;
+
   const canSwitch = typeof switchChainAsync === "function";
 
-  const statusProps = {
+  const statusProps: NetworkStatusContentProps = {
     mounted,
     connected,
     wrongNetwork,
@@ -217,114 +311,91 @@ export default function TopBar() {
     isFetching,
     isSwitching,
     canSwitch,
-    onRefresh: () => refetch(),
-    onSwitch: () =>
-      canSwitch ? switchChainAsync({ chainId: baseSepolia.id }).catch(() => {}) : undefined,
+    onRefresh: () => {
+      void refetch();
+    },
+    onSwitch: () => {
+      if (!canSwitch) return;
+      void switchChainAsync({ chainId: baseSepolia.id }).catch(() => {});
+    },
   };
 
+  if (!mounted) {
+    return (
+      <header className="relative z-50 w-full">
+        <LoadingHeader />
+      </header>
+    );
+  }
+
   return (
-    <header className="w-full relative z-50">
-      {!mounted ? (
+    <header className="relative z-50 w-full">
+      <div className="relative">
+        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[820px] rounded-full bg-[#d4af37]/14 blur-3xl" />
+        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[560px] rounded-full bg-white/[0.06] blur-2xl" />
+
         <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
-          <div className="mx-auto w-full max-w-[1720px] px-4 sm:px-6 lg:px-8 2xl:px-10 py-3">
-            <div className="flex items-center justify-between gap-3">
-              <Link href="/" className="inline-flex items-center gap-3 min-w-0">
-                <span className="h-11 w-11 rounded-full bg-white/5 border border-white/10" />
-                <span className="hidden sm:block h-8 w-56 rounded-xl bg-white/5 border border-white/10" />
-              </Link>
-              <div className="h-10 w-40 rounded-2xl bg-white/5 border border-white/10" />
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="relative">
-          <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[820px] rounded-full bg-[#d4af37]/14 blur-3xl" />
-          <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[560px] rounded-full bg-white/[0.06] blur-2xl" />
+          <div className="mx-auto w-full max-w-[1720px] px-4 py-3 sm:px-6 lg:px-8 2xl:px-10">
+            <div className="flex items-center justify-between gap-3 md:hidden">
+              <BrandLink />
 
-          <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
-            <div className="mx-auto w-full max-w-[1720px] px-4 sm:px-6 lg:px-8 2xl:px-10 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <Link href="/" className="inline-flex items-center gap-3 min-w-0 relative group">
-                  <div className="absolute inset-y-0 left-0 w-16 sm:w-64 z-20 cursor-pointer" />
-
-                  <span
+              <div className="relative z-30 flex items-center gap-2">
+                {showGetEth ? (
+                  <Link
+                    href="/app/faucet"
                     className={cn(
-                      "sm:hidden relative h-11 w-11 rounded-full overflow-hidden flex items-center justify-center",
-                      "bg-black border border-white/10",
-                      "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
+                      "inline-flex h-10 items-center justify-center rounded-2xl px-3",
+                      "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
+                      "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
+                      "text-sm font-semibold transition hover:-translate-y-[1px] hover:bg-white/10"
                     )}
                   >
-                    <img
-                      src="/brand/logo-mark.png"
-                      alt="Realife"
-                      className="h-full w-full object-cover mix-blend-screen scale-[3.2] pointer-events-none"
-                      draggable={false}
-                    />
-                  </span>
+                    Get ETH
+                  </Link>
+                ) : null}
 
-                  <span className="hidden sm:flex relative w-80 h-14 -ml-40 overflow-visible items-center">
-                    <img
-                      src="/brand/logo-wordmark.png"
-                      alt="Realife"
-                      className={cn(
-                        "w-full h-full object-contain object-left pointer-events-none",
-                        "mix-blend-screen scale-[7] origin-left"
-                      )}
-                      draggable={false}
-                    />
-                  </span>
-                </Link>
+                <WalletMenu />
+              </div>
+            </div>
 
-                <div className="hidden md:flex items-center gap-2 min-w-0 relative z-30">
-                  <GoldEdgeWrap>
-                    <NetworkStatusContent {...statusProps} />
-                  </GoldEdgeWrap>
+            <div className="mt-3 md:hidden">
+              <GoldEdgeWrap>
+                <NetworkStatusContent {...statusProps} />
+              </GoldEdgeWrap>
+            </div>
 
-                  {showGetEth ? (
-                    <Link
-                      href="/app/faucet"
-                      className={cn(
-                        "h-10 inline-flex items-center justify-center px-4 rounded-2xl",
-                        "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
-                        "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
-                        "hover:bg-white/10 hover:-translate-y-[1px] transition",
-                        "text-sm font-semibold"
-                      )}
-                    >
-                      Get ETH ↗
-                    </Link>
-                  ) : null}
-                </div>
-
-                <div className="flex items-center gap-2 relative z-30">
-                  {showGetEth ? (
-                    <Link
-                      href="/app/faucet"
-                      className={cn(
-                        "md:hidden h-10 inline-flex items-center justify-center px-3 rounded-2xl",
-                        "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
-                        "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
-                        "hover:bg-white/10 hover:-translate-y-[1px] transition",
-                        "text-sm font-semibold"
-                      )}
-                    >
-                      Get ETH
-                    </Link>
-                  ) : null}
-
-                  <WalletMenu />
-                </div>
+            <div className="hidden md:grid md:grid-cols-[minmax(220px,1fr)_auto_minmax(220px,1fr)] md:items-center md:gap-4">
+              <div className="min-w-0">
+                <BrandLink />
               </div>
 
-              <div className="md:hidden mt-3 relative z-30">
-                <GoldEdgeWrap>
+              <div className="flex min-w-0 justify-center">
+                <GoldEdgeWrap className="w-full max-w-[430px]">
                   <NetworkStatusContent {...statusProps} />
                 </GoldEdgeWrap>
               </div>
+
+              <div className="flex items-center justify-end gap-2">
+                {showGetEth ? (
+                  <Link
+                    href="/app/faucet"
+                    className={cn(
+                      "inline-flex h-10 items-center justify-center rounded-2xl px-4",
+                      "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
+                      "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
+                      "text-sm font-semibold transition hover:-translate-y-[1px] hover:bg-white/10"
+                    )}
+                  >
+                    Get ETH ↗
+                  </Link>
+                ) : null}
+
+                <WalletMenu />
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </div>
     </header>
   );
 }
