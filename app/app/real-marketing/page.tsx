@@ -10,6 +10,18 @@ function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
 
+type MarketingVideo = {
+  src: string;
+  title: string;
+  subtitle?: string;
+};
+
+type UpcomingBlock = {
+  eyebrow: string;
+  title: string;
+  text: string;
+};
+
 function Pill({ children }: { children: ReactNode }) {
   return (
     <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
@@ -129,7 +141,7 @@ function PromoVideo({
   src,
   title,
   subtitle,
-  ratio = "video",
+  ratio = "portrait",
   priority = false,
 }: {
   src: string;
@@ -144,8 +156,8 @@ function PromoVideo({
         ratio === "portrait"
           ? "aspect-[9/16]"
           : ratio === "square"
-          ? "aspect-square"
-          : "aspect-[16/10]",
+            ? "aspect-square"
+            : "aspect-[16/10]",
         "group"
       )}
     >
@@ -160,7 +172,7 @@ function PromoVideo({
         controls={false}
       />
 
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.82),rgba(0,0,0,0.18),transparent)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.84),rgba(0,0,0,0.20),transparent)]" />
 
       <div className="pointer-events-none absolute left-4 right-4 bottom-4">
         <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/90 backdrop-blur-xl">
@@ -182,7 +194,15 @@ function PromoVideo({
   );
 }
 
-function StoryPlaceholderCard() {
+function StoryPlaceholderCard({
+  eyebrow,
+  title,
+  text,
+}: {
+  eyebrow: string;
+  title: string;
+  text: string;
+}) {
   return (
     <VideoShell className="aspect-[9/16]">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_18%,rgba(212,175,55,0.24),transparent_38%),radial-gradient(circle_at_80%_84%,rgba(255,255,255,0.08),transparent_34%)]" />
@@ -195,25 +215,15 @@ function StoryPlaceholderCard() {
 
         <div>
           <div className="text-[11px] uppercase tracking-[0.20em] text-white/45 font-black">
-            Store Product Stories
+            {eyebrow}
           </div>
 
           <div className="mt-3 text-2xl font-black leading-tight text-white/92">
-            More curated product previews are on the way
+            {title}
           </div>
 
           <div className="mt-3 text-sm leading-relaxed text-white/58">
-            New branded packaging, collectible drops and premium product motion
-            stories will be added as the store media library grows.
-          </div>
-
-          <div className="mt-5">
-            <Link
-              href="/app/real-marketing/realife-store"
-              className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 text-[12px] font-extrabold text-white/88 transition hover:bg-white/10"
-            >
-              Open NFT Store
-            </Link>
+            {text}
           </div>
         </div>
       </div>
@@ -221,34 +231,119 @@ function StoryPlaceholderCard() {
   );
 }
 
-function FeatureList({ items }: { items: string[] }) {
+function VideoSection({
+  eyebrow,
+  title,
+  text,
+  videos,
+  primaryHref,
+  primaryLabel,
+  secondaryHref,
+  secondaryLabel,
+  delayMs = 0,
+}: {
+  eyebrow: string;
+  title: ReactNode;
+  text: ReactNode;
+  videos: MarketingVideo[];
+  primaryHref: string;
+  primaryLabel: string;
+  secondaryHref?: string;
+  secondaryLabel?: string;
+  delayMs?: number;
+}) {
   return (
-    <div className="mt-5 grid gap-3 sm:grid-cols-2">
-      {items.map((item) => (
-        <div
-          key={item}
-          className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/75"
-        >
-          {item}
+    <Reveal delayMs={delayMs}>
+      <GoldEdgeWrap className="rounded-[40px]">
+        <div className="p-6 md:p-8 xl:p-10">
+          <SectionTitle eyebrow={eyebrow} title={title} text={text} />
+
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {videos.map((video, index) => (
+              <PromoVideo
+                key={`${video.src}-${index}`}
+                src={video.src}
+                title={video.title}
+                subtitle={video.subtitle}
+                ratio="portrait"
+                priority={index === 0}
+              />
+            ))}
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <ActionLink href={primaryHref} primary>
+              {primaryLabel}
+            </ActionLink>
+
+            {secondaryHref && secondaryLabel ? (
+              <ActionLink href={secondaryHref}>{secondaryLabel}</ActionLink>
+            ) : null}
+          </div>
         </div>
-      ))}
-    </div>
+      </GoldEdgeWrap>
+    </Reveal>
   );
 }
 
 export default function RealMarketingPage() {
-  const cafeVideo = "/videos/realife-cafe-web.mp4";
-
-  const storeVideos = [
+  const billionsVideos: MarketingVideo[] = [
     {
-      src: "/videos/realife-store-1-web.mp4",
-      title: "Packaging Story",
-      subtitle: "Premium packaging and collectible product presentation.",
+      src: "/videos/billions-1.mp4",
+      title: "Billions Crypto Cafe Atmosphere",
+      subtitle:
+        "Step into the mood of Realife Crypto Cafe — where digital collecting connects with real products, real drinks, food and premium everyday experience.",
     },
     {
-      src: "/videos/realife-store-2-web.mp4",
-      title: "Product Detail",
-      subtitle: "Closer product motion with luxury catalog feeling.",
+      src: "/videos/billions-2.mp4",
+      title: "Real products, drinks and premium food moments",
+      subtitle:
+        "A living preview of the future cafe experience built around real items people will actually enjoy in everyday life.",
+    },
+    {
+      src: "/videos/billions-3.mp4",
+      title: "Collect, redeem and enjoy",
+      subtitle:
+        "In Realife Crypto Cafe, NFTs are not just visuals — they connect to real products, real atmosphere and real utility.",
+    },
+  ];
+
+  const rialoVideos: MarketingVideo[] = [
+    {
+      src: "/videos/rialo-1.mp4",
+      title: "Rialo product universe",
+      subtitle:
+        "A premium look at the Rialo line and the wider Realife vision of real-world products presented through NFTs.",
+    },
+    {
+      src: "/videos/rialo-2.mp4",
+      title: "Coffee, cacao and everyday essentials",
+      subtitle:
+        "From coffee and cacao to collectible presentation, each NFT is linked to a real-world product.",
+    },
+    {
+      src: "/videos/rialo-3.mp4",
+      title: "Flakes, packaging and collectible motion",
+      subtitle:
+        "Compact vertical stories make the store feel more premium, visual and product-focused.",
+    },
+  ];
+
+  const upcomingBlocks: UpcomingBlock[] = [
+    {
+      eyebrow: "Coming Soon",
+      title: "Realife Store Stories",
+      text: "More premium RWA product videos are coming soon with new packaging stories, collectible motion and real-life goods backed by NFTs.",
+    },
+    {
+      eyebrow: "Coming Soon",
+      title: "Realife Crypto Travels",
+      text: "A future lifestyle direction where crypto, travel and premium real-world experiences become part of the Realife ecosystem.",
+    },
+    {
+      eyebrow: "Coming Soon",
+      title: "Realife Crypto Events",
+      text: "Future Realife events, gatherings and branded experiences where digital ownership connects with real communities and real-life moments.",
     },
   ];
 
@@ -269,19 +364,19 @@ export default function RealMarketingPage() {
 
                 <Pill>
                   <span className="text-white/80 font-extrabold">
-                    Cafe + Store
+                    Realife Crypto Cafe
                   </span>
                 </Pill>
 
                 <Pill>
                   <span className="text-white/80 font-extrabold">
-                    Video storefront
+                    NFTs backed by real products
                   </span>
                 </Pill>
 
                 <Pill>
                   <span className="text-white/80 font-extrabold">
-                    Premium vertical hub
+                    Real items. Real value. Real life.
                   </span>
                 </Pill>
               </div>
@@ -289,36 +384,45 @@ export default function RealMarketingPage() {
               <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
                 Realife{" "}
                 <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
-                  Marketing Hub
+                  NFTs Backed by Real Life
                 </span>
               </h1>
 
               <p className="mt-4 max-w-3xl text-sm md:text-base text-white/70 leading-relaxed">
-                Main storefront hub for Realife verticals. The first live
-                directions are{" "}
+                Realife is building a premium crypto-powered lifestyle ecosystem
+                where{" "}
                 <span className="font-extrabold text-amber-100">
-                  Realife Crypto Cafe
-                </span>{" "}
-                and{" "}
-                <span className="font-extrabold text-amber-100">
-                  Realife NFT Store
+                  NFTs are backed by real products, real items and real value
                 </span>
-                .
+                . This is not just digital art or abstract ownership — each NFT
+                is designed to point to something physical, tangible and usable
+                in real life.
               </p>
 
               <div className="mt-3 max-w-3xl text-sm md:text-base text-white/60 leading-relaxed">
-                This page should feel premium, visual and product-focused. Video
-                previews help users instantly understand the vibe of each
-                vertical before they enter the dedicated storefront.
+                The{" "}
+                <span className="font-extrabold text-white/85">
+                  Realife Crypto Cafe
+                </span>{" "}
+                is currently in the construction and renovation stage, and soon
+                people will be able to use NFTs for real drinks, dishes, food,
+                nutrition and product experiences inside a premium real-life
+                space. The same idea continues in the store, where coffee,
+                cacao, flakes, chocolate, cheese, cookies, t-shirts, perfumes
+                and more are presented as collectible{" "}
+                <span className="font-extrabold text-white/85">
+                  RWA-backed NFTs
+                </span>{" "}
+                connected to real-world goods.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <ActionLink href="/app/real-marketing/realife-cafe" primary>
-                  Open Realife Cafe
+                  Explore Crypto Cafe
                 </ActionLink>
 
                 <ActionLink href="/app/real-marketing/realife-store">
-                  Open NFT Store
+                  Explore RWA Store
                 </ActionLink>
 
                 <ActionLink href="/app/trading">Open Trading →</ActionLink>
@@ -328,95 +432,96 @@ export default function RealMarketingPage() {
         </GoldEdgeWrap>
       </Reveal>
 
-      <Reveal delayMs={100}>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="grid gap-6 p-6 md:grid-cols-[1.05fr_1fr] md:p-8 xl:p-10">
-            <div className="flex flex-col justify-center">
-              <SectionTitle
-                eyebrow="Featured vertical"
-                title={
-                  <>
-                    Realife Crypto Cafe
-                    <br />
-                    with motion-first presentation
-                  </>
-                }
-                text={
-                  <>
-                    The cafe block should feel alive, not static. A large video
-                    card works better than a plain text section and immediately
-                    gives the storefront more premium energy.
-                  </>
-                }
-              />
+      <VideoSection
+        delayMs={100}
+        eyebrow="Billions / Crypto Cafe"
+        title={
+          <>
+            A living preview of
+            <br />
+            the Realife Crypto Cafe
+          </>
+        }
+        text={
+          <>
+            This block should feel alive, immersive and premium. It introduces
+            the future atmosphere of the cafe where people will be able to
+            collect NFTs, buy real products, drinks, dishes, food and spend
+            time inside a real lifestyle space powered by crypto.
+          </>
+        }
+        videos={billionsVideos}
+        primaryHref="/app/real-marketing/realife-cafe"
+        primaryLabel="Enter Crypto Cafe"
+        secondaryHref="/app/trading"
+        secondaryLabel="Open Trading →"
+      />
 
-              <FeatureList
-                items={[
-                  "Hero video for the cafe atmosphere and branded products",
-                  "Fast entry point into the cafe storefront",
-                  "Clean separation between primary storefront and trading",
-                  "Luxury visual direction consistent with the Realife shell",
-                ]}
-              />
+      <VideoSection
+        delayMs={160}
+        eyebrow="Rialo / RWA Store"
+        title={
+          <>
+            Real products,
+            <br />
+            presented as RWA NFTs
+          </>
+        }
+        text={
+          <>
+            The Realife store is built around a wider RWA product universe:
+            coffee, cacao, flakes, chocolate, cheese, cookies, t-shirts,
+            perfumes and more. These are not abstract digital items — they are{" "}
+            <span className="font-extrabold text-white/85">
+              NFTs backed by real-world goods
+            </span>
+            , turning product ownership into a collectible and premium
+            experience.
+          </>
+        }
+        videos={rialoVideos}
+        primaryHref="/app/real-marketing/realife-store"
+        primaryLabel="Explore RWA Store"
+        secondaryHref="/app/trading"
+        secondaryLabel="Open Trading →"
+      />
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <ActionLink href="/app/real-marketing/realife-cafe" primary>
-                  Open Realife Cafe
-                </ActionLink>
-
-                <ActionLink href="/app/trading">Open Trading →</ActionLink>
-              </div>
-            </div>
-
-            <PromoVideo
-              src={cafeVideo}
-              title="Realife Crypto Cafe"
-              subtitle="Short branded hero preview for the cafe storefront."
-              priority
-            />
-          </div>
-        </GoldEdgeWrap>
-      </Reveal>
-
-      <Reveal delayMs={160}>
+      <Reveal delayMs={220}>
         <GoldEdgeWrap className="rounded-[40px]">
           <div className="p-6 md:p-8 xl:p-10">
             <SectionTitle
-              eyebrow="Store Product Stories"
+              eyebrow="Coming Next"
               title={
                 <>
-                  Realife NFT Store
+                  More Realife worlds
                   <br />
-                  with curated vertical previews
+                  are coming soon
                 </>
               }
               text={
                 <>
-                  For the store, compact vertical product stories feel more
-                  premium than one oversized block. This section works as an
-                  editorial showcase for packaging, details and collectible
-                  product motion.
+                  Realife is growing beyond the first cafe and store previews.
+                  This section introduces the next directions of the brand —
+                  more RWA product stories, future crypto travel experiences and
+                  future crypto events connected to real life.
                 </>
               }
             />
 
             <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-              {storeVideos.map((video) => (
-                <PromoVideo
-                  key={video.src}
-                  src={video.src}
-                  title={video.title}
-                  subtitle={video.subtitle}
-                  ratio="portrait"
+              {upcomingBlocks.map((item) => (
+                <StoryPlaceholderCard
+                  key={item.title}
+                  eyebrow={item.eyebrow}
+                  title={item.title}
+                  text={item.text}
                 />
               ))}
-
-              <StoryPlaceholderCard />
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
               <ActionLink href="/app/real-marketing/realife-store" primary>
-                Open NFT Store
+                Explore Store
               </ActionLink>
 
               <ActionLink href="/app/trading">Open Trading →</ActionLink>
@@ -425,44 +530,48 @@ export default function RealMarketingPage() {
         </GoldEdgeWrap>
       </Reveal>
 
-      <Reveal delayMs={220}>
+      <Reveal delayMs={280}>
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
           <GoldEdgeWrap className="xl:col-span-2">
             <div className="p-6 md:p-8">
               <div className="text-[11px] uppercase tracking-[0.24em] text-white/45 font-black">
-                Live verticals
+                Why Realife feels different
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-lg font-extrabold text-white/90">
-                      Realife Crypto Cafe
-                    </div>
-                    <div className="px-2.5 py-1 rounded-full text-[10px] font-black border border-emerald-500/20 bg-emerald-500/10 text-emerald-200">
-                      LIVE
-                    </div>
+                  <div className="text-lg font-extrabold text-white/90">
+                    NFTs with real value
                   </div>
 
                   <div className="mt-3 text-sm text-white/55 leading-relaxed">
-                    Primary storefront with branded cafe products, merch,
-                    chocolate, cacao, food and collectible drops.
+                    Realife starts with NFTs connected to real products, real
+                    items and real-life utility instead of abstract digital
+                    ownership.
                   </div>
                 </div>
 
                 <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-lg font-extrabold text-white/90">
-                      Realife NFT Store
-                    </div>
-                    <div className="px-2.5 py-1 rounded-full text-[10px] font-black border border-emerald-500/20 bg-emerald-500/10 text-emerald-200">
-                      LIVE
-                    </div>
+                  <div className="text-lg font-extrabold text-white/90">
+                    Realife Crypto Cafe
                   </div>
 
                   <div className="mt-3 text-sm text-white/55 leading-relaxed">
-                    Curated real-world products connected to NFTs, delivery
-                    flow, escrow flow and secondary ecosystem support.
+                    A future premium space where people can use NFTs for real
+                    drinks, dishes, food, products and enjoyable real-world time
+                    together.
+                  </div>
+                </div>
+
+                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5">
+                  <div className="text-lg font-extrabold text-white/90">
+                    RWA Store
+                  </div>
+
+                  <div className="mt-3 text-sm text-white/55 leading-relaxed">
+                    Coffee, cacao, flakes, chocolate, cheese, cookies,
+                    t-shirts, perfumes and more become collectible product
+                    experiences backed by real goods.
                   </div>
                 </div>
               </div>
@@ -472,35 +581,38 @@ export default function RealMarketingPage() {
           <GoldEdgeWrap>
             <div className="p-6 md:p-8">
               <div className="text-[11px] uppercase tracking-[0.24em] text-white/45 font-black">
-                Roadmap
+                Coming next
               </div>
 
               <div className="mt-4 space-y-3">
                 {[
-                  { label: "Realife Crypto Cafe", live: true },
-                  { label: "Realife NFT Store", live: true },
-                  { label: "Travel Tours", live: false },
-                  { label: "Concerts", live: false },
+                  {
+                    label: "Realife Store Stories",
+                    text: "More premium RWA product videos with new packaging stories, collectible motion and real-life goods backed by NFTs.",
+                  },
+                  {
+                    label: "Realife Crypto Travels",
+                    text: "A future lifestyle direction where crypto, travel and premium real-world experiences become part of the Realife ecosystem.",
+                  },
+                  {
+                    label: "Realife Crypto Events",
+                    text: "Future Realife events, gatherings and branded experiences where digital ownership connects with real communities and real-life moments.",
+                  },
+                  {
+                    label: "More ecosystem growth",
+                    text: "Additional video stories, branded directions and new real-world product categories will expand the Realife universe.",
+                  },
                 ].map((item) => (
                   <div
                     key={item.label}
                     className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4"
                   >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-extrabold text-white/90">
-                        {item.label}
-                      </div>
+                    <div className="text-sm font-extrabold text-white/90">
+                      {item.label}
+                    </div>
 
-                      <div
-                        className={cx(
-                          "px-2.5 py-1 rounded-full text-[10px] font-black border",
-                          item.live
-                            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
-                            : "border-white/10 bg-white/[0.05] text-white/55"
-                        )}
-                      >
-                        {item.live ? "LIVE" : "SOON"}
-                      </div>
+                    <div className="mt-2 text-xs leading-relaxed text-white/55">
+                      {item.text}
                     </div>
                   </div>
                 ))}
@@ -510,14 +622,15 @@ export default function RealMarketingPage() {
         </div>
       </Reveal>
 
-      <Reveal delayMs={280}>
+      <Reveal delayMs={340}>
         <div className="pt-2 pb-6 text-xs text-white/45 flex flex-wrap items-center justify-between gap-4">
           <div>Realife Ecosystem</div>
           <div className="flex items-center gap-4">
-            <span className="opacity-60">Real Marketing</span>
-            <span className="opacity-60">Cafe</span>
-            <span className="opacity-60">Store</span>
-            <span className="opacity-60">Video showcase</span>
+            <span className="opacity-60">NFTs</span>
+            <span className="opacity-60">Crypto Cafe</span>
+            <span className="opacity-60">RWA Store</span>
+            <span className="opacity-60">Crypto Travels</span>
+            <span className="opacity-60">Crypto Events</span>
           </div>
         </div>
       </Reveal>

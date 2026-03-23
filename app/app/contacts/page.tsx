@@ -1,0 +1,368 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
+import Reveal from "@/components/Reveal";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function cx(...a: Array<string | false | null | undefined>) {
+  return a.filter(Boolean).join(" ");
+}
+
+function Pill({ children }: { children: ReactNode }) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
+      {children}
+    </div>
+  );
+}
+
+function GoldEdgeWrap({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cx(
+        "relative overflow-hidden rounded-[34px] p-px",
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.35),rgba(212,175,55,0.16),rgba(184,135,10,0.10))]",
+        "shadow-[0_34px_130px_rgba(0,0,0,0.60)]",
+        className
+      )}
+    >
+      <div
+        className={cx(
+          "relative overflow-hidden rounded-[34px]",
+          "border border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl",
+          "ring-1 ring-black/10",
+          "before:pointer-events-none before:absolute before:inset-0",
+          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.12),transparent_45%)]",
+          "after:pointer-events-none after:absolute after:inset-0",
+          "after:bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]"
+        )}
+      >
+        <div className="relative z-10">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function XIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={className}
+      fill="currentColor"
+    >
+      <path d="M18.901 1.153h3.68l-8.041 9.19L24 22.847h-7.406l-5.8-7.584-6.64 7.584H.474l8.6-9.83L0 1.153h7.594l5.243 6.932 6.064-6.932Zm-1.29 19.494h2.04L6.486 3.24H4.298l13.313 17.407Z" />
+    </svg>
+  );
+}
+
+function ActionLink({
+  href,
+  children,
+  primary = false,
+  external = false,
+}: {
+  href: string;
+  children: ReactNode;
+  primary?: boolean;
+  external?: boolean;
+}) {
+  const commonProps = external
+    ? { target: "_blank", rel: "noopener noreferrer" as const }
+    : {};
+
+  if (primary) {
+    return (
+      <Link
+        href={href}
+        {...commonProps}
+        className="inline-flex items-center justify-center px-6 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+      >
+        {children}
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      {...commonProps}
+      className="inline-flex items-center justify-center px-6 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-semibold hover:bg-white/10 transition backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+    >
+      {children}
+    </Link>
+  );
+}
+
+function SectionTitle({
+  eyebrow,
+  title,
+  text,
+}: {
+  eyebrow: string;
+  title: ReactNode;
+  text: ReactNode;
+}) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-[0.24em] text-white/45 font-black">
+        {eyebrow}
+      </div>
+      <div className="mt-3 text-2xl md:text-4xl font-black tracking-tight text-white/95">
+        {title}
+      </div>
+      <div className="mt-4 max-w-2xl text-sm md:text-base text-white/60 leading-relaxed">
+        {text}
+      </div>
+    </div>
+  );
+}
+
+function ContactCard({
+  badge,
+  initials,
+  title,
+  handle,
+  href,
+  description,
+  primaryLabel,
+}: {
+  badge: string;
+  initials: string;
+  title: string;
+  handle: string;
+  href: string;
+  description: string;
+  primaryLabel: string;
+}) {
+  return (
+    <GoldEdgeWrap className="rounded-[34px]">
+      <div className="relative p-6 md:p-7">
+        <div className="absolute right-6 top-6 inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[#f7e7a7]/15 bg-white/[0.05] text-white/85 shadow-[0_10px_30px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+          <XIcon className="h-4 w-4" />
+        </div>
+
+        <div className="flex items-start justify-between gap-4 pr-14">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
+            <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+            {badge}
+          </div>
+
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-[#f7e7a7]/20 bg-[linear-gradient(135deg,rgba(247,231,167,0.20),rgba(212,175,55,0.08),rgba(255,255,255,0.04))] text-lg font-black text-amber-100 shadow-[0_12px_40px_rgba(0,0,0,0.35)]">
+            {initials}
+          </div>
+        </div>
+
+        <div className="mt-6 text-2xl md:text-3xl font-black tracking-tight text-white/95">
+          {title}
+        </div>
+
+        <div className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1.5 text-sm font-semibold text-amber-100/90">
+          <XIcon className="h-4 w-4 text-white/80" />
+          {handle}
+        </div>
+
+        <div className="mt-4 text-sm md:text-base leading-relaxed text-white/60">
+          {description}
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-3">
+          <ActionLink href={href} primary external>
+            <span className="inline-flex items-center gap-2">
+              <XIcon className="h-4 w-4" />
+              {primaryLabel}
+            </span>
+          </ActionLink>
+
+          <ActionLink href={href} external>
+            <span className="inline-flex items-center gap-2">
+              <XIcon className="h-4 w-4 text-white/80" />
+              View on X ↗
+            </span>
+          </ActionLink>
+        </div>
+      </div>
+    </GoldEdgeWrap>
+  );
+}
+
+export default function ContactsPage() {
+  return (
+    <div className="space-y-6">
+      <Reveal>
+        <GoldEdgeWrap className="rounded-[40px]">
+          <div className="relative overflow-hidden p-7 md:p-10">
+            <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/14 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
+
+            <div className="relative">
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill>
+                  <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
+                  Realife Contacts
+                </Pill>
+
+                <Pill>
+                  <span className="inline-flex items-center gap-2 text-white/80 font-extrabold">
+                    <XIcon className="h-3.5 w-3.5" />
+                    Official Project
+                  </span>
+                </Pill>
+
+                <Pill>
+                  <span className="inline-flex items-center gap-2 text-white/80 font-extrabold">
+                    <XIcon className="h-3.5 w-3.5" />
+                    CEO Contact
+                  </span>
+                </Pill>
+              </div>
+
+              <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
+                Realife{" "}
+                <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
+                  Official Contacts
+                </span>
+              </h1>
+
+              <p className="mt-4 max-w-3xl text-sm md:text-base text-white/70 leading-relaxed">
+                Follow the official Realife pages to stay close to the brand,
+                ecosystem updates, future launches and project communication.
+              </p>
+
+              <div className="mt-3 max-w-3xl text-sm md:text-base text-white/60 leading-relaxed">
+                Right now this page includes the official X page of the project
+                and the CEO page. More official contact points can be added
+                later, including support, Telegram, email and partner channels.
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <ActionLink
+                  href="https://x.com/Realife_Crypto"
+                  primary
+                  external
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <XIcon className="h-4 w-4" />
+                    Open Official X
+                  </span>
+                </ActionLink>
+
+                <ActionLink href="https://x.com/Born__Voyage" external>
+                  <span className="inline-flex items-center gap-2">
+                    <XIcon className="h-4 w-4 text-white/80" />
+                    Open CEO X
+                  </span>
+                </ActionLink>
+              </div>
+            </div>
+          </div>
+        </GoldEdgeWrap>
+      </Reveal>
+
+      <Reveal delayMs={120}>
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <ContactCard
+            badge="Official Project"
+            initials="RL"
+            title="Realife Crypto"
+            handle="@Realife_Crypto"
+            href="https://x.com/Realife_Crypto"
+            description="The main official page of the Realife project. Follow it for ecosystem updates, product direction, brand news and official announcements."
+            primaryLabel="Follow Project"
+          />
+
+          <ContactCard
+            badge="CEO"
+            initials="BV"
+            title="Born Voyage"
+            handle="@Born__Voyage"
+            href="https://x.com/Born__Voyage"
+            description="The CEO page for founder updates, personal vision, project communication and direct connection to the leadership behind Realife."
+            primaryLabel="Follow CEO"
+          />
+        </div>
+      </Reveal>
+
+      <Reveal delayMs={220}>
+        <GoldEdgeWrap className="rounded-[40px]">
+          <div className="p-6 md:p-8 xl:p-10">
+            <SectionTitle
+              eyebrow="Stay Connected"
+              title={
+                <>
+                  Official channels
+                  <br />
+                  for the Realife ecosystem
+                </>
+              }
+              text={
+                <>
+                  As the ecosystem grows, this page can later include more
+                  public contact points such as support channels, Telegram,
+                  email, media, partnerships and community pages.
+                </>
+              }
+            />
+
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5">
+                <div className="inline-flex items-center gap-2 text-lg font-extrabold text-white/92">
+                  <XIcon className="h-4 w-4 text-white/80" />
+                  Official Project
+                </div>
+                <div className="mt-3 text-sm leading-relaxed text-white/55">
+                  Main updates, ecosystem news and brand direction.
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5">
+                <div className="inline-flex items-center gap-2 text-lg font-extrabold text-white/92">
+                  <XIcon className="h-4 w-4 text-white/80" />
+                  CEO Page
+                </div>
+                <div className="mt-3 text-sm leading-relaxed text-white/55">
+                  Founder communication, vision and direct public presence.
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5">
+                <div className="text-lg font-extrabold text-white/92">
+                  More Contacts Soon
+                </div>
+                <div className="mt-3 text-sm leading-relaxed text-white/55">
+                  Telegram, support, email and other official channels can be
+                  added later.
+                </div>
+              </div>
+            </div>
+          </div>
+        </GoldEdgeWrap>
+      </Reveal>
+
+      <Reveal delayMs={300}>
+        <div className="pt-2 pb-6 flex flex-wrap items-center justify-between gap-4 text-xs text-white/45">
+          <div>Realife Ecosystem</div>
+          <div className="flex items-center gap-4">
+            <span className="inline-flex items-center gap-1.5 opacity-60">
+              <XIcon className="h-3.5 w-3.5" />
+              Official X
+            </span>
+            <span className="inline-flex items-center gap-1.5 opacity-60">
+              <XIcon className="h-3.5 w-3.5" />
+              CEO
+            </span>
+            <span className="opacity-60">More contacts soon</span>
+          </div>
+        </div>
+      </Reveal>
+    </div>
+  );
+}
