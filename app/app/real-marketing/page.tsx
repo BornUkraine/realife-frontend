@@ -1,21 +1,19 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import Reveal from "@/components/Reveal";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
 
-type PlaylistVideo = {
-  src: string;
-};
-
 type StoreCard = {
   title: string;
   subtitle: string;
-  videos: PlaylistVideo[];
+  src?: string;
   comingSoonTitle?: string;
   comingSoonText?: string;
 };
@@ -145,7 +143,7 @@ function PromoVideo({
   src: string;
   title: string;
   subtitle?: string;
-  ratio?: "video" | "square" | "portrait";
+  ratio?: "video" | "square" | "portrait" | "store";
   priority?: boolean;
 }) {
   return (
@@ -155,7 +153,9 @@ function PromoVideo({
           ? "aspect-[9/16]"
           : ratio === "square"
             ? "aspect-square"
-            : "aspect-[16/10]",
+            : ratio === "store"
+              ? "aspect-[720/834]"
+              : "aspect-[16/10]",
         "group"
       )}
     >
@@ -192,91 +192,17 @@ function PromoVideo({
   );
 }
 
-function PlaylistPromoVideo({
-  videos,
+function StoryPlaceholderCard({
+  eyebrow,
   title,
-  subtitle,
-  ratio = "portrait",
-  priority = false,
-  comingSoonTitle,
-  comingSoonText,
+  text,
+  ratio = "store",
 }: {
-  videos: PlaylistVideo[];
+  eyebrow: string;
   title: string;
-  subtitle?: string;
-  ratio?: "video" | "square" | "portrait";
-  priority?: boolean;
-  comingSoonTitle?: string;
-  comingSoonText?: string;
+  text: string;
+  ratio?: "video" | "square" | "portrait" | "store";
 }) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  const hasVideos = videos.length > 0;
-  const currentSrc = hasVideos ? videos[activeIndex]?.src : "";
-
-  useEffect(() => {
-    if (!hasVideos || !videoRef.current) return;
-
-    const el = videoRef.current;
-
-    const start = async () => {
-      try {
-        el.currentTime = 0;
-        await el.play();
-      } catch {
-        // autoplay can fail silently
-      }
-    };
-
-    start();
-  }, [currentSrc, hasVideos]);
-
-  if (!hasVideos) {
-    return (
-      <VideoShell
-        className={cx(
-          ratio === "portrait"
-            ? "aspect-[9/16]"
-            : ratio === "square"
-              ? "aspect-square"
-              : "aspect-[16/10]"
-        )}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_18%,rgba(212,175,55,0.24),transparent_38%),radial-gradient(circle_at_80%_84%,rgba(255,255,255,0.08),transparent_34%)]" />
-        <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,rgba(255,255,255,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.22)_1px,transparent_1px)] bg-[length:26px_26px]" />
-
-        <div className="relative flex h-full w-full flex-col justify-between p-5">
-          <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
-            Coming Soon
-          </div>
-
-          <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.20em] text-white/45">
-              Store Product Stories
-            </div>
-
-            <div className="mt-3 text-2xl font-black leading-tight text-white/92">
-              {comingSoonTitle || title}
-            </div>
-
-            <div className="mt-3 text-sm leading-relaxed text-white/58">
-              {comingSoonText ||
-                subtitle ||
-                "New product story videos will be added here soon."}
-            </div>
-
-            <div className="mt-5 flex items-center gap-2">
-              <span className="h-1.5 w-6 rounded-full bg-[#d4af37]/70" />
-              <span className="h-1.5 w-1.5 rounded-full bg-white/30" />
-              <span className="h-1.5 w-1.5 rounded-full bg-white/30" />
-            </div>
-          </div>
-        </div>
-      </VideoShell>
-    );
-  }
-
   return (
     <VideoShell
       className={cx(
@@ -284,53 +210,31 @@ function PlaylistPromoVideo({
           ? "aspect-[9/16]"
           : ratio === "square"
             ? "aspect-square"
-            : "aspect-[16/10]",
-        "group"
+            : ratio === "store"
+              ? "aspect-[720/834]"
+              : "aspect-[16/10]"
       )}
     >
-      <video
-        key={currentSrc}
-        ref={videoRef}
-        className="h-full w-full object-cover"
-        src={currentSrc}
-        autoPlay
-        muted
-        playsInline
-        preload={priority || activeIndex === 0 ? "auto" : "metadata"}
-        controls={false}
-        onEnded={() => {
-          setActiveIndex((prev) => (prev + 1) % videos.length);
-        }}
-      />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_18%,rgba(212,175,55,0.24),transparent_38%),radial-gradient(circle_at_80%_84%,rgba(255,255,255,0.08),transparent_34%)]" />
+      <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,rgba(255,255,255,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.22)_1px,transparent_1px)] bg-[length:26px_26px]" />
 
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.84),rgba(0,0,0,0.20),transparent)]" />
-
-      <div className="pointer-events-none absolute bottom-4 left-4 right-4">
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-amber-100/90 backdrop-blur-xl">
-          <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
-          Video Preview
+      <div className="relative flex h-full w-full flex-col justify-between p-5">
+        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
+          Coming Soon
         </div>
 
-        <div className="mt-3 text-lg font-black text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.45)] md:text-2xl">
-          {title}
-        </div>
-
-        {subtitle ? (
-          <div className="mt-1 max-w-xl text-xs leading-relaxed text-white/75 md:text-sm">
-            {subtitle}
+        <div>
+          <div className="text-[11px] font-black uppercase tracking-[0.20em] text-white/45">
+            {eyebrow}
           </div>
-        ) : null}
 
-        <div className="mt-3 flex items-center gap-2">
-          {videos.map((_, index) => (
-            <span
-              key={index}
-              className={cx(
-                "h-1.5 rounded-full transition-all duration-300",
-                index === activeIndex ? "w-6 bg-[#d4af37]" : "w-1.5 bg-white/35"
-              )}
-            />
-          ))}
+          <div className="mt-3 text-2xl font-black leading-tight text-white/92">
+            {title}
+          </div>
+
+          <div className="mt-3 text-sm leading-relaxed text-white/58">
+            {text}
+          </div>
         </div>
       </div>
     </VideoShell>
@@ -359,26 +263,17 @@ export default function RealMarketingPage() {
     {
       title: "Rialo product universe",
       subtitle: "Premium packaging and collectible product presentation.",
-      videos: [
-        { src: "/videos/billions-1.mp4" },
-        { src: "/videos/billions-2.mp4" },
-        { src: "/videos/billions-3.mp4" },
-      ],
+      src: "/videos/billions_merged.mp4",
     },
     {
       title: "Coffee, cacao and everyday essentials",
       subtitle: "Closer product motion with luxury catalog feeling.",
-      videos: [
-        { src: "/videos/rialo-1.mp4" },
-        { src: "/videos/rialo-2.mp4" },
-        { src: "/videos/rialo-3.mp4" },
-      ],
+      src: "/videos/rialo_merged.mp4",
     },
     {
       title: "Flakes, packaging and collectible motion",
       subtitle:
         "Compact vertical stories make the store feel more premium, visual and product-focused.",
-      videos: [],
       comingSoonTitle: "More curated product previews are on the way",
       comingSoonText:
         "New branded packaging, collectible drops and premium product motion stories will be added as the store media library grows.",
@@ -532,18 +427,30 @@ export default function RealMarketingPage() {
             />
 
             <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-              {storeColumns.map((item, index) => (
-                <PlaylistPromoVideo
-                  key={item.title}
-                  videos={item.videos}
-                  title={item.title}
-                  subtitle={item.subtitle}
-                  ratio="portrait"
-                  priority={index === 0}
-                  comingSoonTitle={item.comingSoonTitle}
-                  comingSoonText={item.comingSoonText}
-                />
-              ))}
+              {storeColumns.map((item, index) =>
+                item.src ? (
+                  <PromoVideo
+                    key={item.title}
+                    src={item.src}
+                    title={item.title}
+                    subtitle={item.subtitle}
+                    ratio="store"
+                    priority={index === 0}
+                  />
+                ) : (
+                  <StoryPlaceholderCard
+                    key={item.title}
+                    eyebrow="Store Product Stories"
+                    title={item.comingSoonTitle || item.title}
+                    text={
+                      item.comingSoonText ||
+                      item.subtitle ||
+                      "New product story videos will be added here soon."
+                    }
+                    ratio="store"
+                  />
+                )
+              )}
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
