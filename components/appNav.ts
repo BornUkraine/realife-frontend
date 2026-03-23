@@ -12,7 +12,7 @@ export const APP_NAV: AppNavItem[] = [
   { label: "Real Marketing", href: "/app/real-marketing", enabled: true },
   { label: "Social Learning", href: "/app/social-learning", enabled: false, badge: "Soon" },
   { label: "Profile", href: "/app/profile", enabled: true },
-  { label: "Contact", href: "/#contact", enabled: true },
+  { label: "Contact", href: "/app/contact", enabled: true },
 ];
 
 export function isNavActive(pathname: string, href: string) {
