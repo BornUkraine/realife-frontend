@@ -19,7 +19,7 @@ function GoldEdgeCard({
   return (
     <div
       className={[
-        "relative overflow-hidden rounded-[34px] p-px",
+        "relative rounded-[34px] p-px overflow-hidden",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))]",
         "shadow-[0_34px_140px_rgba(0,0,0,0.60)]",
         className,
@@ -27,7 +27,7 @@ function GoldEdgeCard({
     >
       <div
         className={[
-          "relative overflow-hidden rounded-[34px]",
+          "relative rounded-[34px] overflow-hidden",
           "border border-white/10",
           "bg-[#0b0a09]/70 backdrop-blur-2xl",
           "ring-1 ring-black/10",
@@ -132,27 +132,27 @@ export default function AppSidebar({
   const pathname = usePathname();
 
   return (
-    <div className="lg:sticky lg:top-8 xl:top-10">
+    <div className="sticky top-24">
       <GoldEdgeCard>
-        <div className="flex flex-col p-5 xl:p-6 lg:min-h-[calc(100vh-5rem)] xl:min-h-[calc(100vh-6rem)]">
+        <div className="p-5 xl:p-6">
           <Link
             href="/app"
-            className="relative mb-8 flex items-center overflow-visible"
+            className="flex items-center mb-8 relative overflow-visible"
           >
-            <div className="relative z-10 -ml-2 flex h-16 w-16 shrink-0 items-center justify-center">
+            <div className="z-10 shrink-0 relative w-16 h-16 flex items-center justify-center -ml-2">
               <img
                 src="/brand/logo-mark.png"
                 alt="Realife"
-                className="h-full w-full scale-[4.5] object-contain mix-blend-screen"
+                className="w-full h-full object-contain mix-blend-screen scale-[4.5]"
                 draggable={false}
               />
             </div>
 
-            <div className="relative z-0 h-12 flex-1 overflow-visible">
+            <div className="relative flex-1 h-12 overflow-visible z-0">
               <img
                 src="/brand/logo-wordmark.png"
                 alt="Realife"
-                className="absolute left-[-72px] top-1/2 w-[300px] max-w-none -translate-y-1/2 object-contain object-left mix-blend-screen"
+                className="absolute top-1/2 left-[-72px] -translate-y-1/2 w-[300px] max-w-none object-contain object-left mix-blend-screen"
                 draggable={false}
               />
             </div>
@@ -161,13 +161,13 @@ export default function AppSidebar({
           {(title || subtitle) && (
             <div className="mb-5">
               {title ? (
-                <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/38">
+                <div className="text-[11px] uppercase tracking-[0.24em] text-white/38 font-black">
                   {title}
                 </div>
               ) : null}
 
               {subtitle ? (
-                <div className="mt-2 text-[12px] leading-relaxed text-white/52">
+                <div className="mt-2 text-[12px] text-white/52 leading-relaxed">
                   {subtitle}
                 </div>
               ) : null}
@@ -175,7 +175,7 @@ export default function AppSidebar({
           )}
 
           {topBadge ? (
-            <div className="mb-4 rounded-3xl border border-white/10 bg-white/5 p-4">
+            <div className="mb-4 rounded-3xl bg-white/5 border border-white/10 p-4">
               {topBadge}
             </div>
           ) : null}
@@ -193,22 +193,7 @@ export default function AppSidebar({
             ))}
           </nav>
 
-          <div className="mt-auto pt-6">
-            {bottom ? <div>{bottom}</div> : null}
-
-            <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.25)]">
-              <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/36">
-                Realife Layer
-              </div>
-              <div className="mt-2 text-[12px] leading-relaxed text-white/52">
-                Premium app shell for minting, trading, profile identity, and
-                delivery-aware NFT ownership.
-              </div>
-              <div className="mt-3 text-[11px] text-white/38">
-                Base • IPFS • Real-world assets
-              </div>
-            </div>
-          </div>
+          {bottom ? <div className="mt-6">{bottom}</div> : null}
         </div>
       </GoldEdgeCard>
     </div>
