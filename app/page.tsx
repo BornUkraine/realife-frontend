@@ -8,10 +8,26 @@ import ConnectWallet from "@/components/ConnectWallet";
 const REAL_MARKETING_HREF = "/app/real-marketing"; // если путь другой — поменяй тут
 
 const CORE_FLOW = [
-  { n: "01", t: "Create", d: "Create real work, products, packaging, media, or branded experiences." },
-  { n: "02", t: "Mint", d: "Turn that real-world value into an NFT with metadata and on-chain proof." },
-  { n: "03", t: "Trade", d: "List, collect, showcase, or move the asset through the Realife ecosystem." },
-  { n: "04", t: "Deliver", d: "Connect digital ownership with physical products and real-world delivery." },
+  {
+    n: "01",
+    t: "Create",
+    d: "Create real work, products, packaging, media, or branded experiences.",
+  },
+  {
+    n: "02",
+    t: "Mint",
+    d: "Turn that real-world value into an NFT with metadata and on-chain proof.",
+  },
+  {
+    n: "03",
+    t: "Trade",
+    d: "List, collect, showcase, or move the asset through the Realife ecosystem.",
+  },
+  {
+    n: "04",
+    t: "Deliver",
+    d: "Connect digital ownership with physical products and real-world delivery.",
+  },
 ] as const;
 
 const HERO_PROOFS = [
@@ -295,13 +311,14 @@ export default function HomePage() {
         <Reveal>
           <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
             <Link href="/" className="flex items-center gap-3">
-              <div className="relative h-10 w-[210px]">
+              <div className="relative h-12 w-[260px] overflow-hidden">
                 <Image
                   src="/brand/logo-wordmark.png"
                   alt="Realife"
                   fill
-                  className="object-contain object-left"
-                  sizes="210px"
+                  priority
+                  className="object-cover [object-position:center_58%]"
+                  sizes="260px"
                 />
               </div>
             </Link>
@@ -496,18 +513,7 @@ export default function HomePage() {
             <div className="mt-10 grid gap-6 lg:grid-cols-3">
               <GlassCard className="h-full">
                 <div className="flex h-full flex-col p-8">
-                  <div className="flex items-center gap-3">
-                    <div className="relative h-10 w-10 shrink-0">
-                      <Image
-                        src="/brand/logo-mark.png"
-                        alt="Realife mark"
-                        fill
-                        className="object-contain"
-                        sizes="40px"
-                      />
-                    </div>
-                    <Pill className="bg-black/35">Brand collaboration layer</Pill>
-                  </div>
+                  <Pill className="bg-black/35">Brand collaboration layer</Pill>
 
                   <h3 className="mt-5 text-3xl font-black tracking-tight">Real Marketing</h3>
                   <p className="mt-3 text-sm leading-relaxed text-white/65">
@@ -749,15 +755,15 @@ export default function HomePage() {
             <div className="mt-6">
               <GlassCard className="overflow-hidden">
                 <div className="grid items-center gap-0 md:grid-cols-12">
-                  <div className="relative min-h-[380px] md:col-span-5">
+                  <div className="relative min-h-[420px] md:col-span-5 bg-[#120f0d]">
                     <Image
                       src={STORY_CARDS[6].image}
                       alt={STORY_CARDS[6].alt}
                       fill
-                      className="object-cover"
+                      className="object-contain object-center p-4"
                       sizes="(max-width: 768px) 100vw, 40vw"
                     />
-                    <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.42),rgba(0,0,0,0.04))]" />
+                    <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.16),rgba(0,0,0,0.02))]" />
                   </div>
 
                   <div className="p-8 md:col-span-7 md:p-10">
