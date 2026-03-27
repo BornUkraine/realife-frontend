@@ -7,6 +7,71 @@ import Reveal from "@/components/Reveal";
 
 const REAL_MARKETING_HREF = "/app/real-marketing";
 
+const HOW_STEPS = [
+  {
+    n: "01",
+    t: "Create",
+    d: "Upload real work, products, packaging, media, or branded experiences.",
+  },
+  {
+    n: "02",
+    t: "Prepare",
+    d: "Add metadata, proof, story, category, and collectible context.",
+  },
+  {
+    n: "03",
+    t: "Mint",
+    d: "Connect wallet, sign tx, and create verifiable ownership.",
+  },
+  {
+    n: "04",
+    t: "Trade / Deliver",
+    d: "Move the asset into market activity, utility, or physical fulfillment.",
+  },
+] as const;
+
+const WHO_IT_SERVES = [
+  {
+    title: "For creators",
+    text: "Turn real work into NFTs, proof, identity, and collectible market value.",
+  },
+  {
+    title: "For crypto brands",
+    text: "Launch campaigns, branded products, community activations, and tokenized experiences.",
+  },
+  {
+    title: "For collectors",
+    text: "Own, trade, and receive real-world value through a premium Web3 interface.",
+  },
+  {
+    title: "For real-world workers",
+    text: "Tailors, cooks, designers, makers, builders, and other skilled people can enter Web3 through proof of real output.",
+  },
+] as const;
+
+const CORE_MODULES = [
+  {
+    t: "Create NFT",
+    d: "The core creator entry point for upload, metadata, mint, and ownership proof.",
+    href: "/app/create",
+  },
+  {
+    t: "Trading",
+    d: "Move into listings, collectible market logic, resale movement, and future liquidity flows.",
+    href: "/app/trading",
+  },
+  {
+    t: "Profile",
+    d: "Build creator identity, minted work, social proof, and stronger collectible presence.",
+    href: "/app/profile",
+  },
+  {
+    t: "Real Marketing",
+    d: "Open the ecosystem layer for campaigns, crypto brand collaborations, storefronts, and phygital activations.",
+    href: REAL_MARKETING_HREF,
+  },
+] as const;
+
 function GoldEdgeCard({
   className = "",
   children,
@@ -153,10 +218,11 @@ export default function AppPage() {
               </h1>
 
               <p className="mt-5 max-w-3xl text-sm leading-relaxed text-white/65 md:text-base">
-                This is where real-world work, products, packaging, and branded
-                experiences become structured, minted, tradable, and ready for
-                delivery-aware ownership. Built for creators, crypto brands, and
-                collectors.
+                This is where real-world work, products, packaging, branded
+                experiences, and creator output become structured, minted,
+                tradable, and ready for delivery-aware ownership. Built for
+                creators, crypto brands, collectors, and real-world skill
+                economies.
               </p>
 
               <div className="mt-10 grid gap-4 md:grid-cols-3">
@@ -172,7 +238,7 @@ export default function AppPage() {
                 />
                 <StatCard
                   title="Positioning"
-                  value="RWA in NFT form"
+                  value="Phygital-ready NFTs"
                   hint="Tokenized real-world assets for Web3"
                 />
               </div>
@@ -185,7 +251,7 @@ export default function AppPage() {
                     </p>
                     <p className="mt-1 text-xs text-white/60">
                       Tokenized real-world assets for creators, crypto brands,
-                      and collectors.
+                      collectors, and delivery-aware ownership.
                     </p>
                   </div>
 
@@ -229,32 +295,12 @@ export default function AppPage() {
                 <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/65">
                   Realife keeps the experience understandable for normal people
                   while preserving the core Web3 logic: wallet, metadata, mint,
-                  collectible ownership, market movement, and future delivery.
+                  collectible ownership, market movement, and physical delivery
+                  when the tokenized asset maps to something real.
                 </p>
 
                 <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {[
-                    {
-                      n: "01",
-                      t: "Create",
-                      d: "Upload real work, products, packaging, media, or branded experiences.",
-                    },
-                    {
-                      n: "02",
-                      t: "Prepare",
-                      d: "Add metadata, proof, story, category, and collectible context.",
-                    },
-                    {
-                      n: "03",
-                      t: "Mint",
-                      d: "Connect wallet, sign tx, and create verifiable ownership.",
-                    },
-                    {
-                      n: "04",
-                      t: "Trade / Deliver",
-                      d: "Move the asset into market activity or physical fulfillment.",
-                    },
-                  ].map((s) => (
+                  {HOW_STEPS.map((s) => (
                     <div
                       key={s.n}
                       className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]"
@@ -270,6 +316,36 @@ export default function AppPage() {
                       </p>
                     </div>
                   ))}
+                </div>
+
+                <div className="mt-8 overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,rgba(247,231,167,0.26),rgba(212,175,55,0.12),rgba(184,135,10,0.08))] p-px">
+                  <div className="rounded-[30px] border border-white/10 bg-[#0b0a09]/55 p-5 backdrop-blur-2xl">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="max-w-2xl">
+                        <p className="text-sm font-extrabold text-white">
+                          Not only a collectible flow
+                        </p>
+                        <p className="mt-2 text-xs leading-relaxed text-white/65">
+                          Realife can keep an NFT purely digital or connect it
+                          to real-world fulfillment — products, packaging,
+                          creator-made objects, branded drops, and delivery-aware
+                          tokenized ownership.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <LuxPill className="bg-black/25">
+                          Proof of real work
+                        </LuxPill>
+                        <LuxPill className="bg-black/25">
+                          Market-ready ownership
+                        </LuxPill>
+                        <LuxPill className="bg-black/25">
+                          Delivery-aware NFTs
+                        </LuxPill>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-8 flex flex-wrap gap-3">
@@ -304,30 +380,27 @@ export default function AppPage() {
                   Who it serves
                 </p>
                 <h3 className="mt-2 text-2xl font-black tracking-tight">
-                  Creators, crypto brands, collectors
+                  Creators, crypto brands, collectors — and real-world workers
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-white/65">
                   Realife is not just a mint page. It is the working surface of
-                  a larger ecosystem.
+                  a larger ecosystem connecting digital ownership with real
+                  production, campaigns, commerce, and delivery.
                 </p>
 
                 <div className="mt-6 space-y-3">
-                  <MiniCard
-                    title="For creators"
-                    text="Turn real work into NFTs, proof, identity, and collectible market value."
-                  />
-                  <MiniCard
-                    title="For crypto brands"
-                    text="Launch campaigns, branded products, community activations, and tokenized experiences."
-                  />
-                  <MiniCard
-                    title="For collectors"
-                    text="Own, trade, and receive real-world value through a premium Web3 interface."
-                  />
+                  {WHO_IT_SERVES.map((item) => (
+                    <MiniCard
+                      key={item.title}
+                      title={item.title}
+                      text={item.text}
+                    />
+                  ))}
                 </div>
 
-                <div className="mt-6 text-[11px] text-white/45">
-                  Base • IPFS • creator economy • phygital-ready structure
+                <div className="mt-6 text-[11px] leading-relaxed text-white/45">
+                  Base • IPFS • creator economy • delivery-aware NFTs • social
+                  onboarding into Web3
                 </div>
               </div>
             </GoldEdgeCard>
@@ -346,30 +419,15 @@ export default function AppPage() {
                     Move through the ecosystem with clarity
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/65">
-                    Each module has a clear role: mint, present, trade, and
-                    build stronger creator identity and real-world utility.
+                    Each module has a clear role: mint, present, trade, connect
+                    with brands, and build stronger creator identity with
+                    real-world utility.
                   </p>
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
-                {[
-                  {
-                    t: "Create NFT",
-                    d: "The core creator entry point for upload, metadata, mint, and ownership proof.",
-                    href: "/app/create",
-                  },
-                  {
-                    t: "Trading",
-                    d: "Move into listings, collectible market logic, and future liquidity flows.",
-                    href: "/app/trading",
-                  },
-                  {
-                    t: "Profile",
-                    d: "Build creator identity, minted work, and stronger collectible presence.",
-                    href: "/app/profile",
-                  },
-                ].map((x) => (
+              <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {CORE_MODULES.map((x) => (
                   <div
                     key={x.t}
                     className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]"
@@ -404,7 +462,8 @@ export default function AppPage() {
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/65">
                 Realife expands beyond creator minting into branded campaigns,
-                storefront experiences, and tokenized product stories.
+                storefront experiences, tokenized product stories, and
+                delivery-ready NFT ownership connected to the real world.
               </p>
 
               <div className="mt-8 grid gap-4 lg:grid-cols-3">
@@ -417,14 +476,15 @@ export default function AppPage() {
                   </h3>
                   <p className="mt-3 text-sm leading-relaxed text-white/65">
                     The ecosystem hub for creator campaigns, crypto brand
-                    collaborations, Crypto Cafe, and Realife Store.
+                    collaborations, Crypto Cafe, Realife Store, and phygital
+                    drops.
                   </p>
 
                   <div className="mt-5 grid gap-3">
                     {[
                       "Campaigns and branded experiences",
                       "Collectible product storytelling",
-                      "Bridge between creators and crypto communities",
+                      "Delivery-ready NFT activations",
                     ].map((x) => (
                       <div
                         key={x}
@@ -521,7 +581,8 @@ export default function AppPage() {
                   <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/65 md:text-base">
                     Realife is designed to feel premium for investors and simple
                     for users: clean flow, strong storytelling, real-world
-                    relevance, and crypto-native ownership.
+                    relevance, creator participation, and crypto-native
+                    ownership with room for physical delivery.
                   </p>
                 </div>
 
@@ -555,7 +616,7 @@ export default function AppPage() {
 
         <div className="mt-6 px-2 text-xs text-white/45">
           Realife premium UI • on-chain mint • IPFS metadata • tokenized
-          real-world assets
+          real-world assets • delivery-aware ownership
         </div>
       </div>
     </div>
