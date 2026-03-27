@@ -3,7 +3,7 @@
 import React from "react";
 import AppSidebar from "@/components/AppSidebar";
 
-const DESKTOP_SCALE = 0.69;
+const DESKTOP_SCALE = 0.82;
 
 export default function AppShell({
   title,
@@ -64,9 +64,6 @@ export default function AppShell({
         <div className="animate-orb-2 absolute -bottom-[20%] -right-[10%] h-[900px] w-[900px] rounded-full bg-[#d4af37] blur-[160px]" />
         <div className="animate-top-glow absolute top-0 h-[400px] w-[600px] rounded-full bg-[#f7e7a7] blur-[120px]" />
 
-        <div className="absolute left-[-180px] top-[80px] h-[1200px] w-[520px] rounded-full bg-[#d4af37] opacity-[0.14] blur-[170px]" />
-        <div className="absolute left-[80px] top-[160px] h-[920px] w-[260px] rounded-full bg-[#f7e7a7] opacity-[0.08] blur-[120px]" />
-
         <div
           className="absolute inset-0 z-0 opacity-[0.028]"
           style={{
@@ -84,9 +81,9 @@ export default function AppShell({
       </div>
 
       <div className="app-shell-scale">
-        <div className="relative z-30 w-full px-3 pt-8 pb-8 sm:px-4 md:pt-10 md:pb-10 lg:px-5 xl:px-6 2xl:px-8">
-          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-8">
-            <aside className="min-w-0 lg:self-start">
+        <div className="relative z-30 mx-auto w-full max-w-[1720px] px-4 pt-8 pb-8 sm:px-6 lg:px-8 2xl:px-10 md:pt-10 md:pb-10">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-8">
+            <aside className="min-w-0">
               <AppSidebar
                 title={title}
                 subtitle={subtitle}
