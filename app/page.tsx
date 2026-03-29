@@ -6,6 +6,7 @@ import React, { useMemo } from "react";
 import ConnectWallet from "@/components/ConnectWallet";
 
 const REAL_MARKETING_HREF = "/app/real-marketing";
+const PAGE_SCALE = 0.9;
 
 const CORE_FLOW = [
   {
@@ -284,6 +285,20 @@ export default function HomePage() {
             .animate-orb-1 { animation: slow-float 12s ease-in-out infinite; }
             .animate-orb-2 { animation: slow-float-reverse 15s ease-in-out infinite; }
             .animate-top-glow { animation: slow-pulse-top 10s ease-in-out infinite; left: 50%; }
+
+            .home-page-scale {
+              width: 100%;
+              transform: none;
+              transform-origin: top center;
+            }
+
+            @media (min-width: 1280px) {
+              .home-page-scale {
+                width: ${100 / PAGE_SCALE}%;
+                transform: scale(${PAGE_SCALE});
+                transform-origin: top center;
+              }
+            }
           `,
         }}
       />
@@ -306,499 +321,502 @@ export default function HomePage() {
         <div className="absolute inset-0 z-20 bg-[radial-gradient(circle,rgba(255,255,255,1)_1px,transparent_1px)] opacity-[0.03] mix-blend-screen [background-size:12px_12px]" />
       </div>
 
-      <div className="relative z-30 mx-auto max-w-7xl px-6 py-8 md:py-10">
+      <div className="relative z-30">
+        <div className="home-page-scale">
+          <div className="mx-auto max-w-7xl px-6 py-8 md:py-10">
+            {/* hero */}
+            <Reveal>
+              <section className="grid items-center gap-10 lg:grid-cols-12">
+                <div className="lg:col-span-6">
+                  <Pill>
+                    <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
+                    Tokenized real-world assets
+                  </Pill>
 
-        {/* hero */}
-        <Reveal>
-          <section className="grid items-center gap-10 lg:grid-cols-12">
-            <div className="lg:col-span-6">
-              <Pill>
-                <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                Tokenized real-world assets
-              </Pill>
+                  <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-[-0.03em] md:text-7xl">
+                    Create, mint, trade, and{" "}
+                    <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
+                      deliver
+                    </span>{" "}
+                    real-world value.
+                  </h1>
 
-              <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-[-0.03em] md:text-7xl">
-                Create, mint, trade, and{" "}
-                <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
-                  deliver
-                </span>{" "}
-                real-world value.
-              </h1>
+                  <p className="mt-6 max-w-2xl text-base leading-relaxed text-white/72 md:text-lg">
+                    Realife turns real-world work, products, and branded experiences into NFTs for
+                    creators, crypto brands, and collectors. It is a premium Web3 ecosystem where
+                    human effort becomes collectible ownership, market-ready assets, and real-world utility.
+                  </p>
 
-              <p className="mt-6 max-w-2xl text-base leading-relaxed text-white/72 md:text-lg">
-                Realife turns real-world work, products, and branded experiences into NFTs for
-                creators, crypto brands, and collectors. It is a premium Web3 ecosystem where
-                human effort becomes collectible ownership, market-ready assets, and real-world utility.
-              </p>
-
-              <div className="mt-8 flex flex-wrap gap-4">
-                <GoldButton href="/app/create">Mint your first NFT</GoldButton>
-                <GhostButton href="/app">Open the App</GhostButton>
-                <GhostButton href={REAL_MARKETING_HREF}>Enter Real Marketing</GhostButton>
-              </div>
-
-              <div className="mt-10 grid gap-4 md:grid-cols-12">
-                <GlassCard className="md:col-span-5">
-                  <div className="p-5">
-                    <div className="text-[11px] font-semibold text-white/60">Wallet</div>
-                    <div className="mt-3">
-                      <ConnectWallet />
-                    </div>
-                    <div className="mt-3 text-[11px] leading-relaxed text-white/55">
-                      Connect wallet, prepare metadata, mint on-chain, and move into market or delivery flows.
-                    </div>
+                  <div className="mt-8 flex flex-wrap gap-4">
+                    <GoldButton href="/app/create">Mint your first NFT</GoldButton>
+                    <GhostButton href="/app">Open the App</GhostButton>
+                    <GhostButton href={REAL_MARKETING_HREF}>Enter Real Marketing</GhostButton>
                   </div>
-                </GlassCard>
 
-                <GlassCard className="md:col-span-7">
-                  <div className="p-5">
-                    <div className="text-[11px] font-semibold text-white/60">Crypto-native proof</div>
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                      {HERO_PROOFS.map((x) => (
+                  <div className="mt-10 grid gap-4 md:grid-cols-12">
+                    <GlassCard className="md:col-span-5">
+                      <div className="p-5">
+                        <div className="text-[11px] font-semibold text-white/60">Wallet</div>
+                        <div className="mt-3">
+                          <ConnectWallet />
+                        </div>
+                        <div className="mt-3 text-[11px] leading-relaxed text-white/55">
+                          Connect wallet, prepare metadata, mint on-chain, and move into market or delivery flows.
+                        </div>
+                      </div>
+                    </GlassCard>
+
+                    <GlassCard className="md:col-span-7">
+                      <div className="p-5">
+                        <div className="text-[11px] font-semibold text-white/60">Crypto-native proof</div>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          {HERO_PROOFS.map((x) => (
+                            <div
+                              key={x.t}
+                              className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(0,0,0,0.30),rgba(0,0,0,0.22))] p-4 shadow-[0_18px_70px_rgba(0,0,0,0.25)]"
+                            >
+                              <div className="text-sm font-semibold tracking-tight">{x.t}</div>
+                              <div className="mt-1 text-xs leading-relaxed text-white/60">{x.d}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </GlassCard>
+                  </div>
+                </div>
+
+                <div className="lg:col-span-6">
+                  <GlassCard className="rounded-[36px] before:rounded-[36px]">
+                    <div className="p-6 md:p-8">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="text-sm text-white/60">Main video</div>
+                          <div className="text-2xl font-black tracking-tight">Realife in motion</div>
+                        </div>
+                        <div className="rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[11px] text-white/70">
+                          Hero
+                        </div>
+                      </div>
+
+                      <p className="mt-4 text-sm leading-relaxed text-white/65">
+                        The core loop: create something real, mint it, trade it, and connect digital ownership
+                        with real-world delivery and collectible value.
+                      </p>
+
+                      <div className="mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-black/30">
+                        <video
+                          src="/videos/realife-hero-cropped.mp4"
+                          autoPlay
+                          loop
+                          muted
+                          playsInline
+                          className="aspect-[4/3] w-full object-cover object-center"
+                        />
+                      </div>
+
+                      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                          <div className="text-sm font-bold tracking-tight">Creators</div>
+                          <div className="mt-1 text-xs leading-relaxed text-white/58">
+                            Real work becomes NFTs, proof, reputation, and market-ready assets.
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                          <div className="text-sm font-bold tracking-tight">Crypto brands</div>
+                          <div className="mt-1 text-xs leading-relaxed text-white/58">
+                            Campaigns, branded products, collectible stories, and community activations.
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                          <div className="text-sm font-bold tracking-tight">Collectors</div>
+                          <div className="mt-1 text-xs leading-relaxed text-white/58">
+                            Own, trade, and receive tokenized real-world value inside a premium UX.
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                          <div className="text-sm font-bold tracking-tight">Phygital utility</div>
+                          <div className="mt-1 text-xs leading-relaxed text-white/58">
+                            Digital ownership can stay on-chain or move into physical delivery and goods.
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </GlassCard>
+                </div>
+              </section>
+            </Reveal>
+
+            {/* core strip */}
+            <Reveal className="mt-24">
+              <section>
+                <GlassCard className="rounded-[36px] before:rounded-[36px]">
+                  <div className="p-6 md:p-10">
+                    <SectionHeading
+                      label="Core value flow"
+                      title="Create → Mint → Trade → Deliver"
+                      text="Tokenized real-world assets for creators, crypto brands, and collectors."
+                      center
+                    />
+
+                    <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                      {CORE_FLOW.map((x) => (
                         <div
-                          key={x.t}
-                          className="rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(0,0,0,0.30),rgba(0,0,0,0.22))] p-4 shadow-[0_18px_70px_rgba(0,0,0,0.25)]"
+                          key={x.n}
+                          className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]"
                         >
-                          <div className="text-sm font-semibold tracking-tight">{x.t}</div>
-                          <div className="mt-1 text-xs leading-relaxed text-white/60">{x.d}</div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] text-xs font-extrabold text-black shadow-[0_16px_50px_rgba(212,175,55,0.16)]">
+                              {x.n}
+                            </div>
+                            <p className="text-sm font-extrabold">{x.t}</p>
+                          </div>
+                          <p className="mt-3 text-xs leading-relaxed text-white/60">{x.d}</p>
                         </div>
                       ))}
                     </div>
                   </div>
                 </GlassCard>
-              </div>
-            </div>
+              </section>
+            </Reveal>
 
-            <div className="lg:col-span-6">
-              <GlassCard className="rounded-[36px] before:rounded-[36px]">
-                <div className="p-6 md:p-8">
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <div className="text-sm text-white/60">Main video</div>
-                      <div className="text-2xl font-black tracking-tight">Realife in motion</div>
-                    </div>
-                    <div className="rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[11px] text-white/70">
-                      Hero
-                    </div>
-                  </div>
-
-                  <p className="mt-4 text-sm leading-relaxed text-white/65">
-                    The core loop: create something real, mint it, trade it, and connect digital ownership
-                    with real-world delivery and collectible value.
-                  </p>
-
-                  <div className="mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-black/30">
-                    <video
-                      src="/videos/realife-hero-cropped.mp4"
-                      autoPlay
-                      loop
-                      muted
-                      playsInline
-                      className="aspect-[4/3] w-full object-cover object-center"
-                    />
-                  </div>
-
-                  <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-sm font-bold tracking-tight">Creators</div>
-                      <div className="mt-1 text-xs leading-relaxed text-white/58">
-                        Real work becomes NFTs, proof, reputation, and market-ready assets.
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-sm font-bold tracking-tight">Crypto brands</div>
-                      <div className="mt-1 text-xs leading-relaxed text-white/58">
-                        Campaigns, branded products, collectible stories, and community activations.
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-sm font-bold tracking-tight">Collectors</div>
-                      <div className="mt-1 text-xs leading-relaxed text-white/58">
-                        Own, trade, and receive tokenized real-world value inside a premium UX.
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="text-sm font-bold tracking-tight">Phygital utility</div>
-                      <div className="mt-1 text-xs leading-relaxed text-white/58">
-                        Digital ownership can stay on-chain or move into physical delivery and goods.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </GlassCard>
-            </div>
-          </section>
-        </Reveal>
-
-        {/* core strip */}
-        <Reveal className="mt-24">
-          <section>
-            <GlassCard className="rounded-[36px] before:rounded-[36px]">
-              <div className="p-6 md:p-10">
+            {/* ecosystem */}
+            <Reveal className="mt-24">
+              <section>
                 <SectionHeading
-                  label="Core value flow"
-                  title="Create → Mint → Trade → Deliver"
-                  text="Tokenized real-world assets for creators, crypto brands, and collectors."
-                  center
+                  label="Inside the ecosystem"
+                  title="Beyond minting: real-world verticals inside Realife"
+                  text="Realife expands beyond creator minting into branded campaigns, storefront experiences, and tokenized product stories."
                 />
 
-                <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  {CORE_FLOW.map((x) => (
-                    <div
-                      key={x.n}
-                      className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] text-xs font-extrabold text-black shadow-[0_16px_50px_rgba(212,175,55,0.16)]">
-                          {x.n}
-                        </div>
-                        <p className="text-sm font-extrabold">{x.t}</p>
-                      </div>
-                      <p className="mt-3 text-xs leading-relaxed text-white/60">{x.d}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </GlassCard>
-          </section>
-        </Reveal>
+                <div className="mt-10 grid gap-6 lg:grid-cols-3">
+                  <GlassCard className="h-full">
+                    <div className="flex h-full flex-col p-8">
+                      <Pill className="bg-black/35">Brand collaboration layer</Pill>
 
-        {/* ecosystem */}
-        <Reveal className="mt-24">
-          <section>
-            <SectionHeading
-              label="Inside the ecosystem"
-              title="Beyond minting: real-world verticals inside Realife"
-              text="Realife expands beyond creator minting into branded campaigns, storefront experiences, and tokenized product stories."
-            />
+                      <h3 className="mt-5 text-3xl font-black tracking-tight">Real Marketing</h3>
+                      <p className="mt-3 text-sm leading-relaxed text-white/65">
+                        The ecosystem hub for creator campaigns, crypto brand collaborations,
+                        Crypto Cafe, and Realife Store.
+                      </p>
 
-            <div className="mt-10 grid gap-6 lg:grid-cols-3">
-              <GlassCard className="h-full">
-                <div className="flex h-full flex-col p-8">
-                  <Pill className="bg-black/35">Brand collaboration layer</Pill>
-
-                  <h3 className="mt-5 text-3xl font-black tracking-tight">Real Marketing</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-white/65">
-                    The ecosystem hub for creator campaigns, crypto brand collaborations,
-                    Crypto Cafe, and Realife Store.
-                  </p>
-
-                  <div className="mt-6 grid gap-3">
-                    {[
-                      "Campaigns for crypto projects",
-                      "Product storytelling and vertical launches",
-                      "Bridge between creators and Web3 brands",
-                    ].map((x) => (
-                      <div
-                        key={x}
-                        className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/76"
-                      >
-                        {x}
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="mt-auto pt-8">
-                    <GoldButton href={REAL_MARKETING_HREF} className="w-full">
-                      Enter Real Marketing
-                    </GoldButton>
-                  </div>
-                </div>
-              </GlassCard>
-
-              <GlassCard className="overflow-hidden">
-                <div className="relative aspect-[4/5] w-full">
-                  <Image
-                    src="/brand/realife-crypto-cafe.jpg"
-                    alt="Realife Crypto Cafe"
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 1024px) 100vw, 33vw"
-                  />
-                  <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.62),rgba(0,0,0,0.08))]" />
-                  <div className="absolute left-4 top-4">
-                    <Pill className="bg-black/40">Crypto Cafe</Pill>
-                  </div>
-                  <div className="absolute bottom-0 left-0 right-0 p-6">
-                    <div className="text-2xl font-black tracking-tight">Realife Crypto Cafe</div>
-                    <div className="mt-2 text-sm leading-relaxed text-white/70">
-                      A premium storefront concept for branded goods, collectible atmosphere, and phygital experiences.
-                    </div>
-                  </div>
-                </div>
-              </GlassCard>
-
-              <GlassCard className="overflow-hidden">
-                <div className="relative aspect-[4/5] w-full">
-                  <Image
-                    src="/brand/realife-store.jpg"
-                    alt="Realife Store"
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 1024px) 100vw, 33vw"
-                  />
-                  <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.62),rgba(0,0,0,0.08))]" />
-                  <div className="absolute left-4 top-4">
-                    <Pill className="bg-black/40">Realife Store</Pill>
-                  </div>
-                  <div className="absolute bottom-0 left-0 right-0 p-6">
-                    <div className="text-2xl font-black tracking-tight">Realife Store</div>
-                    <div className="mt-2 text-sm leading-relaxed text-white/70">
-                      Tokenized real-world products, branded packaging, and collectible ownership stories.
-                    </div>
-                  </div>
-                </div>
-              </GlassCard>
-            </div>
-          </section>
-        </Reveal>
-
-        {/* crypto/ui showcase */}
-        <Reveal className="mt-24">
-          <section>
-            <GlassCard className="rounded-[36px] before:rounded-[36px]">
-              <div className="grid items-center gap-8 p-6 md:p-10 lg:grid-cols-12">
-                <div className="lg:col-span-5">
-                  <SectionHeading
-                    label="Crypto / UI showcase"
-                    title="From real creation to verified ownership"
-                    text="Realife combines wallet connection, metadata preparation, on-chain minting, and market or delivery-ready outcomes."
-                  />
-
-                  <div className="mt-6 grid gap-3">
-                    {[
-                      ["Wallet connected", "User enters the creator flow"],
-                      ["Metadata prepared", "Media, story, proof, and context"],
-                      ["Mint verified", "On-chain ownership and collectible proof"],
-                      ["Ready for market or delivery", "Digital and real-world utility"],
-                    ].map(([t, d]) => (
-                      <div
-                        key={t}
-                        className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3"
-                      >
-                        <div className="text-sm font-bold tracking-tight">{t}</div>
-                        <div className="mt-1 text-xs leading-relaxed text-white/60">{d}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="lg:col-span-7">
-                  <div className="rounded-[30px] p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.35),rgba(212,175,55,0.16),rgba(184,135,10,0.12))]">
-                    <div className="rounded-[30px] border border-white/10 bg-[#0b0a09]/75 p-4 backdrop-blur-2xl">
-                      <div className="mb-4 flex flex-wrap items-center gap-2">
-                        {["Create NFT", "Marketplace", "Delivery"].map((tab, i) => (
+                      <div className="mt-6 grid gap-3">
+                        {[
+                          "Campaigns for crypto projects",
+                          "Product storytelling and vertical launches",
+                          "Bridge between creators and Web3 brands",
+                        ].map((x) => (
                           <div
-                            key={tab}
-                            className={cx(
-                              "rounded-full border px-3 py-1.5 text-[11px] font-semibold",
-                              i === 0
-                                ? "border-[#d4af37] bg-[#d4af37] text-black"
-                                : "border-white/10 bg-white/[0.04] text-white/70"
-                            )}
+                            key={x}
+                            className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/76"
                           >
-                            {tab}
+                            {x}
                           </div>
                         ))}
                       </div>
 
-                      <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))]">
-                        <div className="grid gap-4 p-5 md:grid-cols-12">
-                          <div className="md:col-span-7">
-                            <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">
-                                Create asset
-                              </div>
-                              <div className="mt-3 space-y-3">
-                                {[
-                                  ["Asset type", "Real-world artwork"],
-                                  ["Title", "Mountain lake painting"],
-                                  ["Category", "Art / collectible"],
-                                  ["Utility", "Trade or delivery-ready"],
-                                ].map(([k, v]) => (
-                                  <div
-                                    key={k}
-                                    className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2"
-                                  >
-                                    <div className="text-[10px] font-semibold uppercase text-white/45">{k}</div>
-                                    <div className="mt-1 text-sm font-medium text-white/88">{v}</div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
+                      <div className="mt-auto pt-8">
+                        <GoldButton href={REAL_MARKETING_HREF} className="w-full">
+                          Enter Real Marketing
+                        </GoldButton>
+                      </div>
+                    </div>
+                  </GlassCard>
 
-                          <div className="md:col-span-5">
-                            <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">
-                                Status
-                              </div>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {["Wallet connected", "IPFS metadata", "Base Sepolia", "Mint verified"].map((x) => (
-                                  <div
-                                    key={x}
-                                    className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-white/82"
-                                  >
-                                    {x}
-                                  </div>
-                                ))}
-                              </div>
-
-                              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                                <div className="text-sm font-bold tracking-tight">Creator-ready interface</div>
-                                <div className="mt-2 text-xs leading-relaxed text-white/60">
-                                  Clean enough for normal people, structured enough for Web3 logic, and premium enough for investor demos.
-                                </div>
-                              </div>
-
-                              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                                <div className="text-sm font-bold tracking-tight">Real-world utility layer</div>
-                                <div className="mt-2 text-xs leading-relaxed text-white/60">
-                                  The asset can remain collectible, move into trading, or connect to physical delivery.
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                  <GlassCard className="overflow-hidden">
+                    <div className="relative aspect-[4/5] w-full">
+                      <Image
+                        src="/brand/realife-crypto-cafe.jpg"
+                        alt="Realife Crypto Cafe"
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 1024px) 100vw, 33vw"
+                      />
+                      <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.62),rgba(0,0,0,0.08))]" />
+                      <div className="absolute left-4 top-4">
+                        <Pill className="bg-black/40">Crypto Cafe</Pill>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 p-6">
+                        <div className="text-2xl font-black tracking-tight">Realife Crypto Cafe</div>
+                        <div className="mt-2 text-sm leading-relaxed text-white/70">
+                          A premium storefront concept for branded goods, collectible atmosphere, and phygital experiences.
                         </div>
                       </div>
+                    </div>
+                  </GlassCard>
 
-                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <GlassCard className="overflow-hidden">
+                    <div className="relative aspect-[4/5] w-full">
+                      <Image
+                        src="/brand/realife-store.jpg"
+                        alt="Realife Store"
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 1024px) 100vw, 33vw"
+                      />
+                      <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.62),rgba(0,0,0,0.08))]" />
+                      <div className="absolute left-4 top-4">
+                        <Pill className="bg-black/40">Realife Store</Pill>
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 p-6">
+                        <div className="text-2xl font-black tracking-tight">Realife Store</div>
+                        <div className="mt-2 text-sm leading-relaxed text-white/70">
+                          Tokenized real-world products, branded packaging, and collectible ownership stories.
+                        </div>
+                      </div>
+                    </div>
+                  </GlassCard>
+                </div>
+              </section>
+            </Reveal>
+
+            {/* crypto/ui showcase */}
+            <Reveal className="mt-24">
+              <section>
+                <GlassCard className="rounded-[36px] before:rounded-[36px]">
+                  <div className="grid items-center gap-8 p-6 md:p-10 lg:grid-cols-12">
+                    <div className="lg:col-span-5">
+                      <SectionHeading
+                        label="Crypto / UI showcase"
+                        title="From real creation to verified ownership"
+                        text="Realife combines wallet connection, metadata preparation, on-chain minting, and market or delivery-ready outcomes."
+                      />
+
+                      <div className="mt-6 grid gap-3">
                         {[
-                          ["Creator UI", "Simple flow for real people"],
-                          ["On-chain proof", "Metadata + wallet + ownership"],
-                          ["RWA utility", "Trade, collect, and deliver"],
+                          ["Wallet connected", "User enters the creator flow"],
+                          ["Metadata prepared", "Media, story, proof, and context"],
+                          ["Mint verified", "On-chain ownership and collectible proof"],
+                          ["Ready for market or delivery", "Digital and real-world utility"],
                         ].map(([t, d]) => (
-                          <div key={t} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                          <div
+                            key={t}
+                            className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3"
+                          >
                             <div className="text-sm font-bold tracking-tight">{t}</div>
                             <div className="mt-1 text-xs leading-relaxed text-white/60">{d}</div>
                           </div>
                         ))}
                       </div>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </GlassCard>
-          </section>
-        </Reveal>
 
-        {/* story/photos */}
-        <Reveal className="mt-24">
-          <section>
-            <SectionHeading
-              label="Human story"
-              title="Real creators. Real objects. Real delivery."
-              text="Realife is not built around speculation first. It starts with people, skill, effort, products, and the movement of value into Web3."
-            />
+                    <div className="lg:col-span-7">
+                      <div className="rounded-[30px] p-px bg-[linear-gradient(135deg,rgba(247,231,167,0.35),rgba(212,175,55,0.16),rgba(184,135,10,0.12))]">
+                        <div className="rounded-[30px] border border-white/10 bg-[#0b0a09]/75 p-4 backdrop-blur-2xl">
+                          <div className="mb-4 flex flex-wrap items-center gap-2">
+                            {["Create NFT", "Marketplace", "Delivery"].map((tab, i) => (
+                              <div
+                                key={tab}
+                                className={cx(
+                                  "rounded-full border px-3 py-1.5 text-[11px] font-semibold",
+                                  i === 0
+                                    ? "border-[#d4af37] bg-[#d4af37] text-black"
+                                    : "border-white/10 bg-white/[0.04] text-white/70"
+                                )}
+                              >
+                                {tab}
+                              </div>
+                            ))}
+                          </div>
 
-            <div className="mt-10 grid gap-6 lg:grid-cols-12">
-              <div className="lg:col-span-7">
-                <StoryCard item={STORY_CARDS[0]} imageClassName="aspect-[16/12]" />
-              </div>
-              <div className="lg:col-span-5">
-                <StoryCard item={STORY_CARDS[1]} imageClassName="aspect-[4/5]" />
-              </div>
+                          <div className="overflow-hidden rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))]">
+                            <div className="grid gap-4 p-5 md:grid-cols-12">
+                              <div className="md:col-span-7">
+                                <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">
+                                    Create asset
+                                  </div>
+                                  <div className="mt-3 space-y-3">
+                                    {[
+                                      ["Asset type", "Real-world artwork"],
+                                      ["Title", "Mountain lake painting"],
+                                      ["Category", "Art / collectible"],
+                                      ["Utility", "Trade or delivery-ready"],
+                                    ].map(([k, v]) => (
+                                      <div
+                                        key={k}
+                                        className="rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2"
+                                      >
+                                        <div className="text-[10px] font-semibold uppercase text-white/45">{k}</div>
+                                        <div className="mt-1 text-sm font-medium text-white/88">{v}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
 
-              <div className="lg:col-span-5">
-                <StoryCard item={STORY_CARDS[2]} imageClassName="aspect-[4/5]" />
-              </div>
-              <div className="lg:col-span-7">
-                <StoryCard item={STORY_CARDS[3]} imageClassName="aspect-[16/12]" />
-              </div>
+                              <div className="md:col-span-5">
+                                <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
+                                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/50">
+                                    Status
+                                  </div>
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    {["Wallet connected", "IPFS metadata", "Base Sepolia", "Mint verified"].map((x) => (
+                                      <div
+                                        key={x}
+                                        className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-white/82"
+                                      >
+                                        {x}
+                                      </div>
+                                    ))}
+                                  </div>
 
-              <div className="lg:col-span-6">
-                <StoryCard item={STORY_CARDS[4]} imageClassName="aspect-[16/12]" />
-              </div>
-              <div className="lg:col-span-6">
-                <StoryCard item={STORY_CARDS[5]} imageClassName="aspect-[16/12]" />
-              </div>
-            </div>
+                                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                                    <div className="text-sm font-bold tracking-tight">Creator-ready interface</div>
+                                    <div className="mt-2 text-xs leading-relaxed text-white/60">
+                                      Clean enough for normal people, structured enough for Web3 logic, and premium enough for investor demos.
+                                    </div>
+                                  </div>
 
-            <div className="mt-6">
-              <GlassCard className="overflow-hidden">
-                <div className="grid items-center gap-0 md:grid-cols-12">
-                  <div className="relative min-h-[420px] md:col-span-5 bg-[#120f0d]">
-                    <Image
-                      src={STORY_CARDS[6].image}
-                      alt={STORY_CARDS[6].alt}
-                      fill
-                      className="object-contain object-center p-4"
-                      sizes="(max-width: 768px) 100vw, 40vw"
-                    />
-                    <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.16),rgba(0,0,0,0.02))]" />
-                  </div>
+                                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                                    <div className="text-sm font-bold tracking-tight">Real-world utility layer</div>
+                                    <div className="mt-2 text-xs leading-relaxed text-white/60">
+                                      The asset can remain collectible, move into trading, or connect to physical delivery.
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
 
-                  <div className="p-8 md:col-span-7 md:p-10">
-                    <Pill>{STORY_CARDS[6].label}</Pill>
-                    <h3 className="mt-5 text-3xl font-black tracking-tight md:text-4xl">
-                      {STORY_CARDS[6].title}
-                    </h3>
-                    <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/65 md:text-base">
-                      {STORY_CARDS[6].text}
-                    </p>
-
-                    <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                      {[
-                        "Not only for traders or developers",
-                        "Built for artists, makers, workers, and communities",
-                        "Bridge between offline talent and Web3 economy",
-                        "A social layer for real human contribution",
-                      ].map((x) => (
-                        <div
-                          key={x}
-                          className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/76"
-                        >
-                          {x}
+                          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                            {[
+                              ["Creator UI", "Simple flow for real people"],
+                              ["On-chain proof", "Metadata + wallet + ownership"],
+                              ["RWA utility", "Trade, collect, and deliver"],
+                            ].map(([t, d]) => (
+                              <div key={t} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                                <div className="text-sm font-bold tracking-tight">{t}</div>
+                                <div className="mt-1 text-xs leading-relaxed text-white/60">{d}</div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      ))}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </GlassCard>
-            </div>
-          </section>
-        </Reveal>
+                </GlassCard>
+              </section>
+            </Reveal>
 
-        {/* final mission */}
-        <Reveal className="mt-24">
-          <section>
-            <GlassCard className="rounded-[36px] before:rounded-[36px]">
-              <div className="grid items-center gap-8 p-8 md:p-12 lg:grid-cols-12">
-                <div className="lg:col-span-8">
-                  <SectionHeading
-                    label="Mission"
-                    title="A premium Web3 ecosystem built around real value"
-                    text="Realife helps creators, crypto projects, and collectors move beyond pure speculation into tokenized real-world assets, branded experiences, and delivery-aware ownership."
-                  />
-                </div>
+            {/* story/photos */}
+            <Reveal className="mt-24">
+              <section>
+                <SectionHeading
+                  label="Human story"
+                  title="Real creators. Real objects. Real delivery."
+                  text="Realife is not built around speculation first. It starts with people, skill, effort, products, and the movement of value into Web3."
+                />
 
-                <div className="lg:col-span-4">
-                  <div className="flex flex-col gap-3">
-                    <GoldButton href="/app/create" className="w-full">
-                      Start minting
-                    </GoldButton>
-                    <GhostButton href={REAL_MARKETING_HREF} className="w-full">
-                      Explore Real Marketing
-                    </GhostButton>
-                    <GhostButton href="/app/trading" className="w-full">
-                      Open trading
-                    </GhostButton>
+                <div className="mt-10 grid gap-6 lg:grid-cols-12">
+                  <div className="lg:col-span-7">
+                    <StoryCard item={STORY_CARDS[0]} imageClassName="aspect-[16/12]" />
+                  </div>
+                  <div className="lg:col-span-5">
+                    <StoryCard item={STORY_CARDS[1]} imageClassName="aspect-[4/5]" />
+                  </div>
+
+                  <div className="lg:col-span-5">
+                    <StoryCard item={STORY_CARDS[2]} imageClassName="aspect-[4/5]" />
+                  </div>
+                  <div className="lg:col-span-7">
+                    <StoryCard item={STORY_CARDS[3]} imageClassName="aspect-[16/12]" />
+                  </div>
+
+                  <div className="lg:col-span-6">
+                    <StoryCard item={STORY_CARDS[4]} imageClassName="aspect-[16/12]" />
+                  </div>
+                  <div className="lg:col-span-6">
+                    <StoryCard item={STORY_CARDS[5]} imageClassName="aspect-[16/12]" />
                   </div>
                 </div>
-              </div>
-            </GlassCard>
-          </section>
-        </Reveal>
 
-        <footer className="mt-16 flex flex-wrap items-center justify-between gap-4 pb-10 text-xs text-white/45">
-          <div>© {year} Realife</div>
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="opacity-60">Base Sepolia</span>
-            <span className="opacity-60">IPFS metadata</span>
-            <span className="opacity-60">On-chain mint</span>
-            <span className="opacity-60">Tokenized real-world assets</span>
+                <div className="mt-6">
+                  <GlassCard className="overflow-hidden">
+                    <div className="grid items-center gap-0 md:grid-cols-12">
+                      <div className="relative min-h-[420px] md:col-span-5 bg-[#120f0d]">
+                        <Image
+                          src={STORY_CARDS[6].image}
+                          alt={STORY_CARDS[6].alt}
+                          fill
+                          className="object-contain object-center p-4"
+                          sizes="(max-width: 768px) 100vw, 40vw"
+                        />
+                        <div className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.16),rgba(0,0,0,0.02))]" />
+                      </div>
+
+                      <div className="p-8 md:col-span-7 md:p-10">
+                        <Pill>{STORY_CARDS[6].label}</Pill>
+                        <h3 className="mt-5 text-3xl font-black tracking-tight md:text-4xl">
+                          {STORY_CARDS[6].title}
+                        </h3>
+                        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/65 md:text-base">
+                          {STORY_CARDS[6].text}
+                        </p>
+
+                        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                          {[
+                            "Not only for traders or developers",
+                            "Built for artists, makers, workers, and communities",
+                            "Bridge between offline talent and Web3 economy",
+                            "A social layer for real human contribution",
+                          ].map((x) => (
+                            <div
+                              key={x}
+                              className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white/76"
+                            >
+                              {x}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </GlassCard>
+                </div>
+              </section>
+            </Reveal>
+
+            {/* final mission */}
+            <Reveal className="mt-24">
+              <section>
+                <GlassCard className="rounded-[36px] before:rounded-[36px]">
+                  <div className="grid items-center gap-8 p-8 md:p-12 lg:grid-cols-12">
+                    <div className="lg:col-span-8">
+                      <SectionHeading
+                        label="Mission"
+                        title="A premium Web3 ecosystem built around real value"
+                        text="Realife helps creators, crypto projects, and collectors move beyond pure speculation into tokenized real-world assets, branded experiences, and delivery-aware ownership."
+                      />
+                    </div>
+
+                    <div className="lg:col-span-4">
+                      <div className="flex flex-col gap-3">
+                        <GoldButton href="/app/create" className="w-full">
+                          Start minting
+                        </GoldButton>
+                        <GhostButton href={REAL_MARKETING_HREF} className="w-full">
+                          Explore Real Marketing
+                        </GhostButton>
+                        <GhostButton href="/app/trading" className="w-full">
+                          Open trading
+                        </GhostButton>
+                      </div>
+                    </div>
+                  </div>
+                </GlassCard>
+              </section>
+            </Reveal>
+
+            <footer className="mt-16 flex flex-wrap items-center justify-between gap-4 pb-10 text-xs text-white/45">
+              <div>© {year} Realife</div>
+              <div className="flex flex-wrap items-center gap-4">
+                <span className="opacity-60">Base Sepolia</span>
+                <span className="opacity-60">IPFS metadata</span>
+                <span className="opacity-60">On-chain mint</span>
+                <span className="opacity-60">Tokenized real-world assets</span>
+              </div>
+            </footer>
           </div>
-        </footer>
+        </div>
       </div>
     </main>
   );
