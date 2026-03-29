@@ -3,7 +3,7 @@
 import React from "react";
 import AppSidebar from "@/components/AppSidebar";
 
-const DESKTOP_SCALE = 0.75;
+const DESKTOP_SCALE = 0.65;
 
 export default function AppShell({
   title,
