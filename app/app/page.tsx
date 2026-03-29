@@ -181,22 +181,22 @@ function PersonaSilhouette({
     <div
       className={[
         "relative flex flex-col items-center justify-end",
-        "w-[170px] md:w-[210px] xl:w-[228px]",
+        "w-[128px] md:w-[150px] xl:w-[164px]",
         className,
       ].join(" ")}
     >
-      <div className="pointer-events-none absolute bottom-2 h-10 w-[110px] rounded-full bg-[#d4af37]/15 blur-2xl md:w-[136px]" />
+      <div className="pointer-events-none absolute bottom-2 h-8 w-[82px] rounded-full bg-[#d4af37]/12 blur-2xl md:w-[98px]" />
 
       <div className="relative">
         <svg
           viewBox="0 0 220 360"
-          className="h-[260px] w-[170px] md:h-[320px] md:w-[210px] xl:h-[344px] xl:w-[228px]"
+          className="h-[198px] w-[128px] md:h-[228px] md:w-[150px] xl:h-[246px] xl:w-[164px]"
           aria-hidden="true"
         >
           <defs>
             <radialGradient id={`${id}-backGlow`} cx="50%" cy="38%" r="65%">
-              <stop offset="0%" stopColor="rgba(247,231,167,0.26)" />
-              <stop offset="60%" stopColor="rgba(212,175,55,0.12)" />
+              <stop offset="0%" stopColor="rgba(247,231,167,0.20)" />
+              <stop offset="60%" stopColor="rgba(212,175,55,0.09)" />
               <stop offset="100%" stopColor="rgba(212,175,55,0)" />
             </radialGradient>
 
@@ -337,7 +337,7 @@ function PersonaSilhouette({
                 cx="188"
                 cy="214"
                 r="18"
-                fill="rgba(247,231,167,0.25)"
+                fill="rgba(247,231,167,0.20)"
                 filter={`url(#${id}-soft)`}
               />
             </>
@@ -347,10 +347,7 @@ function PersonaSilhouette({
                 d="M74 154c8-18 24-31 36-31h0c14 0 30 12 38 31l16 40c5 13-5 27-19 27H74c-14 0-24-14-19-27l19-40z"
                 fill={`url(#${id}-body)`}
               />
-              <path
-                d="M92 145h36v45H92z"
-                fill="rgba(255,255,255,0.06)"
-              />
+              <path d="M92 145h36v45H92z" fill="rgba(255,255,255,0.06)" />
               <path
                 d="M82 220h56l11 81c2 14-9 27-24 27h-9c-16 0-27-13-25-29l7-79h-16z"
                 fill={`url(#${id}-pants)`}
@@ -364,23 +361,17 @@ function PersonaSilhouette({
                 cx="33"
                 cy="226"
                 r="18"
-                fill="rgba(247,231,167,0.25)"
+                fill="rgba(247,231,167,0.20)"
                 filter={`url(#${id}-soft)`}
               />
             </>
           )}
 
-          <ellipse
-            cx="110"
-            cy="342"
-            rx="46"
-            ry="10"
-            fill="rgba(0,0,0,0.42)"
-          />
+          <ellipse cx="110" cy="342" rx="46" ry="10" fill="rgba(0,0,0,0.42)" />
         </svg>
       </div>
 
-      <div className="mt-[-8px] rounded-full border border-white/10 bg-black/35 px-3 py-1 text-[10px] font-semibold text-white/72 backdrop-blur-xl">
+      <div className="mt-[-6px] rounded-full border border-white/10 bg-black/35 px-2.5 py-1 text-[9px] font-semibold text-white/68 backdrop-blur-xl">
         {label}
       </div>
     </div>
@@ -389,7 +380,7 @@ function PersonaSilhouette({
 
 function DuoEcosystemScene() {
   return (
-    <div className="relative mt-6 overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-5 shadow-[0_28px_90px_rgba(0,0,0,0.34)] md:p-6 xl:p-7">
+    <div className="relative mt-5 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-4 shadow-[0_22px_70px_rgba(0,0,0,0.30)] md:p-5">
       <style jsx>{`
         @keyframes duoFloatA {
           0%,
@@ -397,7 +388,7 @@ function DuoEcosystemScene() {
             transform: translateY(0px) rotate(0deg);
           }
           50% {
-            transform: translateY(-10px) rotate(-1deg);
+            transform: translateY(-6px) rotate(-0.8deg);
           }
         }
         @keyframes duoFloatB {
@@ -406,29 +397,29 @@ function DuoEcosystemScene() {
             transform: translateY(0px) rotate(0deg);
           }
           50% {
-            transform: translateY(-12px) rotate(1deg);
+            transform: translateY(-7px) rotate(0.8deg);
           }
         }
         @keyframes duoPulse {
           0%,
           100% {
-            opacity: 0.4;
+            opacity: 0.42;
             transform: scale(1);
           }
           50% {
-            opacity: 1;
-            transform: scale(1.08);
+            opacity: 0.95;
+            transform: scale(1.06);
           }
         }
         @keyframes duoBeam {
           0%,
           100% {
-            opacity: 0.24;
+            opacity: 0.22;
             filter: brightness(1);
           }
           50% {
-            opacity: 0.95;
-            filter: brightness(1.28);
+            opacity: 0.72;
+            filter: brightness(1.14);
           }
         }
         @keyframes duoDrift {
@@ -437,17 +428,17 @@ function DuoEcosystemScene() {
             transform: translate3d(0, 0, 0);
           }
           50% {
-            transform: translate3d(0, -8px, 0);
+            transform: translate3d(0, -5px, 0);
           }
         }
         @keyframes duoOrbit {
           0%,
           100% {
             transform: translateY(0px);
-            opacity: 0.5;
+            opacity: 0.45;
           }
           50% {
-            transform: translateY(-9px);
+            transform: translateY(-5px);
             opacity: 1;
           }
         }
@@ -483,95 +474,95 @@ function DuoEcosystemScene() {
       `}</style>
 
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-[-56px] top-[-56px] h-[220px] w-[220px] rounded-full bg-[#d4af37]/[0.13] blur-[95px]" />
-        <div className="absolute right-[-36px] bottom-[-60px] h-[220px] w-[220px] rounded-full bg-[#f7e7a7]/[0.08] blur-[100px]" />
-        <div className="absolute inset-x-0 bottom-0 h-[130px] bg-[linear-gradient(180deg,transparent,rgba(212,175,55,0.11))]" />
-        <div className="absolute inset-x-[10%] bottom-[18px] h-[110px] rounded-full bg-[radial-gradient(circle,rgba(212,175,55,0.12),transparent_68%)] blur-[34px]" />
+        <div className="absolute left-[-46px] top-[-46px] h-[170px] w-[170px] rounded-full bg-[#d4af37]/[0.10] blur-[80px]" />
+        <div className="absolute right-[-24px] bottom-[-42px] h-[170px] w-[170px] rounded-full bg-[#f7e7a7]/[0.06] blur-[84px]" />
+        <div className="absolute inset-x-0 bottom-0 h-[90px] bg-[linear-gradient(180deg,transparent,rgba(212,175,55,0.08))]" />
+        <div className="absolute inset-x-[12%] bottom-[12px] h-[74px] rounded-full bg-[radial-gradient(circle,rgba(212,175,55,0.08),transparent_68%)] blur-[28px]" />
       </div>
 
-      <div className="relative z-20 flex flex-wrap items-center justify-between gap-3">
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-[11px] uppercase tracking-[0.22em] text-white/40">
+          <p className="text-[10px] uppercase tracking-[0.20em] text-white/38">
             Human layer
           </p>
-          <p className="mt-1 text-sm font-extrabold text-white">
+          <p className="mt-1 text-[13px] font-extrabold text-white">
             Real people entering a premium on-chain ecosystem
           </p>
         </div>
 
-        <LuxPill className="bg-black/25">
-          Motion feel • interface presence
+        <LuxPill className="bg-black/20 px-2.5 py-1 text-[10px]">
+          Motion feel
         </LuxPill>
       </div>
 
-      <div className="relative mt-5 min-h-[320px] md:min-h-[380px] xl:min-h-[410px]">
-        <div className="duo-orbit absolute left-[10%] top-[74px] z-10 h-3 w-3 rounded-full bg-[#f7e7a7]/80 shadow-[0_0_20px_rgba(247,231,167,0.7)]" />
+      <div className="relative mt-4 min-h-[220px] md:min-h-[250px] xl:min-h-[270px]">
+        <div className="duo-orbit absolute left-[13%] top-[58px] z-10 h-2.5 w-2.5 rounded-full bg-[#f7e7a7]/75 shadow-[0_0_16px_rgba(247,231,167,0.65)]" />
         <div
-          className="duo-orbit absolute right-[10%] top-[94px] z-10 h-2.5 w-2.5 rounded-full bg-[#d4af37]/80 shadow-[0_0_18px_rgba(212,175,55,0.7)]"
+          className="duo-orbit absolute right-[13%] top-[70px] z-10 h-2 w-2 rounded-full bg-[#d4af37]/75 shadow-[0_0_14px_rgba(212,175,55,0.65)]"
           style={{ animationDelay: "0.65s" }}
         />
         <div
-          className="duo-orbit absolute left-[26%] top-[178px] z-10 h-2 w-2 rounded-full bg-white/75 shadow-[0_0_14px_rgba(255,255,255,0.35)]"
+          className="duo-orbit absolute left-[29%] top-[136px] z-10 h-1.5 w-1.5 rounded-full bg-white/70 shadow-[0_0_10px_rgba(255,255,255,0.35)]"
           style={{ animationDelay: "1.1s" }}
         />
         <div
-          className="duo-orbit absolute right-[28%] top-[188px] z-10 h-2 w-2 rounded-full bg-white/75 shadow-[0_0_14px_rgba(255,255,255,0.35)]"
+          className="duo-orbit absolute right-[30%] top-[142px] z-10 h-1.5 w-1.5 rounded-full bg-white/70 shadow-[0_0_10px_rgba(255,255,255,0.35)]"
           style={{ animationDelay: "0.9s" }}
         />
 
-        <div className="duo-drift absolute left-1/2 top-[18px] z-20 w-[230px] -translate-x-1/2 rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.025))] p-4 backdrop-blur-2xl shadow-[0_32px_88px_rgba(0,0,0,0.36)] md:w-[270px] xl:w-[294px]">
+        <div className="duo-drift absolute left-1/2 top-[10px] z-20 w-[188px] -translate-x-1/2 rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] p-3.5 backdrop-blur-2xl shadow-[0_24px_72px_rgba(0,0,0,0.32)] md:w-[214px] xl:w-[230px]">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+              <p className="text-[9px] uppercase tracking-[0.18em] text-white/42">
                 Live ecosystem
               </p>
-              <p className="mt-1 text-sm font-extrabold text-white">
+              <p className="mt-1 text-[12px] font-extrabold text-white md:text-[13px]">
                 Mint ↔ Market ↔ Delivery
               </p>
             </div>
-            <div className="duo-pulse mt-1 h-2.5 w-2.5 rounded-full bg-[#f7e7a7] shadow-[0_0_0_8px_rgba(247,231,167,0.12)]" />
+            <div className="duo-pulse mt-1 h-2 w-2 rounded-full bg-[#f7e7a7] shadow-[0_0_0_6px_rgba(247,231,167,0.10)]" />
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-[11px] font-semibold text-white/75">
+          <div className="mt-3 grid grid-cols-3 gap-1.5">
+            <div className="rounded-2xl border border-white/10 bg-black/25 px-2.5 py-1.5 text-[10px] font-semibold text-white/72">
               Create
             </div>
-            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-[11px] font-semibold text-white/75">
+            <div className="rounded-2xl border border-white/10 bg-black/25 px-2.5 py-1.5 text-[10px] font-semibold text-white/72">
               Mint
             </div>
-            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-[11px] font-semibold text-white/75">
+            <div className="rounded-2xl border border-white/10 bg-black/25 px-2.5 py-1.5 text-[10px] font-semibold text-white/72">
               Trade
             </div>
           </div>
 
-          <div className="mt-4 relative h-[88px] overflow-hidden rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_50%_15%,rgba(247,231,167,0.16),transparent_56%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]">
-            <div className="duo-rotate absolute left-1/2 top-1/2 h-[64px] w-[64px] rounded-full border border-[#f7e7a7]/25" />
+          <div className="mt-3 relative h-[58px] overflow-hidden rounded-[18px] border border-white/10 bg-[radial-gradient(circle_at_50%_15%,rgba(247,231,167,0.13),transparent_56%),linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01))]">
+            <div className="duo-rotate absolute left-1/2 top-1/2 h-[42px] w-[42px] rounded-full border border-[#f7e7a7]/22" />
             <div
-              className="duo-rotate absolute left-1/2 top-1/2 h-[44px] w-[44px] rounded-full border border-[#d4af37]/35"
+              className="duo-rotate absolute left-1/2 top-1/2 h-[28px] w-[28px] rounded-full border border-[#d4af37]/28"
               style={{ animationDuration: "12s" }}
             />
-            <div className="duo-pulse absolute left-1/2 top-1/2 h-[16px] w-[16px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#f7e7a7]/70 shadow-[0_0_18px_rgba(247,231,167,0.5)]" />
-            <div className="absolute inset-x-6 top-1/2 h-px -translate-y-1/2 bg-[linear-gradient(90deg,transparent,rgba(247,231,167,0.44),transparent)]" />
+            <div className="duo-pulse absolute left-1/2 top-1/2 h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#f7e7a7]/70 shadow-[0_0_14px_rgba(247,231,167,0.45)]" />
+            <div className="absolute inset-x-5 top-1/2 h-px -translate-y-1/2 bg-[linear-gradient(90deg,transparent,rgba(247,231,167,0.32),transparent)]" />
           </div>
         </div>
 
-        <div className="duo-beam absolute left-[100px] top-[188px] z-10 hidden h-px w-[170px] rotate-[12deg] bg-[linear-gradient(90deg,rgba(212,175,55,0.02),rgba(247,231,167,0.72),rgba(212,175,55,0.02))] md:block xl:left-[118px] xl:w-[190px]" />
-        <div className="duo-beam absolute right-[100px] top-[188px] z-10 hidden h-px w-[170px] -rotate-[12deg] bg-[linear-gradient(90deg,rgba(212,175,55,0.02),rgba(247,231,167,0.72),rgba(212,175,55,0.02))] md:block xl:right-[118px] xl:w-[190px]" />
+        <div className="duo-beam absolute left-[82px] top-[130px] z-10 hidden h-px w-[98px] rotate-[11deg] bg-[linear-gradient(90deg,rgba(212,175,55,0.02),rgba(247,231,167,0.58),rgba(212,175,55,0.02))] md:block" />
+        <div className="duo-beam absolute right-[82px] top-[130px] z-10 hidden h-px w-[98px] -rotate-[11deg] bg-[linear-gradient(90deg,rgba(212,175,55,0.02),rgba(247,231,167,0.58),rgba(212,175,55,0.02))] md:block" />
 
-        <div className="absolute inset-x-0 bottom-[64px] z-[1] h-px bg-[linear-gradient(90deg,transparent,rgba(247,231,167,0.22),transparent)]" />
+        <div className="absolute inset-x-0 bottom-[44px] z-[1] h-px bg-[linear-gradient(90deg,transparent,rgba(247,231,167,0.16),transparent)]" />
 
-        <div className="absolute bottom-0 left-[-6px] z-20 md:left-[4px]">
+        <div className="absolute bottom-0 left-0 z-20">
           <PersonaSilhouette
             variant="woman"
-            label="Mint intent"
+            label="Mint"
             className="duo-float-a"
           />
         </div>
 
-        <div className="absolute bottom-0 right-[-6px] z-20 md:right-[4px]">
+        <div className="absolute bottom-0 right-0 z-20">
           <PersonaSilhouette
             variant="man"
-            label="Market flow"
+            label="Market"
             className="duo-float-b"
           />
         </div>
