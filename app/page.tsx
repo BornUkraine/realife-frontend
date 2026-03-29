@@ -5,7 +5,7 @@ import Link from "next/link";
 import React, { useMemo } from "react";
 import ConnectWallet from "@/components/ConnectWallet";
 
-const REAL_MARKETING_HREF = "/app/real-marketing"; // если путь другой — поменяй тут
+const REAL_MARKETING_HREF = "/app/real-marketing";
 
 const CORE_FLOW = [
   {
@@ -307,44 +307,6 @@ export default function HomePage() {
       </div>
 
       <div className="relative z-30 mx-auto max-w-7xl px-6 py-8 md:py-10">
-        {/* top bar */}
-        <Reveal>
-          <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="relative h-12 w-[260px] overflow-hidden">
-                <Image
-                  src="/brand/logo-wordmark.png"
-                  alt="Realife"
-                  fill
-                  priority
-                  className="object-cover [object-position:center_58%]"
-                  sizes="260px"
-                />
-              </div>
-            </Link>
-
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                href="/app"
-                className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08]"
-              >
-                App
-              </Link>
-              <Link
-                href={REAL_MARKETING_HREF}
-                className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08]"
-              >
-                Real Marketing
-              </Link>
-              <Link
-                href="/app/trading"
-                className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08]"
-              >
-                Trading
-              </Link>
-            </div>
-          </header>
-        </Reveal>
 
         {/* hero */}
         <Reveal>
