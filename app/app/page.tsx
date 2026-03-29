@@ -156,11 +156,11 @@ function MiniCard({
   text: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-4 md:px-5 md:py-[18px] shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]">
-      <div className="text-[15px] font-extrabold tracking-tight text-white md:text-[16px]">
+    <div className="rounded-[26px] border border-white/10 bg-white/[0.05] px-5 py-[18px] md:px-6 md:py-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.07]">
+      <div className="text-[15.5px] font-extrabold tracking-tight text-white md:text-[16.5px]">
         {title}
       </div>
-      <div className="mt-2 text-[13.5px] leading-[1.62] text-white/64 md:text-[14px]">
+      <div className="mt-2.5 text-[13px] leading-[1.66] text-white/64 md:text-[14px]">
         {text}
       </div>
     </div>
@@ -816,7 +816,7 @@ export default function AppPage() {
                       real production, campaigns, commerce, and delivery.
                     </p>
 
-                    <div className="mt-7 space-y-3">
+                    <div className="mt-7 space-y-3.5">
                       {WHO_IT_SERVES.map((item) => (
                         <MiniCard
                           key={item.title}
