@@ -165,6 +165,421 @@ function MiniCard({
   );
 }
 
+function PersonaSilhouette({
+  variant,
+  label,
+  className = "",
+}: {
+  variant: "woman" | "man";
+  label: string;
+  className?: string;
+}) {
+  const id = React.useId().replace(/:/g, "");
+  const isWoman = variant === "woman";
+
+  return (
+    <div
+      className={[
+        "relative flex flex-col items-center justify-end",
+        "w-[170px] md:w-[210px] xl:w-[228px]",
+        className,
+      ].join(" ")}
+    >
+      <div className="pointer-events-none absolute bottom-2 h-10 w-[110px] rounded-full bg-[#d4af37]/15 blur-2xl md:w-[136px]" />
+
+      <div className="relative">
+        <svg
+          viewBox="0 0 220 360"
+          className="h-[260px] w-[170px] md:h-[320px] md:w-[210px] xl:h-[344px] xl:w-[228px]"
+          aria-hidden="true"
+        >
+          <defs>
+            <radialGradient id={`${id}-backGlow`} cx="50%" cy="38%" r="65%">
+              <stop offset="0%" stopColor="rgba(247,231,167,0.26)" />
+              <stop offset="60%" stopColor="rgba(212,175,55,0.12)" />
+              <stop offset="100%" stopColor="rgba(212,175,55,0)" />
+            </radialGradient>
+
+            <linearGradient
+              id={`${id}-skin`}
+              x1="0%"
+              y1="0%"
+              x2="0%"
+              y2="100%"
+            >
+              <stop offset="0%" stopColor={isWoman ? "#f2d9c6" : "#edd2bf"} />
+              <stop offset="58%" stopColor={isWoman ? "#c99677" : "#c18e71"} />
+              <stop offset="100%" stopColor={isWoman ? "#865e49" : "#794f3c"} />
+            </linearGradient>
+
+            <linearGradient
+              id={`${id}-hair`}
+              x1="0%"
+              y1="0%"
+              x2="100%"
+              y2="100%"
+            >
+              <stop offset="0%" stopColor={isWoman ? "#3f332e" : "#393735"} />
+              <stop offset="100%" stopColor="#0f0d0d" />
+            </linearGradient>
+
+            <linearGradient
+              id={`${id}-body`}
+              x1="0%"
+              y1="0%"
+              x2="0%"
+              y2="100%"
+            >
+              {isWoman ? (
+                <>
+                  <stop offset="0%" stopColor="rgba(243,240,233,0.96)" />
+                  <stop offset="32%" stopColor="rgba(216,192,162,0.64)" />
+                  <stop offset="58%" stopColor="rgba(36,33,30,0.94)" />
+                  <stop offset="100%" stopColor="rgba(10,9,9,0.98)" />
+                </>
+              ) : (
+                <>
+                  <stop offset="0%" stopColor="rgba(188,185,181,0.34)" />
+                  <stop offset="32%" stopColor="rgba(76,72,68,0.82)" />
+                  <stop offset="62%" stopColor="rgba(25,23,22,0.96)" />
+                  <stop offset="100%" stopColor="rgba(9,8,8,0.99)" />
+                </>
+              )}
+            </linearGradient>
+
+            <linearGradient
+              id={`${id}-pants`}
+              x1="0%"
+              y1="0%"
+              x2="0%"
+              y2="100%"
+            >
+              <stop offset="0%" stopColor={isWoman ? "#2f2b29" : "#353230"} />
+              <stop offset="100%" stopColor="#090808" />
+            </linearGradient>
+
+            <linearGradient
+              id={`${id}-arm`}
+              x1="0%"
+              y1="0%"
+              x2="0%"
+              y2="100%"
+            >
+              <stop offset="0%" stopColor={isWoman ? "#ebe3d8" : "#bdb8b1"} />
+              <stop offset="100%" stopColor="#1c1918" />
+            </linearGradient>
+
+            <radialGradient id={`${id}-orb`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor="#fff6d5" />
+              <stop offset="45%" stopColor="#f7e7a7" />
+              <stop offset="85%" stopColor="#d4af37" />
+              <stop offset="100%" stopColor="rgba(212,175,55,0)" />
+            </radialGradient>
+
+            <filter id={`${id}-soft`} x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="8" />
+            </filter>
+          </defs>
+
+          <circle cx="110" cy="170" r="104" fill={`url(#${id}-backGlow)`} />
+
+          <ellipse
+            cx={isWoman ? 96 : 124}
+            cy={isWoman ? 78 : 82}
+            rx={isWoman ? 36 : 31}
+            ry={isWoman ? 40 : 34}
+            fill={`url(#${id}-hair)`}
+          />
+          {isWoman && (
+            <path
+              d="M69 88c-7 34 10 57 34 63 28 7 48-11 55-38 6-23 3-48-14-63-9-8-21-13-35-13-26 0-35 24-40 51z"
+              fill={`url(#${id}-hair)`}
+            />
+          )}
+
+          <ellipse
+            cx={isWoman ? 108 : 110}
+            cy={isWoman ? 90 : 92}
+            rx={isWoman ? 25 : 24}
+            ry={isWoman ? 30 : 28}
+            fill={`url(#${id}-skin)`}
+          />
+
+          <rect
+            x="100"
+            y="118"
+            width="20"
+            height="22"
+            rx="8"
+            fill={`url(#${id}-skin)`}
+          />
+
+          {isWoman ? (
+            <>
+              <path
+                d="M70 158c8-20 26-33 41-33h0c17 0 35 13 43 33l13 37c4 12-5 24-18 24H71c-13 0-22-12-18-24l17-37z"
+                fill={`url(#${id}-body)`}
+              />
+              <path
+                d="M90 145c6 8 12 12 20 12 8 0 15-4 20-12v42H90v-42z"
+                fill="rgba(255,255,255,0.20)"
+              />
+              <path
+                d="M80 218h60l10 78c2 16-10 30-27 30h-6c-18 0-30-14-28-31l6-77h-15z"
+                fill={`url(#${id}-pants)`}
+              />
+              <path
+                d="M148 148c12 2 23 10 27 22l17 45c3 9-2 18-11 21l-11 4-25-71 3-21z"
+                fill={`url(#${id}-arm)`}
+              />
+              <circle cx="188" cy="214" r="10" fill={`url(#${id}-orb)`} />
+              <circle
+                cx="188"
+                cy="214"
+                r="18"
+                fill="rgba(247,231,167,0.25)"
+                filter={`url(#${id}-soft)`}
+              />
+            </>
+          ) : (
+            <>
+              <path
+                d="M74 154c8-18 24-31 36-31h0c14 0 30 12 38 31l16 40c5 13-5 27-19 27H74c-14 0-24-14-19-27l19-40z"
+                fill={`url(#${id}-body)`}
+              />
+              <path
+                d="M92 145h36v45H92z"
+                fill="rgba(255,255,255,0.06)"
+              />
+              <path
+                d="M82 220h56l11 81c2 14-9 27-24 27h-9c-16 0-27-13-25-29l7-79h-16z"
+                fill={`url(#${id}-pants)`}
+              />
+              <path
+                d="M72 160c-12 1-23 9-29 21l-17 43c-4 10 1 19 10 22l12 4 29-72-5-18z"
+                fill={`url(#${id}-arm)`}
+              />
+              <circle cx="33" cy="226" r="10" fill={`url(#${id}-orb)`} />
+              <circle
+                cx="33"
+                cy="226"
+                r="18"
+                fill="rgba(247,231,167,0.25)"
+                filter={`url(#${id}-soft)`}
+              />
+            </>
+          )}
+
+          <ellipse
+            cx="110"
+            cy="342"
+            rx="46"
+            ry="10"
+            fill="rgba(0,0,0,0.42)"
+          />
+        </svg>
+      </div>
+
+      <div className="mt-[-8px] rounded-full border border-white/10 bg-black/35 px-3 py-1 text-[10px] font-semibold text-white/72 backdrop-blur-xl">
+        {label}
+      </div>
+    </div>
+  );
+}
+
+function DuoEcosystemScene() {
+  return (
+    <div className="relative mt-6 overflow-hidden rounded-[34px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-5 shadow-[0_28px_90px_rgba(0,0,0,0.34)] md:p-6 xl:p-7">
+      <style jsx>{`
+        @keyframes duoFloatA {
+          0%,
+          100% {
+            transform: translateY(0px) rotate(0deg);
+          }
+          50% {
+            transform: translateY(-10px) rotate(-1deg);
+          }
+        }
+        @keyframes duoFloatB {
+          0%,
+          100% {
+            transform: translateY(0px) rotate(0deg);
+          }
+          50% {
+            transform: translateY(-12px) rotate(1deg);
+          }
+        }
+        @keyframes duoPulse {
+          0%,
+          100% {
+            opacity: 0.4;
+            transform: scale(1);
+          }
+          50% {
+            opacity: 1;
+            transform: scale(1.08);
+          }
+        }
+        @keyframes duoBeam {
+          0%,
+          100% {
+            opacity: 0.24;
+            filter: brightness(1);
+          }
+          50% {
+            opacity: 0.95;
+            filter: brightness(1.28);
+          }
+        }
+        @keyframes duoDrift {
+          0%,
+          100% {
+            transform: translate3d(0, 0, 0);
+          }
+          50% {
+            transform: translate3d(0, -8px, 0);
+          }
+        }
+        @keyframes duoOrbit {
+          0%,
+          100% {
+            transform: translateY(0px);
+            opacity: 0.5;
+          }
+          50% {
+            transform: translateY(-9px);
+            opacity: 1;
+          }
+        }
+        @keyframes duoRotate {
+          from {
+            transform: translate(-50%, -50%) rotate(0deg);
+          }
+          to {
+            transform: translate(-50%, -50%) rotate(360deg);
+          }
+        }
+        .duo-float-a {
+          animation: duoFloatA 5.7s ease-in-out infinite;
+        }
+        .duo-float-b {
+          animation: duoFloatB 6s ease-in-out infinite 0.28s;
+        }
+        .duo-pulse {
+          animation: duoPulse 3.8s ease-in-out infinite;
+        }
+        .duo-beam {
+          animation: duoBeam 4.6s ease-in-out infinite;
+        }
+        .duo-drift {
+          animation: duoDrift 6.2s ease-in-out infinite;
+        }
+        .duo-orbit {
+          animation: duoOrbit 4.3s ease-in-out infinite;
+        }
+        .duo-rotate {
+          animation: duoRotate 18s linear infinite;
+        }
+      `}</style>
+
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-[-56px] top-[-56px] h-[220px] w-[220px] rounded-full bg-[#d4af37]/[0.13] blur-[95px]" />
+        <div className="absolute right-[-36px] bottom-[-60px] h-[220px] w-[220px] rounded-full bg-[#f7e7a7]/[0.08] blur-[100px]" />
+        <div className="absolute inset-x-0 bottom-0 h-[130px] bg-[linear-gradient(180deg,transparent,rgba(212,175,55,0.11))]" />
+        <div className="absolute inset-x-[10%] bottom-[18px] h-[110px] rounded-full bg-[radial-gradient(circle,rgba(212,175,55,0.12),transparent_68%)] blur-[34px]" />
+      </div>
+
+      <div className="relative z-20 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[0.22em] text-white/40">
+            Human layer
+          </p>
+          <p className="mt-1 text-sm font-extrabold text-white">
+            Real people entering a premium on-chain ecosystem
+          </p>
+        </div>
+
+        <LuxPill className="bg-black/25">
+          Motion feel • interface presence
+        </LuxPill>
+      </div>
+
+      <div className="relative mt-5 min-h-[320px] md:min-h-[380px] xl:min-h-[410px]">
+        <div className="duo-orbit absolute left-[10%] top-[74px] z-10 h-3 w-3 rounded-full bg-[#f7e7a7]/80 shadow-[0_0_20px_rgba(247,231,167,0.7)]" />
+        <div
+          className="duo-orbit absolute right-[10%] top-[94px] z-10 h-2.5 w-2.5 rounded-full bg-[#d4af37]/80 shadow-[0_0_18px_rgba(212,175,55,0.7)]"
+          style={{ animationDelay: "0.65s" }}
+        />
+        <div
+          className="duo-orbit absolute left-[26%] top-[178px] z-10 h-2 w-2 rounded-full bg-white/75 shadow-[0_0_14px_rgba(255,255,255,0.35)]"
+          style={{ animationDelay: "1.1s" }}
+        />
+        <div
+          className="duo-orbit absolute right-[28%] top-[188px] z-10 h-2 w-2 rounded-full bg-white/75 shadow-[0_0_14px_rgba(255,255,255,0.35)]"
+          style={{ animationDelay: "0.9s" }}
+        />
+
+        <div className="duo-drift absolute left-1/2 top-[18px] z-20 w-[230px] -translate-x-1/2 rounded-[26px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.025))] p-4 backdrop-blur-2xl shadow-[0_32px_88px_rgba(0,0,0,0.36)] md:w-[270px] xl:w-[294px]">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+                Live ecosystem
+              </p>
+              <p className="mt-1 text-sm font-extrabold text-white">
+                Mint ↔ Market ↔ Delivery
+              </p>
+            </div>
+            <div className="duo-pulse mt-1 h-2.5 w-2.5 rounded-full bg-[#f7e7a7] shadow-[0_0_0_8px_rgba(247,231,167,0.12)]" />
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-[11px] font-semibold text-white/75">
+              Create
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-[11px] font-semibold text-white/75">
+              Mint
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-black/25 px-3 py-2 text-[11px] font-semibold text-white/75">
+              Trade
+            </div>
+          </div>
+
+          <div className="mt-4 relative h-[88px] overflow-hidden rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_50%_15%,rgba(247,231,167,0.16),transparent_56%),linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))]">
+            <div className="duo-rotate absolute left-1/2 top-1/2 h-[64px] w-[64px] rounded-full border border-[#f7e7a7]/25" />
+            <div
+              className="duo-rotate absolute left-1/2 top-1/2 h-[44px] w-[44px] rounded-full border border-[#d4af37]/35"
+              style={{ animationDuration: "12s" }}
+            />
+            <div className="duo-pulse absolute left-1/2 top-1/2 h-[16px] w-[16px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#f7e7a7]/70 shadow-[0_0_18px_rgba(247,231,167,0.5)]" />
+            <div className="absolute inset-x-6 top-1/2 h-px -translate-y-1/2 bg-[linear-gradient(90deg,transparent,rgba(247,231,167,0.44),transparent)]" />
+          </div>
+        </div>
+
+        <div className="duo-beam absolute left-[100px] top-[188px] z-10 hidden h-px w-[170px] rotate-[12deg] bg-[linear-gradient(90deg,rgba(212,175,55,0.02),rgba(247,231,167,0.72),rgba(212,175,55,0.02))] md:block xl:left-[118px] xl:w-[190px]" />
+        <div className="duo-beam absolute right-[100px] top-[188px] z-10 hidden h-px w-[170px] -rotate-[12deg] bg-[linear-gradient(90deg,rgba(212,175,55,0.02),rgba(247,231,167,0.72),rgba(212,175,55,0.02))] md:block xl:right-[118px] xl:w-[190px]" />
+
+        <div className="absolute inset-x-0 bottom-[64px] z-[1] h-px bg-[linear-gradient(90deg,transparent,rgba(247,231,167,0.22),transparent)]" />
+
+        <div className="absolute bottom-0 left-[-6px] z-20 md:left-[4px]">
+          <PersonaSilhouette
+            variant="woman"
+            label="Mint intent"
+            className="duo-float-a"
+          />
+        </div>
+
+        <div className="absolute bottom-0 right-[-6px] z-20 md:right-[4px]">
+          <PersonaSilhouette
+            variant="man"
+            label="Market flow"
+            className="duo-float-b"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AppPage() {
   return (
     <div className="relative isolate">
@@ -284,52 +699,44 @@ export default function AppPage() {
           </GoldEdgeCard>
         </Reveal>
 
-        {/* ── How it works + Who it serves ── */}
-        <div className="grid items-stretch gap-6 lg:grid-cols-12 xl:gap-7">
-
-          {/* HOW IT WORKS — col-span-8, исправлено */}
-          <div className="flex lg:col-span-8">
+        <div className="grid gap-6 lg:grid-cols-12 lg:items-start xl:gap-7">
+          <div className="lg:col-span-8">
             <Reveal className="w-full" delayMs={90}>
-              <GoldEdgeCard className="h-full w-full">
-                <div className="flex h-full flex-col justify-between p-8 md:p-10">
+              <GoldEdgeCard className="w-full">
+                <div className="p-8 md:p-10">
+                  <p className="text-xs font-semibold text-white/60">
+                    How it works
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">
+                    A creator-first path into on-chain ownership
+                  </h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/65">
+                    Realife keeps the experience understandable for normal
+                    people while preserving the core Web3 logic: wallet,
+                    metadata, mint, collectible ownership, market movement, and
+                    physical delivery when the tokenized asset maps to something
+                    real.
+                  </p>
 
-                  {/* Верхняя часть */}
-                  <div>
-                    <p className="text-xs font-semibold text-white/60">
-                      How it works
-                    </p>
-                    <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">
-                      A creator-first path into on-chain ownership
-                    </h2>
-                    <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/65">
-                      Realife keeps the experience understandable for normal
-                      people while preserving the core Web3 logic: wallet,
-                      metadata, mint, collectible ownership, market movement,
-                      and physical delivery when the tokenized asset maps to
-                      something real.
-                    </p>
-
-                    <div className="mt-8 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
-                      {HOW_STEPS.map((s) => (
-                        <div
-                          key={s.n}
-                          className="flex flex-col rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-xs font-extrabold text-black shadow-[0_16px_50px_rgba(212,175,55,0.16)]">
-                              {s.n}
-                            </div>
-                            <p className="text-sm font-extrabold">{s.t}</p>
+                  <div className="mt-8 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+                    {HOW_STEPS.map((s) => (
+                      <div
+                        key={s.n}
+                        className="flex flex-col rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-xs font-extrabold text-black shadow-[0_16px_50px_rgba(212,175,55,0.16)]">
+                            {s.n}
                           </div>
-                          <p className="mt-3 flex-1 text-xs leading-relaxed text-white/60">
-                            {s.d}
-                          </p>
+                          <p className="text-sm font-extrabold">{s.t}</p>
                         </div>
-                      ))}
-                    </div>
+                        <p className="mt-3 flex-1 text-xs leading-relaxed text-white/60">
+                          {s.d}
+                        </p>
+                      </div>
+                    ))}
                   </div>
 
-                  {/* Нижняя часть — прижата к низу через justify-between на родителе */}
                   <div className="pt-8">
                     <div className="overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,rgba(247,231,167,0.26),rgba(212,175,55,0.12),rgba(184,135,10,0.08))] p-px">
                       <div className="rounded-[30px] border border-white/10 bg-[#0b0a09]/55 p-5 backdrop-blur-2xl">
@@ -361,6 +768,8 @@ export default function AppPage() {
                       </div>
                     </div>
 
+                    <DuoEcosystemScene />
+
                     <div className="mt-6 flex flex-wrap gap-3">
                       <Link
                         href="/app/create"
@@ -383,17 +792,15 @@ export default function AppPage() {
                       </Link>
                     </div>
                   </div>
-
                 </div>
               </GoldEdgeCard>
             </Reveal>
           </div>
 
-          {/* WHO IT SERVES — col-span-4, без изменений */}
-          <div className="flex lg:col-span-4">
+          <div className="lg:col-span-4">
             <Reveal className="w-full" delayMs={150}>
-              <GoldEdgeCard className="h-full w-full">
-                <div className="flex h-full flex-col p-8 md:p-10">
+              <GoldEdgeCard className="w-full">
+                <div className="flex flex-col p-8 md:p-10">
                   <div>
                     <p className="text-xs font-semibold text-white/60">
                       Who it serves
@@ -429,7 +836,6 @@ export default function AppPage() {
           </div>
         </div>
 
-        {/* CORE MODULES — без изменений */}
         <Reveal className="mt-6">
           <GoldEdgeCard>
             <div className="p-8 md:p-10">
@@ -474,7 +880,6 @@ export default function AppPage() {
           </GoldEdgeCard>
         </Reveal>
 
-        {/* INSIDE THE ECOSYSTEM — без изменений */}
         <Reveal className="mt-6">
           <GoldEdgeCard>
             <div className="p-8 md:p-10">
@@ -589,7 +994,6 @@ export default function AppPage() {
           </GoldEdgeCard>
         </Reveal>
 
-        {/* VISION — без изменений */}
         <Reveal className="mt-6">
           <GoldEdgeCard>
             <div className="p-8 md:p-12">
