@@ -156,11 +156,13 @@ function MiniCard({
   text: string;
 }) {
   return (
-    <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4 md:p-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]">
-      <div className="text-[14px] font-extrabold tracking-tight text-white">
+    <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-4 md:px-5 md:py-[18px] shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]">
+      <div className="text-[15px] font-extrabold tracking-tight text-white md:text-[16px]">
         {title}
       </div>
-      <div className="mt-2 text-[13px] leading-6 text-white/60">{text}</div>
+      <div className="mt-2 text-[13.5px] leading-[1.62] text-white/64 md:text-[14px]">
+        {text}
+      </div>
     </div>
   );
 }
@@ -713,15 +715,17 @@ export default function AppPage() {
                     {HOW_STEPS.map((s) => (
                       <div
                         key={s.n}
-                        className="flex flex-col rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]"
+                        className="flex flex-col rounded-[26px] border border-white/10 bg-white/[0.04] p-[18px] shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06] md:p-5"
                       >
                         <div className="flex items-center gap-3">
                           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-xs font-extrabold text-black shadow-[0_16px_50px_rgba(212,175,55,0.16)]">
                             {s.n}
                           </div>
-                          <p className="text-sm font-extrabold">{s.t}</p>
+                          <p className="text-[15px] font-extrabold leading-tight text-white">
+                            {s.t}
+                          </p>
                         </div>
-                        <p className="mt-3 flex-1 text-xs leading-relaxed text-white/60">
+                        <p className="mt-3 flex-1 text-[12.5px] leading-[1.58] text-white/62">
                           {s.d}
                         </p>
                       </div>
@@ -791,22 +795,22 @@ export default function AppPage() {
           <div className="lg:col-span-4">
             <Reveal className="w-full" delayMs={150}>
               <GoldEdgeCard className="w-full">
-                <div className="flex flex-col p-8 md:p-10">
+                <div className="flex h-full flex-col p-8 md:p-10">
                   <div>
-                    <p className="text-xs font-semibold text-white/60">
+                    <p className="text-[13px] font-semibold text-white/60">
                       Who it serves
                     </p>
-                    <h3 className="mt-2 text-2xl font-black tracking-tight">
+                    <h3 className="mt-2 text-[28px] font-black leading-[1.08] tracking-tight md:text-[32px]">
                       Creators, crypto brands, collectors — and real-world
                       workers
                     </h3>
-                    <p className="mt-2 text-sm leading-relaxed text-white/65">
+                    <p className="mt-3 text-[14px] leading-[1.72] text-white/65 md:text-[15px]">
                       Realife is not just a mint page. It is the working surface
                       of a larger ecosystem connecting digital ownership with
                       real production, campaigns, commerce, and delivery.
                     </p>
 
-                    <div className="mt-6 space-y-3">
+                    <div className="mt-6 space-y-2.5">
                       {WHO_IT_SERVES.map((item) => (
                         <MiniCard
                           key={item.title}
@@ -817,7 +821,7 @@ export default function AppPage() {
                     </div>
                   </div>
 
-                  <div className="mt-auto pt-6 text-[11px] leading-relaxed text-white/45">
+                  <div className="mt-auto pt-5 text-[11px] leading-relaxed text-white/45">
                     Base • IPFS • creator economy • delivery-aware NFTs • social
                     onboarding into Web3
                   </div>
