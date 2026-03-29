@@ -284,11 +284,16 @@ export default function AppPage() {
           </GoldEdgeCard>
         </Reveal>
 
+        {/* ── How it works + Who it serves ── */}
         <div className="grid items-stretch gap-6 lg:grid-cols-12 xl:gap-7">
+
+          {/* HOW IT WORKS — col-span-8, исправлено */}
           <div className="flex lg:col-span-8">
             <Reveal className="w-full" delayMs={90}>
               <GoldEdgeCard className="h-full w-full">
-                <div className="flex h-full flex-col p-8 md:p-10">
+                <div className="flex h-full flex-col justify-between p-8 md:p-10">
+
+                  {/* Верхняя часть */}
                   <div>
                     <p className="text-xs font-semibold text-white/60">
                       How it works
@@ -308,16 +313,15 @@ export default function AppPage() {
                       {HOW_STEPS.map((s) => (
                         <div
                           key={s.n}
-                          className="flex min-h-[170px] flex-col rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]"
+                          className="flex flex-col rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-xs font-extrabold text-black shadow-[0_16px_50px_rgba(212,175,55,0.16)]">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-xs font-extrabold text-black shadow-[0_16px_50px_rgba(212,175,55,0.16)]">
                               {s.n}
                             </div>
                             <p className="text-sm font-extrabold">{s.t}</p>
                           </div>
-
-                          <p className="mt-3 text-xs leading-relaxed text-white/60">
+                          <p className="mt-3 flex-1 text-xs leading-relaxed text-white/60">
                             {s.d}
                           </p>
                         </div>
@@ -325,7 +329,8 @@ export default function AppPage() {
                     </div>
                   </div>
 
-                  <div className="mt-8">
+                  {/* Нижняя часть — прижата к низу через justify-between на родителе */}
+                  <div className="pt-8">
                     <div className="overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,rgba(247,231,167,0.26),rgba(212,175,55,0.12),rgba(184,135,10,0.08))] p-px">
                       <div className="rounded-[30px] border border-white/10 bg-[#0b0a09]/55 p-5 backdrop-blur-2xl">
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -356,7 +361,7 @@ export default function AppPage() {
                       </div>
                     </div>
 
-                    <div className="mt-8 flex flex-wrap gap-3">
+                    <div className="mt-6 flex flex-wrap gap-3">
                       <Link
                         href="/app/create"
                         className={[
@@ -378,11 +383,13 @@ export default function AppPage() {
                       </Link>
                     </div>
                   </div>
+
                 </div>
               </GoldEdgeCard>
             </Reveal>
           </div>
 
+          {/* WHO IT SERVES — col-span-4, без изменений */}
           <div className="flex lg:col-span-4">
             <Reveal className="w-full" delayMs={150}>
               <GoldEdgeCard className="h-full w-full">
@@ -422,6 +429,7 @@ export default function AppPage() {
           </div>
         </div>
 
+        {/* CORE MODULES — без изменений */}
         <Reveal className="mt-6">
           <GoldEdgeCard>
             <div className="p-8 md:p-10">
@@ -466,6 +474,7 @@ export default function AppPage() {
           </GoldEdgeCard>
         </Reveal>
 
+        {/* INSIDE THE ECOSYSTEM — без изменений */}
         <Reveal className="mt-6">
           <GoldEdgeCard>
             <div className="p-8 md:p-10">
@@ -580,6 +589,7 @@ export default function AppPage() {
           </GoldEdgeCard>
         </Reveal>
 
+        {/* VISION — без изменений */}
         <Reveal className="mt-6">
           <GoldEdgeCard>
             <div className="p-8 md:p-12">
