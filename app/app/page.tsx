@@ -90,7 +90,7 @@ function GoldEdgeCard({
     >
       <div
         className={[
-          "relative overflow-hidden rounded-[40px]",
+          "relative h-full overflow-hidden rounded-[40px]",
           "border border-white/10",
           "bg-[#0b0a09]/40 backdrop-blur-2xl",
           "ring-1 ring-black/10",
@@ -100,7 +100,7 @@ function GoldEdgeCard({
           "after:bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]",
         ].join(" ")}
       >
-        <div className="relative z-10">{children}</div>
+        <div className="relative z-10 h-full">{children}</div>
       </div>
     </div>
   );
@@ -278,7 +278,13 @@ function PersonaSilhouette({
               <stop offset="100%" stopColor="rgba(212,175,55,0)" />
             </radialGradient>
 
-            <filter id={`${id}-soft`} x="-50%" y="-50%" width="200%" height="200%">
+            <filter
+              id={`${id}-soft`}
+              x="-50%"
+              y="-50%"
+              width="200%"
+              height="200%"
+            >
               <feGaussianBlur stdDeviation="8" />
             </filter>
           </defs>
@@ -382,7 +388,7 @@ function PersonaSilhouette({
 
 function DuoEcosystemScene() {
   return (
-    <div className="relative mt-5 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-4 shadow-[0_22px_70px_rgba(0,0,0,0.30)] md:p-5">
+    <div className="relative mt-6 overflow-hidden rounded-[30px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-4 shadow-[0_22px_70px_rgba(0,0,0,0.30)] md:p-5">
       <style jsx>{`
         @keyframes duoFloatA {
           0%,
@@ -692,11 +698,11 @@ export default function AppPage() {
           </GoldEdgeCard>
         </Reveal>
 
-        <div className="grid gap-6 lg:grid-cols-12 lg:items-start xl:gap-7">
+        <div className="grid gap-6 lg:grid-cols-12 lg:items-stretch xl:gap-7">
           <div className="lg:col-span-8">
-            <Reveal className="w-full" delayMs={90}>
-              <GoldEdgeCard className="w-full">
-                <div className="p-8 md:p-10">
+            <Reveal className="h-full w-full" delayMs={90}>
+              <GoldEdgeCard className="h-full w-full">
+                <div className="h-full p-8 md:p-10">
                   <p className="text-xs font-semibold text-white/60">
                     How it works
                   </p>
@@ -715,24 +721,24 @@ export default function AppPage() {
                     {HOW_STEPS.map((s) => (
                       <div
                         key={s.n}
-                        className="flex flex-col rounded-[26px] border border-white/10 bg-white/[0.04] p-[18px] shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06] md:p-5"
+                        className="flex min-h-[160px] flex-col rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.065] md:min-h-[176px] md:p-6"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-xs font-extrabold text-black shadow-[0_16px_50px_rgba(212,175,55,0.16)]">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-[11px] font-extrabold text-black shadow-[0_16px_50px_rgba(212,175,55,0.16)]">
                             {s.n}
                           </div>
-                          <p className="text-[15px] font-extrabold leading-tight text-white">
+                          <p className="text-[15px] font-extrabold leading-tight text-white md:text-[16px]">
                             {s.t}
                           </p>
                         </div>
-                        <p className="mt-3 flex-1 text-[12.5px] leading-[1.58] text-white/62">
+                        <p className="mt-4 flex-1 text-[12.5px] leading-[1.65] text-white/62 md:text-[13px]">
                           {s.d}
                         </p>
                       </div>
                     ))}
                   </div>
 
-                  <div className="pt-8">
+                  <div className="pt-9">
                     <div className="overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,rgba(247,231,167,0.26),rgba(212,175,55,0.12),rgba(184,135,10,0.08))] p-px">
                       <div className="rounded-[30px] border border-white/10 bg-[#0b0a09]/55 p-5 backdrop-blur-2xl">
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -793,9 +799,9 @@ export default function AppPage() {
           </div>
 
           <div className="lg:col-span-4">
-            <Reveal className="w-full" delayMs={150}>
-              <GoldEdgeCard className="w-full">
-                <div className="flex h-full flex-col p-8 md:p-10">
+            <Reveal className="h-full w-full" delayMs={150}>
+              <GoldEdgeCard className="h-full w-full">
+                <div className="flex h-full min-h-[100%] flex-col p-9 md:p-11">
                   <div>
                     <p className="text-[13px] font-semibold text-white/60">
                       Who it serves
@@ -810,7 +816,7 @@ export default function AppPage() {
                       real production, campaigns, commerce, and delivery.
                     </p>
 
-                    <div className="mt-6 space-y-2.5">
+                    <div className="mt-7 space-y-3">
                       {WHO_IT_SERVES.map((item) => (
                         <MiniCard
                           key={item.title}
@@ -821,7 +827,7 @@ export default function AppPage() {
                     </div>
                   </div>
 
-                  <div className="mt-auto pt-5 text-[11px] leading-relaxed text-white/45">
+                  <div className="mt-auto pt-6 text-[11px] leading-relaxed text-white/45">
                     Base • IPFS • creator economy • delivery-aware NFTs • social
                     onboarding into Web3
                   </div>
