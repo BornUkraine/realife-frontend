@@ -14,6 +14,27 @@ function useMounted() {
   return mounted;
 }
 
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+
+    const apply = () => setIsDesktop(mq.matches);
+    apply();
+
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", apply);
+      return () => mq.removeEventListener("change", apply);
+    }
+
+    mq.addListener(apply);
+    return () => mq.removeListener(apply);
+  }, []);
+
+  return isDesktop;
+}
+
 function fmtBalance(value?: string) {
   if (!value) return "0";
   const n = Number(value);
@@ -182,9 +203,10 @@ function BrandLink() {
     >
       <span
         className={cn(
-          "sm:hidden relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full",
+          "relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full",
           "border border-white/10 bg-black",
-          "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10"
+          "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10",
+          "sm:hidden"
         )}
       >
         <img
@@ -195,7 +217,7 @@ function BrandLink() {
         />
       </span>
 
-      <span className="hidden sm:flex relative h-14 w-[250px] items-center overflow-visible">
+      <span className="relative hidden h-14 w-[250px] items-center overflow-visible sm:flex">
         <img
           src="/brand/logo-wordmark.png"
           alt="Realife"
@@ -240,6 +262,7 @@ function LoadingHeader() {
 
 export default function TopBar() {
   const mounted = useMounted();
+  const isDesktop = useIsDesktop();
 
   const { address } = useAccount();
   const chainId = useChainId();
@@ -336,63 +359,67 @@ export default function TopBar() {
 
         <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
           <div className="mx-auto w-full max-w-[1720px] px-4 py-3 sm:px-6 lg:px-8 2xl:px-10">
-            <div className="flex items-center justify-between gap-3 md:hidden">
-              <BrandLink />
+            {!isDesktop ? (
+              <>
+                <div className="flex items-center justify-between gap-3">
+                  <BrandLink />
 
-              <div className="relative z-30 flex items-center gap-2">
-                {showGetEth ? (
-                  <Link
-                    href="/app/faucet"
-                    className={cn(
-                      "inline-flex h-10 items-center justify-center rounded-2xl px-3",
-                      "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
-                      "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
-                      "text-sm font-semibold transition hover:-translate-y-[1px] hover:bg-white/10"
-                    )}
-                  >
-                    Get ETH
-                  </Link>
-                ) : null}
+                  <div className="relative z-30 flex items-center gap-2">
+                    {showGetEth ? (
+                      <Link
+                        href="/app/faucet"
+                        className={cn(
+                          "inline-flex h-10 items-center justify-center rounded-2xl px-3",
+                          "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
+                          "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
+                          "text-sm font-semibold transition hover:-translate-y-[1px] hover:bg-white/10"
+                        )}
+                      >
+                        Get ETH
+                      </Link>
+                    ) : null}
 
-                <WalletMenu />
+                    <WalletMenu />
+                  </div>
+                </div>
+
+                <div className="mt-3">
+                  <GoldEdgeWrap>
+                    <NetworkStatusContent {...statusProps} />
+                  </GoldEdgeWrap>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-[minmax(220px,1fr)_auto_minmax(220px,1fr)] items-center gap-4">
+                <div className="min-w-0">
+                  <BrandLink />
+                </div>
+
+                <div className="flex min-w-0 justify-center">
+                  <GoldEdgeWrap className="w-full max-w-[430px]">
+                    <NetworkStatusContent {...statusProps} />
+                  </GoldEdgeWrap>
+                </div>
+
+                <div className="flex items-center justify-end gap-2">
+                  {showGetEth ? (
+                    <Link
+                      href="/app/faucet"
+                      className={cn(
+                        "inline-flex h-10 items-center justify-center rounded-2xl px-4",
+                        "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
+                        "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
+                        "text-sm font-semibold transition hover:-translate-y-[1px] hover:bg-white/10"
+                      )}
+                    >
+                      Get ETH ↗
+                    </Link>
+                  ) : null}
+
+                  <WalletMenu />
+                </div>
               </div>
-            </div>
-
-            <div className="mt-3 md:hidden">
-              <GoldEdgeWrap>
-                <NetworkStatusContent {...statusProps} />
-              </GoldEdgeWrap>
-            </div>
-
-            <div className="hidden md:grid md:grid-cols-[minmax(220px,1fr)_auto_minmax(220px,1fr)] md:items-center md:gap-4">
-              <div className="min-w-0">
-                <BrandLink />
-              </div>
-
-              <div className="flex min-w-0 justify-center">
-                <GoldEdgeWrap className="w-full max-w-[430px]">
-                  <NetworkStatusContent {...statusProps} />
-                </GoldEdgeWrap>
-              </div>
-
-              <div className="flex items-center justify-end gap-2">
-                {showGetEth ? (
-                  <Link
-                    href="/app/faucet"
-                    className={cn(
-                      "inline-flex h-10 items-center justify-center rounded-2xl px-4",
-                      "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
-                      "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
-                      "text-sm font-semibold transition hover:-translate-y-[1px] hover:bg-white/10"
-                    )}
-                  >
-                    Get ETH ↗
-                  </Link>
-                ) : null}
-
-                <WalletMenu />
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
