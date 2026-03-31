@@ -93,6 +93,7 @@ const IPFS_GATEWAYS = [
 ] as const;
 
 const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
+const PUBLIC_PAGE_DESKTOP_SCALE = 0.72;
 
 /* ------------------------------- Helpers ------------------------------ */
 
@@ -484,6 +485,16 @@ export default async function PublicNFTsPage({
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
+      <style>{`
+        @supports (zoom: 1) {
+          @media (min-width: 1280px) {
+            .public-gallery-scale-72 {
+              zoom: ${PUBLIC_PAGE_DESKTOP_SCALE};
+            }
+          }
+        }
+      `}</style>
+
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
@@ -493,319 +504,321 @@ export default async function PublicNFTsPage({
         <div className="absolute inset-x-0 top-0 h-48 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.65),transparent)]" />
       </div>
 
-      <div className="relative mx-auto max-w-7xl px-6 py-10 space-y-8">
-        <div
-          className={cx(
-            "reveal rounded-[34px] p-px overflow-hidden",
-            "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.11),rgba(184,135,10,0.10))]",
-            "shadow-[0_26px_100px_rgba(0,0,0,0.60)]"
-          )}
-        >
-          <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
-            <div className="pointer-events-none absolute inset-0">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
-            </div>
-
-            <div className="relative z-10 p-6 md:p-7">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-5">
-                <div className="h-16 w-16 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15 shrink-0">
-                  {avatar ? (
-                    <img
-                      src={avatar}
-                      alt="avatar"
-                      className="h-full w-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-white/35 font-black text-xs">
-                      RL
-                    </div>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/80">
-                      Public gallery
-                    </span>
-
-                    {isOwner ? (
-                      <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-black text-amber-100">
-                        Owner view
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight truncate">
-                    {displayName}
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
-                    {publicUrl ? (
-                      <>
-                        <Link className="hover:underline" href={publicUrl}>
-                          Back to profile
-                        </Link>
-                        <span>•</span>
-                      </>
-                    ) : null}
-                    <span>{itemsCount} items</span>
-                    {(cafeCount > 0 || storeCount > 0) && effectiveTab === "nfts" ? (
-                      <>
-                        <span>•</span>
-                        <span>
-                          {cafeCount > 0 ? `Cafe ${cafeCount}` : ""}
-                          {cafeCount > 0 && storeCount > 0 ? " • " : ""}
-                          {storeCount > 0 ? `Store ${storeCount}` : ""}
-                        </span>
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  {publicUrl ? (
-                    <Link
-                      href={publicUrl}
-                      className="px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
-                    >
-                      Profile
-                    </Link>
-                  ) : null}
-
-                  <Link
-                    href="/app/trading"
-                    className="px-5 py-3 rounded-2xl text-sm font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 transition"
-                  >
-                    Trading →
-                  </Link>
-                </div>
+      <div className="public-gallery-scale-72">
+        <div className="relative mx-auto max-w-7xl px-6 py-10 space-y-8">
+          <div
+            className={cx(
+              "reveal rounded-[34px] p-px overflow-hidden",
+              "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.11),rgba(184,135,10,0.10))]",
+              "shadow-[0_26px_100px_rgba(0,0,0,0.60)]"
+            )}
+          >
+            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
+              <div className="pointer-events-none absolute inset-0">
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
               </div>
 
-              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-                <StatChip label="Items" value={itemsCount} tone="gold" />
-                <StatChip
-                  label="Tab"
-                  value={effectiveTab === "activity" ? "My Activity" : "NFTs"}
-                />
-                <StatChip
-                  label="Cafe NFTs"
-                  value={effectiveTab === "nfts" ? cafeCount : "—"}
-                />
-                <StatChip
-                  label="Store NFTs"
-                  value={effectiveTab === "nfts" ? storeCount : "—"}
-                />
+              <div className="relative z-10 p-6 md:p-7">
+                <div className="flex flex-col lg:flex-row lg:items-center gap-5">
+                  <div className="h-16 w-16 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15 shrink-0">
+                    {avatar ? (
+                      <img
+                        src={avatar}
+                        alt="avatar"
+                        className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-white/35 font-black text-xs">
+                        RL
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-black text-white/80">
+                        Public gallery
+                      </span>
+
+                      {isOwner ? (
+                        <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-black text-amber-100">
+                          Owner view
+                        </span>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight truncate">
+                      {displayName}
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
+                      {publicUrl ? (
+                        <>
+                          <Link className="hover:underline" href={publicUrl}>
+                            Back to profile
+                          </Link>
+                          <span>•</span>
+                        </>
+                      ) : null}
+                      <span>{itemsCount} items</span>
+                      {(cafeCount > 0 || storeCount > 0) && effectiveTab === "nfts" ? (
+                        <>
+                          <span>•</span>
+                          <span>
+                            {cafeCount > 0 ? `Cafe ${cafeCount}` : ""}
+                            {cafeCount > 0 && storeCount > 0 ? " • " : ""}
+                            {storeCount > 0 ? `Store ${storeCount}` : ""}
+                          </span>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    {publicUrl ? (
+                      <Link
+                        href={publicUrl}
+                        className="px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                      >
+                        Profile
+                      </Link>
+                    ) : null}
+
+                    <Link
+                      href="/app/trading"
+                      className="px-5 py-3 rounded-2xl text-sm font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 transition"
+                    >
+                      Trading →
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <StatChip label="Items" value={itemsCount} tone="gold" />
+                  <StatChip
+                    label="Tab"
+                    value={effectiveTab === "activity" ? "My Activity" : "NFTs"}
+                  />
+                  <StatChip
+                    label="Cafe NFTs"
+                    value={effectiveTab === "nfts" ? cafeCount : "—"}
+                  />
+                  <StatChip
+                    label="Store NFTs"
+                    value={effectiveTab === "nfts" ? storeCount : "—"}
+                  />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div
-          className="reveal flex flex-wrap items-center gap-2"
-          style={{ animationDelay: "60ms" }}
-        >
-          <Link
-            href={tabHref(pageBase, "nfts")}
-            className={cx(
-              "px-4 py-2 rounded-2xl border text-[12px] font-black transition",
-              effectiveTab === "nfts"
-                ? "border-white/15 bg-white/[0.10] text-white shadow-[0_18px_70px_rgba(0,0,0,0.24)]"
-                : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
-            )}
+          <div
+            className="reveal flex flex-wrap items-center gap-2"
+            style={{ animationDelay: "60ms" }}
           >
-            NFTs
-            <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-white/80 bg-black/25 ring-1 ring-white/10">
-              {itemsCount}
-            </span>
-          </Link>
-
-          {isOwner ? (
             <Link
-              href={tabHref(pageBase, "activity")}
+              href={tabHref(pageBase, "nfts")}
               className={cx(
                 "px-4 py-2 rounded-2xl border text-[12px] font-black transition",
-                effectiveTab === "activity"
+                effectiveTab === "nfts"
                   ? "border-white/15 bg-white/[0.10] text-white shadow-[0_18px_70px_rgba(0,0,0,0.24)]"
                   : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
               )}
             >
-              My Activity
-              <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-black/80 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15">
-                NEW
+              NFTs
+              <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-white/80 bg-black/25 ring-1 ring-white/10">
+                {itemsCount}
               </span>
             </Link>
-          ) : null}
-        </div>
 
-        {effectiveTab === "activity" ? (
-          <div className="reveal mt-2" style={{ animationDelay: "90ms" }}>
-            <ActivityPanel userKey={key} />
+            {isOwner ? (
+              <Link
+                href={tabHref(pageBase, "activity")}
+                className={cx(
+                  "px-4 py-2 rounded-2xl border text-[12px] font-black transition",
+                  effectiveTab === "activity"
+                    ? "border-white/15 bg-white/[0.10] text-white shadow-[0_18px_70px_rgba(0,0,0,0.24)]"
+                    : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
+                )}
+              >
+                My Activity
+                <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-black/80 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15">
+                  NEW
+                </span>
+              </Link>
+            ) : null}
           </div>
-        ) : (
-          <>
-            <div
-              className="reveal grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
-              style={{ animationDelay: "90ms" }}
-            >
-              {enriched.map((x: any) => {
-                const storefrontHref = x.isCafeNft
-                  ? CAFE_STOREFRONT_HREF
-                  : x.isStoreNft
-                  ? STORE_STOREFRONT_HREF
-                  : null;
 
-                const nftHref = buildNftHref(
-                  x.chainId,
-                  x.contract,
-                  String(x.tokenId),
-                  galleryBackHref
-                );
+          {effectiveTab === "activity" ? (
+            <div className="reveal mt-2" style={{ animationDelay: "90ms" }}>
+              <ActivityPanel userKey={key} />
+            </div>
+          ) : (
+            <>
+              <div
+                className="reveal grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+                style={{ animationDelay: "90ms" }}
+              >
+                {enriched.map((x: any) => {
+                  const storefrontHref = x.isCafeNft
+                    ? CAFE_STOREFRONT_HREF
+                    : x.isStoreNft
+                    ? STORE_STOREFRONT_HREF
+                    : null;
 
-                return (
-                  <Link
-                    key={x.id}
-                    href={nftHref}
-                    className={cx(
-                      "group rounded-[26px] overflow-hidden border border-white/10 bg-white/[0.04]",
-                      "backdrop-blur-xl",
-                      "shadow-[0_24px_90px_rgba(0,0,0,0.55)] hover:-translate-y-1 transition-all duration-300 hover:bg-white/[0.08]"
-                    )}
-                  >
-                    <div className="aspect-square w-full bg-black/30 relative">
-                      {isOwner ? (
-                        <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <QuickList1155
-                            chainId={x.chainId}
-                            contract={x.contract}
-                            tokenId={String(x.tokenId)}
-                            maxAmountHint={String(x.ownedAmount)}
-                            name={x.name}
-                          />
-                        </div>
-                      ) : null}
+                  const nftHref = buildNftHref(
+                    x.chainId,
+                    x.contract,
+                    String(x.tokenId),
+                    galleryBackHref
+                  );
 
-                      {x.media ? (
-                        <>
-                          <NftMedia
-                            src={x.media}
-                            kind={x.kind}
-                            alt={x.name || "NFT"}
-                            poster={x.kind === "video" ? x.poster : null}
-                            showControls={false}
-                            className="h-full w-full"
-                            roundedClass="rounded-none"
-                          />
+                  return (
+                    <Link
+                      key={x.id}
+                      href={nftHref}
+                      className={cx(
+                        "group rounded-[26px] overflow-hidden border border-white/10 bg-white/[0.04]",
+                        "backdrop-blur-xl",
+                        "shadow-[0_24px_90px_rgba(0,0,0,0.55)] hover:-translate-y-1 transition-all duration-300 hover:bg-white/[0.08]"
+                      )}
+                    >
+                      <div className="aspect-square w-full bg-black/30 relative">
+                        {isOwner ? (
+                          <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <QuickList1155
+                              chainId={x.chainId}
+                              contract={x.contract}
+                              tokenId={String(x.tokenId)}
+                              maxAmountHint={String(x.ownedAmount)}
+                              name={x.name}
+                            />
+                          </div>
+                        ) : null}
 
-                          <div className="absolute top-3 left-3 flex flex-col gap-2">
-                            {x.kind === "video" ? (
-                              <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-amber-100">
-                                VIDEO
+                        {x.media ? (
+                          <>
+                            <NftMedia
+                              src={x.media}
+                              kind={x.kind}
+                              alt={x.name || "NFT"}
+                              poster={x.kind === "video" ? x.poster : null}
+                              showControls={false}
+                              className="h-full w-full"
+                              roundedClass="rounded-none"
+                            />
+
+                            <div className="absolute top-3 left-3 flex flex-col gap-2">
+                              {x.kind === "video" ? (
+                                <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-amber-100">
+                                  VIDEO
+                                </div>
+                              ) : null}
+
+                              <div
+                                className={cx(
+                                  "px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black",
+                                  x.isCafeNft
+                                    ? "text-amber-100"
+                                    : x.isStoreNft
+                                    ? "text-sky-200"
+                                    : x.isDeliveryUserNft
+                                    ? "text-emerald-200"
+                                    : "text-emerald-200"
+                                )}
+                              >
+                                {x.isCafeNft
+                                  ? "CAFE"
+                                  : x.isStoreNft
+                                  ? "STORE"
+                                  : x.isDeliveryUserNft
+                                  ? "DELIVERY"
+                                  : "EDITION"}
+                              </div>
+
+                              <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
+                                Owned x{x.ownedAmount}
+                              </div>
+                            </div>
+
+                            {x.supply ? (
+                              <div className="absolute bottom-3 right-3 px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
+                                Supply x{x.supply}
                               </div>
                             ) : null}
+                          </>
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center text-white/25 font-black">
+                            No media
+                          </div>
+                        )}
 
-                            <div
+                        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.4)_0%,transparent_40%)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+
+                      <div className="p-5">
+                        <div className="text-sm font-extrabold text-white/90 truncate">
+                          {x.name || `Token #${x.tokenId}`}
+                        </div>
+
+                        <div className="mt-1.5 text-[12px] text-white/55 flex items-center justify-between gap-2">
+                          <span className="truncate">{shortAddr(x.contract)}</span>
+                          <span className="font-mono">#{x.tokenId}</span>
+                        </div>
+
+                        {storefrontHref ? (
+                          <div className="mt-3">
+                            <span
                               className={cx(
-                                "px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black",
+                                "inline-flex items-center px-2.5 py-1 rounded-full border text-[10px] font-black",
                                 x.isCafeNft
-                                  ? "text-amber-100"
-                                  : x.isStoreNft
-                                  ? "text-sky-200"
-                                  : x.isDeliveryUserNft
-                                  ? "text-emerald-200"
-                                  : "text-emerald-200"
+                                  ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
+                                  : "border-sky-500/20 bg-sky-500/10 text-sky-200"
                               )}
                             >
-                              {x.isCafeNft
-                                ? "CAFE"
-                                : x.isStoreNft
-                                ? "STORE"
-                                : x.isDeliveryUserNft
-                                ? "DELIVERY"
-                                : "EDITION"}
-                            </div>
-
-                            <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
-                              Owned x{x.ownedAmount}
-                            </div>
+                              {x.isCafeNft ? "Cafe storefront" : "NFT Store"}
+                            </span>
                           </div>
+                        ) : null}
 
-                          {x.supply ? (
-                            <div className="absolute bottom-3 right-3 px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-black text-white/85">
-                              Supply x{x.supply}
-                            </div>
-                          ) : null}
-                        </>
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center text-white/25 font-black">
-                          No media
+                        <div className="mt-4 h-[1px] bg-white/10" />
+
+                        <div className="mt-4 text-[12px] font-extrabold text-amber-100/90 group-hover:text-amber-100 flex items-center justify-between">
+                          <span>View Details</span>
+                          <span>→</span>
                         </div>
-                      )}
-
-                      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.4)_0%,transparent_40%)] opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-
-                    <div className="p-5">
-                      <div className="text-sm font-extrabold text-white/90 truncate">
-                        {x.name || `Token #${x.tokenId}`}
                       </div>
-
-                      <div className="mt-1.5 text-[12px] text-white/55 flex items-center justify-between gap-2">
-                        <span className="truncate">{shortAddr(x.contract)}</span>
-                        <span className="font-mono">#{x.tokenId}</span>
-                      </div>
-
-                      {storefrontHref ? (
-                        <div className="mt-3">
-                          <span
-                            className={cx(
-                              "inline-flex items-center px-2.5 py-1 rounded-full border text-[10px] font-black",
-                              x.isCafeNft
-                                ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
-                                : "border-sky-500/20 bg-sky-500/10 text-sky-200"
-                            )}
-                          >
-                            {x.isCafeNft ? "Cafe storefront" : "NFT Store"}
-                          </span>
-                        </div>
-                      ) : null}
-
-                      <div className="mt-4 h-[1px] bg-white/10" />
-
-                      <div className="mt-4 text-[12px] font-extrabold text-amber-100/90 group-hover:text-amber-100 flex items-center justify-between">
-                        <span>View Details</span>
-                        <span>→</span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-
-            {enriched.length === 0 && (
-              <div className="reveal rounded-[26px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60">
-                <div className="text-lg font-black text-white/85">
-                  This user doesn&apos;t own any NFTs yet.
-                </div>
-                {publicUrl ? (
-                  <div className="mt-4">
-                    <Link
-                      href={publicUrl}
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
-                    >
-                      Back to profile
                     </Link>
-                  </div>
-                ) : null}
+                  );
+                })}
               </div>
-            )}
-          </>
-        )}
 
-        <footer className="reveal pt-6 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]">
-          Realife Ecosystem • Gallery
-        </footer>
+              {enriched.length === 0 && (
+                <div className="reveal rounded-[26px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60">
+                  <div className="text-lg font-black text-white/85">
+                    This user doesn&apos;t own any NFTs yet.
+                  </div>
+                  {publicUrl ? (
+                    <div className="mt-4">
+                      <Link
+                        href={publicUrl}
+                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                      >
+                        Back to profile
+                      </Link>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </>
+          )}
+
+          <footer className="reveal pt-6 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]">
+            Realife Ecosystem • Gallery
+          </footer>
+        </div>
       </div>
     </main>
   );
