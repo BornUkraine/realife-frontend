@@ -8,6 +8,8 @@ import { formatUnits } from "viem";
 import { cn } from "@/lib/utils";
 import WalletMenu from "./WalletMenu";
 
+const TOPBAR_DESKTOP_SCALE = 0.85;
+
 function useMounted() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -57,6 +59,36 @@ function StatusDot({ state }: { state: "ok" | "warn" | "off" }) {
         "shadow-[0_0_0_3px_rgba(255,255,255,0.06)]"
       )}
     />
+  );
+}
+
+function OrdersIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      className={className}
+    >
+      <path
+        d="M8 7.75h8M8 12h8M8 16.25h5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path
+        d="M7 3.75h8.4c1.22 0 1.83 0 2.31.237.422.207.764.549.971.971.237.48.237 1.09.237 2.31v9.464c0 1.22 0 1.83-.237 2.31a2.25 2.25 0 0 1-.971.971c-.48.237-1.09.237-2.31.237H8.6c-1.22 0-1.83 0-2.31-.237a2.25 2.25 0 0 1-.971-.971c-.237-.48-.237-1.09-.237-2.31V6.75l1.918-1.919C7.293 4.538 7.44 4.39 7.626 4.286c.165-.093.343-.156.528-.187.209-.035.416-.035.71-.035Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M7 3.75v2.1c0 .56 0 .84.109 1.054.096.188.249.34.437.437.214.109.494.109 1.054.109h2.15"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
@@ -241,17 +273,22 @@ function LoadingHeader() {
             <span className="h-11 w-11 rounded-full border border-white/10 bg-white/5" />
             <span className="h-8 w-40 rounded-xl border border-white/10 bg-white/5" />
           </div>
-          <div className="h-10 w-36 rounded-2xl border border-white/10 bg-white/5" />
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-10 rounded-2xl border border-white/10 bg-white/5" />
+            <div className="h-10 w-10 rounded-2xl border border-white/10 bg-white/5" />
+          </div>
         </div>
 
-        <div className="hidden md:grid md:grid-cols-[minmax(220px,1fr)_auto_minmax(220px,1fr)] md:items-center md:gap-4">
+        <div className="hidden md:grid md:grid-cols-[minmax(220px,1fr)_auto_minmax(320px,1fr)] md:items-center md:gap-4">
           <div className="flex items-center">
             <span className="h-10 w-48 rounded-xl border border-white/10 bg-white/5" />
           </div>
           <div className="flex justify-center">
             <div className="h-11 w-[420px] rounded-[22px] border border-white/10 bg-white/5" />
           </div>
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <div className="h-10 w-32 rounded-2xl border border-white/10 bg-white/5" />
+            <div className="h-10 w-28 rounded-2xl border border-white/10 bg-white/5" />
             <div className="h-10 w-40 rounded-2xl border border-white/10 bg-white/5" />
           </div>
         </div>
@@ -353,18 +390,42 @@ export default function TopBar() {
 
   return (
     <header className="relative z-50 w-full">
+      <style>{`
+        @supports (zoom: 1) {
+          @media (min-width: 1024px) {
+            .topbar-desktop-scale-85 {
+              zoom: ${TOPBAR_DESKTOP_SCALE};
+            }
+          }
+        }
+      `}</style>
+
       <div className="relative">
         <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[820px] rounded-full bg-[#d4af37]/14 blur-3xl" />
         <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[560px] rounded-full bg-white/[0.06] blur-2xl" />
 
         <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
-          <div className="mx-auto w-full max-w-[1720px] px-4 py-3 sm:px-6 lg:px-8 2xl:px-10">
+          <div className="mx-auto w-full max-w-[1720px] px-4 py-3 sm:px-6 lg:px-8 2xl:px-10 topbar-desktop-scale-85">
             {!isDesktop ? (
               <>
                 <div className="flex items-center justify-between gap-3">
                   <BrandLink />
 
                   <div className="relative z-30 flex items-center gap-2">
+                    <Link
+                      href="/app/orders"
+                      className={cn(
+                        "inline-flex h-10 w-10 items-center justify-center rounded-2xl",
+                        "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
+                        "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
+                        "text-white/85 transition hover:-translate-y-[1px] hover:bg-white/10 hover:text-white"
+                      )}
+                      title="My Orders"
+                      aria-label="My Orders"
+                    >
+                      <OrdersIcon className="h-[18px] w-[18px]" />
+                    </Link>
+
                     {showGetEth ? (
                       <Link
                         href="/app/faucet"
@@ -390,7 +451,7 @@ export default function TopBar() {
                 </div>
               </>
             ) : (
-              <div className="grid grid-cols-[minmax(220px,1fr)_auto_minmax(220px,1fr)] items-center gap-4">
+              <div className="grid grid-cols-[minmax(220px,1fr)_auto_minmax(320px,1fr)] items-center gap-4">
                 <div className="min-w-0">
                   <BrandLink />
                 </div>
@@ -402,6 +463,20 @@ export default function TopBar() {
                 </div>
 
                 <div className="flex items-center justify-end gap-2">
+                  <Link
+                    href="/app/orders"
+                    className={cn(
+                      "inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4",
+                      "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
+                      "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
+                      "text-sm font-semibold text-white/85 transition hover:-translate-y-[1px] hover:bg-white/10 hover:text-white"
+                    )}
+                    title="My Orders"
+                  >
+                    <OrdersIcon className="h-[17px] w-[17px]" />
+                    <span>My Orders</span>
+                  </Link>
+
                   {showGetEth ? (
                     <Link
                       href="/app/faucet"
