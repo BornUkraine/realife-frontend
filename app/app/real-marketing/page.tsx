@@ -320,8 +320,7 @@ export default function RealMarketingPage() {
               </h1>
 
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
-                Main storefront hub for Realife verticals. The first live
-                directions are{" "}
+                Main hub for the first Realife directions —{" "}
                 <span className="font-extrabold text-amber-100">
                   Realife Crypto Cafe
                 </span>{" "}
@@ -333,9 +332,11 @@ export default function RealMarketingPage() {
               </p>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
-                This page should feel premium, visual and product-focused. Video
-                previews help users instantly understand the vibe of each
-                vertical before they enter the dedicated storefront.
+                Realife Crypto Cafe is a real-world cafe concept preparing to
+                open, while Realife NFT Store is focused on products,
+                collectibles, NFTs and premium branded commerce. This hub gives
+                users a first look at both directions before entering each
+                dedicated experience.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -364,24 +365,25 @@ export default function RealMarketingPage() {
                   <>
                     Realife Crypto Cafe
                     <br />
-                    with motion-first presentation
+                    a real cafe concept opening soon
                   </>
                 }
                 text={
                   <>
-                    The cafe block should feel alive, not static. A large video
-                    card works better than a plain text section and immediately
-                    gives the storefront more premium energy.
+                    Realife Crypto Cafe is a real-world concept built around
+                    branded drinks, cacao, chocolate, merch and collectible
+                    culture. It is one of the first physical directions inside
+                    the Realife ecosystem and is preparing to open soon.
                   </>
                 }
               />
 
               <FeatureList
                 items={[
-                  "Hero video for the cafe atmosphere and branded products",
-                  "Fast entry point into the cafe storefront",
-                  "Clean separation between primary storefront and trading",
-                  "Luxury visual direction consistent with the Realife shell",
+                  "Real cafe direction with branded products and atmosphere",
+                  "Drinks, cacao, chocolate, merch and collectible drops",
+                  "Bridge between physical experience and digital ownership",
+                  "One of the first real-world expansions of the Realife ecosystem",
                 ]}
               />
 
@@ -397,7 +399,7 @@ export default function RealMarketingPage() {
             <PromoVideo
               src={cafeVideo}
               title="Realife Crypto Cafe"
-              subtitle="Short branded hero preview for the cafe storefront."
+              subtitle="Preview of the upcoming cafe direction inside the Realife ecosystem."
               priority
             />
           </div>
@@ -408,20 +410,20 @@ export default function RealMarketingPage() {
         <GoldEdgeWrap className="rounded-[40px]">
           <div className="p-6 md:p-8 xl:p-10">
             <SectionTitle
-              eyebrow="Store Product Stories"
+              eyebrow="Storefront"
               title={
                 <>
                   Realife NFT Store
                   <br />
-                  with curated vertical previews
+                  products, collectibles and ownership
                 </>
               }
               text={
                 <>
-                  For the store, compact vertical product stories feel more
-                  premium than one oversized block. This section works as an
-                  editorial showcase for packaging, details and collectible
-                  product motion.
+                  Realife NFT Store is focused on product-driven commerce inside
+                  the Realife ecosystem. It connects physical items,
+                  collectible presentation, NFT-linked ownership, delivery flow
+                  and secondary market potential in one premium storefront.
                 </>
               }
             />
@@ -484,8 +486,8 @@ export default function RealMarketingPage() {
                   </div>
 
                   <div className="mt-3 text-sm leading-relaxed text-white/55">
-                    Primary storefront with branded cafe products, merch,
-                    chocolate, cacao, food and collectible drops.
+                    Real cafe direction with branded drinks, cacao, chocolate,
+                    merch and future collectible drops.
                   </div>
                 </div>
 
@@ -500,8 +502,8 @@ export default function RealMarketingPage() {
                   </div>
 
                   <div className="mt-3 text-sm leading-relaxed text-white/55">
-                    Curated real-world products connected to NFTs, delivery
-                    flow, escrow flow and secondary ecosystem support.
+                    Storefront for NFT-linked products, delivery-based items,
+                    collectible packaging and secondary ecosystem support.
                   </div>
                 </div>
               </div>
@@ -518,8 +520,9 @@ export default function RealMarketingPage() {
                 {[
                   { label: "Realife Crypto Cafe", live: true },
                   { label: "Realife NFT Store", live: true },
-                  { label: "Travel Tours", live: false },
-                  { label: "Concerts", live: false },
+                  { label: "Realife Crypto Travel", live: false },
+                  { label: "Realife Crypto Concert", live: false },
+                  { label: "Realife Crypto Medicine", live: false },
                 ].map((item) => (
                   <div
                     key={item.label}
