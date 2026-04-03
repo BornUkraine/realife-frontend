@@ -10,7 +10,7 @@ export const APP_NAV: AppNavItem[] = [
   { label: "Create NFT", href: "/app/create", enabled: true },
   { label: "Trading NFTs", href: "/app/trading", enabled: true },
   { label: "Real Marketing", href: "/app/real-marketing", enabled: true },
-  { label: "Social Learning", href: "/app/social-learning", enabled: false, badge: "Soon" },
+  { label: "Social Learning", href: "/app/social", enabled: true },
   { label: "Profile", href: "/app/profile", enabled: true },
   { label: "Contact", href: "/app/contacts", enabled: true },
 ];
