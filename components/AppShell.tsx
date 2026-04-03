@@ -19,12 +19,19 @@ export default function AppShell({
   return (
     <main className="relative min-h-screen bg-[#070605] text-white overflow-x-hidden">
 
-      {/* ── Ambient background ─────────────────────────────────── */}
+      {/* ── Ambient background — классы анимаций из globals.css ── */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden" aria-hidden>
-        <div className="absolute -top-48 left-1/2 -translate-x-1/2 h-[600px] w-[1000px] rounded-full bg-[#C9A84C] opacity-[0.07] blur-[140px]" />
-        <div className="absolute -bottom-32 -right-32 h-[700px] w-[700px] rounded-full bg-[#C9A84C] opacity-[0.04] blur-[160px]" />
+        {/* Виньетка */}
+        <div className="absolute inset-0 z-10 bg-[radial-gradient(circle_at_50%_50%,transparent_20%,#040303_100%)] opacity-90" />
+
+        {/* Анимированные орбы */}
+        <div className="animate-orb-1 absolute -left-[10%] -top-[20%] h-[800px] w-[800px] rounded-full bg-[#C9A84C] blur-[140px]" />
+        <div className="animate-orb-2 absolute -bottom-[20%] -right-[10%] h-[900px] w-[900px] rounded-full bg-[#C9A84C] blur-[160px]" />
+        <div className="animate-top-glow absolute top-0 h-[420px] w-[620px] rounded-full bg-[#f7e7a7] blur-[120px]" />
+
+        {/* Сетка */}
         <div
-          className="absolute inset-0 opacity-[0.022]"
+          className="absolute inset-0 z-0 opacity-[0.022]"
           style={{
             backgroundImage:
               "linear-gradient(to right,rgba(201,168,76,.3) 1px,transparent 1px)," +
