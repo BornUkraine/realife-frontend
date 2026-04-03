@@ -107,7 +107,7 @@ const IPFS_GATEWAYS = [
 const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
 const CAFE_STOREFRONT_HREF = "/app/real-marketing/realife-cafe";
 const STORE_STOREFRONT_HREF = "/app/real-marketing/realife-store";
-const DELIVERY_PROFILE_HREF = "/app/profile/delivery";
+const DELIVERY_PROFILE_HREF = "/app/orders";
 
 /* ------------------------------- Market fetch tuning ------------------------------ */
 
