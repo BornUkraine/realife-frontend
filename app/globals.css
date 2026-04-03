@@ -65,3 +65,75 @@ body {
   html { scroll-behavior: auto; }
   .reveal { animation: none !important; }
 }
+
+/* ── DuoEcosystemScene animations ──────────────────────────────── */
+@keyframes duoFloatA {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-6px) rotate(-0.8deg); }
+}
+@keyframes duoFloatB {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  50%       { transform: translateY(-7px) rotate(0.8deg); }
+}
+@keyframes duoPulse {
+  0%, 100% { opacity: 0.42; transform: scale(1); }
+  50%       { opacity: 0.95; transform: scale(1.06); }
+}
+@keyframes duoBeam {
+  0%, 100% { opacity: 0.22; filter: brightness(1); }
+  50%       { opacity: 0.72; filter: brightness(1.14); }
+}
+@keyframes duoDrift {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%       { transform: translate3d(0, -5px, 0); }
+}
+@keyframes duoOrbit {
+  0%, 100% { transform: translateY(0px);  opacity: 0.45; }
+  50%       { transform: translateY(-5px); opacity: 1; }
+}
+@keyframes duoRotate {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.duo-float-a { animation: duoFloatA 5.7s ease-in-out infinite; }
+.duo-float-b { animation: duoFloatB 6s   ease-in-out infinite 0.28s; }
+.duo-pulse   { animation: duoPulse  3.8s ease-in-out infinite; }
+.duo-beam    { animation: duoBeam   4.6s ease-in-out infinite; }
+.duo-drift   { animation: duoDrift  6.2s ease-in-out infinite; }
+.duo-orbit   { animation: duoOrbit  4.3s ease-in-out infinite; }
+.duo-rotate  { animation: duoRotate 18s  linear     infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .duo-float-a, .duo-float-b, .duo-pulse,
+  .duo-beam, .duo-drift, .duo-orbit, .duo-rotate {
+    animation: none !important;
+  }
+}
+
+/* ── Home page orb animations ───────────────────────────────────── */
+@keyframes slow-float {
+  0%, 100% { transform: translate(0px, 0px) scale(1);   opacity: 0.15; }
+  50%       { transform: translate(-50px, 40px) scale(1.1); opacity: 0.35; }
+}
+@keyframes slow-float-reverse {
+  0%, 100% { transform: translate(0px, 0px) scale(1);    opacity: 0.10; }
+  50%       { transform: translate(50px, -40px) scale(1.15); opacity: 0.30; }
+}
+@keyframes slow-pulse-top {
+  0%, 100% { opacity: 0.05; transform: scale(1)   translateX(-50%); }
+  50%       { opacity: 0.25; transform: scale(1.1) translateX(-48%); }
+}
+
+.animate-orb-1   { animation: slow-float         12s ease-in-out infinite; }
+.animate-orb-2   { animation: slow-float-reverse  15s ease-in-out infinite; }
+.animate-top-glow {
+  animation: slow-pulse-top 10s ease-in-out infinite;
+  left: 50%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-orb-1, .animate-orb-2, .animate-top-glow {
+    animation: none !important;
+  }
+}
