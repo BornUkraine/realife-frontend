@@ -8,7 +8,7 @@ import { formatUnits } from "viem";
 import { cn } from "@/lib/utils";
 import WalletMenu from "./WalletMenu";
 
-const TOPBAR_DESKTOP_SCALE = 0.85;
+// ─── Hooks ────────────────────────────────────────────────────────────────────
 
 function useMounted() {
   const [mounted, setMounted] = useState(false);
@@ -16,26 +16,7 @@ function useMounted() {
   return mounted;
 }
 
-function useIsDesktop() {
-  const [isDesktop, setIsDesktop] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 768px)");
-
-    const apply = () => setIsDesktop(mq.matches);
-    apply();
-
-    if (typeof mq.addEventListener === "function") {
-      mq.addEventListener("change", apply);
-      return () => mq.removeEventListener("change", apply);
-    }
-
-    mq.addListener(apply);
-    return () => mq.removeListener(apply);
-  }, []);
-
-  return isDesktop;
-}
+// ─── Formatters ───────────────────────────────────────────────────────────────
 
 function fmtBalance(value?: string) {
   if (!value) return "0";
@@ -46,17 +27,19 @@ function fmtBalance(value?: string) {
   return n.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
 }
 
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
 function StatusDot({ state }: { state: "ok" | "warn" | "off" }) {
   return (
     <span
       className={cn(
-        "inline-block h-2 w-2 rounded-full",
+        "inline-block h-2 w-2 shrink-0 rounded-full",
+        "ring-[3px] ring-white/[0.06]",
         state === "ok"
           ? "bg-emerald-400"
           : state === "warn"
             ? "bg-rose-400"
-            : "bg-white/30",
-        "shadow-[0_0_0_3px_rgba(255,255,255,0.06)]"
+            : "bg-white/25",
       )}
     />
   );
@@ -64,12 +47,7 @@ function StatusDot({ state }: { state: "ok" | "warn" | "off" }) {
 
 function OrdersIcon({ className = "" }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      className={className}
-    >
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
       <path
         d="M8 7.75h8M8 12h8M8 16.25h5"
         stroke="currentColor"
@@ -92,6 +70,7 @@ function OrdersIcon({ className = "" }: { className?: string }) {
   );
 }
 
+// Gold border pill — wraps the network status widget
 function GoldEdgeWrap({
   className = "",
   children,
@@ -102,18 +81,17 @@ function GoldEdgeWrap({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[22px] p-px",
-        "bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))]",
-        "shadow-[0_18px_70px_rgba(0,0,0,0.35)]",
-        className
+        "relative overflow-hidden rounded-[20px] p-px",
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.36),rgba(201,168,76,0.16),rgba(184,135,10,0.10))]",
+        "shadow-[0_14px_60px_rgba(0,0,0,0.32)]",
+        className,
       )}
     >
       <div
         className={cn(
-          "relative rounded-[22px]",
-          "border border-white/10",
-          "bg-[#0b0a09]/70 backdrop-blur-2xl",
-          "ring-1 ring-black/10"
+          "relative rounded-[20px]",
+          "border border-white/[0.08]",
+          "bg-[#0a0806]/72 backdrop-blur-2xl",
         )}
       >
         {children}
@@ -121,6 +99,8 @@ function GoldEdgeWrap({
     </div>
   );
 }
+
+// ─── Network status content ───────────────────────────────────────────────────
 
 type NetworkStatusContentProps = {
   mounted: boolean;
@@ -151,94 +131,85 @@ function NetworkStatusContent({
   onRefresh,
   onSwitch,
 }: NetworkStatusContentProps) {
-  const refreshGlyph = !mounted ? "↻" : isFetching ? "…" : "↻";
-
   return (
-    <div className="relative px-3.5 py-2.5">
-      <div className="pointer-events-none absolute inset-0 opacity-80">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]" />
-      </div>
+    <div className="flex items-center gap-2.5 px-3.5 py-2.5">
+      <StatusDot state={dotState} />
 
-      <div className="relative flex items-center gap-2.5">
-        <StatusDot state={dotState} />
+      <span className="whitespace-nowrap text-sm font-semibold">
+        {mounted ? (connected ? networkTitle : "Wallet") : "Wallet"}
+      </span>
 
-        <div className="whitespace-nowrap text-sm font-semibold">
-          {mounted ? (connected ? networkTitle : "Wallet") : "Wallet"}
-        </div>
-
-        {mounted && connected && !wrongNetwork ? (
-          <span
-            className={cn(
-              "ml-0.5 rounded-full border px-2 py-1 text-[11px] font-semibold",
-              hasGas
-                ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
-                : "border-rose-500/20 bg-rose-500/10 text-rose-200"
-            )}
-          >
-            {hasGas ? "Gas OK" : "No gas"}
-          </span>
-        ) : null}
-
-        <span className="ml-1 truncate text-xs text-white/65">
-          Balance:{" "}
-          <span className="font-semibold text-white/90">{balanceLabel}</span>
+      {mounted && connected && !wrongNetwork && (
+        <span
+          className={cn(
+            "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+            hasGas
+              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+              : "border-rose-500/20 bg-rose-500/10 text-rose-300",
+          )}
+        >
+          {hasGas ? "Gas OK" : "No gas"}
         </span>
+      )}
 
+      <span className="ml-1 truncate text-xs text-white/55">
+        Balance:{" "}
+        <span className="font-semibold text-white/85">{balanceLabel}</span>
+      </span>
+
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={!mounted || !connected || isFetching}
+        className={cn(
+          "ml-1 h-8 w-8 shrink-0 rounded-xl",
+          "border border-white/10 bg-white/[0.05]",
+          "text-xs font-semibold transition hover:bg-white/10",
+          "disabled:opacity-35",
+        )}
+        title="Refresh balance"
+        aria-label="Refresh balance"
+      >
+        {isFetching ? "…" : "↻"}
+      </button>
+
+      {mounted && wrongNetwork && (
         <button
           type="button"
-          onClick={onRefresh}
-          disabled={!mounted || !connected || isFetching}
+          disabled={!canSwitch || isSwitching}
+          onClick={onSwitch}
           className={cn(
-            "ml-1 h-9 w-9 rounded-xl",
-            "border border-white/10 bg-white/[0.06] backdrop-blur-2xl",
-            "text-xs font-semibold transition hover:bg-white/10",
-            "disabled:opacity-40"
+            "h-8 shrink-0 rounded-xl px-3 text-xs font-bold",
+            "text-[#0a0806]",
+            "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_50%,#b8870a_100%)]",
+            "shadow-[0_10px_40px_rgba(212,175,55,0.15)]",
+            "transition hover:brightness-110 disabled:opacity-55",
           )}
-          title="Refresh balance"
+          title={
+            !canSwitch
+              ? "This wallet cannot switch automatically"
+              : "Switch to Base Sepolia"
+          }
         >
-          {refreshGlyph}
+          {isSwitching ? "Switching…" : "Switch"}
         </button>
-
-        {mounted && wrongNetwork ? (
-          <button
-            type="button"
-            disabled={!canSwitch || isSwitching}
-            onClick={onSwitch}
-            className={cn(
-              "h-9 rounded-xl px-3 text-xs font-extrabold",
-              "text-black",
-              "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-              "shadow-[0_18px_60px_rgba(212,175,55,0.18)]",
-              "ring-1 ring-black/15",
-              "transition hover:brightness-110 disabled:opacity-60"
-            )}
-            title={
-              !canSwitch
-                ? "This wallet cannot switch network automatically"
-                : "Switch network"
-            }
-          >
-            {isSwitching ? "Switching…" : "Switch"}
-          </button>
-        ) : null}
-      </div>
+      )}
     </div>
   );
 }
 
+// ─── Brand link ───────────────────────────────────────────────────────────────
+
 function BrandLink() {
   return (
-    <Link
-      href="/"
-      className="group relative inline-flex min-w-0 items-center gap-3"
-    >
+    <Link href="/" className="group inline-flex min-w-0 items-center gap-3">
+      {/* Mobile: mark only */}
       <span
         className={cn(
-          "relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-full",
+          "relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full",
           "border border-white/10 bg-black",
-          "shadow-[0_18px_70px_rgba(0,0,0,0.25)] ring-1 ring-black/10",
-          "sm:hidden"
+          "shadow-[0_12px_50px_rgba(0,0,0,0.3)]",
+          "sm:hidden",
         )}
       >
         <img
@@ -248,15 +219,12 @@ function BrandLink() {
           draggable={false}
         />
       </span>
-
-      <span className="relative hidden h-14 w-[250px] items-center overflow-visible sm:flex">
+      {/* Desktop: wordmark */}
+      <span className="relative hidden h-12 w-[220px] items-center overflow-visible sm:flex">
         <img
           src="/brand/logo-wordmark.png"
           alt="Realife"
-          className={cn(
-            "pointer-events-none h-full w-full origin-left object-contain object-left",
-            "mix-blend-screen scale-[5.4]"
-          )}
+          className="pointer-events-none h-full w-full origin-left scale-[5.0] object-contain object-left mix-blend-screen"
           draggable={false}
         />
       </span>
@@ -264,32 +232,30 @@ function BrandLink() {
   );
 }
 
-function LoadingHeader() {
+// ─── Skeleton shown before hydration ─────────────────────────────────────────
+
+function TopBarSkeleton() {
   return (
-    <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
-      <div className="mx-auto w-full max-w-[1720px] px-4 py-3 sm:px-6 lg:px-8 2xl:px-10">
+    <div className="border-b border-white/10 bg-[#0a0806]/65 backdrop-blur-2xl">
+      <div className="mx-auto w-full max-w-[1760px] px-4 py-3 sm:px-6 lg:px-8 2xl:px-10">
+        {/* Mobile skeleton */}
         <div className="flex items-center justify-between gap-3 md:hidden">
           <div className="flex items-center gap-3">
-            <span className="h-11 w-11 rounded-full border border-white/10 bg-white/5" />
-            <span className="h-8 w-40 rounded-xl border border-white/10 bg-white/5" />
+            <span className="h-10 w-10 rounded-full border border-white/10 bg-white/5" />
+            <span className="h-7 w-36 rounded-xl border border-white/10 bg-white/5" />
           </div>
           <div className="flex items-center gap-2">
-            <div className="h-10 w-10 rounded-2xl border border-white/10 bg-white/5" />
-            <div className="h-10 w-10 rounded-2xl border border-white/10 bg-white/5" />
+            <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/5" />
+            <div className="h-9 w-9 rounded-2xl border border-white/10 bg-white/5" />
           </div>
         </div>
-
-        <div className="hidden md:grid md:grid-cols-[minmax(220px,1fr)_auto_minmax(320px,1fr)] md:items-center md:gap-4">
-          <div className="flex items-center">
-            <span className="h-10 w-48 rounded-xl border border-white/10 bg-white/5" />
-          </div>
-          <div className="flex justify-center">
-            <div className="h-11 w-[420px] rounded-[22px] border border-white/10 bg-white/5" />
-          </div>
-          <div className="flex justify-end gap-2">
-            <div className="h-10 w-32 rounded-2xl border border-white/10 bg-white/5" />
-            <div className="h-10 w-28 rounded-2xl border border-white/10 bg-white/5" />
-            <div className="h-10 w-40 rounded-2xl border border-white/10 bg-white/5" />
+        {/* Desktop skeleton */}
+        <div className="hidden md:grid md:grid-cols-[1fr_auto_1fr] md:items-center md:gap-4">
+          <div className="h-9 w-44 rounded-xl border border-white/10 bg-white/5" />
+          <div className="h-10 w-[380px] rounded-[20px] border border-white/10 bg-white/5" />
+          <div className="ml-auto flex gap-2">
+            <div className="h-9 w-28 rounded-2xl border border-white/10 bg-white/5" />
+            <div className="h-9 w-36 rounded-2xl border border-white/10 bg-white/5" />
           </div>
         </div>
       </div>
@@ -297,9 +263,10 @@ function LoadingHeader() {
   );
 }
 
+// ─── TopBar ───────────────────────────────────────────────────────────────────
+
 export default function TopBar() {
   const mounted = useMounted();
-  const isDesktop = useIsDesktop();
 
   const { address } = useAccount();
   const chainId = useChainId();
@@ -319,8 +286,7 @@ export default function TopBar() {
 
   const balanceEth = useMemo(() => {
     if (!mounted || !balanceData) return 0;
-    const s = formatUnits(balanceData.value, balanceData.decimals);
-    const n = Number(s);
+    const n = Number(formatUnits(balanceData.value, balanceData.decimals));
     return Number.isFinite(n) ? n : 0;
   }, [mounted, balanceData]);
 
@@ -329,35 +295,20 @@ export default function TopBar() {
   const balanceLabel = useMemo(() => {
     if (!mounted || !connected) return "—";
     if (isLoading) return "loading…";
-    if (!balanceData) {
-      return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
-    }
-    const s = formatUnits(balanceData.value, balanceData.decimals);
-    return `${fmtBalance(s)} ${balanceData.symbol ?? "ETH"}`;
+    if (!balanceData) return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
+    return `${fmtBalance(formatUnits(balanceData.value, balanceData.decimals))} ${balanceData.symbol ?? "ETH"}`;
   }, [mounted, connected, isLoading, balanceData]);
 
-  const networkTitle = !mounted
+  const networkTitle = !mounted || !connected
     ? "Connect wallet"
-    : !connected
-      ? "Connect wallet"
-      : wrongNetwork
-        ? "Wrong network"
-        : "Base Sepolia";
+    : wrongNetwork
+      ? "Wrong network"
+      : "Base Sepolia";
 
-  const dotState: "ok" | "warn" | "off" = !mounted
-    ? "off"
-    : !connected
-      ? "off"
-      : wrongNetwork
-        ? "warn"
-        : "ok";
+  const dotState: "ok" | "warn" | "off" =
+    !mounted || !connected ? "off" : wrongNetwork ? "warn" : "ok";
 
-  const showGetEth = mounted
-    ? connected
-      ? wrongNetwork || !hasGas
-      : false
-    : false;
-
+  const showGetEth = mounted && connected && (wrongNetwork || !hasGas);
   const canSwitch = typeof switchChainAsync === "function";
 
   const statusProps: NetworkStatusContentProps = {
@@ -371,131 +322,103 @@ export default function TopBar() {
     isFetching,
     isSwitching,
     canSwitch,
-    onRefresh: () => {
-      void refetch();
-    },
+    onRefresh: () => void refetch(),
     onSwitch: () => {
-      if (!canSwitch) return;
-      void switchChainAsync({ chainId: baseSepolia.id }).catch(() => {});
+      if (canSwitch) void switchChainAsync({ chainId: baseSepolia.id }).catch(() => {});
     },
   };
 
+  // Render skeleton on server / before hydration to avoid layout shift
   if (!mounted) {
     return (
       <header className="relative z-50 w-full">
-        <LoadingHeader />
+        <TopBarSkeleton />
       </header>
     );
   }
 
   return (
     <header className="relative z-50 w-full">
-      <style>{`
-        @supports (zoom: 1) {
-          @media (min-width: 1024px) {
-            .topbar-desktop-scale-85 {
-              zoom: ${TOPBAR_DESKTOP_SCALE};
-            }
-          }
-        }
-      `}</style>
+      {/* Soft top glow */}
+      <div className="pointer-events-none absolute inset-x-0 -top-20 z-0 mx-auto h-20 w-[700px] rounded-full bg-[#C9A84C]/12 blur-3xl" aria-hidden />
 
-      <div className="relative">
-        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[820px] rounded-full bg-[#d4af37]/14 blur-3xl" />
-        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-24 w-[560px] rounded-full bg-white/[0.06] blur-2xl" />
+      <div className="relative border-b border-white/10 bg-[#0a0806]/65 backdrop-blur-2xl">
+        <div className="mx-auto w-full max-w-[1760px] px-4 py-3 sm:px-6 lg:px-8 2xl:px-10">
 
-        <div className="relative border-b border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl">
-          <div className="mx-auto w-full max-w-[1720px] px-4 py-3 sm:px-6 lg:px-8 2xl:px-10 topbar-desktop-scale-85">
-            {!isDesktop ? (
-              <>
-                <div className="flex items-center justify-between gap-3">
-                  <BrandLink />
-
-                  <div className="relative z-30 flex items-center gap-2">
-                    <Link
-                      href="/app/orders"
-                      className={cn(
-                        "inline-flex h-10 w-10 items-center justify-center rounded-2xl",
-                        "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
-                        "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
-                        "text-white/85 transition hover:-translate-y-[1px] hover:bg-white/10 hover:text-white"
-                      )}
-                      title="My Orders"
-                      aria-label="My Orders"
-                    >
-                      <OrdersIcon className="h-[18px] w-[18px]" />
-                    </Link>
-
-                    {showGetEth ? (
-                      <Link
-                        href="/app/faucet"
-                        className={cn(
-                          "inline-flex h-10 items-center justify-center rounded-2xl px-3",
-                          "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
-                          "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
-                          "text-sm font-semibold transition hover:-translate-y-[1px] hover:bg-white/10"
-                        )}
-                      >
-                        Get ETH
-                      </Link>
-                    ) : null}
-
-                    <WalletMenu />
-                  </div>
-                </div>
-
-                <div className="mt-3">
-                  <GoldEdgeWrap>
-                    <NetworkStatusContent {...statusProps} />
-                  </GoldEdgeWrap>
-                </div>
-              </>
-            ) : (
-              <div className="grid grid-cols-[minmax(220px,1fr)_auto_minmax(320px,1fr)] items-center gap-4">
-                <div className="min-w-0">
-                  <BrandLink />
-                </div>
-
-                <div className="flex min-w-0 justify-center">
-                  <GoldEdgeWrap className="w-full max-w-[430px]">
-                    <NetworkStatusContent {...statusProps} />
-                  </GoldEdgeWrap>
-                </div>
-
-                <div className="flex items-center justify-end gap-2">
+          {/* ── Mobile layout ─────────────────────────────────────── */}
+          <div className="flex flex-col gap-3 md:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <BrandLink />
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/app/orders"
+                  className={cn(
+                    "inline-flex h-9 w-9 items-center justify-center rounded-xl",
+                    "border border-white/10 bg-white/[0.05] backdrop-blur-xl",
+                    "text-white/75 transition hover:bg-white/10 hover:text-white",
+                  )}
+                  aria-label="My Orders"
+                >
+                  <OrdersIcon className="h-[17px] w-[17px]" />
+                </Link>
+                {showGetEth && (
                   <Link
-                    href="/app/orders"
+                    href="/app/faucet"
                     className={cn(
-                      "inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4",
-                      "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
-                      "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
-                      "text-sm font-semibold text-white/85 transition hover:-translate-y-[1px] hover:bg-white/10 hover:text-white"
+                      "inline-flex h-9 items-center rounded-xl px-3",
+                      "border border-white/10 bg-white/[0.05]",
+                      "text-sm font-semibold transition hover:bg-white/10",
                     )}
-                    title="My Orders"
                   >
-                    <OrdersIcon className="h-[17px] w-[17px]" />
-                    <span>My Orders</span>
+                    Get ETH
                   </Link>
-
-                  {showGetEth ? (
-                    <Link
-                      href="/app/faucet"
-                      className={cn(
-                        "inline-flex h-10 items-center justify-center rounded-2xl px-4",
-                        "border border-white/12 bg-white/[0.06] backdrop-blur-2xl",
-                        "shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10",
-                        "text-sm font-semibold transition hover:-translate-y-[1px] hover:bg-white/10"
-                      )}
-                    >
-                      Get ETH ↗
-                    </Link>
-                  ) : null}
-
-                  <WalletMenu />
-                </div>
+                )}
+                <WalletMenu />
               </div>
-            )}
+            </div>
+            <GoldEdgeWrap>
+              <NetworkStatusContent {...statusProps} />
+            </GoldEdgeWrap>
           </div>
+
+          {/* ── Desktop layout ────────────────────────────────────── */}
+          <div className="hidden md:grid md:grid-cols-[minmax(200px,1fr)_auto_minmax(280px,1fr)] md:items-center md:gap-4">
+            <BrandLink />
+
+            <GoldEdgeWrap className="w-full max-w-[420px]">
+              <NetworkStatusContent {...statusProps} />
+            </GoldEdgeWrap>
+
+            <div className="flex items-center justify-end gap-2">
+              <Link
+                href="/app/orders"
+                className={cn(
+                  "inline-flex h-9 items-center gap-2 rounded-xl px-3.5",
+                  "border border-white/10 bg-white/[0.05] backdrop-blur-xl",
+                  "text-sm font-medium text-white/75 transition hover:bg-white/10 hover:text-white",
+                )}
+              >
+                <OrdersIcon className="h-[16px] w-[16px]" />
+                <span>My Orders</span>
+              </Link>
+
+              {showGetEth && (
+                <Link
+                  href="/app/faucet"
+                  className={cn(
+                    "inline-flex h-9 items-center rounded-xl px-3.5",
+                    "border border-white/10 bg-white/[0.05]",
+                    "text-sm font-medium transition hover:bg-white/10",
+                  )}
+                >
+                  Get ETH ↗
+                </Link>
+              )}
+
+              <WalletMenu />
+            </div>
+          </div>
+
         </div>
       </div>
     </header>

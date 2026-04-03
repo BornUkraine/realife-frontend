@@ -5,37 +5,46 @@ import ConnectWallet from "@/components/ConnectWallet";
 
 export default function SidebarBottom() {
   return (
-    <>
-      {/* Wallet */}
-      <div className="space-y-3">
-        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_24px_90px_rgba(0,0,0,0.35)]">
-          <p className="text-xs font-semibold text-white/60 mb-2">Wallet</p>
-          <ConnectWallet />
-          <p className="mt-2 text-[11px] text-white/55">
-            Connect to mint / trade (MetaMask / OKX / Rabby / WalletConnect).
-          </p>
-        </div>
+    <div className="space-y-2.5">
 
-        <Link
-          href="/app/create"
-          className={[
-            "w-full inline-flex items-center justify-center px-4 py-3 rounded-2xl",
-            "text-black text-sm font-extrabold",
-            "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-            "shadow-[0_22px_80px_rgba(212,175,55,0.16)] ring-1 ring-black/15",
-            "hover:brightness-110 hover:-translate-y-[1px] transition active:translate-y-0",
-          ].join(" ")}
-        >
-          Create NFT
-        </Link>
-
-        <Link
-          href="/app/faucet"
-          className="w-full inline-flex items-center justify-center px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.07] hover:-translate-y-[1px] transition active:translate-y-0 text-sm font-semibold"
-        >
-          Faucet ETH
-        </Link>
+      {/* ── Wallet connect block ───────────────────────────────────── */}
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+        <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+          Wallet
+        </p>
+        <ConnectWallet />
+        <p className="mt-2.5 text-[11px] leading-relaxed text-white/40">
+          MetaMask · OKX · Rabby · WalletConnect
+        </p>
       </div>
-    </>
+
+      {/* ── Primary CTA: Create NFT ───────────────────────────────── */}
+      <Link
+        href="/app/create"
+        className={[
+          "flex w-full items-center justify-center rounded-2xl px-4 py-2.5",
+          "text-[#0a0806] text-sm font-bold",
+          "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_50%,#b8870a_100%)]",
+          "shadow-[0_16px_60px_rgba(201,168,76,0.14)] ring-1 ring-black/15",
+          "transition hover:brightness-105 hover:-translate-y-px active:translate-y-0",
+        ].join(" ")}
+      >
+        Create NFT
+      </Link>
+
+      {/* ── Secondary: Faucet ─────────────────────────────────────── */}
+      <Link
+        href="/app/faucet"
+        className={[
+          "flex w-full items-center justify-center rounded-2xl px-4 py-2.5",
+          "border border-white/[0.08] bg-white/[0.03]",
+          "text-sm font-medium text-white/65",
+          "transition hover:bg-white/[0.06] hover:text-white/85 hover:-translate-y-px active:translate-y-0",
+        ].join(" ")}
+      >
+        Faucet ETH
+      </Link>
+
+    </div>
   );
 }

@@ -1,11 +1,23 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&display=swap");
 
+/* ── Design tokens ──────────────────────────────────────────── */
 :root {
-  --background: #070606;
+  --background: #070605;
   --foreground: #ffffff;
+
+  /* Gold palette */
+  --gold:         #C9A84C;
+  --gold-text:    #E8D5A0;
+  --gold-heading: #F0E4BF;
+  --gold-subtle:  rgba(201, 168, 76, 0.10);
+  --gold-border:  rgba(201, 168, 76, 0.20);
+
+  /* Typography */
+  --font-display: "Cormorant Garamond", Georgia, serif;
 }
 
-/* Tailwind v4 tokens mapping */
+/* Tailwind v4 theme mapping */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -13,51 +25,43 @@
   --font-mono: var(--font-geist-mono);
 }
 
-* {
+/* ── Base reset ─────────────────────────────────────────────── */
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
-html,
-body {
+html, body {
   height: 100%;
 }
 
 html {
   scroll-behavior: smooth;
-  color-scheme: dark; /* ✅ стабильная темная палитра */
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
-  /* ✅ не задаем Arial — пусть Geist рулит */
 }
 
-/* -------------------------- Global animations -------------------------- */
+/* ── Display / serif utility ────────────────────────────────── */
+/* Use: <h1 className="font-display"> or <h1 style={{fontFamily:"var(--font-display)"}}> */
+.font-display {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+
+/* ── Page-entry animation ───────────────────────────────────── */
 @keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translate3d(0, 10px, 0);
-  }
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 
-/* Optional helper class you can use anywhere:
-   <div className="reveal">...</div>
-   or via <Reveal /> component that adds class "reveal"
-*/
 .reveal {
-  animation: fadeUp 0.7s ease-out both;
+  animation: fadeUp 0.6s ease-out both;
 }
 
-/* Respect reduced motion */
+/* ── Reduced motion ─────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-  .reveal {
-    animation: none !important;
-  }
+  html { scroll-behavior: auto; }
+  .reveal { animation: none !important; }
 }

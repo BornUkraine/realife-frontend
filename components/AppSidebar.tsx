@@ -9,6 +9,8 @@ function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
 
+// ─── GoldEdgeCard ─────────────────────────────────────────────────────────────
+// Thin gradient border that reads as a premium physical edge.
 function GoldEdgeCard({
   className = "",
   children,
@@ -18,24 +20,24 @@ function GoldEdgeCard({
 }) {
   return (
     <div
-      className={[
-        "relative rounded-[34px] p-px overflow-hidden",
-        "bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))]",
-        "shadow-[0_34px_140px_rgba(0,0,0,0.60)]",
+      className={cx(
+        "relative rounded-[28px] p-px overflow-hidden",
+        "bg-[linear-gradient(145deg,rgba(247,231,167,0.38),rgba(201,168,76,0.16),rgba(184,135,10,0.10))]",
+        "shadow-[0_28px_120px_rgba(0,0,0,0.55)]",
         className,
-      ].join(" ")}
+      )}
     >
       <div
-        className={[
-          "relative rounded-[34px] overflow-hidden",
-          "border border-white/10",
-          "bg-[#0b0a09]/70 backdrop-blur-2xl",
-          "ring-1 ring-black/10",
+        className={cx(
+          "relative rounded-[28px] overflow-hidden",
+          "border border-white/[0.07]",
+          "bg-[#0a0806]/72 backdrop-blur-2xl",
+          // Radial inner highlights — top-left warm, bottom-right cool
           "before:pointer-events-none before:absolute before:inset-0",
-          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.12),transparent_45%)]",
+          "before:bg-[radial-gradient(circle_at_15%_0%,rgba(201,168,76,0.10),transparent_42%)]",
           "after:pointer-events-none after:absolute after:inset-0",
-          "after:bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]",
-        ].join(" ")}
+          "after:bg-[radial-gradient(circle_at_88%_110%,rgba(255,255,255,0.05),transparent_50%)]",
+        )}
       >
         <div className="relative z-10">{children}</div>
       </div>
@@ -43,6 +45,7 @@ function GoldEdgeCard({
   );
 }
 
+// ─── SidebarNavItem ───────────────────────────────────────────────────────────
 function SidebarNavItem({
   href,
   label,
@@ -57,50 +60,54 @@ function SidebarNavItem({
   badge?: string;
 }) {
   const base = cx(
-    "group block w-full rounded-2xl",
-    "px-4 py-3 text-sm font-semibold",
-    "transition duration-200"
+    "group relative flex w-full items-center justify-between gap-3",
+    "rounded-xl px-4 py-2.5 text-sm font-medium",
+    "transition-all duration-200",
   );
 
+  // ── Active: gold left-rule + subtle warm surface
+  // Using inline style for border-left to avoid Tailwind conflicts with border shorthand.
+  const activeStyle = {
+    borderLeft: "2px solid #C9A84C",
+    paddingLeft: "14px", // compensate 2px border so text doesn't shift
+  };
+
   const activeCls = cx(
-    "text-black",
-    "border border-[#f3d46a]/45",
-    "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-    "shadow-[0_18px_56px_rgba(212,175,55,0.18)]",
-    "ring-1 ring-black/15"
+    "text-[#F0E4BF]",
+    "border border-[rgba(201,168,76,0.22)]",
+    "bg-[rgba(201,168,76,0.08)]",
   );
 
   const idleCls = cx(
-    "text-white/85 hover:text-white",
-    "border border-white/10",
-    "bg-white/[0.04] hover:bg-white/[0.07]",
-    "shadow-[0_14px_44px_rgba(0,0,0,0.32)]",
-    "hover:-translate-y-[1px] active:translate-y-0"
+    "text-white/60 hover:text-white/90",
+    "border border-transparent hover:border-white/[0.07]",
+    "hover:bg-white/[0.04]",
+    "hover:-translate-y-px active:translate-y-0",
   );
 
   const disabledCls = cx(
-    "opacity-45 cursor-not-allowed select-none",
-    "border border-white/10 bg-white/[0.03]"
+    "cursor-not-allowed select-none opacity-40",
+    "border border-transparent text-white/40",
   );
 
   const content = (
-    <div className="flex items-center justify-between gap-3">
+    <>
       <span className="truncate">{label}</span>
 
       {!enabled ? (
-        <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[11px] text-white/70">
-          {badge || "Soon"}
+        <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-white/50">
+          {badge ?? "Soon"}
         </span>
       ) : active ? (
-        <span className="rounded-full border border-black/10 bg-black/10 px-2 py-1 text-[11px]">
+        <span className="shrink-0 rounded-full border border-[rgba(201,168,76,0.25)] bg-[rgba(201,168,76,0.12)] px-2 py-0.5 text-[10px] font-medium text-[#C9A84C]">
           Active
         </span>
       ) : (
-        <span className="text-[11px] text-white/60 opacity-0 transition group-hover:opacity-100">
+        <span className="shrink-0 text-[11px] text-white/40 opacity-0 transition-opacity group-hover:opacity-100">
           →
         </span>
       )}
-    </div>
+    </>
   );
 
   if (!enabled) {
@@ -110,6 +117,7 @@ function SidebarNavItem({
   return (
     <Link
       href={href}
+      style={active ? activeStyle : undefined}
       className={cx(base, active ? activeCls : idleCls)}
       aria-current={active ? "page" : undefined}
     >
@@ -118,6 +126,7 @@ function SidebarNavItem({
   );
 }
 
+// ─── AppSidebar ───────────────────────────────────────────────────────────────
 export default function AppSidebar({
   title,
   subtitle,
@@ -135,52 +144,57 @@ export default function AppSidebar({
     <div className="sticky top-24">
       <GoldEdgeCard>
         <div className="p-5 xl:p-6">
+
+          {/* ── Logo ──────────────────────────────────────────────── */}
           <Link
             href="/app"
-            className="flex items-center mb-8 relative overflow-visible"
+            className="mb-7 flex items-center relative overflow-visible"
           >
-            <div className="z-10 shrink-0 relative w-16 h-16 flex items-center justify-center -ml-2">
+            {/* Logo mark */}
+            <div className="z-10 shrink-0 relative w-14 h-14 flex items-center justify-center -ml-1.5">
               <img
                 src="/brand/logo-mark.png"
                 alt="Realife"
-                className="w-full h-full object-contain mix-blend-screen scale-[4.5]"
+                className="w-full h-full object-contain mix-blend-screen scale-[4.2]"
                 draggable={false}
               />
             </div>
-
-            <div className="relative flex-1 h-12 overflow-visible z-0">
+            {/* Wordmark — absolute-positioned so it can overflow */}
+            <div className="relative flex-1 h-11 overflow-visible z-0">
               <img
                 src="/brand/logo-wordmark.png"
                 alt="Realife"
-                className="absolute top-1/2 left-[-72px] -translate-y-1/2 w-[300px] max-w-none object-contain object-left mix-blend-screen"
+                className="absolute top-1/2 left-[-64px] -translate-y-1/2 w-[280px] max-w-none object-contain object-left mix-blend-screen"
                 draggable={false}
               />
             </div>
           </Link>
 
+          {/* ── Section label ─────────────────────────────────────── */}
           {(title || subtitle) && (
-            <div className="mb-5">
-              {title ? (
-                <div className="text-[11px] uppercase tracking-[0.24em] text-white/38 font-black">
+            <div className="mb-4 border-b border-white/[0.06] pb-4">
+              {title && (
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/35">
                   {title}
-                </div>
-              ) : null}
-
-              {subtitle ? (
-                <div className="mt-2 text-[12px] text-white/52 leading-relaxed">
+                </p>
+              )}
+              {subtitle && (
+                <p className="mt-1.5 text-[12px] leading-relaxed text-white/48">
                   {subtitle}
-                </div>
-              ) : null}
+                </p>
+              )}
             </div>
           )}
 
-          {topBadge ? (
-            <div className="mb-4 rounded-3xl bg-white/5 border border-white/10 p-4">
+          {/* ── Top badge slot ─────────────────────────────────────── */}
+          {topBadge && (
+            <div className="mb-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3.5">
               {topBadge}
             </div>
-          ) : null}
+          )}
 
-          <nav className="space-y-2.5">
+          {/* ── Navigation ────────────────────────────────────────── */}
+          <nav className="space-y-1">
             {APP_NAV.map((item) => (
               <SidebarNavItem
                 key={item.href}
@@ -193,7 +207,13 @@ export default function AppSidebar({
             ))}
           </nav>
 
-          {bottom ? <div className="mt-6">{bottom}</div> : null}
+          {/* ── Bottom slot ───────────────────────────────────────── */}
+          {bottom && (
+            <div className="mt-5 border-t border-white/[0.06] pt-5">
+              {bottom}
+            </div>
+          )}
+
         </div>
       </GoldEdgeCard>
     </div>
