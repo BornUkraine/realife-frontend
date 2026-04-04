@@ -261,7 +261,7 @@ export default function RealMarketingPage() {
 
   const storeColumns: StoreCard[] = [
     {
-      title: "Rialo product universe",
+      title: "Billions product universe",
       subtitle: "Premium packaging and collectible product presentation.",
       src: "/videos/billions_merged.mp4",
     },
@@ -271,12 +271,10 @@ export default function RealMarketingPage() {
       src: "/videos/rialo_merged.mp4",
     },
     {
-      title: "Flakes, packaging and collectible motion",
+      title: "Premium crypto branded t-shirts",
       subtitle:
-        "Compact vertical stories make the store feel more premium, visual and product-focused.",
-      comingSoonTitle: "More curated product previews are on the way",
-      comingSoonText:
-        "New branded packaging, collectible drops and premium product motion stories will be added as the store media library grows.",
+        "Premium crypto-branded t-shirts with delivery, combining physical merch, brand identity and collectible ecosystem value.",
+      src: "/videos/sentient_tshirt.mp4",
     },
   ];
 
