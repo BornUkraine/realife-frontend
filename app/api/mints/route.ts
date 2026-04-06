@@ -409,7 +409,6 @@ export async function POST(req: Request) {
     tokenUri,
     name,
     image,
-    verified,
     supply,
     standard,
     catalogOnly,
@@ -762,7 +761,7 @@ export async function POST(req: Request) {
         tokenUri: cTokenUri,
         name: cName,
         image: cImage,
-        verified: typeof verified === "boolean" ? verified : true,
+        verified: true,
 
         deliveryEnabled: createDeliveryEnabled,
         physicalItemIncluded: createPhysicalItemIncluded,
@@ -774,7 +773,7 @@ export async function POST(req: Request) {
         tokenUri: cTokenUri || undefined,
         name: cName || undefined,
         image: cImage || undefined,
-        verified: typeof verified === "boolean" ? verified : true,
+        verified: true,
 
         deliveryEnabled: updateDeliveryEnabled,
         physicalItemIncluded: updatePhysicalItemIncluded,
