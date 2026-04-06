@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -18,6 +18,13 @@ import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
 
 type MarketType = "STANDARD" | "DELIVERY";
+
+type ContractView =
+  | "publicStandard"
+  | "publicDelivery"
+  | "cafe"
+  | "store"
+  | "unknown";
 
 type Listing = {
   id: string;
@@ -165,7 +172,7 @@ function Pill({
   active = false,
   onClick,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   active?: boolean;
   onClick?: () => void;
 }) {
@@ -184,6 +191,144 @@ function Pill({
       {children}
     </Tag>
   );
+}
+
+const CAFE_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT || ""
+)
+  .trim()
+  .toLowerCase();
+
+const STORE_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT || ""
+)
+  .trim()
+  .toLowerCase();
+
+const PUBLIC_STANDARD_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || ""
+)
+  .trim()
+  .toLowerCase();
+
+const PUBLIC_DELIVERY_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT || ""
+)
+  .trim()
+  .toLowerCase();
+
+function classifyContractView(contract: string): ContractView {
+  const x = toLower(contract);
+
+  if (CAFE_CONTRACT && x === CAFE_CONTRACT) return "cafe";
+  if (STORE_CONTRACT && x === STORE_CONTRACT) return "store";
+  if (PUBLIC_STANDARD_CONTRACT && x === PUBLIC_STANDARD_CONTRACT) {
+    return "publicStandard";
+  }
+  if (PUBLIC_DELIVERY_CONTRACT && x === PUBLIC_DELIVERY_CONTRACT) {
+    return "publicDelivery";
+  }
+
+  return "unknown";
+}
+
+function forcedMarketTypeByContractView(view: ContractView): MarketType | null {
+  switch (view) {
+    case "publicDelivery":
+      return "DELIVERY";
+    case "publicStandard":
+    case "cafe":
+    case "store":
+      return "STANDARD";
+    default:
+      return null;
+  }
+}
+
+function MarketNotice({
+  contractView,
+}: {
+  contractView: ContractView;
+}) {
+  if (contractView === "store") {
+    return (
+      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100 leading-relaxed">
+        <div className="font-black mb-1">Realife Store • Secondary Trading</div>
+        <div>
+          This NFT uses the <span className="font-black">STANDARD marketplace</span>.
+          Delivery does not work here.
+        </div>
+        <div className="mt-2 text-sky-100/80">
+          This page is <span className="font-black">TRADING ONLY</span>. If you want
+          official purchase with delivery, use the Realife Store page in Real Marketing.
+        </div>
+
+        <Link
+          href="/app/real-marketing"
+          className="inline-flex mt-3 px-4 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 transition font-black text-sky-100"
+        >
+          Go to Real Marketing →
+        </Link>
+      </div>
+    );
+  }
+
+  if (contractView === "cafe") {
+    return (
+      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100 leading-relaxed">
+        <div className="font-black mb-1">Realife Cafe • Secondary Trading</div>
+        <div>
+          This NFT uses the <span className="font-black">STANDARD marketplace</span>.
+          Redemption does not work here.
+        </div>
+        <div className="mt-2 text-amber-100/80">
+          This page is <span className="font-black">TRADING ONLY</span>. If you want
+          official cafe purchase and redemption, use the Realife Cafe page in Real
+          Marketing.
+        </div>
+
+        <Link
+          href="/app/real-marketing"
+          className="inline-flex mt-3 px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 transition font-black text-amber-100"
+        >
+          Go to Real Marketing →
+        </Link>
+      </div>
+    );
+  }
+
+  if (contractView === "publicDelivery") {
+    return (
+      <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] text-violet-100 leading-relaxed">
+        <div className="font-black mb-1">Public Delivery NFT</div>
+        <div>
+          This NFT uses the <span className="font-black">DELIVERY marketplace</span>.
+          Physical item delivery is enabled for this asset.
+        </div>
+        <div className="mt-2 text-violet-100/80">
+          After purchase, delivery flow and escrow are handled through Orders &amp;
+          Delivery.
+        </div>
+      </div>
+    );
+  }
+
+  if (contractView === "publicStandard") {
+    return (
+      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100 leading-relaxed">
+        <div className="font-black mb-1">Public Standard NFT</div>
+        <div>
+          This NFT uses the <span className="font-black">STANDARD marketplace</span>.
+          Delivery is not included for this asset.
+        </div>
+        <div className="mt-2 text-emerald-100/80">
+          This is a normal user-created NFT without delivery flow.
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 export default function TradingPanel1155({
@@ -212,6 +357,7 @@ export default function TradingPanel1155({
   const STANDARD_MARKETPLACE_ADDRESS = useMemo(() => {
     return toLower(
       process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_ADDRESS ||
+        process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_STANDARD_ADDRESS ||
         process.env.NEXT_PUBLIC_MARKETPLACE_STANDARD_ADDRESS ||
         process.env.NEXT_PUBLIC_MARKETPLACE_ADDRESS ||
         ""
@@ -231,7 +377,12 @@ export default function TradingPanel1155({
   const me = useMemo(() => toLower(address), [address]);
   const canTradeOnThisChain = currentChainId === chainId;
 
-  const explicitMarketType = preferredMarketType || marketType || null;
+  const contractView = useMemo(() => classifyContractView(nftAddr), [nftAddr]);
+
+  const forcedMarketType = useMemo(
+    () => forcedMarketTypeByContractView(contractView),
+    [contractView]
+  );
 
   const tokenIdBI = useMemo(() => {
     try {
@@ -268,6 +419,13 @@ export default function TradingPanel1155({
   const [data, setData] = useState<MarketNftResponse | null>(null);
   const [tab, setTab] = useState<"buy" | "sell">("buy");
 
+  const resolvedMarketType: MarketType = useMemo(() => {
+    if (forcedMarketType) return forcedMarketType;
+    if (preferredMarketType) return preferredMarketType;
+    if (marketType) return marketType;
+    return deliveryEnabled ? "DELIVERY" : "STANDARD";
+  }, [forcedMarketType, preferredMarketType, marketType, deliveryEnabled]);
+
   const refresh = useCallback(async () => {
     setErr(null);
     setLoading(true);
@@ -277,9 +435,7 @@ export default function TradingPanel1155({
         `/api/market/nft?chainId=${encodeURIComponent(String(chainId))}` +
         `&contract=${encodeURIComponent(nftAddr)}` +
         `&tokenId=${encodeURIComponent(String(tokenId))}` +
-        (explicitMarketType
-          ? `&marketType=${encodeURIComponent(explicitMarketType)}`
-          : "") +
+        `&marketType=${encodeURIComponent(resolvedMarketType)}` +
         `&listingsTake=50&tradesTake=50`;
 
       const j = (await fetchJSON(url)) as MarketNftResponse;
@@ -289,34 +445,33 @@ export default function TradingPanel1155({
     } finally {
       setLoading(false);
     }
-  }, [chainId, nftAddr, tokenId, explicitMarketType]);
+  }, [chainId, nftAddr, tokenId, resolvedMarketType]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const nftHasDelivery = useMemo(() => {
-    return Boolean(
-      deliveryEnabled ||
-        data?.mint?.deliveryEnabled ||
-        data?.mint?.physicalItemIncluded
-    );
-  }, [
-    deliveryEnabled,
-    data?.mint?.deliveryEnabled,
-    data?.mint?.physicalItemIncluded,
-  ]);
-
   const sellMarketType: MarketType = useMemo(() => {
-    if (explicitMarketType) return explicitMarketType;
-    return nftHasDelivery ? "DELIVERY" : "STANDARD";
-  }, [explicitMarketType, nftHasDelivery]);
+    if (contractView === "publicDelivery") return "DELIVERY";
+    if (
+      contractView === "publicStandard" ||
+      contractView === "store" ||
+      contractView === "cafe"
+    ) {
+      return "STANDARD";
+    }
+    return resolvedMarketType;
+  }, [contractView, resolvedMarketType]);
 
   const sellMarketplaceAddress = useMemo(() => {
     return sellMarketType === "DELIVERY"
       ? DELIVERY_MARKETPLACE_ADDRESS
       : STANDARD_MARKETPLACE_ADDRESS;
-  }, [sellMarketType, DELIVERY_MARKETPLACE_ADDRESS, STANDARD_MARKETPLACE_ADDRESS]);
+  }, [
+    sellMarketType,
+    DELIVERY_MARKETPLACE_ADDRESS,
+    STANDARD_MARKETPLACE_ADDRESS,
+  ]);
 
   const hasSellMarketplace = sellMarketplaceAddress.startsWith("0x");
 
@@ -325,7 +480,7 @@ export default function TradingPanel1155({
     address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
     functionName: "balanceOf",
     args: [
-      ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      (address || "0x0000000000000000000000000000000000000000") as `0x${string}`,
       tokenIdBI,
     ],
     query: {
@@ -338,9 +493,9 @@ export default function TradingPanel1155({
     address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
     functionName: "isApprovedForAll",
     args: [
-      ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
-      ((sellMarketplaceAddress ||
-        "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      (address || "0x0000000000000000000000000000000000000000") as `0x${string}`,
+      (sellMarketplaceAddress ||
+        "0x0000000000000000000000000000000000000000") as `0x${string}`,
     ],
     query: {
       enabled: Boolean(address && hasSellMarketplace && nftAddr.startsWith("0x")),
@@ -384,28 +539,22 @@ export default function TradingPanel1155({
     return list.find((x) => listingKeyOf(x) === selectedListingKey) || list[0] || null;
   }, [data?.listings, selectedListingKey]);
 
-  const selectedListingHasDelivery = useMemo(() => {
-    if (!selectedListing) return nftHasDelivery;
-    return Boolean(
-      selectedListing.deliveryEnabled ||
-        selectedListing.physicalItemIncluded ||
-        deliveryEnabled ||
-        data?.mint?.deliveryEnabled ||
-        data?.mint?.physicalItemIncluded
-    );
-  }, [
-    selectedListing,
-    nftHasDelivery,
-    deliveryEnabled,
-    data?.mint?.deliveryEnabled,
-    data?.mint?.physicalItemIncluded,
-  ]);
-
   const selectedListingMarketType: MarketType = useMemo(() => {
+    if (contractView === "publicDelivery") return "DELIVERY";
+    if (
+      contractView === "publicStandard" ||
+      contractView === "store" ||
+      contractView === "cafe"
+    ) {
+      return "STANDARD";
+    }
     if (selectedListing?.marketType) return selectedListing.marketType;
-    if (explicitMarketType) return explicitMarketType;
-    return selectedListingHasDelivery ? "DELIVERY" : "STANDARD";
-  }, [selectedListing?.marketType, explicitMarketType, selectedListingHasDelivery]);
+    return resolvedMarketType;
+  }, [contractView, selectedListing?.marketType, resolvedMarketType]);
+
+  const selectedListingCreatesDeliveryOrder = useMemo(() => {
+    return selectedListingMarketType === "DELIVERY";
+  }, [selectedListingMarketType]);
 
   const selectedListingMarketplaceAddress = useMemo(() => {
     const direct = toLower(selectedListing?.marketplaceContract || "");
@@ -509,9 +658,7 @@ export default function TradingPanel1155({
       });
 
       setHint(
-        `Approval sent to ${marketLabel(
-          sellMarketType
-        )} market. Waiting for confirmation…`
+        `Approval sent to ${marketLabel(sellMarketType)} market. Waiting for confirmation…`
       );
       await publicClient?.waitForTransactionReceipt({ hash });
 
@@ -564,17 +711,25 @@ export default function TradingPanel1155({
     if (!isConnected) return openConnectModal?.();
 
     const listingMarketType: MarketType =
-      listing.marketType ||
-      (listing.deliveryEnabled || listing.physicalItemIncluded ? "DELIVERY" : "STANDARD");
+      contractView === "publicDelivery"
+        ? "DELIVERY"
+        : contractView === "publicStandard" ||
+          contractView === "store" ||
+          contractView === "cafe"
+        ? "STANDARD"
+        : listing.marketType || resolvedMarketType;
 
-    const listingMarketplaceAddress =
-      toLower(listing.marketplaceContract || "") ||
-      (listingMarketType === "DELIVERY"
-        ? DELIVERY_MARKETPLACE_ADDRESS
-        : STANDARD_MARKETPLACE_ADDRESS);
+    const directMarketplace = toLower(listing.marketplaceContract || "");
+    const listingMarketplaceAddress = directMarketplace.startsWith("0x")
+      ? directMarketplace
+      : listingMarketType === "DELIVERY"
+      ? DELIVERY_MARKETPLACE_ADDRESS
+      : STANDARD_MARKETPLACE_ADDRESS;
 
     if (!listingMarketplaceAddress.startsWith("0x")) {
-      setErr(`Marketplace address missing for ${marketLabel(listingMarketType)} listing`);
+      setErr(
+        `Marketplace address missing for ${marketLabel(listingMarketType)} listing`
+      );
       return;
     }
 
@@ -595,9 +750,7 @@ export default function TradingPanel1155({
       });
 
       setHint(
-        `Cancel sent to ${marketLabel(
-          listingMarketType
-        )} market. Waiting for confirmation…`
+        `Cancel sent to ${marketLabel(listingMarketType)} market. Waiting for confirmation…`
       );
       await publicClient?.waitForTransactionReceipt({ hash });
 
@@ -614,11 +767,10 @@ export default function TradingPanel1155({
   async function buyNow() {
     if (!isConnected) return openConnectModal?.();
     if (!selectedListing) return;
+
     if (!hasSelectedListingMarketplace) {
       setErr(
-        `Marketplace address missing for ${marketLabel(
-          selectedListingMarketType
-        )} listing`
+        `Marketplace address missing for ${marketLabel(selectedListingMarketType)} listing`
       );
       return;
     }
@@ -643,21 +795,23 @@ export default function TradingPanel1155({
       });
 
       setHint(
-        selectedListingHasDelivery
+        selectedListingCreatesDeliveryOrder
           ? `Buy sent to ${marketLabel(
               selectedListingMarketType
             )} market. Waiting for confirmation…`
           : "Buy sent. Waiting for confirmation…"
       );
+
       await publicClient?.waitForTransactionReceipt({ hash });
 
       setHint(
-        selectedListingHasDelivery
+        selectedListingCreatesDeliveryOrder
           ? `Bought on ${marketLabel(
               selectedListingMarketType
             )} ✅ Updating… Delivery order will appear in Orders & Delivery after indexer sync.`
           : "Bought ✅ Updating…"
       );
+
       await afterMarketTx();
       setHint(null);
     } catch (e: any) {
@@ -708,7 +862,7 @@ export default function TradingPanel1155({
                 Buy / Sell
               </div>
               <div className="mt-2 text-[12px] text-white/55">
-                Unified trading panel for standard and delivery Realife NFTs.
+                Contract-aware trading panel for Realife NFTs.
               </div>
             </div>
 
@@ -747,26 +901,16 @@ export default function TradingPanel1155({
             </div>
           ) : null}
 
-          {explicitMarketType ? (
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/75">
-              Viewing market:{" "}
-              <span className="font-black text-amber-100">
-                {marketLabel(explicitMarketType)}
-              </span>
-            </div>
-          ) : null}
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/75">
+            Viewing market:{" "}
+            <span className="font-black text-amber-100">
+              {marketLabel(resolvedMarketType)}
+            </span>
+          </div>
 
-          {nftHasDelivery ? (
-            <div className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100">
-              This NFT is delivery-enabled and should use the{" "}
-              <span className="font-black">DELIVERY marketplace</span> for new listings.
-              After purchase, the delivery order should appear in{" "}
-              <Link href="/app/orders" className="underline font-black">
-                Orders &amp; Delivery
-              </Link>
-              .
-            </div>
-          ) : null}
+          <div className="mt-5">
+            <MarketNotice contractView={contractView} />
+          </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-2">
             {!isConnected ? (
@@ -896,15 +1040,33 @@ export default function TradingPanel1155({
                 )}
               </div>
 
-              {nftHasDelivery ? (
+              {contractView === "publicDelivery" ? (
                 <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] text-violet-100">
-                  This NFT supports delivery, so new listings should go to the{" "}
-                  <span className="font-black">DELIVERY marketplace</span>. When bought, the
-                  secondary delivery order should appear in{" "}
+                  This NFT uses the <span className="font-black">DELIVERY marketplace</span>.
+                  When bought, the order should appear in{" "}
                   <Link href="/app/orders" className="underline font-black">
                     Orders &amp; Delivery
                   </Link>
                   .
+                </div>
+              ) : contractView === "store" ? (
+                <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100">
+                  Secondary Realife Store resale uses the{" "}
+                  <span className="font-black">STANDARD marketplace</span>. This is{" "}
+                  <span className="font-black">TRADING ONLY</span>. Delivery does not
+                  work here.
+                </div>
+              ) : contractView === "cafe" ? (
+                <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
+                  Secondary Realife Cafe resale uses the{" "}
+                  <span className="font-black">STANDARD marketplace</span>. This is{" "}
+                  <span className="font-black">TRADING ONLY</span>. Official redemption
+                  does not work here.
+                </div>
+              ) : contractView === "publicStandard" ? (
+                <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100">
+                  This NFT uses the <span className="font-black">STANDARD marketplace</span>.
+                  It is a normal public standard NFT without delivery flow.
                 </div>
               ) : null}
 
@@ -946,11 +1108,7 @@ export default function TradingPanel1155({
                     value={sellAmount}
                     onChange={(e) =>
                       setSellAmount(
-                        clampInt(
-                          Number(e.target.value || "1"),
-                          1,
-                          Math.max(1, maxSell)
-                        )
+                        clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxSell))
                       )
                     }
                     type="number"
@@ -1035,19 +1193,21 @@ export default function TradingPanel1155({
                         k === (selectedListing ? listingKeyOf(selectedListing) : "");
                       const isMine = toLower(l.sellerWallet) === me;
                       const isCancelling = busy === `cancel:${k}`;
-                      const hasDeliveryBadge = Boolean(
-                        l.deliveryEnabled ||
-                          l.physicalItemIncluded ||
-                          deliveryEnabled ||
-                          data?.mint?.deliveryEnabled ||
-                          data?.mint?.physicalItemIncluded
-                      );
 
                       const rowMarketType: MarketType =
-                        l.marketType ||
-                        (l.deliveryEnabled || l.physicalItemIncluded
+                        contractView === "publicDelivery"
                           ? "DELIVERY"
-                          : explicitMarketType || "STANDARD");
+                          : contractView === "publicStandard" ||
+                            contractView === "store" ||
+                            contractView === "cafe"
+                          ? "STANDARD"
+                          : l.marketType || resolvedMarketType;
+
+                      const showDeliveryBadge = contractView === "publicDelivery";
+                      const showTradingOnlyBadge =
+                        contractView === "store" || contractView === "cafe";
+                      const showNoDeliveryBadge = contractView === "store";
+                      const showNoRedemptionBadge = contractView === "cafe";
 
                       return (
                         <div
@@ -1091,9 +1251,27 @@ export default function TradingPanel1155({
                                   {marketLabel(rowMarketType)}
                                 </span>
 
-                                {hasDeliveryBadge ? (
-                                  <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
+                                {showDeliveryBadge ? (
+                                  <span className="px-2 py-1 rounded-full border border-violet-500/20 bg-violet-500/10 text-[10px] font-black text-violet-100">
                                     DELIVERY
+                                  </span>
+                                ) : null}
+
+                                {showTradingOnlyBadge ? (
+                                  <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                                    TRADING ONLY
+                                  </span>
+                                ) : null}
+
+                                {showNoDeliveryBadge ? (
+                                  <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
+                                    NO DELIVERY
+                                  </span>
+                                ) : null}
+
+                                {showNoRedemptionBadge ? (
+                                  <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                                    NO REDEMPTION
                                   </span>
                                 ) : null}
 
@@ -1182,8 +1360,32 @@ export default function TradingPanel1155({
                           {marketLabel(selectedListingMarketType)}
                         </span>
 
-                        {selectedListingHasDelivery ? (
+                        {contractView === "publicDelivery" ? (
+                          <span className="px-2 py-1 rounded-full border border-violet-500/20 bg-violet-500/10 text-[10px] font-black text-violet-100">
+                            DELIVERY
+                          </span>
+                        ) : null}
+
+                        {contractView === "store" || contractView === "cafe" ? (
+                          <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                            TRADING ONLY
+                          </span>
+                        ) : null}
+
+                        {contractView === "store" ? (
                           <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
+                            NO DELIVERY
+                          </span>
+                        ) : null}
+
+                        {contractView === "cafe" ? (
+                          <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                            NO REDEMPTION
+                          </span>
+                        ) : null}
+
+                        {selectedListingCreatesDeliveryOrder ? (
+                          <span className="px-2 py-1 rounded-full border border-violet-500/20 bg-violet-500/10 text-[10px] font-black text-violet-100">
                             DELIVERY ORDER AFTER BUY
                           </span>
                         ) : null}
@@ -1196,13 +1398,32 @@ export default function TradingPanel1155({
                       </div>
                     </div>
 
-                    {selectedListingHasDelivery ? (
-                      <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100">
+                    {contractView === "publicDelivery" ? (
+                      <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] text-violet-100">
                         This purchase should create a delivery order in{" "}
                         <Link href="/app/orders" className="underline font-black">
                           Orders &amp; Delivery
                         </Link>{" "}
                         after the marketplace indexer syncs the trade.
+                      </div>
+                    ) : contractView === "store" ? (
+                      <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100">
+                        This is a Realife Store secondary resale listing. It uses the{" "}
+                        <span className="font-black">STANDARD marketplace</span>. Delivery
+                        does not work here. For official purchase with delivery, use Real
+                        Marketing.
+                      </div>
+                    ) : contractView === "cafe" ? (
+                      <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
+                        This is a Realife Cafe secondary resale listing. It uses the{" "}
+                        <span className="font-black">STANDARD marketplace</span>. Redemption
+                        does not work here. For official cafe flow, use Real Marketing.
+                      </div>
+                    ) : contractView === "publicStandard" ? (
+                      <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100">
+                        This is a Public Standard NFT and it uses the{" "}
+                        <span className="font-black">STANDARD marketplace</span>. Delivery
+                        is not included.
                       </div>
                     ) : null}
 
@@ -1243,11 +1464,7 @@ export default function TradingPanel1155({
                         value={buyAmount}
                         onChange={(e) =>
                           setBuyAmount(
-                            clampInt(
-                              Number(e.target.value || "1"),
-                              1,
-                              Math.max(1, maxBuy)
-                            )
+                            clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxBuy))
                           )
                         }
                         type="number"
@@ -1341,7 +1558,15 @@ export default function TradingPanel1155({
                       {shortAddr(t.sellerWallet)} → {shortAddr(t.buyerWallet)}
                       <span className="ml-2 text-white/35">•</span>
                       <span className="ml-2 text-white/70 font-black">
-                        {marketLabel(t.marketType || explicitMarketType || "STANDARD")}
+                        {marketLabel(
+                          contractView === "publicDelivery"
+                            ? "DELIVERY"
+                            : contractView === "publicStandard" ||
+                              contractView === "store" ||
+                              contractView === "cafe"
+                            ? "STANDARD"
+                            : t.marketType || resolvedMarketType
+                        )}
                       </span>
                       <span className="ml-2 text-white/35">•</span>
                       <a
