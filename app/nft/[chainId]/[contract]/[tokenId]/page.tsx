@@ -107,7 +107,6 @@ const IPFS_GATEWAYS = [
 const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
 const CAFE_STOREFRONT_HREF = "/app/real-marketing/realife-cafe";
 const STORE_STOREFRONT_HREF = "/app/real-marketing/realife-store";
-const DELIVERY_PROFILE_HREF = "/app/orders";
 
 /* ------------------------------- Market fetch tuning ------------------------------ */
 
@@ -694,7 +693,7 @@ function PersonCard({
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
       <div className="flex items-center gap-4">
-        <div className="h-12 w-12 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden flex items-center justify-center shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
+        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15">
           {avatar ? (
             <img
               src={avatar}
@@ -703,15 +702,15 @@ function PersonCard({
               referrerPolicy="no-referrer"
             />
           ) : (
-            <span className="text-white/35 text-xs font-bold">RL</span>
+            <span className="text-xs font-bold text-white/35">RL</span>
           )}
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] text-white/40 font-semibold uppercase tracking-wider">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-white/40">
             {label}
           </div>
-          <div className="mt-1 text-sm font-bold text-white/85 truncate">
+          <div className="mt-1 truncate text-sm font-bold text-white/85">
             {href ? (
               <Link className="hover:underline" href={href}>
                 {name}
@@ -754,7 +753,7 @@ function InfoPill({
       : "border-white/10 bg-white/[0.06] text-white/75";
 
   return (
-    <span className={cx("px-3 py-1.5 rounded-full border text-[11px] font-bold", cls)}>
+    <span className={cx("rounded-full border px-3 py-1.5 text-[11px] font-bold", cls)}>
       {children}
     </span>
   );
@@ -775,26 +774,26 @@ function AccordionSection({
     <details
       open={defaultOpen}
       className={cx(
-        "rounded-[28px] p-px overflow-hidden",
+        "overflow-hidden rounded-[28px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
         "shadow-[0_26px_100px_rgba(0,0,0,0.55)]"
       )}
     >
-      <div className="rounded-[28px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10">
+      <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/30 ring-1 ring-black/10 backdrop-blur-2xl">
         <summary className="list-none cursor-pointer select-none">
           <div className="flex items-center justify-between gap-4 px-6 py-5 md:px-7">
             <div className="min-w-0">
-              <div className="text-[12px] font-bold text-white/90 tracking-tight">
+              <div className="text-[12px] font-bold tracking-tight text-white/90">
                 {title}
               </div>
               {subtitle ? (
-                <div className="mt-1 text-[12px] text-white/40 leading-relaxed">
+                <div className="mt-1 text-[12px] leading-relaxed text-white/40">
                   {subtitle}
                 </div>
               ) : null}
             </div>
 
-            <div className="shrink-0 px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-semibold text-white/60">
+            <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/60">
               Open / Close
             </div>
           </div>
@@ -1073,9 +1072,6 @@ export default async function NftDetailsPage({
     isStoreNft &&
     (effectiveStoreDeliveryEnabled || effectiveStorePhysicalItemIncluded);
 
-  const isDeliveryCapableForOrders =
-    userDeliveryMarketplaceFlow || storePrimaryDeliveryCapable;
-
   const secondaryMarketType: "STANDARD" | "DELIVERY" =
     userDeliveryMarketplaceFlow ? "DELIVERY" : "STANDARD";
 
@@ -1147,14 +1143,6 @@ export default async function NftDetailsPage({
   const trades: any[] = Array.isArray(market?.trades) ? market.trades : [];
   const heroBrandLabel = metaBrand || metaProject || null;
 
-  const session = await getServerSession(authOptions);
-  const viewerAuthed = Boolean(
-    (session as any)?.user?.id ||
-      (session as any)?.userId ||
-      (session as any)?.user?.walletAddress ||
-      (session as any)?.walletAddress
-  );
-
   const backToGalleryHref = await getPreferredGalleryHref(
     creatorNftsUrl,
     currentOwnerNftsUrl
@@ -1162,8 +1150,6 @@ export default async function NftDetailsPage({
 
   const hasStorefrontPanel = isCafeNft || isStoreNft;
   const hasSecondaryActionPanel = hasStorefrontPanel || userDeliveryMarketplaceFlow;
-  const showMyDeliveryButton = viewerAuthed && isDeliveryCapableForOrders;
-
   const storeCheckoutMode =
     effectiveStoreDeliveryEnabled || effectiveStorePhysicalItemIncluded
       ? "delivery"
@@ -1172,18 +1158,18 @@ export default async function NftDetailsPage({
   const TradingPanelAny = TradingPanel1155 as any;
 
   return (
-    <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
+    <main className="min-h-screen overflow-x-hidden bg-[#060505] text-white">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
-        <div className="animate-orb-1 absolute -top-80 -left-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/12 blur-3xl" />
+        <div className="animate-orb-1 absolute -left-80 -top-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/12 blur-3xl" />
         <div className="animate-orb-2 absolute -bottom-80 -right-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/10 blur-3xl" />
         <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,rgba(255,255,255,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.22)_1px,transparent_1px)] bg-[length:56px_56px]" />
         <div className="absolute inset-x-0 top-0 h-48 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.65),transparent)]" />
       </div>
 
       <div className="relative mx-auto max-w-[1480px] px-6 py-10 space-y-8">
-        <div className="reveal flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="reveal flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/40">
               {backToGalleryHref ? (
@@ -1194,7 +1180,7 @@ export default async function NftDetailsPage({
                 <span>NFT</span>
               )}
               <span>›</span>
-              <span className="text-white/75 font-black truncate">
+              <span className="truncate font-black text-white/75">
                 {nft.name || `Token #${nft.tokenId}`}
               </span>
             </div>
@@ -1229,7 +1215,7 @@ export default async function NftDetailsPage({
             {isCafeNft ? (
               <Link
                 href={CAFE_STOREFRONT_HREF}
-                className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-bold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 font-bold transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
                 Cafe storefront
               </Link>
@@ -1238,25 +1224,16 @@ export default async function NftDetailsPage({
             {isStoreNft ? (
               <Link
                 href={STORE_STOREFRONT_HREF}
-                className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-bold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 font-bold transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
                 NFT Store
-              </Link>
-            ) : null}
-
-            {showMyDeliveryButton ? (
-              <Link
-                href={DELIVERY_PROFILE_HREF}
-                className="px-4 py-2 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
-              >
-                My Delivery
               </Link>
             ) : null}
 
             {backToGalleryHref ? (
               <Link
                 href={backToGalleryHref}
-                className="px-4 py-2 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
               >
                 Back to gallery
               </Link>
@@ -1264,18 +1241,18 @@ export default async function NftDetailsPage({
           </div>
         </div>
 
-        <div className="grid xl:grid-cols-[minmax(0,1.08fr)_minmax(420px,0.92fr)] gap-6 items-start">
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.82fr)]">
           <div className="space-y-6">
             <div
               className={cx(
-                "reveal rounded-[28px] p-px overflow-hidden",
+                "reveal overflow-hidden rounded-[28px] p-px",
                 "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
                 "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
               )}
               style={{ animationDelay: "80ms" }}
             >
-              <div className="rounded-[28px] overflow-hidden border border-white/10 bg-[#0b0a09]/15 backdrop-blur-2xl ring-1 ring-black/10">
-                <div className="aspect-square bg-black flex items-center justify-center relative">
+              <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/15 ring-1 ring-black/10 backdrop-blur-2xl">
+                <div className="relative aspect-square bg-black">
                   {media ? (
                     <NftPreviewLightbox
                       src={media}
@@ -1286,12 +1263,15 @@ export default async function NftDetailsPage({
                       fit="contain"
                       className="h-full w-full"
                       roundedClass="rounded-none"
+                      buttonClassName="top-4 right-4"
                     />
                   ) : (
-                    <div className="text-white/25 font-black">No media</div>
+                    <div className="flex h-full w-full items-center justify-center text-white/25 font-black">
+                      No media
+                    </div>
                   )}
 
-                  <div className="pointer-events-none absolute inset-x-0 top-0 p-5 flex items-start justify-between">
+                  <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-5">
                     <div className="flex flex-wrap gap-2">
                       <InfoPill>{standardLabel}</InfoPill>
                       {kind === "video" ? <InfoPill tone="gold">VIDEO</InfoPill> : null}
@@ -1300,8 +1280,8 @@ export default async function NftDetailsPage({
                     {supplyLabel ? <InfoPill>Supply {supplyLabel}</InfoPill> : null}
                   </div>
 
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 p-6 bg-[linear-gradient(to_top,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.32)_42%,transparent_100%)]">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-white/40 font-black">
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.76)_0%,rgba(0,0,0,0.30)_42%,transparent_100%)] p-6">
+                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/40">
                       {isCafeNft
                         ? "Realife Cafe Edition"
                         : isStoreNft
@@ -1312,9 +1292,11 @@ export default async function NftDetailsPage({
                         ? "Realife Standard Edition"
                         : "Realife Edition"}
                     </div>
-                    <div className="mt-2 text-2xl md:text-3xl font-black tracking-tight text-white">
+
+                    <div className="mt-2 text-2xl font-black tracking-tight text-white md:text-3xl">
                       {nft.name || `Token #${nft.tokenId}`}
                     </div>
+
                     {metaCollection || heroBrandLabel ? (
                       <div className="mt-2 text-[13px] text-white/60">
                         {[heroBrandLabel, metaCollection].filter(Boolean).join(" • ")}
@@ -1326,19 +1308,19 @@ export default async function NftDetailsPage({
             </div>
           </div>
 
-          <div className="space-y-6 xl:sticky xl:top-24">
+          <div className="space-y-6">
             <div
               className={cx(
-                "reveal rounded-[28px] p-px overflow-hidden",
+                "reveal overflow-hidden rounded-[28px] p-px",
                 "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
                 "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
               )}
               style={{ animationDelay: "140ms" }}
             >
-              <div className="rounded-[28px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10">
+              <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/30 ring-1 ring-black/10 backdrop-blur-2xl">
                 <div className="p-6 md:p-7">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-[11px] uppercase tracking-[0.22em] text-white/40 font-black">
+                    <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/40">
                       {isCafeNft
                         ? "Realife Cafe Edition"
                         : isStoreNft
@@ -1349,7 +1331,8 @@ export default async function NftDetailsPage({
                         ? "Marketplace Standard Edition"
                         : "Realife Edition"}
                     </div>
-                    <div className="px-3 py-1.5 rounded-full border border-white/15 bg-white/[0.06] text-[11px] font-semibold text-amber-100">
+
+                    <div className="rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-amber-100">
                       {standardLabel}
                     </div>
                   </div>
@@ -1382,7 +1365,7 @@ export default async function NftDetailsPage({
                     </InfoPill>
                   </div>
 
-                  <div className="mt-4 text-3xl md:text-4xl font-black tracking-tight">
+                  <div className="mt-4 text-3xl font-black tracking-tight md:text-4xl">
                     {nft.name || `Token #${nft.tokenId}`}
                   </div>
 
@@ -1409,17 +1392,8 @@ export default async function NftDetailsPage({
                       <div className="text-[12px] font-bold text-violet-100">
                         Marketplace delivery flow
                       </div>
-                      <div className="mt-2 text-[12px] text-violet-50/90 leading-relaxed">
-                        This NFT is traded through the delivery marketplace. If a buyer
-                        purchases it, delivery and escrow are handled later in the site
-                        UI order flow.
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <InfoPill tone="emerald">Delivery enabled</InfoPill>
-                        <InfoPill tone="gold">Physical item included</InfoPill>
-                        {metaDeliveryMode ? (
-                          <InfoPill tone="violet">{metaDeliveryMode}</InfoPill>
-                        ) : null}
+                      <div className="mt-2 text-[12px] leading-relaxed text-violet-50/90">
+                        Trade the NFT first. Delivery and escrow are completed later in the site order flow.
                       </div>
                     </div>
                   ) : null}
@@ -1429,12 +1403,8 @@ export default async function NftDetailsPage({
                       <div className="text-[12px] font-bold text-sky-100">
                         Store primary vs secondary
                       </div>
-                      <div className="mt-2 text-[12px] text-sky-50/90 leading-relaxed">
-                        This NFT may support <span className="font-black">primary store delivery</span>{" "}
-                        through the official Realife Store storefront below. But if this NFT is
-                        listed and bought on the secondary market, that secondary trade is{" "}
-                        <span className="font-black">trading only</span> and delivery is not included
-                        for the secondary buyer.
+                      <div className="mt-2 text-[12px] leading-relaxed text-sky-50/90">
+                        Primary store purchase may include delivery. Secondary market purchase is trading only.
                       </div>
                     </div>
                   ) : null}
@@ -1444,11 +1414,8 @@ export default async function NftDetailsPage({
                       <div className="text-[12px] font-bold text-amber-100">
                         Cafe primary vs secondary
                       </div>
-                      <div className="mt-2 text-[12px] text-amber-50/90 leading-relaxed">
-                        The official Realife Cafe purchase flow below is separate. Secondary
-                        trading here is <span className="font-black">trading only</span>, and
-                        official drink / merch / redemption is not automatically guaranteed for
-                        the secondary buyer.
+                      <div className="mt-2 text-[12px] leading-relaxed text-amber-50/90">
+                        Primary cafe purchase is separate. Secondary market is trading only and does not guarantee redemption.
                       </div>
                     </div>
                   ) : null}
@@ -1475,15 +1442,9 @@ export default async function NftDetailsPage({
 
                   {marketError ? (
                     <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
-                      Market data temporarily unavailable ({marketError}). NFT details still
-                      work.
+                      Market data temporarily unavailable ({marketError}). NFT details still work.
                     </div>
                   ) : null}
-
-                  <div className="mt-6 text-[11px] text-white/35">
-                    The page is focused on media + key info first. Buy, delivery and details
-                    stay below in premium collapsible sections.
-                  </div>
                 </div>
               </div>
             </div>
@@ -1586,13 +1547,13 @@ export default async function NftDetailsPage({
             <div className="reveal" style={{ animationDelay: "180ms" }}>
               <div
                 className={cx(
-                  "rounded-[28px] p-px overflow-hidden",
+                  "overflow-hidden rounded-[28px] p-px",
                   "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
                   "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
                 )}
               >
-                <div className="rounded-[28px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10 p-6 md:p-7">
-                  <div className="text-[12px] font-bold text-white/80 uppercase tracking-wider">
+                <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/30 p-6 ring-1 ring-black/10 backdrop-blur-2xl md:p-7">
+                  <div className="text-[12px] font-bold uppercase tracking-wider text-white/80">
                     Delivery & Escrow
                   </div>
 
@@ -1600,13 +1561,11 @@ export default async function NftDetailsPage({
                     Marketplace purchase flow
                   </div>
 
-                  <div className="mt-3 text-[13px] text-white/60 leading-relaxed">
-                    This item is not a store primary sale. It is bought through the delivery
-                    marketplace. After a successful purchase, delivery details and escrow are
-                    handled in the site UI orders flow.
+                  <div className="mt-3 text-[13px] leading-relaxed text-white/60">
+                    This item is bought through the delivery marketplace. Delivery details and escrow are handled later in the site orders flow.
                   </div>
 
-                  <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
                     <StatCard label="Delivery enabled" value="Yes" tone="gold" />
                     <StatCard label="Physical item" value="Included" tone="gold" />
                     <StatCard label="Delivery mode" value={metaDeliveryMode || "—"} />
@@ -1617,28 +1576,12 @@ export default async function NftDetailsPage({
                     <div className="text-[12px] font-bold text-violet-100">
                       Buyer journey
                     </div>
-                    <div className="mt-2 space-y-2 text-[12px] text-violet-50/90 leading-relaxed">
+                    <div className="mt-2 space-y-2 text-[12px] leading-relaxed text-violet-50/90">
                       <div>• buyer purchases NFT in delivery marketplace trading</div>
                       <div>• delivery order is created in site UI flow</div>
                       <div>• seller ships physical item and adds tracking</div>
                       <div>• buyer confirms delivery, escrow is released</div>
                     </div>
-                  </div>
-
-                  {viewerAuthed ? (
-                    <div className="mt-5">
-                      <Link
-                        href={DELIVERY_PROFILE_HREF}
-                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
-                      >
-                        Open My Delivery
-                      </Link>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 text-[11px] text-white/35">
-                    This block only explains the flow. The actual trade still happens in the
-                    Trading panel.
                   </div>
                 </div>
               </div>
@@ -1659,7 +1602,7 @@ export default async function NftDetailsPage({
 
         <div className="space-y-4">
           <div
-            className="reveal text-[11px] uppercase tracking-[0.24em] text-white/40 font-black"
+            className="reveal text-[11px] font-black uppercase tracking-[0.24em] text-white/40"
             style={{ animationDelay: "230ms" }}
           >
             Details
@@ -1670,15 +1613,15 @@ export default async function NftDetailsPage({
               title="About"
               subtitle="Description, collection, category, item type and premium metadata."
             >
-              <div className="grid xl:grid-cols-[minmax(0,0.92fr)_minmax(340px,1.08fr)] gap-6">
+              <div className="grid gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(340px,1.08fr)]">
                 <div>
                   {metaDescription ? (
-                    <div className="text-[13px] text-white/80 leading-relaxed whitespace-pre-wrap">
+                    <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-white/80">
                       {metaDescription}
                     </div>
                   ) : (
-                    <div className="text-[13px] text-white/40 leading-relaxed">
-                      This NFT doesn&apos;t have an extended description yet.
+                    <div className="text-[13px] leading-relaxed text-white/40">
+                      This NFT doesn't have an extended description yet.
                     </div>
                   )}
 
@@ -1688,7 +1631,7 @@ export default async function NftDetailsPage({
                         href={metaProofUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-bold hover:bg-white/10 hover:-translate-y-px transition active:translate-y-0"
+                        className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-5 py-3 font-bold transition hover:-translate-y-px hover:bg-white/10 active:translate-y-0"
                       >
                         Proof / X ↗
                       </a>
@@ -1696,7 +1639,7 @@ export default async function NftDetailsPage({
                   ) : null}
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   {metaBrand ? (
                     <StatCard label="Brand / Project" value={metaBrand} tone="gold" />
                   ) : null}
@@ -1721,7 +1664,7 @@ export default async function NftDetailsPage({
               title="Blockchain details"
               subtitle="Contract, token, mint time, supply, market type and on-chain links."
             >
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 <StatCard label="Contract" value={shortAddr(nft.contract)} />
                 <StatCard label="Token ID" value={`#${nft.tokenId}`} />
                 <StatCard label="Chain ID" value={String(nft.chainId)} />
@@ -1744,7 +1687,7 @@ export default async function NftDetailsPage({
                     href={tokenUriHttp}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-bold backdrop-blur-2xl hover:bg-white/10 transition"
+                    className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-bold backdrop-blur-2xl transition hover:bg-white/10"
                   >
                     Token URI ↗
                   </a>
@@ -1755,7 +1698,7 @@ export default async function NftDetailsPage({
                     href={txUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-bold backdrop-blur-2xl hover:bg-white/10 transition"
+                    className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-bold backdrop-blur-2xl transition hover:bg-white/10"
                   >
                     Tx ↗
                   </a>
@@ -1766,7 +1709,7 @@ export default async function NftDetailsPage({
                     href={contractUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] font-bold backdrop-blur-2xl hover:bg-white/10 transition"
+                    className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-bold backdrop-blur-2xl transition hover:bg-white/10"
                   >
                     Contract ↗
                   </a>
@@ -1780,7 +1723,7 @@ export default async function NftDetailsPage({
               title="Ownership & profiles"
               subtitle="Current owner, creator and holder context."
             >
-              <div className="grid xl:grid-cols-2 gap-4">
+              <div className="grid gap-4 xl:grid-cols-2">
                 <PersonCard
                   label={ownershipLabel}
                   avatar={currentOwnerAvatar}
@@ -1798,7 +1741,7 @@ export default async function NftDetailsPage({
                 />
               </div>
 
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                 <StatCard label="Holders" value={String(holdersCount)} />
                 <StatCard
                   label="Top holder amount"
@@ -1822,13 +1765,13 @@ export default async function NftDetailsPage({
                   Market data temporarily unavailable ({marketError}).
                 </div>
               ) : (
-                <div className="grid xl:grid-cols-2 gap-6">
+                <div className="grid gap-6 xl:grid-cols-2">
                   <div>
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
+                      <div className="text-[12px] font-black uppercase tracking-wider text-white/80">
                         Active Listings
                       </div>
-                      <div className="text-[12px] text-white/40 font-semibold">
+                      <div className="text-[12px] font-semibold text-white/40">
                         {listings.length}
                       </div>
                     </div>
@@ -1847,15 +1790,15 @@ export default async function NftDetailsPage({
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="text-[13px] font-black text-amber-100">
                                 {fmtEth(l.pricePerUnitWei)} ETH{" "}
-                                <span className="text-white/35 text-[11px] font-black">/ unit</span>
+                                <span className="text-[11px] font-black text-white/35">/ unit</span>
                               </div>
-                              <div className="text-[12px] text-white/60 font-semibold">
+                              <div className="text-[12px] font-semibold text-white/60">
                                 Remaining:{" "}
-                                <span className="text-white/90 font-black">{l.amountRemaining}</span>
+                                <span className="font-black text-white/90">{l.amountRemaining}</span>
                               </div>
                             </div>
 
-                            <div className="mt-2 text-[12px] text-white/40 flex flex-wrap items-center gap-2">
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/40">
                               <span>Seller:</span>
                               <span className="font-mono text-white/75">{shortAddr(l.sellerWallet)}</span>
                               <span className="text-white/35">•</span>
@@ -1875,10 +1818,10 @@ export default async function NftDetailsPage({
 
                   <div>
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
+                      <div className="text-[12px] font-black uppercase tracking-wider text-white/80">
                         Recent Trades
                       </div>
-                      <div className="text-[12px] text-white/40 font-semibold">
+                      <div className="text-[12px] font-semibold text-white/40">
                         {trades.length}
                       </div>
                     </div>
@@ -1897,8 +1840,8 @@ export default async function NftDetailsPage({
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="text-[13px] font-black text-amber-100">
                                 {fmtEth(t.totalPriceWei)} ETH{" "}
-                                <span className="text-white/35 text-[11px] font-black">•</span>
-                                <span className="ml-2 text-white/80 text-[12px] font-black">
+                                <span className="text-[11px] font-black text-white/35">•</span>
+                                <span className="ml-2 text-[12px] font-black text-white/80">
                                   x{t.amount}
                                 </span>
                               </div>
@@ -1915,7 +1858,7 @@ export default async function NftDetailsPage({
                               </span>
                               <span className="text-white/35"> • </span>
                               <a
-                                className="text-amber-100/90 hover:text-amber-100 font-black"
+                                className="font-black text-amber-100/90 hover:text-amber-100"
                                 href={
                                   chainId === 84532
                                     ? `https://sepolia.basescan.org/tx/${t.txHash}`
@@ -1938,7 +1881,7 @@ export default async function NftDetailsPage({
           </div>
         </div>
 
-        <footer className="reveal pt-6 text-[10px] font-black text-white/20 text-center uppercase tracking-[0.4em]">
+        <footer className="reveal pt-6 text-center text-[10px] font-black uppercase tracking-[0.4em] text-white/20">
           Realife Ecosystem • NFT Trading
         </footer>
       </div>

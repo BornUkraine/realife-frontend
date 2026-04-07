@@ -287,7 +287,6 @@ export default function QuickList1155({
   const [ok, setOk] = useState<string | null>(null);
 
   const title = name || `Token #${tokenId}`;
-
   const priceWei = useMemo(() => parsePriceWeiSafe(priceEth), [priceEth]);
 
   const totalPriceWei = useMemo(() => {
@@ -375,7 +374,7 @@ export default function QuickList1155({
       await publicClient?.waitForTransactionReceipt({ hash });
       await refetchApproved();
 
-      setOk(`${marketLabel(inferredMarketType)} marketplace approved ✅`);
+      setOk(`${marketLabel(inferredMarketType)} approved ✅`);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Approve failed");
     } finally {
@@ -438,62 +437,51 @@ export default function QuickList1155({
 
   const missingEnvText =
     inferredMarketType === "DELIVERY"
-      ? "Missing delivery marketplace env (NEXT_PUBLIC_REALIFE_MARKETPLACE_DELIVERY_ADDRESS)"
-      : "Missing standard marketplace env (NEXT_PUBLIC_REALIFE_MARKETPLACE_ADDRESS or NEXT_PUBLIC_MARKETPLACE_ADDRESS)";
+      ? "Missing delivery marketplace env"
+      : "Missing standard marketplace env";
 
-  const infoNote = useMemo(() => {
+  const compactNote = useMemo(() => {
     switch (contractView) {
-      case "publicDelivery":
-        return {
-          className:
-            "border border-violet-500/20 bg-violet-500/10 text-violet-100",
-          text: (
-            <>
-              This NFT belongs to the delivery-enabled public mint contract and
-              should be listed in the{" "}
-              <span className="font-black">DELIVERY</span> market.
-            </>
-          ),
-        };
-
       case "store":
         return {
           className:
             "border border-sky-500/20 bg-sky-500/10 text-sky-100",
           text: (
             <>
-              Realife Store secondary resale is{" "}
-              <span className="font-black">TRADING ONLY</span>. Delivery is{" "}
-              <span className="font-black">not available</span> in trading.
+              Store resale is <span className="font-black">trading only</span>.
             </>
           ),
         };
-
       case "cafe":
         return {
           className:
             "border border-amber-500/20 bg-amber-500/10 text-amber-100",
           text: (
             <>
-              Realife Cafe secondary resale is{" "}
-              <span className="font-black">TRADING ONLY</span>. Redemption is{" "}
-              <span className="font-black">not available</span> in trading.
+              Cafe resale is <span className="font-black">trading only</span>.
             </>
           ),
         };
-
+      case "publicDelivery":
+        return {
+          className:
+            "border border-violet-500/20 bg-violet-500/10 text-violet-100",
+          text: (
+            <>
+              Use <span className="font-black">DELIVERY</span> market.
+            </>
+          ),
+        };
       case "publicStandard":
         return {
           className:
             "border border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
           text: (
             <>
-              This NFT belongs to the standard public mint contract and should be
-              listed in the <span className="font-black">STANDARD</span> market.
+              Use <span className="font-black">STANDARD</span> market.
             </>
           ),
         };
-
       default:
         return null;
     }
@@ -506,29 +494,17 @@ export default function QuickList1155({
           {
             label: "TRADING ONLY",
             className:
-              "border border-white/10 bg-white/[0.06] text-white/80",
-          },
-          {
-            label: "NO DELIVERY",
-            className:
               "border border-sky-500/20 bg-sky-500/10 text-sky-100",
           },
         ];
-
       case "cafe":
         return [
           {
             label: "TRADING ONLY",
             className:
-              "border border-white/10 bg-white/[0.06] text-white/80",
-          },
-          {
-            label: "NO REDEMPTION",
-            className:
               "border border-amber-500/20 bg-amber-500/10 text-amber-100",
           },
         ];
-
       default:
         return [];
     }
@@ -547,11 +523,10 @@ export default function QuickList1155({
         }}
         disabled={disabledOpen}
         className={cx(
-          "inline-flex items-center justify-center px-3 py-2 rounded-xl",
-          "text-[12px] font-extrabold transition",
+          "inline-flex items-center justify-center rounded-xl px-3 py-2 text-[12px] font-extrabold transition",
           disabledOpen
-            ? "border border-white/10 bg-white/[0.04] text-white/45 cursor-not-allowed"
-            : "text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 hover:brightness-110"
+            ? "cursor-not-allowed border border-white/10 bg-white/[0.04] text-white/45"
+            : "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.16)] hover:brightness-110"
         )}
         title="List"
       >
@@ -571,29 +546,31 @@ export default function QuickList1155({
               e.stopPropagation();
               closeModal();
             }}
-            className="absolute top-4 right-4 z-[101] h-11 w-11 rounded-full border border-white/12 bg-white/[0.08] hover:bg-white/[0.12] transition flex items-center justify-center text-white/85 text-lg font-black"
+            className="absolute right-4 top-4 z-[101] flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.08] text-base font-black text-white/85 transition hover:bg-white/[0.12]"
             title="Close"
           >
             ✕
           </button>
 
           <div
-            className="relative w-full max-w-[420px] rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
+            className="relative w-full max-w-[360px] overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,rgba(247,231,167,0.20),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] p-px shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
             }}
           >
-            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/82 backdrop-blur-2xl ring-1 ring-black/10">
-              <div className="p-5">
+            <div className="overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/88 ring-1 ring-black/10 backdrop-blur-2xl">
+              <div className="p-4">
                 <div className="text-center">
-                  <div className="text-[18px] font-black text-white/95">{title}</div>
-                  <div className="mt-2 text-[12px] text-white/55">
+                  <div className="truncate text-[16px] font-black text-white/95">
+                    {title}
+                  </div>
+                  <div className="mt-1 text-[11px] text-white/50">
                     {shortAddr(nftAddr)} • #{tokenId}
                   </div>
 
-                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                    <span className="inline-flex items-center justify-center px-3 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                  <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
+                    <span className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-black text-white/80">
                       {marketLabel(inferredMarketType)}
                     </span>
 
@@ -601,7 +578,7 @@ export default function QuickList1155({
                       <span
                         key={badge.label}
                         className={cx(
-                          "inline-flex items-center justify-center px-3 py-1 rounded-full text-[10px] font-black",
+                          "inline-flex items-center justify-center rounded-full px-2.5 py-1 text-[10px] font-black",
                           badge.className
                         )}
                       >
@@ -611,31 +588,31 @@ export default function QuickList1155({
                   </div>
                 </div>
 
-                {infoNote ? (
+                {compactNote ? (
                   <div
                     className={cx(
-                      "mt-4 rounded-2xl px-4 py-3 text-[12px] text-center",
-                      infoNote.className
+                      "mt-3 rounded-2xl px-3 py-2 text-center text-[11px]",
+                      compactNote.className
                     )}
                   >
-                    {infoNote.text}
+                    {compactNote.text}
                   </div>
                 ) : null}
 
                 {!hasMarketplace ? (
-                  <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-[12px] text-rose-100 text-center">
+                  <div className="mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-center text-[11px] text-rose-100">
                     {missingEnvText}
                   </div>
                 ) : null}
 
                 {err ? (
-                  <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-[12px] text-rose-100 text-center">
+                  <div className="mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-center text-[11px] text-rose-100">
                     {err}
                   </div>
                 ) : null}
 
                 {ok ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-[12px] text-emerald-100 text-center">
+                  <div className="mt-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-center text-[11px] text-emerald-100">
                     {ok}
                   </div>
                 ) : null}
@@ -643,7 +620,7 @@ export default function QuickList1155({
                 {!isConnected ? (
                   <button
                     onClick={() => openConnectModal?.()}
-                    className="mt-4 w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                    className="mt-3 inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2.5 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
                   >
                     Connect Wallet
                   </button>
@@ -652,39 +629,39 @@ export default function QuickList1155({
                 {needSwitch ? (
                   <button
                     onClick={() => switchChainAsync?.({ chainId })}
-                    className="mt-4 w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition text-white"
+                    className="mt-3 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-extrabold text-white transition hover:bg-white/10"
                   >
                     Switch Chain
                   </button>
                 ) : null}
 
-                <div className="mt-5 grid grid-cols-2 gap-2">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-white/50">
                       You own
                     </div>
-                    <div className="mt-1 text-[15px] font-black text-emerald-200">
+                    <div className="mt-1 text-[14px] font-black text-emerald-200">
                       {maxAmountBI.toString()}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-white/50">
                       Approval
                     </div>
-                    <div className="mt-1 text-[15px] font-black text-white/90">
+                    <div className="mt-1 text-[14px] font-black text-white/90">
                       {isApproved ? "Approved" : "Required"}
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-5">
+                <div className="mt-4">
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setAmount(1)}
                       className={cx(
-                        "h-11 rounded-2xl border text-sm font-black transition",
+                        "h-10 rounded-2xl border text-sm font-black transition",
                         amount === 1
                           ? "border-amber-300/40 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black"
                           : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]"
@@ -697,7 +674,7 @@ export default function QuickList1155({
                       type="button"
                       onClick={() => setAmount(Math.max(1, maxAmount))}
                       className={cx(
-                        "h-11 rounded-2xl border text-sm font-black transition",
+                        "h-10 rounded-2xl border text-sm font-black transition",
                         amount === Math.max(1, maxAmount)
                           ? "border-amber-300/40 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black"
                           : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]"
@@ -721,37 +698,37 @@ export default function QuickList1155({
                     type="number"
                     min={1}
                     max={Math.max(1, maxAmount)}
-                    className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-center text-base font-black text-white/95 outline-none focus:border-white/20"
+                    className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-center text-[15px] font-black text-white/95 outline-none focus:border-white/20"
                   />
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-3">
                   <input
                     value={priceEth}
                     onChange={(e) => setPriceEth(e.target.value)}
                     type="text"
                     placeholder="0.01"
-                    className="h-12 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-center text-base font-black text-white/95 outline-none focus:border-white/20"
+                    className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-center text-[15px] font-black text-white/95 outline-none focus:border-white/20"
                   />
-                  <div className="mt-2 text-center text-[12px] text-white/45">
-                    Price per unit in ETH
+                  <div className="mt-1.5 text-center text-[11px] text-white/40">
+                    Price per unit
                   </div>
                 </div>
 
-                <div className="mt-4 text-center text-[13px] font-black text-amber-100">
+                <div className="mt-3 text-center text-[12px] font-black text-amber-100">
                   Total: {fmtEthWei(totalPriceWei)} ETH
                 </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-2">
+                <div className="mt-4 grid grid-cols-2 gap-2">
                   <button
                     disabled={disabledApprove}
                     onClick={approveAll}
                     className={cx(
-                      "h-12 rounded-2xl font-extrabold transition border",
+                      "h-11 rounded-2xl border font-extrabold transition",
                       isApproved
                         ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
                         : "border-white/15 bg-white/[0.06] text-white hover:bg-white/10",
-                      disabledApprove ? "opacity-60 cursor-not-allowed" : ""
+                      disabledApprove ? "cursor-not-allowed opacity-60" : ""
                     )}
                   >
                     {busy === "approve"
@@ -765,17 +742,13 @@ export default function QuickList1155({
                     disabled={disabledList}
                     onClick={listNow}
                     className={cx(
-                      "h-12 rounded-2xl font-extrabold transition text-black",
+                      "h-11 rounded-2xl font-extrabold text-black transition",
                       "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] hover:brightness-110",
-                      disabledList ? "opacity-60 cursor-not-allowed" : ""
+                      disabledList ? "cursor-not-allowed opacity-60" : ""
                     )}
                   >
                     {busy === "list" ? "Listing..." : "List"}
                   </button>
-                </div>
-
-                <div className="mt-5 text-[11px] text-white/35 text-center">
-                  After listing, indexer may take a few seconds. Market data refreshes automatically.
                 </div>
               </div>
             </div>
