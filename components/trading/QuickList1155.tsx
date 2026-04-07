@@ -17,6 +17,12 @@ import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
 
 type MarketType = "STANDARD" | "DELIVERY";
+type ContractView =
+  | "publicStandard"
+  | "publicDelivery"
+  | "cafe"
+  | "store"
+  | "unknown";
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
@@ -75,6 +81,58 @@ function marketLabel(mt: MarketType) {
   return mt === "DELIVERY" ? "DELIVERY" : "STANDARD";
 }
 
+const CAFE_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT || ""
+)
+  .trim()
+  .toLowerCase();
+
+const STORE_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT || ""
+)
+  .trim()
+  .toLowerCase();
+
+const PUBLIC_STANDARD_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || ""
+)
+  .trim()
+  .toLowerCase();
+
+const PUBLIC_DELIVERY_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT || ""
+)
+  .trim()
+  .toLowerCase();
+
+function classifyContractView(contract: string): ContractView {
+  const x = toLower(contract);
+
+  if (CAFE_CONTRACT && x === CAFE_CONTRACT) return "cafe";
+  if (STORE_CONTRACT && x === STORE_CONTRACT) return "store";
+  if (PUBLIC_STANDARD_CONTRACT && x === PUBLIC_STANDARD_CONTRACT) {
+    return "publicStandard";
+  }
+  if (PUBLIC_DELIVERY_CONTRACT && x === PUBLIC_DELIVERY_CONTRACT) {
+    return "publicDelivery";
+  }
+
+  return "unknown";
+}
+
+function forcedMarketTypeByContractView(view: ContractView): MarketType | null {
+  switch (view) {
+    case "publicDelivery":
+      return "DELIVERY";
+    case "publicStandard":
+    case "cafe":
+    case "store":
+      return "STANDARD";
+    default:
+      return null;
+  }
+}
+
 export default function QuickList1155({
   chainId,
   contract,
@@ -124,17 +182,15 @@ export default function QuickList1155({
     );
   }, []);
 
-  const DELIVERY_NFT_CONTRACT = useMemo(() => {
-    return toLower(
-      process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
-        process.env.NEXT_PUBLIC_REALIFE_DELIVERY_1155_CONTRACT ||
-        process.env.NEXT_PUBLIC_REALIFE_DELIVERY_NFT_CONTRACT ||
-        ""
-    );
-  }, []);
-
   const nftAddr = useMemo(() => toLower(contract), [contract]);
   const needSwitch = isConnected && currentChainId !== chainId;
+
+  const contractView = useMemo(() => classifyContractView(nftAddr), [nftAddr]);
+
+  const forcedMarketType = useMemo(
+    () => forcedMarketTypeByContractView(contractView),
+    [contractView]
+  );
 
   const tokenIdBI = useMemo(() => {
     try {
@@ -147,34 +203,41 @@ export default function QuickList1155({
   const hintMax = useMemo(() => toBigIntSafe(maxAmountHint), [maxAmountHint]);
 
   const inferredMarketType: MarketType = useMemo(() => {
+    if (forcedMarketType) return forcedMarketType;
     if (preferredMarketType) return preferredMarketType;
     if (marketTypeHint) return marketTypeHint;
     if (deliveryEnabled || physicalItemIncluded) return "DELIVERY";
-    if (DELIVERY_NFT_CONTRACT && nftAddr === DELIVERY_NFT_CONTRACT) return "DELIVERY";
     return "STANDARD";
   }, [
+    forcedMarketType,
     preferredMarketType,
     marketTypeHint,
     deliveryEnabled,
     physicalItemIncluded,
-    DELIVERY_NFT_CONTRACT,
-    nftAddr,
   ]);
 
   const marketplaceAddress = useMemo(() => {
     return inferredMarketType === "DELIVERY"
       ? DELIVERY_MARKETPLACE_ADDRESS
       : STANDARD_MARKETPLACE_ADDRESS;
-  }, [inferredMarketType, DELIVERY_MARKETPLACE_ADDRESS, STANDARD_MARKETPLACE_ADDRESS]);
+  }, [
+    inferredMarketType,
+    DELIVERY_MARKETPLACE_ADDRESS,
+    STANDARD_MARKETPLACE_ADDRESS,
+  ]);
 
   const hasMarketplace = marketplaceAddress.startsWith("0x");
 
   const { data: balanceRaw } = useReadContract({
     abi: erc1155CoreAbi,
-    address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
+    address: (
+      nftAddr || "0x0000000000000000000000000000000000000000"
+    ) as `0x${string}`,
     functionName: "balanceOf",
     args: [
-      ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      (
+        (address || "0x0000000000000000000000000000000000000000") as `0x${string}`
+      ),
       tokenIdBI,
     ],
     query: { enabled: Boolean(address && nftAddr.startsWith("0x")) },
@@ -198,11 +261,18 @@ export default function QuickList1155({
 
   const { data: approvedRaw, refetch: refetchApproved } = useReadContract({
     abi: erc1155CoreAbi,
-    address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
+    address: (
+      nftAddr || "0x0000000000000000000000000000000000000000"
+    ) as `0x${string}`,
     functionName: "isApprovedForAll",
     args: [
-      ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
-      ((marketplaceAddress || "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      (
+        (address || "0x0000000000000000000000000000000000000000") as `0x${string}`
+      ),
+      (
+        (marketplaceAddress ||
+          "0x0000000000000000000000000000000000000000") as `0x${string}`
+      ),
     ],
     query: { enabled: Boolean(address && hasMarketplace && nftAddr.startsWith("0x")) },
   });
@@ -371,6 +441,99 @@ export default function QuickList1155({
       ? "Missing delivery marketplace env (NEXT_PUBLIC_REALIFE_MARKETPLACE_DELIVERY_ADDRESS)"
       : "Missing standard marketplace env (NEXT_PUBLIC_REALIFE_MARKETPLACE_ADDRESS or NEXT_PUBLIC_MARKETPLACE_ADDRESS)";
 
+  const infoNote = useMemo(() => {
+    switch (contractView) {
+      case "publicDelivery":
+        return {
+          className:
+            "border border-violet-500/20 bg-violet-500/10 text-violet-100",
+          text: (
+            <>
+              This NFT belongs to the delivery-enabled public mint contract and
+              should be listed in the{" "}
+              <span className="font-black">DELIVERY</span> market.
+            </>
+          ),
+        };
+
+      case "store":
+        return {
+          className:
+            "border border-sky-500/20 bg-sky-500/10 text-sky-100",
+          text: (
+            <>
+              Realife Store secondary resale is{" "}
+              <span className="font-black">TRADING ONLY</span>. Delivery is{" "}
+              <span className="font-black">not available</span> in trading.
+            </>
+          ),
+        };
+
+      case "cafe":
+        return {
+          className:
+            "border border-amber-500/20 bg-amber-500/10 text-amber-100",
+          text: (
+            <>
+              Realife Cafe secondary resale is{" "}
+              <span className="font-black">TRADING ONLY</span>. Redemption is{" "}
+              <span className="font-black">not available</span> in trading.
+            </>
+          ),
+        };
+
+      case "publicStandard":
+        return {
+          className:
+            "border border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
+          text: (
+            <>
+              This NFT belongs to the standard public mint contract and should be
+              listed in the <span className="font-black">STANDARD</span> market.
+            </>
+          ),
+        };
+
+      default:
+        return null;
+    }
+  }, [contractView]);
+
+  const headerBadges = useMemo(() => {
+    switch (contractView) {
+      case "store":
+        return [
+          {
+            label: "TRADING ONLY",
+            className:
+              "border border-white/10 bg-white/[0.06] text-white/80",
+          },
+          {
+            label: "NO DELIVERY",
+            className:
+              "border border-sky-500/20 bg-sky-500/10 text-sky-100",
+          },
+        ];
+
+      case "cafe":
+        return [
+          {
+            label: "TRADING ONLY",
+            className:
+              "border border-white/10 bg-white/[0.06] text-white/80",
+          },
+          {
+            label: "NO REDEMPTION",
+            className:
+              "border border-amber-500/20 bg-amber-500/10 text-amber-100",
+          },
+        ];
+
+      default:
+        return [];
+    }
+  }, [contractView]);
+
   return (
     <>
       <button
@@ -428,16 +591,34 @@ export default function QuickList1155({
                   <div className="mt-2 text-[12px] text-white/55">
                     {shortAddr(nftAddr)} • #{tokenId}
                   </div>
-                  <div className="mt-2">
+
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
                     <span className="inline-flex items-center justify-center px-3 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
                       {marketLabel(inferredMarketType)}
                     </span>
+
+                    {headerBadges.map((badge) => (
+                      <span
+                        key={badge.label}
+                        className={cx(
+                          "inline-flex items-center justify-center px-3 py-1 rounded-full text-[10px] font-black",
+                          badge.className
+                        )}
+                      >
+                        {badge.label}
+                      </span>
+                    ))}
                   </div>
                 </div>
 
-                {(deliveryEnabled || physicalItemIncluded || inferredMarketType === "DELIVERY") ? (
-                  <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 px-4 py-3 text-[12px] text-violet-100 text-center">
-                    This NFT should be listed in the <span className="font-black">DELIVERY</span> market.
+                {infoNote ? (
+                  <div
+                    className={cx(
+                      "mt-4 rounded-2xl px-4 py-3 text-[12px] text-center",
+                      infoNote.className
+                    )}
+                  >
+                    {infoNote.text}
                   </div>
                 ) : null}
 
@@ -529,7 +710,13 @@ export default function QuickList1155({
                   <input
                     value={amount}
                     onChange={(e) =>
-                      setAmount(clampInt(Number(e.target.value || "1"), 1, Math.max(1, maxAmount)))
+                      setAmount(
+                        clampInt(
+                          Number(e.target.value || "1"),
+                          1,
+                          Math.max(1, maxAmount)
+                        )
+                      )
                     }
                     type="number"
                     min={1}
@@ -567,7 +754,11 @@ export default function QuickList1155({
                       disabledApprove ? "opacity-60 cursor-not-allowed" : ""
                     )}
                   >
-                    {busy === "approve" ? "Approving..." : isApproved ? "Approved" : "Approve"}
+                    {busy === "approve"
+                      ? "Approving..."
+                      : isApproved
+                      ? "Approved"
+                      : "Approve"}
                   </button>
 
                   <button

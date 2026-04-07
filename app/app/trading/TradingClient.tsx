@@ -180,7 +180,7 @@ async function loadMetadata(tokenUri?: string | null): Promise<ProductMeta | nul
       const j = await r.json().catch(() => null);
       if (j && typeof j === "object") return j as ProductMeta;
     } catch {
-      // next gateway
+      //
     }
   }
 
@@ -200,41 +200,37 @@ function getMarketViewConfig(view: MarketView) {
     case "cafe":
       return {
         label: "Realife Cafe NFT",
-        title: "Realife Cafe NFT",
+        title: "Realife Crypto Cafe",
         subtitle:
-          "Secondary market for Realife Cafe products and branded cafe NFTs.",
+          "Secondary market page for Realife Cafe NFTs that were bought through the official cafe flow and later listed by holders.",
         contract: CAFE_CONTRACT || null,
-        accent: "amber" as const,
       };
 
     case "store":
       return {
         label: "Realife Store NFT",
-        title: "Realife Store NFT",
+        title: "Realife Store",
         subtitle:
-          "Secondary market for Realife Store products, official drops and seller-backed store items.",
+          "Secondary market page for official Realife Store NFTs later listed by holders in trading.",
         contract: STORE_CONTRACT || null,
-        accent: "sky" as const,
       };
 
     case "publicStandard":
       return {
         label: "Public Mint • Standard",
-        title: "Public Mint • Standard",
+        title: "Public Mint Standard",
         subtitle:
-          "User-created public NFTs minted through the standard contract without delivery mode.",
+          "User-created NFTs minted through the standard public contract without delivery mode.",
         contract: PUBLIC_STANDARD_CONTRACT || null,
-        accent: "emerald" as const,
       };
 
     case "publicDelivery":
       return {
         label: "Public Mint • Delivery",
-        title: "Public Mint • Delivery",
+        title: "Public Mint Delivery",
         subtitle:
-          "User-created public NFTs minted through the delivery-enabled contract for approved seller wallets.",
+          "User-created NFTs minted through the delivery-enabled public contract, shown in a separate premium market page.",
         contract: PUBLIC_DELIVERY_CONTRACT || null,
-        accent: "violet" as const,
       };
 
     case "all":
@@ -245,8 +241,42 @@ function getMarketViewConfig(view: MarketView) {
         subtitle:
           "All verified Realife NFTs across supported contracts, including standard, delivery, cafe and store listings.",
         contract: null,
-        accent: "gold" as const,
       };
+  }
+}
+
+function getMarketViewNote(view: MarketView) {
+  switch (view) {
+    case "cafe":
+      return {
+        tone: "border-amber-500/20 bg-amber-500/10 text-amber-100",
+        text:
+          "This page shows secondary resale of Realife Cafe NFTs. It is trading only. Drink, food, merch, or official redemption is not automatically guaranteed for secondary buyers.",
+      };
+
+    case "store":
+      return {
+        tone: "border-sky-500/20 bg-sky-500/10 text-sky-100",
+        text:
+          "This page shows secondary resale of Realife Store NFTs. Some NFTs may originally come from official store items with delivery in the primary flow, but secondary trading uses the STANDARD marketplace only. Secondary buyers do not get automatic delivery through trading. For official purchase with delivery, use Real Marketing.",
+      };
+
+    case "publicDelivery":
+      return {
+        tone: "border-violet-500/20 bg-violet-500/10 text-violet-100",
+        text:
+          "These NFTs come from the delivery-enabled public mint contract. Delivery-related traits stay visible on cards, while trading remains a premium collection-style market view.",
+      };
+
+    case "publicStandard":
+      return {
+        tone: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
+        text:
+          "This page focuses on user-created standard public mint NFTs without delivery mode.",
+      };
+
+    default:
+      return null;
   }
 }
 
@@ -269,9 +299,13 @@ function viewBadgeClass(view: MarketView) {
 export default function TradingClient({
   viewerKey,
   viewerWallet,
+  initialMarketView = "all",
+  lockMarketView = false,
 }: {
   viewerKey: string | null;
   viewerWallet: string | null;
+  initialMarketView?: MarketView;
+  lockMarketView?: boolean;
 }) {
   const { address, isConnected } = useAccount();
   const wallet = useMemo(
@@ -280,7 +314,7 @@ export default function TradingClient({
   );
 
   const [tab, setTab] = useState<"market" | "my">("market");
-  const [marketView, setMarketView] = useState<MarketView>("all");
+  const [marketView, setMarketView] = useState<MarketView>(initialMarketView);
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -292,7 +326,12 @@ export default function TradingClient({
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<"new" | "priceAsc" | "priceDesc">("new");
 
+  useEffect(() => {
+    setMarketView(initialMarketView);
+  }, [initialMarketView]);
+
   const marketCfg = useMemo(() => getMarketViewConfig(marketView), [marketView]);
+  const marketNote = useMemo(() => getMarketViewNote(marketView), [marketView]);
 
   const filtered = useMemo(() => {
     const qq = q.trim().toLowerCase();
@@ -394,27 +433,15 @@ export default function TradingClient({
               ipfsToHttp(item.mint?.image || null) ||
               null,
             metaDescription: meta?.description || null,
-            collection:
-              meta?.collection ||
-              getAttr(meta, "Collection") ||
-              null,
+            collection: meta?.collection || getAttr(meta, "Collection") || null,
             item:
               meta?.item ||
               getAttr(meta, "Item") ||
               getAttr(meta, "Drink") ||
               null,
-            rarity:
-              meta?.rarity ||
-              getAttr(meta, "Rarity") ||
-              null,
-            brand:
-              meta?.brand ||
-              getAttr(meta, "Brand") ||
-              null,
-            project:
-              meta?.project ||
-              getAttr(meta, "Project") ||
-              null,
+            rarity: meta?.rarity || getAttr(meta, "Rarity") || null,
+            brand: meta?.brand || getAttr(meta, "Brand") || null,
+            project: meta?.project || getAttr(meta, "Project") || null,
           } satisfies EnrichedMarketListing;
         })
       );
@@ -479,6 +506,15 @@ export default function TradingClient({
 
             <div className="flex-1" />
 
+            {lockMarketView ? (
+              <Link
+                href="/app/trading"
+                className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
+              >
+                All collections
+              </Link>
+            ) : null}
+
             {tab === "market" ? (
               <button
                 onClick={() => loadPage(0, false, marketView)}
@@ -541,46 +577,55 @@ export default function TradingClient({
         <>
           <div className={goldWrap}>
             <div className={cx(goldCard, "p-6 md:p-7")}>
-              <div className="flex flex-wrap items-center gap-2">
-                {(
-                  [
-                    ["all", "All NFTs"],
-                    ["cafe", "Realife Cafe NFT"],
-                    ["store", "Realife Store NFT"],
-                    ["publicStandard", "Public Mint • Standard"],
-                    ["publicDelivery", "Public Mint • Delivery"],
-                  ] as Array<[MarketView, string]>
-                ).map(([viewKey, label]) => {
-                  const cfg = getMarketViewConfig(viewKey);
-                  const disabled = viewKey !== "all" && !cfg.contract;
+              {!lockMarketView ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {(
+                    [
+                      ["all", "All NFTs"],
+                      ["cafe", "Realife Cafe NFT"],
+                      ["store", "Realife Store NFT"],
+                      ["publicStandard", "Public Mint • Standard"],
+                      ["publicDelivery", "Public Mint • Delivery"],
+                    ] as Array<[MarketView, string]>
+                  ).map(([viewKey, label]) => {
+                    const cfg = getMarketViewConfig(viewKey);
+                    const disabled = viewKey !== "all" && !cfg.contract;
 
-                  return (
-                    <button
-                      key={viewKey}
-                      onClick={() => {
-                        if (disabled) return;
-                        setMarketView(viewKey);
-                        setTab("market");
-                      }}
-                      disabled={disabled}
-                      className={cx(
-                        "inline-flex items-center justify-center px-4 py-2 rounded-2xl text-[12px] font-black transition ring-1",
-                        marketView === viewKey
-                          ? viewBadgeClass(viewKey)
-                          : "text-white/75 border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] ring-white/10",
-                        disabled ? "opacity-45 cursor-not-allowed hover:bg-white/[0.04]" : ""
-                      )}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
+                    return (
+                      <button
+                        key={viewKey}
+                        onClick={() => {
+                          if (disabled) return;
+                          setMarketView(viewKey);
+                          setTab("market");
+                        }}
+                        disabled={disabled}
+                        className={cx(
+                          "inline-flex items-center justify-center px-4 py-2 rounded-2xl text-[12px] font-black transition ring-1",
+                          marketView === viewKey
+                            ? viewBadgeClass(viewKey)
+                            : "text-white/75 border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] ring-white/10",
+                          disabled
+                            ? "opacity-45 cursor-not-allowed hover:bg-white/[0.04]"
+                            : ""
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
 
-              <div className="mt-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div
+                className={cx(
+                  "flex flex-col md:flex-row md:items-center md:justify-between gap-4",
+                  !lockMarketView ? "mt-5" : ""
+                )}
+              >
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.24em] text-white/45 font-black">
-                    Premium market view
+                    {lockMarketView ? "Premium collection view" : "Premium market view"}
                   </div>
                   <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">
                     {marketCfg.title}
@@ -607,6 +652,27 @@ export default function TradingClient({
                   ) : null}
                 </div>
               </div>
+
+              {marketNote ? (
+                <div
+                  className={cx(
+                    "mt-5 rounded-2xl border p-4 text-[12px] leading-relaxed",
+                    marketNote.tone
+                  )}
+                >
+                  {marketNote.text}
+                  {(marketView === "store" || marketView === "cafe") && (
+                    <div className="mt-3">
+                      <Link
+                        href="/app/real-marketing"
+                        className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/90"
+                      >
+                        Go to Real Marketing →
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              ) : null}
 
               <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
@@ -658,7 +724,7 @@ export default function TradingClient({
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="name / token id / seller / rarity / item / brand / project / delivery…"
+                    placeholder="name / token id / seller / rarity / item / brand / project / collection…"
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                   />
                 </div>
@@ -744,9 +810,7 @@ export default function TradingClient({
                   String(x.tokenId)
                 )}`;
 
-                const isMine = Boolean(
-                  wallet && normAddr(x.sellerWallet) === wallet
-                );
+                const isMine = Boolean(wallet && normAddr(x.sellerWallet) === wallet);
 
                 const isCafe =
                   Boolean(CAFE_CONTRACT) &&
@@ -769,16 +833,13 @@ export default function TradingClient({
                   ipfsToHttp(x?.mint?.image || null) ||
                   null;
 
-                const rowMarketType: MarketType = x.marketType || "STANDARD";
+                const rowMarketType: MarketType =
+                  isPublicDelivery ? "DELIVERY" : "STANDARD";
 
-                const rowHasDelivery = Boolean(
-                  isPublicDelivery ||
-                    rowMarketType === "DELIVERY" ||
-                    x.deliveryEnabled ||
-                    x.physicalItemIncluded ||
-                    x.mint?.deliveryEnabled ||
-                    x.mint?.physicalItemIncluded
-                );
+                const showDeliveryBadge = isPublicDelivery;
+                const showTradingOnlyBadge = isStore || isCafe;
+                const showNoDeliveryBadge = isStore;
+                const showNoRedemptionBadge = isCafe;
 
                 const topLabel = isCafe
                   ? x.collection || "CAFE"
@@ -867,9 +928,27 @@ export default function TradingClient({
                           {marketLabel(rowMarketType)}
                         </span>
 
-                        {rowHasDelivery ? (
-                          <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
+                        {showDeliveryBadge ? (
+                          <span className="px-2 py-1 rounded-full border border-violet-500/20 bg-violet-500/10 text-[10px] font-black text-violet-100">
                             DELIVERY
+                          </span>
+                        ) : null}
+
+                        {showTradingOnlyBadge ? (
+                          <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                            TRADING ONLY
+                          </span>
+                        ) : null}
+
+                        {showNoDeliveryBadge ? (
+                          <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
+                            NO DELIVERY
+                          </span>
+                        ) : null}
+
+                        {showNoRedemptionBadge ? (
+                          <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                            NO REDEMPTION
                           </span>
                         ) : null}
 
@@ -899,9 +978,11 @@ export default function TradingClient({
                         <span className="font-mono">#{x.tokenId}</span>
                       </div>
 
-                      {(x.brand || x.project || x.collection) ? (
+                      {x.brand || x.project || x.collection ? (
                         <div className="mt-3 text-[12px] text-white/55 line-clamp-2">
-                          {x.brand ? <span className="text-white/80 font-black">{x.brand}</span> : null}
+                          {x.brand ? (
+                            <span className="text-white/80 font-black">{x.brand}</span>
+                          ) : null}
                           {x.brand && x.project ? <span> • </span> : null}
                           {x.project ? <span>{x.project}</span> : null}
                           {(x.brand || x.project) && x.collection ? <span> • </span> : null}

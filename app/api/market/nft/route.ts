@@ -24,6 +24,49 @@ function normAddr(v: string | null) {
 
 const ALLOWED_MARKET_TYPE = new Set(["STANDARD", "DELIVERY"]);
 
+const CAFE_CONTRACT = normAddr(
+  process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
+    process.env.REALIFE_CAFE_STORE_CONTRACT ||
+    null
+);
+
+const STORE_CONTRACT = normAddr(
+  process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT ||
+    process.env.REALIFE_STORE_CONTRACT ||
+    null
+);
+
+const PUBLIC_STANDARD_CONTRACT = normAddr(
+  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT ||
+    process.env.REALIFE_1155_NEW_CONTRACT ||
+    null
+);
+
+const PUBLIC_DELIVERY_CONTRACT = normAddr(
+  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
+    process.env.REALIFE_1155_DELIVERY_CONTRACT ||
+    null
+);
+
+function forcedMarketTypeByContract(contract: string | null) {
+  const c = normAddr(contract);
+  if (!c) return null;
+
+  if (PUBLIC_DELIVERY_CONTRACT && c === PUBLIC_DELIVERY_CONTRACT) {
+    return "DELIVERY" as const;
+  }
+
+  if (
+    (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) ||
+    (CAFE_CONTRACT && c === CAFE_CONTRACT) ||
+    (STORE_CONTRACT && c === STORE_CONTRACT)
+  ) {
+    return "STANDARD" as const;
+  }
+
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
 
@@ -34,7 +77,12 @@ export async function GET(req: NextRequest) {
   const tokenId = (url.searchParams.get("tokenId") || "").trim();
 
   const marketTypeRaw = (url.searchParams.get("marketType") || "").toUpperCase();
-  const marketType = ALLOWED_MARKET_TYPE.has(marketTypeRaw) ? marketTypeRaw : null;
+  const requestedMarketType = ALLOWED_MARKET_TYPE.has(marketTypeRaw)
+    ? marketTypeRaw
+    : null;
+
+  const forcedMarketType = forcedMarketTypeByContract(contract);
+  const marketType = forcedMarketType || requestedMarketType;
 
   const marketplaceContract = normAddr(url.searchParams.get("marketplaceContract"));
 
@@ -177,7 +225,7 @@ export async function GET(req: NextRequest) {
       listings: listings.map((r) => ({
         id: r.id,
         standard: r.standard,
-        marketType: r.marketType,
+        marketType: forcedMarketTypeByContract(contract) || r.marketType,
         marketplaceContract: r.marketplaceContract,
 
         sellerWallet: r.sellerWallet,
@@ -200,7 +248,7 @@ export async function GET(req: NextRequest) {
         blockNum: s(t.blockNum),
         blockTime: t.blockTime.toISOString(),
 
-        marketType: t.marketType,
+        marketType: forcedMarketTypeByContract(contract) || t.marketType,
         marketplaceContract: t.marketplaceContract,
         marketplaceListingId: t.marketplaceListingId ? s(t.marketplaceListingId) : null,
         marketplacePurchaseId: t.marketplacePurchaseId ? s(t.marketplacePurchaseId) : null,
