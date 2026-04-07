@@ -62,7 +62,7 @@ export default function NftPreviewLightbox({
 
   if (!src) {
     return (
-      <div className={cx("relative h-full w-full", className)}>
+      <div className={cx("group/nft-preview relative h-full w-full", className)}>
         <NftMedia
           src={src}
           kind={kind}
@@ -142,7 +142,7 @@ export default function NftPreviewLightbox({
 
   return (
     <>
-      <div className={cx("relative h-full w-full", className)}>
+      <div className={cx("group/nft-preview relative h-full w-full", className)}>
         <NftMedia
           src={src}
           kind={kind}
@@ -166,8 +166,11 @@ export default function NftPreviewLightbox({
           className={cx(
             "absolute right-4 top-4 z-20 inline-flex h-11 w-11 items-center justify-center rounded-xl",
             "border border-white/15 bg-black/45 text-white/90 backdrop-blur-md",
-            "shadow-[0_10px_35px_rgba(0,0,0,0.35)] transition",
-            "hover:scale-[1.04] hover:bg-black/60 active:scale-[0.98]",
+            "shadow-[0_10px_35px_rgba(0,0,0,0.35)]",
+            "transition-all duration-200 hover:scale-[1.04] hover:bg-black/60 active:scale-[0.98]",
+            "opacity-0 translate-y-1 pointer-events-none",
+            "group-hover/nft-preview:opacity-100 group-hover/nft-preview:translate-y-0 group-hover/nft-preview:pointer-events-auto",
+            "group-focus-within/nft-preview:opacity-100 group-focus-within/nft-preview:translate-y-0 group-focus-within/nft-preview:pointer-events-auto",
             buttonClassName
           )}
         >

@@ -1264,7 +1264,7 @@ export default async function NftDetailsPage({
                       fit="contain"
                       className="h-full w-full"
                       roundedClass="rounded-none"
-                      buttonClassName="top-4 right-4"
+                      buttonClassName="right-5 top-[4.75rem]"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center font-black text-white/25">

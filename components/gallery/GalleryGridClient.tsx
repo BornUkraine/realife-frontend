@@ -43,6 +43,9 @@ type PreviewState = {
   alt?: string;
 } | null;
 
+const hoverActionClass =
+  "opacity-0 translate-y-1 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-y-0 group-focus-within:pointer-events-auto";
+
 export default function GalleryGridClient({
   items,
   isOwner,
@@ -83,37 +86,43 @@ export default function GalleryGridClient({
             className="group overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)] transition-all duration-300 hover:-translate-y-1 hover:bg-white/[0.08]"
           >
             <div className="relative aspect-square w-full bg-black">
-              {isOwner ? (
-                <div className="absolute right-14 top-3 z-20 opacity-0 transition-opacity group-hover:opacity-100">
-                  <QuickList1155
-                    chainId={x.chainId}
-                    contract={x.contract}
-                    tokenId={String(x.tokenId)}
-                    maxAmountHint={String(x.ownedAmount)}
-                    name={x.name}
-                  />
-                </div>
-              ) : null}
-
               {x.media ? (
                 <>
-                  <button
-                    type="button"
-                    aria-label="Open full preview"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setPreview({
-                        src: x.media!,
-                        kind: x.kind,
-                        poster: x.kind === "video" ? x.poster : null,
-                        alt: x.name || "NFT",
-                      });
-                    }}
-                    className="absolute right-3 top-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white/90 backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.35)] transition hover:scale-[1.04] hover:bg-black/60 active:scale-[0.98]"
-                  >
-                    <span className="text-lg leading-none">⤢</span>
-                  </button>
+                  <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-2">
+                    {isOwner ? (
+                      <div className={hoverActionClass}>
+                        <QuickList1155
+                          chainId={x.chainId}
+                          contract={x.contract}
+                          tokenId={String(x.tokenId)}
+                          maxAmountHint={String(x.ownedAmount)}
+                          name={x.name}
+                        />
+                      </div>
+                    ) : null}
+
+                    <button
+                      type="button"
+                      aria-label="Open full preview"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPreview({
+                          src: x.media!,
+                          kind: x.kind,
+                          poster: x.kind === "video" ? x.poster : null,
+                          alt: x.name || "NFT",
+                        });
+                      }}
+                      className={cx(
+                        "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white/90 backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.35)]",
+                        "transition-all duration-200 hover:scale-[1.04] hover:bg-black/60 active:scale-[0.98]",
+                        hoverActionClass
+                      )}
+                    >
+                      <span className="text-lg leading-none">⤢</span>
+                    </button>
+                  </div>
 
                   <NftMedia
                     src={x.media}
