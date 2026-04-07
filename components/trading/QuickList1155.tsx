@@ -48,13 +48,6 @@ function clampInt(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function shortAddr(addr?: string | null) {
-  if (!addr) return "—";
-  const s = String(addr);
-  if (s.length <= 12) return s;
-  return `${s.slice(0, 6)}…${s.slice(-4)}`;
-}
-
 function fmtEthWei(wei?: bigint | null) {
   try {
     if (wei == null) return "—";
@@ -286,7 +279,6 @@ export default function QuickList1155({
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
-  const title = name || `Token #${tokenId}`;
   const priceWei = useMemo(() => parsePriceWeiSafe(priceEth), [priceEth]);
 
   const totalPriceWei = useMemo(() => {
@@ -546,7 +538,7 @@ export default function QuickList1155({
               e.stopPropagation();
               closeModal();
             }}
-            className="absolute right-4 top-4 z-[101] flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/[0.08] text-base font-black text-white/85 transition hover:bg-white/[0.12]"
+            className="absolute right-4 top-4 z-[101] flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/70 text-lg font-black text-white shadow-[0_10px_35px_rgba(0,0,0,0.45)] transition hover:scale-[1.04] hover:bg-black/90"
             title="Close"
           >
             ✕
@@ -561,24 +553,13 @@ export default function QuickList1155({
           >
             <div className="overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/88 ring-1 ring-black/10 backdrop-blur-2xl">
               <div className="p-4">
-                <div className="text-center">
-                  <div className="truncate text-[16px] font-black text-white/95">
-                    {title}
-                  </div>
-                  <div className="mt-1 text-[11px] text-white/50">
-                    {shortAddr(nftAddr)} • #{tokenId}
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
-                    <span className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-black text-white/80">
-                      {marketLabel(inferredMarketType)}
-                    </span>
-
+                {headerBadges.length > 0 ? (
+                  <div className="mb-2 flex justify-center">
                     {headerBadges.map((badge) => (
                       <span
                         key={badge.label}
                         className={cx(
-                          "inline-flex items-center justify-center rounded-full px-2.5 py-1 text-[10px] font-black",
+                          "inline-flex items-center justify-center rounded-full px-3 py-1 text-[10px] font-black",
                           badge.className
                         )}
                       >
@@ -586,12 +567,12 @@ export default function QuickList1155({
                       </span>
                     ))}
                   </div>
-                </div>
+                ) : null}
 
                 {compactNote ? (
                   <div
                     className={cx(
-                      "mt-3 rounded-2xl px-3 py-2 text-center text-[11px]",
+                      "mt-2 rounded-2xl px-3 py-2 text-center text-[11px]",
                       compactNote.className
                     )}
                   >

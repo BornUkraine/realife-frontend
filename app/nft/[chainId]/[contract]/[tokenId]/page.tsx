@@ -10,8 +10,6 @@ import { realifeStoreAbi } from "@/lib/realifeStoreAbi";
 import { headers } from "next/headers";
 import { createPublicClient, formatUnits, http } from "viem";
 import { baseSepolia } from "viem/chains";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -415,7 +413,8 @@ async function fetchJsonWithTimeout(
     }
     return { ok: true, status: r.status, json: j, error: null };
   } catch (e: any) {
-    const msg = e?.name === "AbortError" ? "timeout" : e?.message || "fetch_failed";
+    const msg =
+      e?.name === "AbortError" ? "timeout" : e?.message || "fetch_failed";
     return { ok: false, status: 0, json: null, error: msg };
   } finally {
     clearTimeout(t);
@@ -580,7 +579,8 @@ function txExplorerUrl(chainId: number, txHash: string) {
 
 function contractExplorerUrl(chainId: number, contract: string) {
   if (!contract) return null;
-  if (chainId === 84532) return `https://sepolia.basescan.org/address/${contract}`;
+  if (chainId === 84532)
+    return `https://sepolia.basescan.org/address/${contract}`;
   if (chainId === 8453) return `https://basescan.org/address/${contract}`;
   return null;
 }
@@ -622,7 +622,8 @@ async function loadMarketNft(
     MARKET_FETCH_TIMEOUT_MS
   );
 
-  if (!res.ok) return { data: null as any, error: res.error || "market_unavailable" };
+  if (!res.ok)
+    return { data: null as any, error: res.error || "market_unavailable" };
   return { data: res.json, error: null as string | null };
 }
 
@@ -799,9 +800,7 @@ function AccordionSection({
           </div>
         </summary>
 
-        <div className="border-t border-white/10 px-6 py-6 md:px-7">
-          {children}
-        </div>
+        <div className="border-t border-white/10 px-6 py-6 md:px-7">{children}</div>
       </div>
     </details>
   );
@@ -1100,7 +1099,8 @@ export default async function NftDetailsPage({
 
     const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackPoster;
     const animHttp =
-      ipfsToHttp(metaAnimation, PINATA_IPFS) || ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
+      ipfsToHttp(metaAnimation, PINATA_IPFS) ||
+      ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
 
     if (metaAnimation || isLikelyVideoUrl(animHttp)) {
       kind = "video";
@@ -1150,6 +1150,7 @@ export default async function NftDetailsPage({
 
   const hasStorefrontPanel = isCafeNft || isStoreNft;
   const hasSecondaryActionPanel = hasStorefrontPanel || userDeliveryMarketplaceFlow;
+
   const storeCheckoutMode =
     effectiveStoreDeliveryEnabled || effectiveStorePhysicalItemIncluded
       ? "delivery"
@@ -1241,7 +1242,7 @@ export default async function NftDetailsPage({
           </div>
         </div>
 
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.82fr)]">
+        <div className="grid items-stretch gap-6 xl:grid-cols-[minmax(0,1.02fr)_minmax(520px,0.98fr)]">
           <div className="space-y-6">
             <div
               className={cx(
@@ -1266,7 +1267,7 @@ export default async function NftDetailsPage({
                       buttonClassName="top-4 right-4"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-white/25 font-black">
+                    <div className="flex h-full w-full items-center justify-center font-black text-white/25">
                       No media
                     </div>
                   )}
@@ -1308,17 +1309,17 @@ export default async function NftDetailsPage({
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 h-full">
             <div
               className={cx(
-                "reveal overflow-hidden rounded-[28px] p-px",
+                "reveal h-full overflow-hidden rounded-[28px] p-px",
                 "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
                 "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
               )}
               style={{ animationDelay: "140ms" }}
             >
-              <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/30 ring-1 ring-black/10 backdrop-blur-2xl">
-                <div className="p-6 md:p-7">
+              <div className="h-full overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/30 ring-1 ring-black/10 backdrop-blur-2xl">
+                <div className="flex h-full min-h-[640px] flex-col p-6 md:min-h-[700px] md:p-7">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/40">
                       {isCafeNft
@@ -1393,7 +1394,8 @@ export default async function NftDetailsPage({
                         Marketplace delivery flow
                       </div>
                       <div className="mt-2 text-[12px] leading-relaxed text-violet-50/90">
-                        Trade the NFT first. Delivery and escrow are completed later in the site order flow.
+                        Trade the NFT first through the delivery marketplace. Delivery,
+                        tracking, and escrow completion happen later in the site order flow.
                       </div>
                     </div>
                   ) : null}
@@ -1404,7 +1406,9 @@ export default async function NftDetailsPage({
                         Store primary vs secondary
                       </div>
                       <div className="mt-2 text-[12px] leading-relaxed text-sky-50/90">
-                        Primary store purchase may include delivery. Secondary market purchase is trading only.
+                        Primary store purchase may include delivery and official fulfillment
+                        through the Realife Store flow. Secondary market purchase is trading
+                        only and does not automatically include delivery for the secondary buyer.
                       </div>
                     </div>
                   ) : null}
@@ -1415,12 +1419,21 @@ export default async function NftDetailsPage({
                         Cafe primary vs secondary
                       </div>
                       <div className="mt-2 text-[12px] leading-relaxed text-amber-50/90">
-                        Primary cafe purchase is separate. Secondary market is trading only and does not guarantee redemption.
+                        Primary cafe purchase is handled separately through the official
+                        Realife Cafe flow. Secondary market purchase is trading only and does
+                        not automatically guarantee drink, merch, or redemption rights.
                       </div>
                     </div>
                   ) : null}
 
-                  <div className="mt-6 grid grid-cols-2 gap-3">
+                  {marketError ? (
+                    <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
+                      Market data temporarily unavailable ({marketError}). NFT details still
+                      work.
+                    </div>
+                  ) : null}
+
+                  <div className="mt-auto grid grid-cols-2 gap-3 pt-6">
                     <StatCard
                       label="Floor"
                       value={stats?.floorWei ? `${fmtEth(stats.floorWei)} ETH` : "—"}
@@ -1439,12 +1452,6 @@ export default async function NftDetailsPage({
                       value={topHolder?.amount ? topHolder.amount.toString() : "—"}
                     />
                   </div>
-
-                  {marketError ? (
-                    <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
-                      Market data temporarily unavailable ({marketError}). NFT details still work.
-                    </div>
-                  ) : null}
                 </div>
               </div>
             </div>
@@ -1562,7 +1569,8 @@ export default async function NftDetailsPage({
                   </div>
 
                   <div className="mt-3 text-[13px] leading-relaxed text-white/60">
-                    This item is bought through the delivery marketplace. Delivery details and escrow are handled later in the site orders flow.
+                    This item is bought through the delivery marketplace. Delivery details,
+                    tracking, and escrow are handled later in the site orders flow.
                   </div>
 
                   <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1621,7 +1629,7 @@ export default async function NftDetailsPage({
                     </div>
                   ) : (
                     <div className="text-[13px] leading-relaxed text-white/40">
-                      This NFT doesn't have an extended description yet.
+                      This NFT doesn&apos;t have an extended description yet.
                     </div>
                   )}
 
@@ -1790,17 +1798,23 @@ export default async function NftDetailsPage({
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <div className="text-[13px] font-black text-amber-100">
                                 {fmtEth(l.pricePerUnitWei)} ETH{" "}
-                                <span className="text-[11px] font-black text-white/35">/ unit</span>
+                                <span className="text-[11px] font-black text-white/35">
+                                  / unit
+                                </span>
                               </div>
                               <div className="text-[12px] font-semibold text-white/60">
                                 Remaining:{" "}
-                                <span className="font-black text-white/90">{l.amountRemaining}</span>
+                                <span className="font-black text-white/90">
+                                  {l.amountRemaining}
+                                </span>
                               </div>
                             </div>
 
                             <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/40">
                               <span>Seller:</span>
-                              <span className="font-mono text-white/75">{shortAddr(l.sellerWallet)}</span>
+                              <span className="font-mono text-white/75">
+                                {shortAddr(l.sellerWallet)}
+                              </span>
                               <span className="text-white/35">•</span>
                               <span className="font-black text-white/70">
                                 Listing #{l.marketplaceListingId}
