@@ -1275,17 +1275,21 @@ export default async function NftDetailsPage({
               style={{ animationDelay: "80ms" }}
             >
               <div className="rounded-[28px] overflow-hidden border border-white/10 bg-[#0b0a09]/15 backdrop-blur-2xl ring-1 ring-black/10">
-                <div className="aspect-square bg-black/30 flex items-center justify-center relative">
+                <div className="relative flex items-center justify-center bg-black/40 min-h-[420px] sm:min-h-[520px] lg:min-h-[640px] xl:min-h-[720px] max-h-[82vh] overflow-hidden">
                   {media ? (
-                    <NftMedia
-                      src={media}
-                      kind={kind}
-                      alt={nft.name || "NFT"}
-                      poster={kind === "video" ? poster : null}
-                      showControls={kind === "video"}
-                      className="h-full w-full"
-                      roundedClass="rounded-none"
-                    />
+                    <div className="h-full w-full p-3 sm:p-4 md:p-5">
+                      <NftMedia
+                        src={media}
+                        kind={kind}
+                        alt={nft.name || "NFT"}
+                        poster={kind === "video" ? poster : null}
+                        showControls={kind === "video"}
+                        fit="contain"
+                        enableExpand
+                        className="h-full w-full"
+                        roundedClass="rounded-[24px]"
+                      />
+                    </div>
                   ) : (
                     <div className="text-white/25 font-black">No media</div>
                   )}

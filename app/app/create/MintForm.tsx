@@ -743,7 +743,7 @@ export default function MintForm() {
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
   const [description, setDescription] = useState("");
-  const [supply, setSupply] = useState<number>(20);
+  const [supply, setSupply] = useState<number>(1);
   const [proofUrl, setProofUrl] = useState("");
 
   const [step, setStep] = useState<"idle" | "preparing" | "signing" | "mining">("idle");
@@ -1746,7 +1746,9 @@ export default function MintForm() {
           <div className="flex items-end justify-between mb-3">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Amount / Supply</div>
-              <div className="text-[11px] text-white/55 mt-1">ERC-1155 editions: set supply (e.g. 20).</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                ERC-1155 editions: set supply (for example 1 for unique or more for editions).
+              </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-white/60" />

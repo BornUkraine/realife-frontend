@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import ActivityPanel from "@/components/trading/ActivityPanel";
 import QuickList1155 from "@/components/trading/QuickList1155";
+import type { ReactNode } from "react";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +15,11 @@ export const revalidate = 0;
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function safeDecode(v: string) {
-  try { return decodeURIComponent(v); } catch { return v; }
+  try {
+    return decodeURIComponent(v);
+  } catch {
+    return v;
+  }
 }
 
 function cx(...a: Array<string | false | null | undefined>) {
@@ -41,25 +46,37 @@ const API_BASE = (
 
 const USER_1155_STANDARD_CONTRACT = norm(
   process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT ||
-  process.env.REALIFE_1155_NEW_CONTRACT || ""
+    process.env.REALIFE_1155_NEW_CONTRACT ||
+    ""
 );
 const USER_1155_DELIVERY_CONTRACT = norm(
   process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
-  process.env.REALIFE_1155_DELIVERY_CONTRACT || ""
+    process.env.REALIFE_1155_DELIVERY_CONTRACT ||
+    ""
 );
 const CAFE_1155_CONTRACT = norm(
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
-  process.env.REALIFE_CAFE_STORE_CONTRACT || ""
+    process.env.REALIFE_CAFE_STORE_CONTRACT ||
+    ""
 );
 const STORE_1155_CONTRACT = norm(
   process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT ||
-  process.env.REALIFE_STORE_CONTRACT || ""
+    process.env.REALIFE_STORE_CONTRACT ||
+    ""
 );
 
-const USER_1155_CONTRACTS = [USER_1155_STANDARD_CONTRACT, USER_1155_DELIVERY_CONTRACT].filter(Boolean);
-const ALLOWED_1155_CONTRACTS = [...USER_1155_CONTRACTS, CAFE_1155_CONTRACT, STORE_1155_CONTRACT].filter(Boolean);
+const USER_1155_CONTRACTS = [
+  USER_1155_STANDARD_CONTRACT,
+  USER_1155_DELIVERY_CONTRACT,
+].filter(Boolean);
 
-const CAFE_STOREFRONT_HREF  = "/app/real-marketing/realife-cafe";
+const ALLOWED_1155_CONTRACTS = [
+  ...USER_1155_CONTRACTS,
+  CAFE_1155_CONTRACT,
+  STORE_1155_CONTRACT,
+].filter(Boolean);
+
+const CAFE_STOREFRONT_HREF = "/app/real-marketing/realife-cafe";
 const STORE_STOREFRONT_HREF = "/app/real-marketing/realife-store";
 
 const PRIMARY_IPFS_ORIGIN = (
@@ -82,7 +99,14 @@ const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
 function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
-  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) return u;
+  if (
+    u.startsWith("http://") ||
+    u.startsWith("https://") ||
+    u.startsWith("data:") ||
+    u.startsWith("blob:")
+  ) {
+    return u;
+  }
   if (u.startsWith("ipfs://")) {
     let p = u.slice("ipfs://".length);
     if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
@@ -106,44 +130,69 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
   return null;
 }
 
-async function loadMetadataFromBackend1155(tokenId: string, contract?: string | null) {
+async function loadMetadataFromBackend1155(
+  tokenId: string,
+  contract?: string | null
+) {
   const base = String(API_BASE || "").replace(/\/$/, "");
   const c = String(contract || "").trim().toLowerCase();
   if (!base || !tokenId) return null;
+
   try {
-    const url = c && c.startsWith("0x")
-      ? `${base}/metadata1155/${encodeURIComponent(c)}/${encodeURIComponent(tokenId)}`
-      : `${base}/metadata1155/${encodeURIComponent(tokenId)}`;
+    const url =
+      c && c.startsWith("0x")
+        ? `${base}/metadata1155/${encodeURIComponent(c)}/${encodeURIComponent(
+            tokenId
+          )}`
+        : `${base}/metadata1155/${encodeURIComponent(tokenId)}`;
+
     const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) return null;
+
     const j = await r.json().catch(() => null);
     if (!j || typeof j !== "object") return null;
-    const returnedContract = String((j as any)?.contract || "").trim().toLowerCase();
+
+    const returnedContract = String((j as any)?.contract || "")
+      .trim()
+      .toLowerCase();
+
     if (c && returnedContract && returnedContract !== c) return null;
     return j;
   } catch {}
+
   return null;
 }
 
 function pickAttrValue(meta: any, trait: string): string | null {
   const attrs = Array.isArray(meta?.attributes) ? meta.attributes : [];
   const t = trait.toLowerCase();
-  const hit = attrs.find((a: any) => String(a?.trait_type || "").toLowerCase() === t);
+  const hit = attrs.find(
+    (a: any) => String(a?.trait_type || "").toLowerCase() === t
+  );
   const v = hit?.value;
   if (v === undefined || v === null) return null;
   return String(v);
 }
 
-async function mapLimit<T, R>(items: T[], limit: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+async function mapLimit<T, R>(
+  items: T[],
+  limit: number,
+  fn: (x: T) => Promise<R>
+): Promise<R[]> {
   const out: R[] = new Array(items.length);
   let i = 0;
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (true) {
-      const idx = i++;
-      if (idx >= items.length) break;
-      out[idx] = await fn(items[idx]);
+
+  const workers = Array.from(
+    { length: Math.min(limit, items.length) },
+    async () => {
+      while (true) {
+        const idx = i++;
+        if (idx >= items.length) break;
+        out[idx] = await fn(items[idx]);
+      }
     }
-  });
+  );
+
   await Promise.all(workers);
   return out;
 }
@@ -154,38 +203,63 @@ function tabHref(base: string, tab: string) {
 
 function isLikelyVideoMeta(meta: any) {
   const anim =
-    typeof meta?.animation_url === "string" ? meta.animation_url :
-    typeof meta?.animationUrl   === "string" ? meta.animationUrl :
-    typeof meta?.animation      === "string" ? meta.animation : null;
+    typeof meta?.animation_url === "string"
+      ? meta.animation_url
+      : typeof meta?.animationUrl === "string"
+      ? meta.animationUrl
+      : typeof meta?.animation === "string"
+      ? meta.animation
+      : null;
   return Boolean(anim);
 }
 
-function buildNftHref(chainId: number, contract: string, tokenId: string, fromHref?: string | null) {
-  const base = `/nft/${chainId}/${contract}/${encodeURIComponent(String(tokenId))}`;
+function buildNftHref(
+  chainId: number,
+  contract: string,
+  tokenId: string,
+  fromHref?: string | null
+) {
+  const base = `/nft/${chainId}/${contract}/${encodeURIComponent(
+    String(tokenId)
+  )}`;
   if (!fromHref) return base;
   return `${base}?from=${encodeURIComponent(fromHref)}`;
 }
 
 // ─── UI components ────────────────────────────────────────────────────────────
 
-function StatChip({ label, value, tone = "default" }: {
-  label: string; value: React.ReactNode; tone?: "default" | "gold";
+function StatChip({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: ReactNode;
+  tone?: "default" | "gold";
 }) {
   return (
-    <div className={cx(
-      "rounded-2xl border px-4 py-3",
-      tone === "gold" ? "border-amber-500/20 bg-amber-500/10" : "border-white/10 bg-white/[0.04]",
-    )}>
-      <div className={cx(
-        "text-[11px] font-semibold uppercase tracking-wider",
-        tone === "gold" ? "text-amber-100/70" : "text-white/40",
-      )}>
+    <div
+      className={cx(
+        "rounded-2xl border px-4 py-3",
+        tone === "gold"
+          ? "border-amber-500/20 bg-amber-500/10"
+          : "border-white/10 bg-white/[0.04]"
+      )}
+    >
+      <div
+        className={cx(
+          "text-[11px] font-semibold uppercase tracking-wider",
+          tone === "gold" ? "text-amber-100/70" : "text-white/40"
+        )}
+      >
         {label}
       </div>
-      <div className={cx(
-        "mt-1 text-sm font-bold truncate",
-        tone === "gold" ? "text-amber-100" : "text-white/90",
-      )}>
+      <div
+        className={cx(
+          "mt-1 text-sm font-bold truncate",
+          tone === "gold" ? "text-amber-100" : "text-white/90"
+        )}
+      >
         {value}
       </div>
     </div>
@@ -208,50 +282,75 @@ export default async function PublicNFTsPage({
   if (!key || key.length > 64) notFound();
 
   const rawTab = typeof sp?.tab === "string" ? sp.tab : "nfts";
-  const tab = String(rawTab || "nfts").toLowerCase() === "activity" ? "activity" : "nfts";
+  const tab =
+    String(rawTab || "nfts").toLowerCase() === "activity" ? "activity" : "nfts";
 
   const user = await prisma.user.findFirst({
     where: {
       OR: [
-        { handle:   { equals: key, mode: "insensitive" } },
+        { handle: { equals: key, mode: "insensitive" } },
         { publicId: { equals: key, mode: "insensitive" } },
       ],
     },
     select: {
-      id: true, handle: true, publicId: true, walletAddress: true,
-      twitterName: true, twitterUser: true, twitterImage: true,
-      discordName: true, discordUser: true, discordImage: true,
+      id: true,
+      handle: true,
+      publicId: true,
+      walletAddress: true,
+      twitterName: true,
+      twitterUser: true,
+      twitterImage: true,
+      discordName: true,
+      discordUser: true,
+      discordImage: true,
     },
   });
 
   if (!user) notFound();
 
   const displayName =
-    user.twitterName || user.discordName ||
+    user.twitterName ||
+    user.discordName ||
     (user.twitterUser ? `@${user.twitterUser}` : null) ||
     (user.discordUser ? `@${user.discordUser}` : null) ||
     (user.handle ? `@${user.handle}` : null) ||
     shortAddr(user.walletAddress);
 
-  const avatar     = user.twitterImage || user.discordImage || null;
-  const publicKey  = user.handle || user.publicId || null;
-  const publicUrl  = publicKey && publicKey !== "tmp" ? `/u/${publicKey}` : null;
-  const pageBase   = publicKey && publicKey !== "tmp" ? `/u/${publicKey}/nfts` : `/u/${key}/nfts`;
+  const avatar = user.twitterImage || user.discordImage || null;
+  const publicKey = user.handle || user.publicId || null;
+  const publicUrl =
+    publicKey && publicKey !== "tmp" ? `/u/${publicKey}` : null;
+  const pageBase =
+    publicKey && publicKey !== "tmp" ? `/u/${publicKey}/nfts` : `/u/${key}/nfts`;
 
-  const session      = await getServerSession(authOptions);
-  const viewerId     = (session as any)?.user?.id || (session as any)?.userId || null;
-  const viewerWallet = String((session as any)?.user?.walletAddress || (session as any)?.walletAddress || "").trim().toLowerCase();
-  const ownerWallet  = String(user.walletAddress || "").trim().toLowerCase();
-  const isOwner      = Boolean(
+  const session = await getServerSession(authOptions);
+  const viewerId = (session as any)?.user?.id || (session as any)?.userId || null;
+  const viewerWallet = String(
+    (session as any)?.user?.walletAddress ||
+      (session as any)?.walletAddress ||
+      ""
+  )
+    .trim()
+    .toLowerCase();
+  const ownerWallet = String(user.walletAddress || "").trim().toLowerCase();
+
+  const isOwner = Boolean(
     (viewerId && viewerId === user.id) ||
-    (viewerWallet && ownerWallet && viewerWallet === ownerWallet)
+      (viewerWallet && ownerWallet && viewerWallet === ownerWallet)
   );
 
-  const holdingWhere: any = { userId: user.id, amount: { gt: 0n }, mint: { verified: true } };
-  if (ALLOWED_1155_CONTRACTS.length > 0) holdingWhere.contract = { in: ALLOWED_1155_CONTRACTS };
+  const holdingWhere: any = {
+    userId: user.id,
+    amount: { gt: 0n },
+    mint: { verified: true },
+  };
 
-  const itemsCount    = await prisma.holding.count({ where: holdingWhere });
-  const effectiveTab  = tab === "activity" && !isOwner ? "nfts" : tab;
+  if (ALLOWED_1155_CONTRACTS.length > 0) {
+    holdingWhere.contract = { in: ALLOWED_1155_CONTRACTS };
+  }
+
+  const itemsCount = await prisma.holding.count({ where: holdingWhere });
+  const effectiveTab = tab === "activity" && !isOwner ? "nfts" : tab;
   const galleryBackHref = tabHref(pageBase, "nfts");
 
   let enriched: any[] = [];
@@ -261,48 +360,86 @@ export default async function PublicNFTsPage({
       where: holdingWhere,
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       select: {
-        id: true, chainId: true, contract: true, tokenId: true,
-        amount: true, updatedAt: true,
-        mint: { select: { name: true, image: true, tokenUri: true, createdAt: true } },
+        id: true,
+        chainId: true,
+        contract: true,
+        tokenId: true,
+        amount: true,
+        updatedAt: true,
+        mint: {
+          select: {
+            name: true,
+            image: true,
+            tokenUri: true,
+            createdAt: true,
+          },
+        },
       },
       take: 200,
     });
 
     enriched = await mapLimit(holdings, 8, async (x) => {
-      const contract         = String(x.contract || "").toLowerCase();
-      const isCafeNft        = !!CAFE_1155_CONTRACT && contract === CAFE_1155_CONTRACT;
-      const isStoreNft       = !!STORE_1155_CONTRACT && contract === STORE_1155_CONTRACT;
-      const isUser1155Nft    = USER_1155_CONTRACTS.includes(contract);
-      const isDeliveryUserNft = !!USER_1155_DELIVERY_CONTRACT && contract === USER_1155_DELIVERY_CONTRACT;
-      const fallbackPoster   = ipfsToHttp(x.mint?.image, IPFS_GATEWAYS[0]);
+      const contract = String(x.contract || "").toLowerCase();
+      const isCafeNft = !!CAFE_1155_CONTRACT && contract === CAFE_1155_CONTRACT;
+      const isStoreNft =
+        !!STORE_1155_CONTRACT && contract === STORE_1155_CONTRACT;
+      const isUser1155Nft = USER_1155_CONTRACTS.includes(contract);
+      const isDeliveryUserNft =
+        !!USER_1155_DELIVERY_CONTRACT && contract === USER_1155_DELIVERY_CONTRACT;
+      const fallbackPoster = ipfsToHttp(x.mint?.image, IPFS_GATEWAYS[0]);
 
       let kind: "image" | "video" = "image";
       let media: string | null = fallbackPoster;
       let poster: string | null = null;
       let supply: string | null = null;
 
-      const liveMeta = isUser1155Nft ? await loadMetadataFromBackend1155(String(x.tokenId), contract) : null;
+      const liveMeta = isUser1155Nft
+        ? await loadMetadataFromBackend1155(String(x.tokenId), contract)
+        : null;
+
       let meta: any = liveMeta;
-      if (!meta && x.mint?.tokenUri) meta = await loadMetadataFromTokenUri(x.mint.tokenUri);
+      if (!meta && x.mint?.tokenUri) {
+        meta = await loadMetadataFromTokenUri(x.mint.tokenUri);
+      }
 
       if (meta) {
         const metaImage =
-          typeof meta?.image     === "string" ? meta.image :
-          typeof meta?.image_url === "string" ? meta.image_url :
-          typeof meta?.imageUrl  === "string" ? meta.imageUrl : null;
-        const metaAnimation =
-          typeof meta?.animation_url === "string" ? meta.animation_url :
-          typeof meta?.animationUrl  === "string" ? meta.animationUrl :
-          typeof meta?.animation     === "string" ? meta.animation : null;
+          typeof meta?.image === "string"
+            ? meta.image
+            : typeof meta?.image_url === "string"
+            ? meta.image_url
+            : typeof meta?.imageUrl === "string"
+            ? meta.imageUrl
+            : null;
 
-        const imgHttp  = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackPoster;
-        const animHttp = ipfsToHttp(metaAnimation, PINATA_IPFS) || ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
+        const metaAnimation =
+          typeof meta?.animation_url === "string"
+            ? meta.animation_url
+            : typeof meta?.animationUrl === "string"
+            ? meta.animationUrl
+            : typeof meta?.animation === "string"
+            ? meta.animation
+            : null;
+
+        const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackPoster;
+        const animHttp =
+          ipfsToHttp(metaAnimation, PINATA_IPFS) ||
+          ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
 
         if (isLikelyVideoMeta(meta)) {
-          kind = "video"; media = animHttp || null; poster = imgHttp || fallbackPoster || null;
-          if (!media) { kind = "image"; media = poster; poster = null; }
+          kind = "video";
+          media = animHttp || null;
+          poster = imgHttp || fallbackPoster || null;
+
+          if (!media) {
+            kind = "image";
+            media = poster;
+            poster = null;
+          }
         } else {
-          kind = "image"; media = imgHttp || fallbackPoster; poster = null;
+          kind = "image";
+          media = imgHttp || fallbackPoster;
+          poster = null;
         }
 
         supply = pickAttrValue(meta, "Total Supply");
@@ -314,22 +451,31 @@ export default async function PublicNFTsPage({
       }
 
       return {
-        id: x.id, chainId: x.chainId, contract, tokenId: x.tokenId,
-        ownedAmount: x.amount.toString(), updatedAt: x.updatedAt,
-        name: x.mint?.name ?? null, tokenUri: x.mint?.tokenUri ?? null,
-        kind, media, poster, supply,
-        isCafeNft, isStoreNft, isUser1155Nft, isDeliveryUserNft,
+        id: x.id,
+        chainId: x.chainId,
+        contract,
+        tokenId: x.tokenId,
+        ownedAmount: x.amount.toString(),
+        updatedAt: x.updatedAt,
+        name: x.mint?.name ?? null,
+        tokenUri: x.mint?.tokenUri ?? null,
+        kind,
+        media,
+        poster,
+        supply,
+        isCafeNft,
+        isStoreNft,
+        isUser1155Nft,
+        isDeliveryUserNft,
       };
     });
   }
 
-  const cafeCount  = enriched.filter((x) => x.isCafeNft).length;
+  const cafeCount = enriched.filter((x) => x.isCafeNft).length;
   const storeCount = enriched.filter((x) => x.isStoreNft).length;
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
-
-      {/* ── Background — анимации из globals.css ─────────────── */}
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
@@ -339,15 +485,14 @@ export default async function PublicNFTsPage({
         <div className="absolute inset-x-0 top-0 h-48 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.65),transparent)]" />
       </div>
 
-      {/* ── Content ──────────────────────────────────────────── */}
       <div className="relative mx-auto max-w-7xl px-6 py-10 space-y-8">
-
-        {/* Header card */}
-        <div className={cx(
-          "reveal rounded-[28px] p-px overflow-hidden",
-          "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.11),rgba(184,135,10,0.10))]",
-          "shadow-[0_26px_100px_rgba(0,0,0,0.60)]",
-        )}>
+        <div
+          className={cx(
+            "reveal rounded-[28px] p-px overflow-hidden",
+            "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.11),rgba(184,135,10,0.10))]",
+            "shadow-[0_26px_100px_rgba(0,0,0,0.60)]"
+          )}
+        >
           <div className="rounded-[28px] overflow-hidden border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
@@ -358,9 +503,16 @@ export default async function PublicNFTsPage({
               <div className="flex flex-col lg:flex-row lg:items-center gap-5">
                 <div className="h-16 w-16 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15 shrink-0">
                   {avatar ? (
-                    <img src={avatar} alt="avatar" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                    <img
+                      src={avatar}
+                      alt="avatar"
+                      className="h-full w-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
                   ) : (
-                    <div className="h-full w-full flex items-center justify-center text-white/35 font-bold text-xs">RL</div>
+                    <div className="h-full w-full flex items-center justify-center text-white/35 font-bold text-xs">
+                      RL
+                    </div>
                   )}
                 </div>
 
@@ -369,6 +521,7 @@ export default async function PublicNFTsPage({
                     <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-semibold text-white/60">
                       Public gallery
                     </span>
+
                     {isOwner && (
                       <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-semibold text-amber-100">
                         Owner view
@@ -382,15 +535,22 @@ export default async function PublicNFTsPage({
 
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/40">
                     {publicUrl && (
-                      <><Link className="hover:underline" href={publicUrl}>Back to profile</Link><span>•</span></>
+                      <>
+                        <Link className="hover:underline" href={publicUrl}>
+                          Back to profile
+                        </Link>
+                        <span>•</span>
+                      </>
                     )}
+
                     <span>{itemsCount} items</span>
+
                     {(cafeCount > 0 || storeCount > 0) && effectiveTab === "nfts" && (
                       <>
                         <span>•</span>
                         <span>
-                          {cafeCount  > 0 ? `Cafe ${cafeCount}`   : ""}
-                          {cafeCount  > 0 && storeCount > 0 ? " • " : ""}
+                          {cafeCount > 0 ? `Cafe ${cafeCount}` : ""}
+                          {cafeCount > 0 && storeCount > 0 ? " • " : ""}
                           {storeCount > 0 ? `Store ${storeCount}` : ""}
                         </span>
                       </>
@@ -400,11 +560,18 @@ export default async function PublicNFTsPage({
 
                 <div className="flex flex-wrap gap-3">
                   {publicUrl && (
-                    <Link href={publicUrl} className="px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-bold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]">
+                    <Link
+                      href={publicUrl}
+                      className="px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-bold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                    >
                       Profile
                     </Link>
                   )}
-                  <Link href="/app/trading" className="px-5 py-3 rounded-2xl text-sm font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 transition">
+
+                  <Link
+                    href="/app/trading"
+                    className="px-5 py-3 rounded-2xl text-sm font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 transition"
+                  >
                     Trading →
                   </Link>
                 </div>
@@ -412,23 +579,34 @@ export default async function PublicNFTsPage({
 
               <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
                 <StatChip label="Items" value={itemsCount} tone="gold" />
-                <StatChip label="Tab"   value={effectiveTab === "activity" ? "My Activity" : "NFTs"} />
-                <StatChip label="Cafe NFTs"  value={effectiveTab === "nfts" ? cafeCount  : "—"} />
-                <StatChip label="Store NFTs" value={effectiveTab === "nfts" ? storeCount : "—"} />
+                <StatChip
+                  label="Tab"
+                  value={effectiveTab === "activity" ? "My Activity" : "NFTs"}
+                />
+                <StatChip
+                  label="Cafe NFTs"
+                  value={effectiveTab === "nfts" ? cafeCount : "—"}
+                />
+                <StatChip
+                  label="Store NFTs"
+                  value={effectiveTab === "nfts" ? storeCount : "—"}
+                />
               </div>
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="reveal flex flex-wrap items-center gap-2" style={{ animationDelay: "60ms" }}>
+        <div
+          className="reveal flex flex-wrap items-center gap-2"
+          style={{ animationDelay: "60ms" }}
+        >
           <Link
             href={tabHref(pageBase, "nfts")}
             className={cx(
               "px-4 py-2 rounded-2xl border text-[12px] font-bold transition",
               effectiveTab === "nfts"
                 ? "border-white/15 bg-white/[0.10] text-white shadow-[0_18px_70px_rgba(0,0,0,0.24)]"
-                : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
+                : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]"
             )}
           >
             NFTs
@@ -444,7 +622,7 @@ export default async function PublicNFTsPage({
                 "px-4 py-2 rounded-2xl border text-[12px] font-bold transition",
                 effectiveTab === "activity"
                   ? "border-white/15 bg-white/[0.10] text-white shadow-[0_18px_70px_rgba(0,0,0,0.24)]"
-                  : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
+                  : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]"
               )}
             >
               My Activity
@@ -455,17 +633,29 @@ export default async function PublicNFTsPage({
           )}
         </div>
 
-        {/* Content */}
         {effectiveTab === "activity" ? (
           <div className="reveal mt-2" style={{ animationDelay: "90ms" }}>
             <ActivityPanel userKey={key} />
           </div>
         ) : (
           <>
-            <div className="reveal grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" style={{ animationDelay: "90ms" }}>
+            <div
+              className="reveal grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+              style={{ animationDelay: "90ms" }}
+            >
               {enriched.map((x: any) => {
-                const storefrontHref = x.isCafeNft ? CAFE_STOREFRONT_HREF : x.isStoreNft ? STORE_STOREFRONT_HREF : null;
-                const nftHref = buildNftHref(x.chainId, x.contract, String(x.tokenId), galleryBackHref);
+                const storefrontHref = x.isCafeNft
+                  ? CAFE_STOREFRONT_HREF
+                  : x.isStoreNft
+                  ? STORE_STOREFRONT_HREF
+                  : null;
+
+                const nftHref = buildNftHref(
+                  x.chainId,
+                  x.contract,
+                  String(x.tokenId),
+                  galleryBackHref
+                );
 
                 return (
                   <Link
@@ -473,9 +663,9 @@ export default async function PublicNFTsPage({
                     href={nftHref}
                     className="group rounded-[28px] overflow-hidden border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)] hover:-translate-y-1 transition-all duration-300 hover:bg-white/[0.08]"
                   >
-                    <div className="aspect-square w-full bg-black/30 relative">
+                    <div className="relative w-full bg-black/35 min-h-[320px] sm:min-h-[360px] md:min-h-[400px] overflow-hidden">
                       {isOwner && (
-                        <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-3 right-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
                           <QuickList1155
                             chainId={x.chainId}
                             contract={x.contract}
@@ -488,48 +678,73 @@ export default async function PublicNFTsPage({
 
                       {x.media ? (
                         <>
-                          <NftMedia
-                            src={x.media}
-                            kind={x.kind}
-                            alt={x.name || "NFT"}
-                            poster={x.kind === "video" ? x.poster : null}
-                            showControls={false}
-                            className="h-full w-full"
-                            roundedClass="rounded-none"
-                          />
-                          <div className="absolute top-3 left-3 flex flex-col gap-2">
+                          <div className="h-full w-full p-3">
+                            <NftMedia
+                              src={x.media}
+                              kind={x.kind}
+                              alt={x.name || "NFT"}
+                              poster={x.kind === "video" ? x.poster : null}
+                              showControls={false}
+                              fit="contain"
+                              enableExpand
+                              className="h-full w-full"
+                              roundedClass="rounded-[22px]"
+                            />
+                          </div>
+
+                          <div className="pointer-events-none absolute top-3 left-3 flex flex-col gap-2 z-10">
                             {x.kind === "video" && (
-                              <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-bold text-amber-100">VIDEO</div>
+                              <div className="px-2 py-1 rounded-full border border-white/10 bg-black/45 text-[10px] font-bold text-amber-100 backdrop-blur-md">
+                                VIDEO
+                              </div>
                             )}
-                            <div className={cx(
-                              "px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-bold",
-                              x.isCafeNft        ? "text-amber-100" :
-                              x.isStoreNft       ? "text-sky-200" :
-                              x.isDeliveryUserNft ? "text-emerald-200" : "text-emerald-200",
-                            )}>
-                              {x.isCafeNft ? "CAFE" : x.isStoreNft ? "STORE" : x.isDeliveryUserNft ? "DELIVERY" : "EDITION"}
+
+                            <div
+                              className={cx(
+                                "px-2 py-1 rounded-full border border-white/10 bg-black/45 text-[10px] font-bold backdrop-blur-md",
+                                x.isCafeNft
+                                  ? "text-amber-100"
+                                  : x.isStoreNft
+                                  ? "text-sky-200"
+                                  : x.isDeliveryUserNft
+                                  ? "text-violet-200"
+                                  : "text-emerald-200"
+                              )}
+                            >
+                              {x.isCafeNft
+                                ? "CAFE"
+                                : x.isStoreNft
+                                ? "STORE"
+                                : x.isDeliveryUserNft
+                                ? "DELIVERY"
+                                : "EDITION"}
                             </div>
-                            <div className="px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-bold text-white/75">
+
+                            <div className="px-2 py-1 rounded-full border border-white/10 bg-black/45 text-[10px] font-bold text-white/75 backdrop-blur-md">
                               Owned x{x.ownedAmount}
                             </div>
                           </div>
+
                           {x.supply && (
-                            <div className="absolute bottom-3 right-3 px-2 py-1 rounded-full border border-white/10 bg-black/40 text-[10px] font-bold text-white/75">
+                            <div className="pointer-events-none absolute bottom-3 right-3 z-10 px-2 py-1 rounded-full border border-white/10 bg-black/45 text-[10px] font-bold text-white/75 backdrop-blur-md">
                               Supply x{x.supply}
                             </div>
                           )}
                         </>
                       ) : (
-                        <div className="h-full w-full flex items-center justify-center text-white/25 font-bold">No media</div>
+                        <div className="h-full w-full flex items-center justify-center text-white/25 font-bold">
+                          No media
+                        </div>
                       )}
 
-                      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.4)_0%,transparent_40%)] opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.38)_0%,transparent_40%)] opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
 
                     <div className="p-5">
                       <div className="text-sm font-bold text-white/90 truncate">
                         {x.name || `Token #${x.tokenId}`}
                       </div>
+
                       <div className="mt-1.5 text-[12px] text-white/40 flex items-center justify-between gap-2">
                         <span className="truncate">{shortAddr(x.contract)}</span>
                         <span className="font-mono">#{x.tokenId}</span>
@@ -537,18 +752,21 @@ export default async function PublicNFTsPage({
 
                       {storefrontHref && (
                         <div className="mt-3">
-                          <span className={cx(
-                            "inline-flex items-center px-2.5 py-1 rounded-full border text-[10px] font-bold",
-                            x.isCafeNft
-                              ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
-                              : "border-sky-500/20 bg-sky-500/10 text-sky-200",
-                          )}>
+                          <span
+                            className={cx(
+                              "inline-flex items-center px-2.5 py-1 rounded-full border text-[10px] font-bold",
+                              x.isCafeNft
+                                ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
+                                : "border-sky-500/20 bg-sky-500/10 text-sky-200"
+                            )}
+                          >
                             {x.isCafeNft ? "Cafe storefront" : "NFT Store"}
                           </span>
                         </div>
                       )}
 
                       <div className="mt-4 h-px bg-white/10" />
+
                       <div className="mt-4 text-[12px] font-bold text-amber-100/90 group-hover:text-amber-100 flex items-center justify-between">
                         <span>View Details</span>
                         <span>→</span>
@@ -561,10 +779,16 @@ export default async function PublicNFTsPage({
 
             {enriched.length === 0 && (
               <div className="reveal rounded-[28px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60">
-                <div className="text-lg font-bold text-white/85">This user doesn&apos;t own any NFTs yet.</div>
+                <div className="text-lg font-bold text-white/85">
+                  This user doesn&apos;t own any NFTs yet.
+                </div>
+
                 {publicUrl && (
                   <div className="mt-4">
-                    <Link href={publicUrl} className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-bold transition">
+                    <Link
+                      href={publicUrl}
+                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-bold transition"
+                    >
                       Back to profile
                     </Link>
                   </div>
@@ -577,7 +801,6 @@ export default async function PublicNFTsPage({
         <footer className="reveal pt-6 text-[10px] font-bold text-white/20 text-center uppercase tracking-[0.4em]">
           Realife Ecosystem • Gallery
         </footer>
-
       </div>
     </main>
   );
