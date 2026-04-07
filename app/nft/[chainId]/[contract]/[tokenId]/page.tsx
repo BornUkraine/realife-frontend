@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
-import NftMedia from "@/components/NftMedia";
+import NftPreviewLightbox from "@/components/NftPreviewLightbox";
 import TradingPanel1155 from "@/components/trading/TradingPanel1155";
 import StorefrontBuyPanel1155 from "@/components/storefront/StorefrontBuyPanel1155";
 import { realifeCafeStoreAbi } from "@/lib/realifeCafeStoreAbi";
@@ -1275,21 +1275,18 @@ export default async function NftDetailsPage({
               style={{ animationDelay: "80ms" }}
             >
               <div className="rounded-[28px] overflow-hidden border border-white/10 bg-[#0b0a09]/15 backdrop-blur-2xl ring-1 ring-black/10">
-                <div className="relative flex items-center justify-center bg-black/40 min-h-[420px] sm:min-h-[520px] lg:min-h-[640px] xl:min-h-[720px] max-h-[82vh] overflow-hidden">
+                <div className="aspect-square bg-black flex items-center justify-center relative">
                   {media ? (
-                    <div className="h-full w-full p-3 sm:p-4 md:p-5">
-                      <NftMedia
-                        src={media}
-                        kind={kind}
-                        alt={nft.name || "NFT"}
-                        poster={kind === "video" ? poster : null}
-                        showControls={kind === "video"}
-                        fit="contain"
-                        enableExpand
-                        className="h-full w-full"
-                        roundedClass="rounded-[24px]"
-                      />
-                    </div>
+                    <NftPreviewLightbox
+                      src={media}
+                      kind={kind}
+                      alt={nft.name || "NFT"}
+                      poster={kind === "video" ? poster : null}
+                      showControls={kind === "video"}
+                      fit="contain"
+                      className="h-full w-full"
+                      roundedClass="rounded-none"
+                    />
                   ) : (
                     <div className="text-white/25 font-black">No media</div>
                   )}
@@ -1433,8 +1430,8 @@ export default async function NftDetailsPage({
                         Store primary vs secondary
                       </div>
                       <div className="mt-2 text-[12px] text-sky-50/90 leading-relaxed">
-                        This NFT may support <span className="font-black">primary store delivery</span>
-                        {" "}through the official Realife Store storefront below. But if this NFT is
+                        This NFT may support <span className="font-black">primary store delivery</span>{" "}
+                        through the official Realife Store storefront below. But if this NFT is
                         listed and bought on the secondary market, that secondary trade is{" "}
                         <span className="font-black">trading only</span> and delivery is not included
                         for the secondary buyer.

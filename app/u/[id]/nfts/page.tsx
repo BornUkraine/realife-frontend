@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import NftMedia from "@/components/NftMedia";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import ActivityPanel from "@/components/trading/ActivityPanel";
-import QuickList1155 from "@/components/trading/QuickList1155";
+import GalleryGridClient from "@/components/gallery/GalleryGridClient";
 import type { ReactNode } from "react";
 
 export const runtime = "nodejs";
@@ -49,16 +48,19 @@ const USER_1155_STANDARD_CONTRACT = norm(
     process.env.REALIFE_1155_NEW_CONTRACT ||
     ""
 );
+
 const USER_1155_DELIVERY_CONTRACT = norm(
   process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
     process.env.REALIFE_1155_DELIVERY_CONTRACT ||
     ""
 );
+
 const CAFE_1155_CONTRACT = norm(
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
     process.env.REALIFE_CAFE_STORE_CONTRACT ||
     ""
 );
+
 const STORE_1155_CONTRACT = norm(
   process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT ||
     process.env.REALIFE_STORE_CONTRACT ||
@@ -75,9 +77,6 @@ const ALLOWED_1155_CONTRACTS = [
   CAFE_1155_CONTRACT,
   STORE_1155_CONTRACT,
 ].filter(Boolean);
-
-const CAFE_STOREFRONT_HREF = "/app/real-marketing/realife-cafe";
-const STORE_STOREFRONT_HREF = "/app/real-marketing/realife-store";
 
 const PRIMARY_IPFS_ORIGIN = (
   process.env.NEXT_PUBLIC_IPFS_GATEWAY ||
@@ -99,6 +98,7 @@ const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
 function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
+
   if (
     u.startsWith("http://") ||
     u.startsWith("https://") ||
@@ -107,11 +107,13 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   ) {
     return u;
   }
+
   if (u.startsWith("ipfs://")) {
     let p = u.slice("ipfs://".length);
     if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
     return `${gw}${p}`;
   }
+
   if (u.startsWith("Qm") || u.startsWith("bafy")) return `${gw}${u}`;
   return u;
 }
@@ -120,13 +122,17 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
   for (const gw of IPFS_GATEWAYS) {
     const url = ipfsToHttp(tokenUri, gw);
     if (!url) continue;
+
     try {
       const r = await fetch(url, { cache: "no-store" });
       if (!r.ok) continue;
       const j = await r.json().catch(() => null);
       if (j && typeof j === "object") return j;
-    } catch {}
+    } catch {
+      //
+    }
   }
+
   return null;
 }
 
@@ -158,7 +164,9 @@ async function loadMetadataFromBackend1155(
 
     if (c && returnedContract && returnedContract !== c) return null;
     return j;
-  } catch {}
+  } catch {
+    //
+  }
 
   return null;
 }
@@ -210,6 +218,7 @@ function isLikelyVideoMeta(meta: any) {
       : typeof meta?.animation === "string"
       ? meta.animation
       : null;
+
   return Boolean(anim);
 }
 
@@ -326,13 +335,13 @@ export default async function PublicNFTsPage({
   const session = await getServerSession(authOptions);
   const viewerId = (session as any)?.user?.id || (session as any)?.userId || null;
   const viewerWallet = String(
-    (session as any)?.user?.walletAddress ||
-      (session as any)?.walletAddress ||
-      ""
+    (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
   )
     .trim()
     .toLowerCase();
-  const ownerWallet = String(user.walletAddress || "").trim().toLowerCase();
+  const ownerWallet = String(user.walletAddress || "")
+    .trim()
+    .toLowerCase();
 
   const isOwner = Boolean(
     (viewerId && viewerId === user.id) ||
@@ -381,8 +390,7 @@ export default async function PublicNFTsPage({
     enriched = await mapLimit(holdings, 8, async (x) => {
       const contract = String(x.contract || "").toLowerCase();
       const isCafeNft = !!CAFE_1155_CONTRACT && contract === CAFE_1155_CONTRACT;
-      const isStoreNft =
-        !!STORE_1155_CONTRACT && contract === STORE_1155_CONTRACT;
+      const isStoreNft = !!STORE_1155_CONTRACT && contract === STORE_1155_CONTRACT;
       const isUser1155Nft = USER_1155_CONTRACTS.includes(contract);
       const isDeliveryUserNft =
         !!USER_1155_DELIVERY_CONTRACT && contract === USER_1155_DELIVERY_CONTRACT;
@@ -454,9 +462,9 @@ export default async function PublicNFTsPage({
         id: x.id,
         chainId: x.chainId,
         contract,
-        tokenId: x.tokenId,
+        tokenId: String(x.tokenId),
         ownedAmount: x.amount.toString(),
-        updatedAt: x.updatedAt,
+        updatedAt: x.updatedAt?.toISOString?.() || String(x.updatedAt),
         name: x.mint?.name ?? null,
         tokenUri: x.mint?.tokenUri ?? null,
         kind,
@@ -467,6 +475,7 @@ export default async function PublicNFTsPage({
         isStoreNft,
         isUser1155Nft,
         isDeliveryUserNft,
+        href: buildNftHref(x.chainId, contract, String(x.tokenId), galleryBackHref),
       };
     });
   }
@@ -521,12 +530,11 @@ export default async function PublicNFTsPage({
                     <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-[11px] font-semibold text-white/60">
                       Public gallery
                     </span>
-
-                    {isOwner && (
+                    {isOwner ? (
                       <span className="px-3 py-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 text-[11px] font-semibold text-amber-100">
                         Owner view
                       </span>
-                    )}
+                    ) : null}
                   </div>
 
                   <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight truncate">
@@ -534,18 +542,18 @@ export default async function PublicNFTsPage({
                   </div>
 
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/40">
-                    {publicUrl && (
+                    {publicUrl ? (
                       <>
                         <Link className="hover:underline" href={publicUrl}>
                           Back to profile
                         </Link>
                         <span>•</span>
                       </>
-                    )}
+                    ) : null}
 
                     <span>{itemsCount} items</span>
 
-                    {(cafeCount > 0 || storeCount > 0) && effectiveTab === "nfts" && (
+                    {(cafeCount > 0 || storeCount > 0) && effectiveTab === "nfts" ? (
                       <>
                         <span>•</span>
                         <span>
@@ -554,19 +562,19 @@ export default async function PublicNFTsPage({
                           {storeCount > 0 ? `Store ${storeCount}` : ""}
                         </span>
                       </>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
                 <div className="flex flex-wrap gap-3">
-                  {publicUrl && (
+                  {publicUrl ? (
                     <Link
                       href={publicUrl}
                       className="px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-bold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                     >
                       Profile
                     </Link>
-                  )}
+                  ) : null}
 
                   <Link
                     href="/app/trading"
@@ -615,7 +623,7 @@ export default async function PublicNFTsPage({
             </span>
           </Link>
 
-          {isOwner && (
+          {isOwner ? (
             <Link
               href={tabHref(pageBase, "activity")}
               className={cx(
@@ -630,7 +638,7 @@ export default async function PublicNFTsPage({
                 NEW
               </span>
             </Link>
-          )}
+          ) : null}
         </div>
 
         {effectiveTab === "activity" ? (
@@ -639,151 +647,15 @@ export default async function PublicNFTsPage({
           </div>
         ) : (
           <>
-            <div
-              className="reveal grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
-              style={{ animationDelay: "90ms" }}
-            >
-              {enriched.map((x: any) => {
-                const storefrontHref = x.isCafeNft
-                  ? CAFE_STOREFRONT_HREF
-                  : x.isStoreNft
-                  ? STORE_STOREFRONT_HREF
-                  : null;
+            <GalleryGridClient items={enriched} isOwner={isOwner} />
 
-                const nftHref = buildNftHref(
-                  x.chainId,
-                  x.contract,
-                  String(x.tokenId),
-                  galleryBackHref
-                );
-
-                return (
-                  <Link
-                    key={x.id}
-                    href={nftHref}
-                    className="group rounded-[28px] overflow-hidden border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)] hover:-translate-y-1 transition-all duration-300 hover:bg-white/[0.08]"
-                  >
-                    <div className="relative w-full bg-black/35 min-h-[320px] sm:min-h-[360px] md:min-h-[400px] overflow-hidden">
-                      {isOwner && (
-                        <div className="absolute top-3 right-3 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <QuickList1155
-                            chainId={x.chainId}
-                            contract={x.contract}
-                            tokenId={String(x.tokenId)}
-                            maxAmountHint={String(x.ownedAmount)}
-                            name={x.name}
-                          />
-                        </div>
-                      )}
-
-                      {x.media ? (
-                        <>
-                          <div className="h-full w-full p-3">
-                            <NftMedia
-                              src={x.media}
-                              kind={x.kind}
-                              alt={x.name || "NFT"}
-                              poster={x.kind === "video" ? x.poster : null}
-                              showControls={false}
-                              fit="contain"
-                              enableExpand
-                              className="h-full w-full"
-                              roundedClass="rounded-[22px]"
-                            />
-                          </div>
-
-                          <div className="pointer-events-none absolute top-3 left-3 flex flex-col gap-2 z-10">
-                            {x.kind === "video" && (
-                              <div className="px-2 py-1 rounded-full border border-white/10 bg-black/45 text-[10px] font-bold text-amber-100 backdrop-blur-md">
-                                VIDEO
-                              </div>
-                            )}
-
-                            <div
-                              className={cx(
-                                "px-2 py-1 rounded-full border border-white/10 bg-black/45 text-[10px] font-bold backdrop-blur-md",
-                                x.isCafeNft
-                                  ? "text-amber-100"
-                                  : x.isStoreNft
-                                  ? "text-sky-200"
-                                  : x.isDeliveryUserNft
-                                  ? "text-violet-200"
-                                  : "text-emerald-200"
-                              )}
-                            >
-                              {x.isCafeNft
-                                ? "CAFE"
-                                : x.isStoreNft
-                                ? "STORE"
-                                : x.isDeliveryUserNft
-                                ? "DELIVERY"
-                                : "EDITION"}
-                            </div>
-
-                            <div className="px-2 py-1 rounded-full border border-white/10 bg-black/45 text-[10px] font-bold text-white/75 backdrop-blur-md">
-                              Owned x{x.ownedAmount}
-                            </div>
-                          </div>
-
-                          {x.supply && (
-                            <div className="pointer-events-none absolute bottom-3 right-3 z-10 px-2 py-1 rounded-full border border-white/10 bg-black/45 text-[10px] font-bold text-white/75 backdrop-blur-md">
-                              Supply x{x.supply}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="h-full w-full flex items-center justify-center text-white/25 font-bold">
-                          No media
-                        </div>
-                      )}
-
-                      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.38)_0%,transparent_40%)] opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-
-                    <div className="p-5">
-                      <div className="text-sm font-bold text-white/90 truncate">
-                        {x.name || `Token #${x.tokenId}`}
-                      </div>
-
-                      <div className="mt-1.5 text-[12px] text-white/40 flex items-center justify-between gap-2">
-                        <span className="truncate">{shortAddr(x.contract)}</span>
-                        <span className="font-mono">#{x.tokenId}</span>
-                      </div>
-
-                      {storefrontHref && (
-                        <div className="mt-3">
-                          <span
-                            className={cx(
-                              "inline-flex items-center px-2.5 py-1 rounded-full border text-[10px] font-bold",
-                              x.isCafeNft
-                                ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
-                                : "border-sky-500/20 bg-sky-500/10 text-sky-200"
-                            )}
-                          >
-                            {x.isCafeNft ? "Cafe storefront" : "NFT Store"}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="mt-4 h-px bg-white/10" />
-
-                      <div className="mt-4 text-[12px] font-bold text-amber-100/90 group-hover:text-amber-100 flex items-center justify-between">
-                        <span>View Details</span>
-                        <span>→</span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-
-            {enriched.length === 0 && (
+            {enriched.length === 0 ? (
               <div className="reveal rounded-[28px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60">
                 <div className="text-lg font-bold text-white/85">
-                  This user doesn&apos;t own any NFTs yet.
+                  This user doesn't own any NFTs yet.
                 </div>
 
-                {publicUrl && (
+                {publicUrl ? (
                   <div className="mt-4">
                     <Link
                       href={publicUrl}
@@ -792,9 +664,9 @@ export default async function PublicNFTsPage({
                       Back to profile
                     </Link>
                   </div>
-                )}
+                ) : null}
               </div>
-            )}
+            ) : null}
           </>
         )}
 
