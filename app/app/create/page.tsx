@@ -70,7 +70,7 @@ export default function CreatePage() {
     <div className="space-y-6">
       <Reveal>
         <GoldEdgeWrap className="rounded-[40px]">
-          <div className="relative p-7 md:p-10 overflow-hidden">
+          <div className="relative overflow-hidden p-7 md:p-10">
             <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/14 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
 
@@ -88,7 +88,7 @@ export default function CreatePage() {
 
                 <Pill>
                   <span className="text-white/80 font-extrabold">
-                    ERC-1155 (Unique + Editions)
+                    ERC-1155 NFT
                   </span>
                 </Pill>
 
@@ -99,36 +99,46 @@ export default function CreatePage() {
                 </Pill>
               </div>
 
-              <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
+              <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
                 Create{" "}
-                <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
+                <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
                   Realife NFT
                 </span>
               </h1>
 
-              <p className="mt-4 text-sm md:text-base text-white/70 max-w-3xl leading-relaxed">
-                Prepare metadata on IPFS → sign wallet tx → mint ERC-1155 edition
+              <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
+                Prepare metadata on IPFS → sign wallet tx → mint an ERC-1155 NFT
                 on Base Sepolia.
               </p>
 
-              <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
-                <span className="text-white font-semibold">
-                  Without delivery
+              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
+                Create NFTs for{" "}
+                <span className="font-semibold text-white">
+                  products, services, portfolios, projects, websites,
                 </span>{" "}
-                is public standard mint.
-                {" "}
-                <span className="text-white font-semibold">
-                  With delivery
-                </span>{" "}
-                uses the delivery mint contract and is available only for wallets
-                that are approved in app profile access and allowlisted on-chain.
+                and digital work.
               </div>
 
-              <div className="mt-3 text-sm text-white/70 max-w-3xl leading-relaxed">
+              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
+                <span className="font-semibold text-white">
+                  Without delivery
+                </span>{" "}
+                is the public standard mint flow for digital, service, creative,
+                portfolio, and regular NFT listings.{" "}
+                <span className="font-semibold text-white">
+                  With delivery
+                </span>{" "}
+                uses the delivery mint contract and is available only for
+                approved seller wallets that are enabled in app profile access
+                and allowlisted on-chain.
+              </div>
+
+              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
                 Mint and earn{" "}
-                <span className="text-amber-200 font-extrabold">+10 points</span>.
+                <span className="font-extrabold text-amber-200">+10 points</span>.
                 <span className="text-white/55">
-                  {" "}More mints → more points → stronger creator reputation.
+                  {" "}
+                  More mints → more points → stronger creator reputation.
                 </span>
               </div>
 
@@ -151,14 +161,14 @@ export default function CreatePage() {
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href="/app/faucet"
-                  className="px-6 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                  className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
                 >
                   Get test ETH
                 </Link>
 
                 <Link
                   href="/app"
-                  className="px-6 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-semibold hover:bg-white/10 transition backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                  className="rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                 >
                   Back to App →
                 </Link>
@@ -167,7 +177,7 @@ export default function CreatePage() {
                   href="https://sepolia.basescan.org/"
                   target="_blank"
                   rel="noreferrer"
-                  className="px-6 py-3 rounded-2xl border border-white/15 bg-white/[0.06] font-semibold hover:bg-white/10 transition backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                  className="rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                 >
                   Explorer ↗
                 </a>
@@ -186,7 +196,7 @@ export default function CreatePage() {
       </Reveal>
 
       <Reveal delayMs={200}>
-        <div className="pt-2 pb-6 text-xs text-white/45 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 pt-2 pb-6 text-xs text-white/45">
           <div>© {year} Realife</div>
           <div className="flex items-center gap-4">
             <span className="opacity-60">ERC-1155</span>

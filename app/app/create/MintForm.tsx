@@ -29,6 +29,9 @@ const CATEGORIES = [
   "Educational",
   "Personal creative",
   "AI work",
+  "Services",
+  "Resume / CV",
+  "Other",
 ] as const;
 
 const ITEM_TYPES = [
@@ -40,6 +43,15 @@ const ITEM_TYPES = [
   "Home / Decor",
   "Product",
   "Other valuable item",
+  "Digital Service",
+  "Consultation",
+  "Training",
+  "Coaching",
+  "Lesson",
+  "Portfolio",
+  "Project",
+  "Website",
+  "Digital Product",
 ] as const;
 
 type DeliveryMode = "none" | "delivery";
@@ -1351,7 +1363,7 @@ export default function MintForm() {
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Category</div>
-              <div className="text-[11px] text-white/55 mt-1">Choose one or more to enrich metadata.</div>
+              <div className="text-[11px] text-white/55 mt-1">Choose one or more categories to describe your NFT.</div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-white/60" />
@@ -1398,7 +1410,9 @@ export default function MintForm() {
           <div className="flex items-end justify-between mb-4">
             <div>
               <div className="text-sm font-extrabold tracking-tight">Item type</div>
-              <div className="text-[11px] text-white/55 mt-1">Describe the physical type of the item behind this NFT.</div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Describe what this NFT represents: a product, service, project, website, or portfolio.
+              </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
