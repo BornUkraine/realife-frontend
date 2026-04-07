@@ -43,8 +43,11 @@ type PreviewState = {
   alt?: string;
 } | null;
 
-const hoverActionClass =
-  "opacity-0 translate-y-1 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:translate-y-0 group-focus-within:pointer-events-auto";
+const quickListHoverClass =
+  "invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100";
+
+const previewHoverClass =
+  "invisible opacity-0 translate-y-1 pointer-events-none transition-all duration-200 group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100 group-focus-within:translate-y-0 group-focus-within:pointer-events-auto";
 
 export default function GalleryGridClient({
   items,
@@ -90,7 +93,7 @@ export default function GalleryGridClient({
                 <>
                   <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-2">
                     {isOwner ? (
-                      <div className={hoverActionClass}>
+                      <div className={cx("z-30", quickListHoverClass)}>
                         <QuickList1155
                           chainId={x.chainId}
                           contract={x.contract}
@@ -101,27 +104,25 @@ export default function GalleryGridClient({
                       </div>
                     ) : null}
 
-                    <button
-                      type="button"
-                      aria-label="Open full preview"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setPreview({
-                          src: x.media!,
-                          kind: x.kind,
-                          poster: x.kind === "video" ? x.poster : null,
-                          alt: x.name || "NFT",
-                        });
-                      }}
-                      className={cx(
-                        "inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white/90 backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.35)]",
-                        "transition-all duration-200 hover:scale-[1.04] hover:bg-black/60 active:scale-[0.98]",
-                        hoverActionClass
-                      )}
-                    >
-                      <span className="text-lg leading-none">⤢</span>
-                    </button>
+                    <div className={cx("z-20", previewHoverClass)}>
+                      <button
+                        type="button"
+                        aria-label="Open full preview"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setPreview({
+                            src: x.media!,
+                            kind: x.kind,
+                            poster: x.kind === "video" ? x.poster : null,
+                            alt: x.name || "NFT",
+                          });
+                        }}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white/90 backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.35)] transition-all duration-200 hover:scale-[1.04] hover:bg-black/60 active:scale-[0.98]"
+                      >
+                        <span className="text-lg leading-none">⤢</span>
+                      </button>
+                    </div>
                   </div>
 
                   <NftMedia
