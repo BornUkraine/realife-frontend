@@ -12,7 +12,6 @@ datasource db {
  * ENUMS
  * ==========================================================================
  */
-
 enum NftStandard {
   ERC721
   ERC1155
@@ -79,7 +78,6 @@ enum SupportRole {
  * USER
  * ==========================================================================
  */
-
 model User {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -140,10 +138,9 @@ model User {
   /**
    * ---------------- Points & rewards ----------------
    */
-  points      Int       @default(0)
+  points      Int        @default(0)
   lastDailyAt DateTime?
-
-  events PointEvent[]
+  events      PointEvent[]
 
   /**
    * ---------------- Minted NFTs ----------------
@@ -155,8 +152,8 @@ model User {
    */
   holdings     Holding[]
   listings     Listing[]
-  tradesSold   Trade[]   @relation("TradeSeller")
-  tradesBought Trade[]   @relation("TradeBuyer")
+  tradesSold   Trade[] @relation("TradeSeller")
+  tradesBought Trade[] @relation("TradeBuyer")
 
   /**
    * ---------------- Store / delivery / escrow orders ------------
@@ -177,12 +174,10 @@ model User {
  * WALLET NONCE
  * ==========================================================================
  */
-
 model WalletNonce {
   address   String   @id
   nonce     String
   expiresAt DateTime
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -194,18 +189,16 @@ model WalletNonce {
  * POINT EVENTS
  * ==========================================================================
  */
-
 model PointEvent {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
 
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type   String
-  points Int
-  meta   Json?
-
+  type      String
+  points    Int
+  meta      Json?
   refUserId String?
 
   @@unique([userId, type, refUserId])
@@ -218,13 +211,10 @@ model PointEvent {
  * TEMP STORAGE FOR X OAUTH LINKING
  * ==========================================================================
  */
-
 model TwitterLinkAttempt {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now())
   sessionToken String
-
   twitterId    String
   twitterUser  String?
   twitterName  String?
@@ -240,14 +230,12 @@ model TwitterLinkAttempt {
  * NFT CATALOG ENTRY
  * ==========================================================================
  */
-
 model Mint {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   chainId  Int
   contract String
@@ -257,21 +245,6 @@ model Mint {
   tokenUri String?
   name     String?
   image    String?
-
-  /**
-   * ---------------- Fast snapshot metadata for cards / grids ----------------
-   */
-  animationUrl     String?
-  description      String?
-  collection       String?
-  brand            String?
-  project          String?
-  item             String?
-  rarity           String?
-  category         String?
-  mediaKind        String?
-  metadataSyncedAt DateTime?
-  metadataError    String?
 
   verified Boolean @default(true)
 
@@ -290,9 +263,6 @@ model Mint {
   @@index([userId, createdAt])
   @@index([chainId, contract, tokenId])
   @@index([deliveryEnabled, physicalItemIncluded])
-  @@index([verified, createdAt])
-  @@index([metadataSyncedAt])
-  @@index([verified, metadataSyncedAt])
 }
 
 /**
@@ -300,14 +270,13 @@ model Mint {
  * HOLDINGS
  * ==========================================================================
  */
-
 model Holding {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   chainId  Int
   contract String
@@ -321,7 +290,6 @@ model Holding {
   @@unique([userId, chainId, contract, tokenId])
   @@index([userId])
   @@index([chainId, contract, tokenId])
-  @@index([userId, updatedAt, id])
 }
 
 /**
@@ -329,7 +297,6 @@ model Holding {
  * LISTINGS
  * ==========================================================================
  */
-
 model Listing {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -344,7 +311,7 @@ model Listing {
   standard NftStandard
 
   sellerId String?
-  seller   User?   @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  seller   User? @relation(fields: [sellerId], references: [id], onDelete: SetNull)
 
   /**
    * STANDARD = old normal marketplace
@@ -357,11 +324,11 @@ model Listing {
    */
   marketplaceContract String?
 
-  sellerWallet         String
-  marketplaceListingId BigInt
-  pricePerUnitWei      BigInt
-  amountTotal          BigInt @default(1)
-  amountRemaining      BigInt @default(1)
+  sellerWallet          String
+  marketplaceListingId  BigInt
+  pricePerUnitWei       BigInt
+  amountTotal           BigInt @default(1)
+  amountRemaining       BigInt @default(1)
 
   /**
    * ---------------- Snapshot of delivery / physical state at listing time ---
@@ -373,7 +340,6 @@ model Listing {
   status      ListingStatus @default(ACTIVE)
   cancelledAt DateTime?
   soldOutAt   DateTime?
-
   createdTxHash String?
 
   @@unique([chainId, marketType, marketplaceListingId])
@@ -386,13 +352,6 @@ model Listing {
   @@index([marketplaceContract])
   @@index([marketType, marketplaceListingId])
   @@index([marketplaceContract, marketplaceListingId])
-  /**
-   * ---------------- Fast listing page / trading page indexes ----------------
-   */
-  @@index([status, createdAt, id])
-  @@index([contract, status, createdAt, id])
-  @@index([marketType, status, createdAt, id])
-  @@index([sellerWallet, status, createdAt, id])
 }
 
 /**
@@ -400,7 +359,6 @@ model Listing {
  * TRADES
  * ==========================================================================
  */
-
 model Trade {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -413,26 +371,26 @@ model Trade {
 
   standard NftStandard
 
-  txHash   String
-  logIndex Int
-
+  txHash    String
+  logIndex  Int
   blockNum  BigInt
   blockTime DateTime
 
   marketplaceListingId  BigInt?
   marketplacePurchaseId BigInt?
 
-  marketType          MarketType @default(STANDARD)
+  marketType MarketType @default(STANDARD)
+
   marketplaceContract String?
 
   sellerWallet String
   buyerWallet  String
 
   sellerId String?
-  seller   User?   @relation("TradeSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  seller   User? @relation("TradeSeller", fields: [sellerId], references: [id], onDelete: SetNull)
 
   buyerId String?
-  buyer   User?   @relation("TradeBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  buyer   User? @relation("TradeBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
 
   amount          BigInt @default(1)
   pricePerUnitWei BigInt
@@ -457,7 +415,6 @@ model Trade {
  * INDEXER STATE
  * ==========================================================================
  */
-
 model IndexerState {
   id        String   @id @default(cuid())
   chainId   Int
@@ -474,7 +431,6 @@ model IndexerState {
  * REAL MARKETING PRODUCTS
  * ==========================================================================
  */
-
 model RealMarketingProduct {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -499,7 +455,8 @@ model RealMarketingProduct {
   mintedSupply BigInt @default(0)
   price        BigInt @default(0)
 
-  isActive             Boolean @default(true)
+  isActive Boolean @default(true)
+
   deliveryEnabled      Boolean @default(false)
   physicalItemIncluded Boolean @default(false)
   officialItem         Boolean @default(false)
@@ -519,7 +476,6 @@ model RealMarketingProduct {
  * STORE ORDERS (delivery + escrow flow)
  * ==========================================================================
  */
-
 model StoreOrder {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
@@ -531,13 +487,13 @@ model StoreOrder {
 
   /**
    * Source of order:
-   * STORE       -> buy from store/cafe/etc
+   * STORE -> buy from store/cafe/etc
    * MARKETPLACE -> secondary sale from trading
    */
   sourceType OrderSourceType @default(STORE)
 
   /**
-   * PRIMARY   -> direct primary sale
+   * PRIMARY -> direct primary sale
    * SECONDARY -> resale / trading sale
    */
   orderKind OrderKind @default(PRIMARY)
@@ -547,25 +503,26 @@ model StoreOrder {
    */
   vertical String
 
-  marketType          MarketType @default(STANDARD)
+  marketType MarketType @default(STANDARD)
+
   marketplaceContract String?
 
   buyerWallet  String
   sellerWallet String
 
-  buyerId  String?
+  buyerId String?
   sellerId String?
 
-  buyer  User? @relation("StoreOrderBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  buyer User? @relation("StoreOrderBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
   seller User? @relation("StoreOrderSeller", fields: [sellerId], references: [id], onDelete: SetNull)
 
   /**
    * Optional links to marketplace entities
    */
-  listingId             String?
-  tradeId               String?
-  marketplaceListingId  BigInt?
-  marketplacePurchaseId BigInt?
+  listingId              String?
+  tradeId                String?
+  marketplaceListingId   BigInt?
+  marketplacePurchaseId  BigInt?
 
   amount     BigInt @default(1)
   unitPrice  BigInt
@@ -604,7 +561,7 @@ model StoreOrder {
   escrowReleaseTxHash String?
   escrowRefundTxHash  String?
 
-  noteBuyer  String?
+  noteBuyer String?
   noteSeller String?
   adminNote  String?
 
@@ -638,17 +595,19 @@ model StoreOrder {
  * DELIVERY CHAT / ORDER ROOM MESSAGES
  * ==========================================================================
  */
-
 model DeliveryMessage {
-  id           String              @id @default(cuid())
-  orderId      String
+  id        String   @id @default(cuid())
+  orderId   String
+
   senderUserId String?
   senderWallet String?
   senderRole   DeliveryMessageRole
-  body         String
-  isInternal   Boolean             @default(false)
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+
+  body       String
+  isInternal Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   order StoreOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
