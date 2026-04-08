@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatUnits } from "viem";
 import { useAccount } from "wagmi";
 import ActivityPanel from "@/components/trading/ActivityPanel";
+import NftMedia from "@/components/NftMedia";
 
 type MarketType = "STANDARD" | "DELIVERY";
 type MarketView =
@@ -48,6 +49,11 @@ type MarketListing = {
 
 type ProductMeta = {
   image?: string | null;
+  image_url?: string | null;
+  imageUrl?: string | null;
+  animation_url?: string | null;
+  animationUrl?: string | null;
+  animation?: string | null;
   name?: string | null;
   description?: string | null;
   project?: string | null;
@@ -66,7 +72,17 @@ type EnrichedMarketListing = MarketListing & {
   rarity?: string | null;
   brand?: string | null;
   project?: string | null;
+  mediaKind?: "image" | "video";
+  mediaSrc?: string | null;
+  mediaPoster?: string | null;
 };
+
+type PreviewState = {
+  src: string;
+  kind: "image" | "video";
+  poster?: string | null;
+  alt?: string;
+} | null;
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
@@ -111,6 +127,8 @@ const IPFS_GATEWAYS = [
   "https://cloudflare-ipfs.com/ipfs/",
   "https://ipfs.io/ipfs/",
 ] as const;
+
+const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
 
 const CAFE_CONTRACT = String(
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT || ""
@@ -158,6 +176,17 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   if (u.startsWith("/ipfs/")) return `${gw}${u.slice("/ipfs/".length)}`;
   if (u.startsWith("Qm") || u.startsWith("bafy")) return `${gw}${u}`;
   return u;
+}
+
+function isLikelyVideoUrl(u?: string | null) {
+  const s = String(u || "").toLowerCase();
+  const clean = s.split("?")[0].split("#")[0];
+  return (
+    clean.endsWith(".mp4") ||
+    clean.endsWith(".webm") ||
+    clean.endsWith(".mov") ||
+    clean.endsWith(".m4v")
+  );
 }
 
 async function fetchJSON(url: string) {
@@ -325,10 +354,33 @@ export default function TradingClient({
 
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<"new" | "priceAsc" | "priceDesc">("new");
+  const [preview, setPreview] = useState<PreviewState>(null);
 
   useEffect(() => {
     setMarketView(initialMarketView);
   }, [initialMarketView]);
+
+  useEffect(() => {
+    if (!preview) return;
+
+    const prevBodyOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPreview(null);
+    };
+
+    window.addEventListener("keydown", onKey);
+
+    return () => {
+      document.body.style.overflow = prevBodyOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [preview]);
 
   const marketCfg = useMemo(() => getMarketViewConfig(marketView), [marketView]);
   const marketNote = useMemo(() => getMarketViewNote(marketView), [marketView]);
@@ -426,12 +478,34 @@ export default function TradingClient({
         items.map(async (item) => {
           const meta = await loadMetadata(item.mint?.tokenUri || null);
 
+          const metaImageRaw =
+            meta?.image || meta?.image_url || meta?.imageUrl || null;
+
+          const metaAnimationRaw =
+            meta?.animation_url || meta?.animationUrl || meta?.animation || null;
+
+          const imgHttp =
+            ipfsToHttp(metaImageRaw) ||
+            ipfsToHttp(item.mint?.image || null) ||
+            null;
+
+          const animHttp =
+            ipfsToHttp(metaAnimationRaw, PINATA_IPFS) ||
+            ipfsToHttp(metaAnimationRaw) ||
+            null;
+
+          const mediaKind: "image" | "video" =
+            metaAnimationRaw || isLikelyVideoUrl(animHttp) ? "video" : "image";
+
+          const mediaSrc =
+            mediaKind === "video" ? animHttp || null : imgHttp || null;
+
+          const mediaPoster =
+            mediaKind === "video" ? imgHttp || null : null;
+
           return {
             ...item,
-            metaImage:
-              ipfsToHttp(meta?.image || null) ||
-              ipfsToHttp(item.mint?.image || null) ||
-              null,
+            metaImage: imgHttp,
             metaDescription: meta?.description || null,
             collection: meta?.collection || getAttr(meta, "Collection") || null,
             item:
@@ -442,6 +516,9 @@ export default function TradingClient({
             rarity: meta?.rarity || getAttr(meta, "Rarity") || null,
             brand: meta?.brand || getAttr(meta, "Brand") || null,
             project: meta?.project || getAttr(meta, "Project") || null,
+            mediaKind,
+            mediaSrc: mediaKind === "video" ? mediaSrc : imgHttp || null,
+            mediaPoster,
           } satisfies EnrichedMarketListing;
         })
       );
@@ -828,11 +905,6 @@ export default function TradingClient({
                   Boolean(PUBLIC_DELIVERY_CONTRACT) &&
                   normAddr(x.contract) === PUBLIC_DELIVERY_CONTRACT;
 
-                const img =
-                  x?.metaImage ||
-                  ipfsToHttp(x?.mint?.image || null) ||
-                  null;
-
                 const rowMarketType: MarketType =
                   isPublicDelivery ? "DELIVERY" : "STANDARD";
 
@@ -861,6 +933,22 @@ export default function TradingClient({
                   ? "text-violet-100 bg-violet-500/10 border-violet-500/20"
                   : "text-white/85 bg-black/50 border-white/10";
 
+                const cardPreviewSrc =
+                  x.mediaSrc ||
+                  x.metaImage ||
+                  ipfsToHttp(x?.mint?.image || null) ||
+                  null;
+
+                const cardPoster =
+                  x.mediaKind === "video"
+                    ? x.mediaPoster || x.metaImage || ipfsToHttp(x?.mint?.image || null)
+                    : null;
+
+                const cardImage =
+                  x.mediaKind === "video"
+                    ? cardPoster
+                    : cardPreviewSrc || x.metaImage || ipfsToHttp(x?.mint?.image || null);
+
                 return (
                   <Link
                     key={x.id}
@@ -872,11 +960,13 @@ export default function TradingClient({
                     )}
                   >
                     <div className="aspect-square w-full bg-black/30 relative">
-                      {img ? (
+                      {cardImage ? (
                         <img
-                          src={img}
+                          src={cardImage}
                           alt={x.mint?.name || "NFT"}
                           className="h-full w-full object-cover"
+                          referrerPolicy="no-referrer"
+                          draggable={false}
                         />
                       ) : (
                         <div className="h-full w-full flex items-center justify-center text-white/25 font-black">
@@ -884,7 +974,7 @@ export default function TradingClient({
                         </div>
                       )}
 
-                      <div className="absolute top-3 left-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute top-3 left-3 z-20 flex flex-col gap-2 opacity-0 transition-opacity pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
                         <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-emerald-200">
                           ACTIVE
                         </div>
@@ -898,6 +988,12 @@ export default function TradingClient({
                           {topLabel}
                         </div>
 
+                        {x.mediaKind === "video" ? (
+                          <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-amber-100">
+                            VIDEO
+                          </div>
+                        ) : null}
+
                         {isMine ? (
                           <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-amber-100">
                             YOUR LISTING
@@ -905,7 +1001,7 @@ export default function TradingClient({
                         ) : null}
                       </div>
 
-                      <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-2 opacity-0 transition-all duration-200 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
                         <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-white/85">
                           x{x.amountRemaining}
                         </div>
@@ -913,6 +1009,26 @@ export default function TradingClient({
                         <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-white/85">
                           {marketLabel(rowMarketType)}
                         </div>
+
+                        {cardPreviewSrc ? (
+                          <button
+                            type="button"
+                            aria-label="Open full preview"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setPreview({
+                                src: cardPreviewSrc,
+                                kind: x.mediaKind === "video" ? "video" : "image",
+                                poster: x.mediaKind === "video" ? cardPoster : null,
+                                alt: x.mint?.name || `Token #${x.tokenId}`,
+                              });
+                            }}
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white/90 backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.35)] transition-all duration-200 hover:scale-[1.04] hover:bg-black/60 active:scale-[0.98]"
+                          >
+                            <span className="text-lg leading-none">⤢</span>
+                          </button>
+                        ) : null}
                       </div>
 
                       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.55)_0%,transparent_45%)]" />
@@ -1041,6 +1157,60 @@ export default function TradingClient({
           </div>
         </>
       )}
+
+      {preview ? (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-sm"
+          onClick={() => setPreview(null)}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setPreview(null);
+            }}
+            aria-label="Close"
+            className="absolute right-4 top-4 z-[10000] inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-black/50 text-white backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.35)] transition hover:scale-[1.04] hover:bg-black/70"
+          >
+            <span className="text-xl leading-none">✕</span>
+          </button>
+
+          <div className="absolute inset-x-0 top-0 z-[10000] pointer-events-none">
+            <div className="mx-auto max-w-6xl px-5 pt-5">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[11px] font-bold text-white/70 backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.25)]">
+                <span>Fullscreen Preview</span>
+                <span className="text-white/30">•</span>
+                <span className={preview.kind === "video" ? "text-amber-100" : "text-white/75"}>
+                  {preview.kind === "video" ? "VIDEO" : "IMAGE"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className="flex h-full w-full items-center justify-center p-4 sm:p-6 md:p-10"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            <div className="relative flex h-full w-full items-center justify-center">
+              <NftMedia
+                src={preview.src}
+                kind={preview.kind}
+                alt={preview.alt || "NFT"}
+                poster={preview.kind === "video" ? preview.poster || null : null}
+                className="h-full w-full"
+                roundedClass="rounded-none"
+                showControls={true}
+                fit="contain"
+                mediaBgClass="bg-black"
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

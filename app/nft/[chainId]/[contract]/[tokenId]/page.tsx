@@ -1170,7 +1170,7 @@ export default async function NftDetailsPage({
       </div>
 
       <div className="relative mx-auto max-w-[1480px] px-6 py-10 space-y-8">
-        <div className="reveal flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="reveal grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/40">
               {backToGalleryHref ? (
@@ -1212,11 +1212,20 @@ export default async function NftDetailsPage({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex w-full flex-col gap-3 sm:w-auto xl:justify-self-end">
+            {backToGalleryHref ? (
+              <Link
+                href={backToGalleryHref}
+                className="inline-flex min-w-[190px] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+              >
+                Back to gallery
+              </Link>
+            ) : null}
+
             {isCafeNft ? (
               <Link
                 href={CAFE_STOREFRONT_HREF}
-                className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 font-bold transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                className="inline-flex min-w-[190px] items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 font-bold transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
                 Cafe storefront
               </Link>
@@ -1225,18 +1234,9 @@ export default async function NftDetailsPage({
             {isStoreNft ? (
               <Link
                 href={STORE_STOREFRONT_HREF}
-                className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 font-bold transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                className="inline-flex min-w-[190px] items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 font-bold transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
                 NFT Store
-              </Link>
-            ) : null}
-
-            {backToGalleryHref ? (
-              <Link
-                href={backToGalleryHref}
-                className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
-              >
-                Back to gallery
               </Link>
             ) : null}
           </div>
