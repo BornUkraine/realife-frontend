@@ -44,19 +44,24 @@ type MarketListing = {
     deliveryEnabled?: boolean;
     physicalItemIncluded?: boolean;
     officialItem?: boolean;
+  };
+};
 
-    animationUrl?: string | null;
-    description?: string | null;
-    collection?: string | null;
-    brand?: string | null;
-    project?: string | null;
-    item?: string | null;
-    rarity?: string | null;
-    category?: string | null;
-    mediaKind?: string | null;
-    metadataSyncedAt?: string | null;
-    metadataError?: string | null;
-  } | null;
+type ProductMeta = {
+  image?: string | null;
+  image_url?: string | null;
+  imageUrl?: string | null;
+  animation_url?: string | null;
+  animationUrl?: string | null;
+  animation?: string | null;
+  name?: string | null;
+  description?: string | null;
+  project?: string | null;
+  brand?: string | null;
+  collection?: string | null;
+  item?: string | null;
+  rarity?: string | null;
+  attributes?: Array<{ trait_type?: string; value?: string | number | null }>;
 };
 
 type EnrichedMarketListing = MarketListing & {
@@ -67,7 +72,6 @@ type EnrichedMarketListing = MarketListing & {
   rarity?: string | null;
   brand?: string | null;
   project?: string | null;
-  category?: string | null;
   mediaKind?: "image" | "video";
   mediaSrc?: string | null;
   mediaPoster?: string | null;
@@ -174,11 +178,50 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   return u;
 }
 
+function isLikelyVideoUrl(u?: string | null) {
+  const s = String(u || "").toLowerCase();
+  const clean = s.split("?")[0].split("#")[0];
+  return (
+    clean.endsWith(".mp4") ||
+    clean.endsWith(".webm") ||
+    clean.endsWith(".mov") ||
+    clean.endsWith(".m4v")
+  );
+}
+
 async function fetchJSON(url: string) {
   const r = await fetch(url, { cache: "no-store" });
   const j = await r.json().catch(() => null);
   if (!r.ok || !j) throw new Error(j?.error || "fetch_failed");
   return j;
+}
+
+async function loadMetadata(tokenUri?: string | null): Promise<ProductMeta | null> {
+  if (!tokenUri) return null;
+
+  for (const gw of IPFS_GATEWAYS) {
+    const url = ipfsToHttp(tokenUri, gw);
+    if (!url) continue;
+
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) continue;
+      const j = await r.json().catch(() => null);
+      if (j && typeof j === "object") return j as ProductMeta;
+    } catch {
+      //
+    }
+  }
+
+  return null;
+}
+
+function getAttr(meta: ProductMeta | null, trait: string) {
+  const attrs = Array.isArray(meta?.attributes) ? meta.attributes : [];
+  const found = attrs.find(
+    (x) => String(x?.trait_type || "").toLowerCase() === trait.toLowerCase()
+  );
+  return found?.value != null ? String(found.value) : null;
 }
 
 function getMarketViewConfig(view: MarketView) {
@@ -294,7 +337,6 @@ export default function TradingClient({
   lockMarketView?: boolean;
 }) {
   const { address, isConnected } = useAccount();
-
   const wallet = useMemo(
     () => normAddr(address) || normAddr(viewerWallet),
     [address, viewerWallet]
@@ -358,7 +400,6 @@ export default function TradingClient({
         const market = String(x.marketType || "").toLowerCase();
         const brand = String(x.brand || "").toLowerCase();
         const project = String(x.project || "").toLowerCase();
-        const category = String(x.category || "").toLowerCase();
         const contract = String(x.contract || "").toLowerCase();
 
         return (
@@ -370,7 +411,6 @@ export default function TradingClient({
           rarity.includes(qq) ||
           brand.includes(qq) ||
           project.includes(qq) ||
-          category.includes(qq) ||
           market.includes(qq) ||
           contract.includes(qq)
         );
@@ -434,39 +474,54 @@ export default function TradingClient({
       const items = (j?.listings || []) as MarketListing[];
       const t = Number(j?.total || 0);
 
-      const enriched: EnrichedMarketListing[] = items.map((item) => {
-        const poster =
-          ipfsToHttp(item.mint?.image || null) ||
-          null;
+      const enriched = await Promise.all(
+        items.map(async (item) => {
+          const meta = await loadMetadata(item.mint?.tokenUri || null);
 
-        const animationUrl =
-          ipfsToHttp(item.mint?.animationUrl || null, PINATA_IPFS) ||
-          ipfsToHttp(item.mint?.animationUrl || null) ||
-          null;
+          const metaImageRaw =
+            meta?.image || meta?.image_url || meta?.imageUrl || null;
 
-        const mediaKind: "image" | "video" =
-          item.mint?.mediaKind === "video" || animationUrl ? "video" : "image";
+          const metaAnimationRaw =
+            meta?.animation_url || meta?.animationUrl || meta?.animation || null;
 
-        const mediaSrc =
-          mediaKind === "video" ? animationUrl || null : poster || null;
+          const imgHttp =
+            ipfsToHttp(metaImageRaw) ||
+            ipfsToHttp(item.mint?.image || null) ||
+            null;
 
-        const mediaPoster = mediaKind === "video" ? poster || null : null;
+          const animHttp =
+            ipfsToHttp(metaAnimationRaw, PINATA_IPFS) ||
+            ipfsToHttp(metaAnimationRaw) ||
+            null;
 
-        return {
-          ...item,
-          metaImage: poster,
-          metaDescription: item.mint?.description || null,
-          collection: item.mint?.collection || null,
-          item: item.mint?.item || null,
-          rarity: item.mint?.rarity || null,
-          brand: item.mint?.brand || null,
-          project: item.mint?.project || null,
-          category: item.mint?.category || null,
-          mediaKind,
-          mediaSrc,
-          mediaPoster,
-        };
-      });
+          const mediaKind: "image" | "video" =
+            metaAnimationRaw || isLikelyVideoUrl(animHttp) ? "video" : "image";
+
+          const mediaSrc =
+            mediaKind === "video" ? animHttp || null : imgHttp || null;
+
+          const mediaPoster =
+            mediaKind === "video" ? imgHttp || null : null;
+
+          return {
+            ...item,
+            metaImage: imgHttp,
+            metaDescription: meta?.description || null,
+            collection: meta?.collection || getAttr(meta, "Collection") || null,
+            item:
+              meta?.item ||
+              getAttr(meta, "Item") ||
+              getAttr(meta, "Drink") ||
+              null,
+            rarity: meta?.rarity || getAttr(meta, "Rarity") || null,
+            brand: meta?.brand || getAttr(meta, "Brand") || null,
+            project: meta?.project || getAttr(meta, "Project") || null,
+            mediaKind,
+            mediaSrc: mediaKind === "video" ? mediaSrc : imgHttp || null,
+            mediaPoster,
+          } satisfies EnrichedMarketListing;
+        })
+      );
 
       setTotal(t);
       setSkip(nextSkip);
@@ -488,7 +543,6 @@ export default function TradingClient({
 
   const goldWrap =
     "rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.60)]";
-
   const goldCard =
     "rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10";
 
@@ -747,7 +801,7 @@ export default function TradingClient({
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="name / token id / seller / rarity / item / brand / project / collection / category…"
+                    placeholder="name / token id / seller / rarity / item / brand / project / collection…"
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                   />
                 </div>
@@ -783,7 +837,9 @@ export default function TradingClient({
 
                     {wallet ? (
                       <button
-                        onClick={() => setQ(wallet)}
+                        onClick={() => {
+                          setQ(wallet);
+                        }}
                         className="px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100"
                       >
                         My listings
@@ -834,10 +890,12 @@ export default function TradingClient({
                 const isMine = Boolean(wallet && normAddr(x.sellerWallet) === wallet);
 
                 const isCafe =
-                  Boolean(CAFE_CONTRACT) && normAddr(x.contract) === CAFE_CONTRACT;
+                  Boolean(CAFE_CONTRACT) &&
+                  normAddr(x.contract) === CAFE_CONTRACT;
 
                 const isStore =
-                  Boolean(STORE_CONTRACT) && normAddr(x.contract) === STORE_CONTRACT;
+                  Boolean(STORE_CONTRACT) &&
+                  normAddr(x.contract) === STORE_CONTRACT;
 
                 const isPublicStandard =
                   Boolean(PUBLIC_STANDARD_CONTRACT) &&
@@ -876,19 +934,20 @@ export default function TradingClient({
                   : "text-white/85 bg-black/50 border-white/10";
 
                 const cardPreviewSrc =
-                  x.mediaKind === "video"
-                    ? x.mediaSrc || null
-                    : x.metaImage || null;
+                  x.mediaSrc ||
+                  x.metaImage ||
+                  ipfsToHttp(x?.mint?.image || null) ||
+                  null;
 
                 const cardPoster =
                   x.mediaKind === "video"
-                    ? x.mediaPoster || x.metaImage || null
+                    ? x.mediaPoster || x.metaImage || ipfsToHttp(x?.mint?.image || null)
                     : null;
 
                 const cardImage =
                   x.mediaKind === "video"
                     ? cardPoster
-                    : x.metaImage || null;
+                    : cardPreviewSrc || x.metaImage || ipfsToHttp(x?.mint?.image || null);
 
                 return (
                   <Link
@@ -906,8 +965,6 @@ export default function TradingClient({
                           src={cardImage}
                           alt={x.mint?.name || "NFT"}
                           className="h-full w-full object-cover"
-                          loading="lazy"
-                          decoding="async"
                           referrerPolicy="no-referrer"
                           draggable={false}
                         />

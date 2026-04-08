@@ -37,19 +37,6 @@ const ADMIN_WALLETS = (
   .map((v) => v.trim().toLowerCase())
   .filter(Boolean);
 
-const PRIMARY_IPFS_ORIGIN = (
-  process.env.NEXT_PUBLIC_IPFS_GATEWAY ||
-  process.env.IPFS_GATEWAY_ORIGIN ||
-  "https://nftstorage.link"
-).replace(/\/$/, "");
-
-const IPFS_GATEWAYS = [
-  `${PRIMARY_IPFS_ORIGIN}/ipfs/`,
-  "https://gateway.pinata.cloud/ipfs/",
-  "https://cloudflare-ipfs.com/ipfs/",
-  "https://ipfs.io/ipfs/",
-] as const;
-
 const cafeProductCreatedAbi = [
   {
     type: "event",
@@ -103,41 +90,6 @@ function isHexTxHash(v?: string | null) {
   return /^0x[a-fA-F0-9]{64}$/.test(String(v || "").trim());
 }
 
-function isLikelyVideoUrl(u?: string | null) {
-  const s = String(u || "").toLowerCase();
-  const clean = s.split("?")[0].split("#")[0];
-  return (
-    clean.endsWith(".mp4") ||
-    clean.endsWith(".webm") ||
-    clean.endsWith(".mov") ||
-    clean.endsWith(".m4v")
-  );
-}
-
-function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
-  const u = String(uri || "").trim();
-  if (!u) return null;
-
-  if (
-    u.startsWith("http://") ||
-    u.startsWith("https://") ||
-    u.startsWith("data:") ||
-    u.startsWith("blob:")
-  ) {
-    return u;
-  }
-
-  if (u.startsWith("ipfs://")) {
-    let p = u.slice("ipfs://".length);
-    if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
-    return `${gw}${p}`;
-  }
-
-  if (u.startsWith("/ipfs/")) return `${gw}${u.slice("/ipfs/".length)}`;
-  if (u.startsWith("Qm") || u.startsWith("bafy")) return `${gw}${u}`;
-  return u;
-}
-
 function toPosInt(v: unknown, def = 1) {
   const n = Number(v ?? def);
   if (!Number.isFinite(n)) return null;
@@ -163,151 +115,6 @@ function hasOwn(obj: unknown, key: string) {
 function cleanString(v: unknown, max = 2000) {
   const s = String(v || "").trim();
   return s ? s.slice(0, max) : null;
-}
-
-function pickAttrValue(meta: any, trait: string): string | null {
-  const attrs = Array.isArray(meta?.attributes) ? meta.attributes : [];
-  const t = trait.toLowerCase();
-  const hit = attrs.find(
-    (a: any) => String(a?.trait_type || "").toLowerCase() === t
-  );
-  const value = hit?.value;
-  return value == null ? null : String(value).trim() || null;
-}
-
-function pickAttrAny(meta: any, traits: string[]): string | null {
-  for (const trait of traits) {
-    const value = pickAttrValue(meta, trait);
-    if (value) return value;
-  }
-  return null;
-}
-
-function pickAny(meta: any, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = meta?.[key];
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return null;
-}
-
-async function loadJsonFromGateways(tokenUri?: string | null) {
-  if (!tokenUri) return null;
-
-  for (const gateway of IPFS_GATEWAYS) {
-    const url = ipfsToHttp(tokenUri, gateway);
-    if (!url) continue;
-
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2500);
-
-      const response = await fetch(url, {
-        cache: "no-store",
-        signal: controller.signal,
-      }).catch(() => null);
-
-      clearTimeout(timeout);
-
-      if (!response || !response.ok) continue;
-
-      const data = await response.json().catch(() => null);
-      if (data && typeof data === "object") return data;
-    } catch {
-      //
-    }
-  }
-
-  return null;
-}
-
-async function buildMintMetadataSnapshot(params: {
-  tokenUri?: string | null;
-  fallbackName?: string | null;
-  fallbackImage?: string | null;
-}) {
-  const { tokenUri, fallbackName, fallbackImage } = params;
-
-  const meta = await loadJsonFromGateways(tokenUri);
-
-  const name =
-    cleanString(meta?.name, 300) || cleanString(fallbackName, 300) || null;
-
-  const image =
-    cleanString(
-      pickAny(meta, ["image", "image_url", "imageUrl"]) || fallbackImage,
-      4000
-    ) || null;
-
-  const animationUrl =
-    cleanString(
-      pickAny(meta, ["animation_url", "animationUrl", "animation"]),
-      4000
-    ) || null;
-
-  const description =
-    cleanString(pickAny(meta, ["description"]), 4000) || null;
-
-  const collection =
-    cleanString(
-      pickAny(meta, ["collection"]) ||
-        pickAttrAny(meta, ["Collection", "collection"]),
-      300
-    ) || null;
-
-  const brand =
-    cleanString(
-      pickAny(meta, ["brandProject", "brand"]) ||
-        pickAttrAny(meta, ["Brand Project", "Brand"]),
-      300
-    ) || null;
-
-  const project =
-    cleanString(
-      pickAny(meta, ["project"]) ||
-        pickAttrAny(meta, ["Project", "project"]),
-      300
-    ) || null;
-
-  const item =
-    cleanString(
-      pickAny(meta, ["item", "drink"]) ||
-        pickAttrAny(meta, ["Item", "item", "Drink"]),
-      300
-    ) || null;
-
-  const rarity =
-    cleanString(
-      pickAny(meta, ["rarity"]) ||
-        pickAttrAny(meta, ["Rarity", "rarity"]),
-      200
-    ) || null;
-
-  const category =
-    cleanString(
-      pickAny(meta, ["category"]) ||
-        pickAttrAny(meta, ["Category", "category"]),
-      200
-    ) || null;
-
-  const mediaKind =
-    animationUrl && isLikelyVideoUrl(animationUrl) ? "video" : "image";
-
-  return {
-    name,
-    image,
-    animationUrl,
-    description,
-    collection,
-    brand,
-    project,
-    item,
-    rarity,
-    category,
-    mediaKind,
-    metadataSyncedAt: meta ? new Date() : null,
-    metadataError: meta ? null : tokenUri ? "snapshot_unavailable" : null,
-  };
 }
 
 async function getSessionWallet(userId?: string | null) {
@@ -908,18 +715,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const snapshot = await buildMintMetadataSnapshot({
-    tokenUri: cTokenUri,
-    fallbackName: cName,
-    fallbackImage: cImage,
-  });
-
-  const resolvedImage = cleanString(ipfsToHttp(snapshot.image || cImage) || cImage, 4000);
-  const resolvedAnimationUrl = cleanString(
-    ipfsToHttp(snapshot.animationUrl || null) || snapshot.animationUrl,
-    4000
-  );
-
   try {
     const result = await prisma.$transaction(async (tx) => {
       const u = await tx.user.findUnique({
@@ -964,21 +759,9 @@ export async function POST(req: Request) {
         tokenId: cTokenId,
         txHash: cTxHash || null,
         tokenUri: cTokenUri,
-        name: snapshot.name || cName,
-        image: resolvedImage,
+        name: cName,
+        image: cImage,
         verified: true,
-
-        animationUrl: resolvedAnimationUrl,
-        description: snapshot.description,
-        collection: snapshot.collection,
-        brand: snapshot.brand,
-        project: snapshot.project,
-        item: snapshot.item,
-        rarity: snapshot.rarity,
-        category: snapshot.category,
-        mediaKind: snapshot.mediaKind,
-        metadataSyncedAt: snapshot.metadataSyncedAt,
-        metadataError: snapshot.metadataError,
 
         deliveryEnabled: createDeliveryEnabled,
         physicalItemIncluded: createPhysicalItemIncluded,
@@ -988,21 +771,9 @@ export async function POST(req: Request) {
       const dataUpdate = {
         txHash: cTxHash || undefined,
         tokenUri: cTokenUri || undefined,
-        name: snapshot.name || cName || undefined,
-        image: resolvedImage || undefined,
+        name: cName || undefined,
+        image: cImage || undefined,
         verified: true,
-
-        animationUrl: resolvedAnimationUrl || undefined,
-        description: snapshot.description || undefined,
-        collection: snapshot.collection || undefined,
-        brand: snapshot.brand || undefined,
-        project: snapshot.project || undefined,
-        item: snapshot.item || undefined,
-        rarity: snapshot.rarity || undefined,
-        category: snapshot.category || undefined,
-        mediaKind: snapshot.mediaKind || undefined,
-        metadataSyncedAt: snapshot.metadataSyncedAt || undefined,
-        metadataError: snapshot.metadataError || undefined,
 
         deliveryEnabled: updateDeliveryEnabled,
         physicalItemIncluded: updatePhysicalItemIncluded,

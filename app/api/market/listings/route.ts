@@ -118,9 +118,7 @@ export async function GET(req: NextRequest) {
 
   const contract = normAddr(url.searchParams.get("contract"));
   const seller = normAddr(url.searchParams.get("seller"));
-  const marketplaceContract = normAddr(
-    url.searchParams.get("marketplaceContract")
-  );
+  const marketplaceContract = normAddr(url.searchParams.get("marketplaceContract"));
 
   const standardRaw = (url.searchParams.get("standard") || "").toUpperCase();
   const standard = ALLOWED_STANDARD.has(standardRaw) ? standardRaw : null;
@@ -239,6 +237,8 @@ export async function GET(req: NextRequest) {
               image: true,
               tokenUri: true,
               verified: true,
+              txHash: true,
+              createdAt: true,
 
               deliveryEnabled: true,
               physicalItemIncluded: true,
@@ -265,58 +265,80 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       total,
-      listings: rows.map((r) => ({
-        id: r.id,
-        chainId: r.chainId,
-        contract: r.contract,
-        tokenId: r.tokenId,
-        standard: r.standard,
-        status: r.status,
+      listings: rows.map((r) => {
+        const resolvedMarketType = forcedMarketTypeByContract(r.contract) || r.marketType;
 
-        marketType: forcedMarketTypeByContract(r.contract) || r.marketType,
-        marketplaceContract: r.marketplaceContract,
+        return {
+          id: r.id,
+          chainId: r.chainId,
+          contract: r.contract,
+          tokenId: r.tokenId,
+          standard: r.standard,
+          status: r.status,
 
-        sellerWallet: r.sellerWallet,
-        seller: r.seller,
+          marketType: resolvedMarketType,
+          marketplaceContract: r.marketplaceContract,
 
-        marketplaceListingId: s(r.marketplaceListingId),
-        pricePerUnitWei: s(r.pricePerUnitWei),
-        amountTotal: s(r.amountTotal),
-        amountRemaining: s(r.amountRemaining),
+          sellerWallet: r.sellerWallet,
+          seller: r.seller,
 
-        deliveryEnabled: r.deliveryEnabled,
-        physicalItemIncluded: r.physicalItemIncluded,
-        officialItem: r.officialItem,
+          marketplaceListingId: s(r.marketplaceListingId),
+          pricePerUnitWei: s(r.pricePerUnitWei),
+          amountTotal: s(r.amountTotal),
+          amountRemaining: s(r.amountRemaining),
 
-        createdAt: r.createdAt.toISOString(),
+          deliveryEnabled: r.deliveryEnabled,
+          physicalItemIncluded: r.physicalItemIncluded,
+          officialItem: r.officialItem,
 
-        mint: r.mint
-          ? {
-              name: r.mint.name ?? null,
-              image: r.mint.image ?? null,
-              tokenUri: r.mint.tokenUri ?? null,
-              verified: r.mint.verified ?? false,
+          createdAt: r.createdAt.toISOString(),
 
-              deliveryEnabled: r.mint.deliveryEnabled,
-              physicalItemIncluded: r.mint.physicalItemIncluded,
-              officialItem: r.mint.officialItem,
+          // card-ready snapshot fields
+          metaImage: r.mint?.image ?? null,
+          metaAnimationUrl: r.mint?.animationUrl ?? null,
+          metaDescription: r.mint?.description ?? null,
+          collection: r.mint?.collection ?? null,
+          brand: r.mint?.brand ?? null,
+          project: r.mint?.project ?? null,
+          item: r.mint?.item ?? null,
+          rarity: r.mint?.rarity ?? null,
+          category: r.mint?.category ?? null,
+          mediaKind: r.mint?.mediaKind ?? null,
+          metadataSyncedAt: r.mint?.metadataSyncedAt
+            ? r.mint.metadataSyncedAt.toISOString()
+            : null,
+          metadataError: r.mint?.metadataError ?? null,
 
-              animationUrl: r.mint.animationUrl ?? null,
-              description: r.mint.description ?? null,
-              collection: r.mint.collection ?? null,
-              brand: r.mint.brand ?? null,
-              project: r.mint.project ?? null,
-              item: r.mint.item ?? null,
-              rarity: r.mint.rarity ?? null,
-              category: r.mint.category ?? null,
-              mediaKind: r.mint.mediaKind ?? null,
-              metadataSyncedAt: r.mint.metadataSyncedAt
-                ? r.mint.metadataSyncedAt.toISOString()
-                : null,
-              metadataError: r.mint.metadataError ?? null,
-            }
-          : null,
-      })),
+          mint: r.mint
+            ? {
+                name: r.mint.name ?? null,
+                image: r.mint.image ?? null,
+                tokenUri: r.mint.tokenUri ?? null,
+                verified: r.mint.verified ?? false,
+                txHash: r.mint.txHash ?? null,
+                createdAt: r.mint.createdAt?.toISOString?.() ?? null,
+
+                deliveryEnabled: r.mint.deliveryEnabled,
+                physicalItemIncluded: r.mint.physicalItemIncluded,
+                officialItem: r.mint.officialItem,
+
+                animationUrl: r.mint.animationUrl ?? null,
+                description: r.mint.description ?? null,
+                collection: r.mint.collection ?? null,
+                brand: r.mint.brand ?? null,
+                project: r.mint.project ?? null,
+                item: r.mint.item ?? null,
+                rarity: r.mint.rarity ?? null,
+                category: r.mint.category ?? null,
+                mediaKind: r.mint.mediaKind ?? null,
+                metadataSyncedAt: r.mint.metadataSyncedAt
+                  ? r.mint.metadataSyncedAt.toISOString()
+                  : null,
+                metadataError: r.mint.metadataError ?? null,
+              }
+            : null,
+        };
+      }),
     });
   } catch (e) {
     console.error("[API_MARKET_LISTINGS_ERROR]", e);

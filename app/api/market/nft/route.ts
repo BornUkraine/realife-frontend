@@ -90,7 +90,6 @@ export async function GET(req: NextRequest) {
     1,
     Math.min(toInt(url.searchParams.get("listingsTake")) ?? 50, 200)
   );
-
   const tradesTake = Math.max(
     1,
     Math.min(toInt(url.searchParams.get("tradesTake")) ?? 100, 500)
@@ -121,23 +120,10 @@ export async function GET(req: NextRequest) {
         tokenUri: true,
         txHash: true,
         verified: true,
-        createdAt: true,
-
         deliveryEnabled: true,
         physicalItemIncluded: true,
         officialItem: true,
-
-        animationUrl: true,
-        description: true,
-        collection: true,
-        brand: true,
-        project: true,
-        item: true,
-        rarity: true,
-        category: true,
-        mediaKind: true,
-        metadataSyncedAt: true,
-        metadataError: true,
+        createdAt: true,
       },
     });
 
@@ -186,54 +172,19 @@ export async function GET(req: NextRequest) {
         where: listingsWhere,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take: listingsTake,
-        select: {
-          id: true,
-          standard: true,
-          marketType: true,
-          marketplaceContract: true,
-
-          sellerWallet: true,
+        include: {
           seller: {
             select: {
               handle: true,
               publicId: true,
             },
           },
-
-          marketplaceListingId: true,
-          pricePerUnitWei: true,
-          amountTotal: true,
-          amountRemaining: true,
-
-          deliveryEnabled: true,
-          physicalItemIncluded: true,
-          officialItem: true,
-
-          createdAt: true,
         },
       }),
       prisma.trade.findMany({
         where: tradesWhere,
         orderBy: [{ blockTime: "desc" }, { id: "desc" }],
         take: tradesTake,
-        select: {
-          txHash: true,
-          logIndex: true,
-          blockNum: true,
-          blockTime: true,
-
-          marketType: true,
-          marketplaceContract: true,
-          marketplaceListingId: true,
-          marketplacePurchaseId: true,
-
-          sellerWallet: true,
-          buyerWallet: true,
-
-          amount: true,
-          pricePerUnitWei: true,
-          totalPriceWei: true,
-        },
       }),
     ]);
 
@@ -260,24 +211,9 @@ export async function GET(req: NextRequest) {
         txHash: mint.txHash,
         verified: mint.verified,
         createdAt: mint.createdAt.toISOString(),
-
         deliveryEnabled: mint.deliveryEnabled,
         physicalItemIncluded: mint.physicalItemIncluded,
         officialItem: mint.officialItem,
-
-        animationUrl: mint.animationUrl ?? null,
-        description: mint.description ?? null,
-        collection: mint.collection ?? null,
-        brand: mint.brand ?? null,
-        project: mint.project ?? null,
-        item: mint.item ?? null,
-        rarity: mint.rarity ?? null,
-        category: mint.category ?? null,
-        mediaKind: mint.mediaKind ?? null,
-        metadataSyncedAt: mint.metadataSyncedAt
-          ? mint.metadataSyncedAt.toISOString()
-          : null,
-        metadataError: mint.metadataError ?? null,
       },
       stats: {
         activeListings: listings.length,
@@ -314,12 +250,8 @@ export async function GET(req: NextRequest) {
 
         marketType: forcedMarketTypeByContract(contract) || t.marketType,
         marketplaceContract: t.marketplaceContract,
-        marketplaceListingId: t.marketplaceListingId
-          ? s(t.marketplaceListingId)
-          : null,
-        marketplacePurchaseId: t.marketplacePurchaseId
-          ? s(t.marketplacePurchaseId)
-          : null,
+        marketplaceListingId: t.marketplaceListingId ? s(t.marketplaceListingId) : null,
+        marketplacePurchaseId: t.marketplacePurchaseId ? s(t.marketplacePurchaseId) : null,
 
         sellerWallet: t.sellerWallet,
         buyerWallet: t.buyerWallet,
