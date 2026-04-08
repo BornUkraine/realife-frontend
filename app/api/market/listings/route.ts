@@ -118,7 +118,9 @@ export async function GET(req: NextRequest) {
 
   const contract = normAddr(url.searchParams.get("contract"));
   const seller = normAddr(url.searchParams.get("seller"));
-  const marketplaceContract = normAddr(url.searchParams.get("marketplaceContract"));
+  const marketplaceContract = normAddr(
+    url.searchParams.get("marketplaceContract")
+  );
 
   const standardRaw = (url.searchParams.get("standard") || "").toUpperCase();
   const standard = ALLOWED_STANDARD.has(standardRaw) ? standardRaw : null;
@@ -201,60 +203,22 @@ export async function GET(req: NextRequest) {
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take,
         skip,
-        select: {
-          id: true,
-          chainId: true,
-          contract: true,
-          tokenId: true,
-          standard: true,
-          status: true,
-
-          marketType: true,
-          marketplaceContract: true,
-
-          sellerWallet: true,
-          seller: {
-            select: {
-              handle: true,
-              publicId: true,
-            },
-          },
-
-          marketplaceListingId: true,
-          pricePerUnitWei: true,
-          amountTotal: true,
-          amountRemaining: true,
-
-          deliveryEnabled: true,
-          physicalItemIncluded: true,
-          officialItem: true,
-
-          createdAt: true,
-
+        include: {
           mint: {
             select: {
               name: true,
               image: true,
               tokenUri: true,
               verified: true,
-              txHash: true,
-              createdAt: true,
-
               deliveryEnabled: true,
               physicalItemIncluded: true,
               officialItem: true,
-
-              animationUrl: true,
-              description: true,
-              collection: true,
-              brand: true,
-              project: true,
-              item: true,
-              rarity: true,
-              category: true,
-              mediaKind: true,
-              metadataSyncedAt: true,
-              metadataError: true,
+            },
+          },
+          seller: {
+            select: {
+              handle: true,
+              publicId: true,
             },
           },
         },
@@ -266,7 +230,8 @@ export async function GET(req: NextRequest) {
       ok: true,
       total,
       listings: rows.map((r) => {
-        const resolvedMarketType = forcedMarketTypeByContract(r.contract) || r.marketType;
+        const resolvedMarketType =
+          forcedMarketTypeByContract(r.contract) || r.marketType;
 
         return {
           id: r.id,
@@ -275,66 +240,24 @@ export async function GET(req: NextRequest) {
           tokenId: r.tokenId,
           standard: r.standard,
           status: r.status,
-
           marketType: resolvedMarketType,
           marketplaceContract: r.marketplaceContract,
-
           sellerWallet: r.sellerWallet,
           seller: r.seller,
-
           marketplaceListingId: s(r.marketplaceListingId),
           pricePerUnitWei: s(r.pricePerUnitWei),
           amountTotal: s(r.amountTotal),
           amountRemaining: s(r.amountRemaining),
-
           deliveryEnabled: r.deliveryEnabled,
           physicalItemIncluded: r.physicalItemIncluded,
           officialItem: r.officialItem,
-
           createdAt: r.createdAt.toISOString(),
-
-          // card-ready snapshot fields
-          metaImage: r.mint?.image ?? null,
-          metaAnimationUrl: r.mint?.animationUrl ?? null,
-          metaDescription: r.mint?.description ?? null,
-          collection: r.mint?.collection ?? null,
-          brand: r.mint?.brand ?? null,
-          project: r.mint?.project ?? null,
-          item: r.mint?.item ?? null,
-          rarity: r.mint?.rarity ?? null,
-          category: r.mint?.category ?? null,
-          mediaKind: r.mint?.mediaKind ?? null,
-          metadataSyncedAt: r.mint?.metadataSyncedAt
-            ? r.mint.metadataSyncedAt.toISOString()
-            : null,
-          metadataError: r.mint?.metadataError ?? null,
-
           mint: r.mint
             ? {
-                name: r.mint.name ?? null,
-                image: r.mint.image ?? null,
-                tokenUri: r.mint.tokenUri ?? null,
-                verified: r.mint.verified ?? false,
-                txHash: r.mint.txHash ?? null,
-                createdAt: r.mint.createdAt?.toISOString?.() ?? null,
-
+                ...r.mint,
                 deliveryEnabled: r.mint.deliveryEnabled,
                 physicalItemIncluded: r.mint.physicalItemIncluded,
                 officialItem: r.mint.officialItem,
-
-                animationUrl: r.mint.animationUrl ?? null,
-                description: r.mint.description ?? null,
-                collection: r.mint.collection ?? null,
-                brand: r.mint.brand ?? null,
-                project: r.mint.project ?? null,
-                item: r.mint.item ?? null,
-                rarity: r.mint.rarity ?? null,
-                category: r.mint.category ?? null,
-                mediaKind: r.mint.mediaKind ?? null,
-                metadataSyncedAt: r.mint.metadataSyncedAt
-                  ? r.mint.metadataSyncedAt.toISOString()
-                  : null,
-                metadataError: r.mint.metadataError ?? null,
               }
             : null,
         };
@@ -342,6 +265,10 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     console.error("[API_MARKET_LISTINGS_ERROR]", e);
-    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
+
+    return NextResponse.json(
+      { ok: false, error: "INTERNAL" },
+      { status: 500 }
+    );
   }
 }
