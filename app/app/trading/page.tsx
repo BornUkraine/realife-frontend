@@ -97,10 +97,10 @@ function StatCard({
     tone === "gold"
       ? "text-amber-100"
       : tone === "violet"
-      ? "text-violet-100"
-      : tone === "sky"
-      ? "text-sky-100"
-      : "text-white/90";
+        ? "text-violet-100"
+        : tone === "sky"
+          ? "text-sky-100"
+          : "text-white/90";
 
   return (
     <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
@@ -130,226 +130,116 @@ export default async function TradingPage() {
     null;
 
   return (
-    <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
-        <div className="animate-orb-1 absolute -top-80 -left-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/12 blur-3xl" />
-        <div className="animate-orb-2 absolute -bottom-80 -right-80 h-[980px] w-[980px] rounded-full bg-[#d4af37]/10 blur-3xl" />
-        <div className="absolute inset-0 opacity-[0.06] bg-[linear-gradient(to_right,rgba(255,255,255,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.22)_1px,transparent_1px)] bg-[length:56px_56px]" />
-        <div className="absolute inset-x-0 top-0 h-48 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.65),transparent)]" />
-      </div>
+    <div className="space-y-6">
+      <Reveal>
+        <GoldEdgeWrap className="rounded-[40px]">
+          <div className="relative overflow-hidden p-7 md:p-10">
+            <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/14 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
 
-      <div className="relative mx-auto max-w-[1480px] px-6 py-10 space-y-6">
-        <Reveal>
-          <GoldEdgeWrap className="rounded-[40px]">
-            <div className="relative overflow-hidden p-7 md:p-10">
-              <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/14 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
+            <div className="relative">
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill>
+                  <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
+                  Realife NFT Trading
+                </Pill>
 
-              <div className="relative">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Pill>
-                    <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                    Realife NFT Trading
-                  </Pill>
-
-                  <Pill>
-                    <span className="font-extrabold text-white/80">
-                      Secondary market
-                    </span>
-                  </Pill>
-
-                  <Pill>
-                    <span className="font-extrabold text-white/80">
-                      Holder listings
-                    </span>
-                  </Pill>
-
-                  <Pill>
-                    <span className="font-extrabold text-white/80">
-                      Premium trading hub
-                    </span>
-                  </Pill>
-                </div>
-
-                <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
-                  Realife{" "}
-                  <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
-                    NFT Trading
+                <Pill>
+                  <span className="font-extrabold text-white/80">
+                    Secondary market
                   </span>
-                </h1>
+                </Pill>
 
-                <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
-                  Dedicated trading page for{" "}
-                  <span className="font-extrabold text-amber-100">
-                    Realife NFTs
+                <Pill>
+                  <span className="font-extrabold text-white/80">
+                    Holder listings
                   </span>
-                  , focused on secondary listings, holder activity and premium
-                  collectible trading across supported contracts.
-                </p>
+                </Pill>
 
-                <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
-                  This page is specifically for{" "}
-                  <span className="font-extrabold text-white/85">NFT trading</span>,
-                  not the primary product market. Real Marketing remains the
-                  original primary flow for official storefront purchase,
-                  delivery and redemption, while this section is the secondary
-                  trading hub for listed NFTs.
-                </div>
+                <Pill>
+                  <span className="font-extrabold text-white/80">
+                    Premium trading hub
+                  </span>
+                </Pill>
+              </div>
 
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <ActionLink href="/app/trading" primary>
-                    Open NFT Trading
-                  </ActionLink>
+              <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
+                Realife{" "}
+                <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
+                  NFT Trading
+                </span>
+              </h1>
 
-                  <ActionLink href="/app/real-marketing">
-                    Open Real Marketing
-                  </ActionLink>
-                </div>
+              <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
+                Dedicated trading page for{" "}
+                <span className="font-extrabold text-amber-100">
+                  Realife NFTs
+                </span>
+                , focused on secondary listings, holder activity and premium
+                collectible trading across supported contracts.
+              </p>
 
-                <div className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <StatCard
-                    label="Page role"
-                    value="NFT Trading Hub"
-                    tone="gold"
-                  />
-                  <StatCard
-                    label="Primary focus"
-                    value="Secondary listings"
-                    tone="violet"
-                  />
-                  <StatCard
-                    label="Related hub"
-                    value="Real Marketing"
-                    tone="sky"
-                  />
-                </div>
+              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
+                This page is specifically for{" "}
+                <span className="font-extrabold text-white/85">NFT trading</span>,
+                not the primary product market. Real Marketing remains the
+                original primary flow for official storefront purchase,
+                delivery and redemption, while this section is the secondary
+                trading hub for listed NFTs.
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <ActionLink href="/app/trading" primary>
+                  Open NFT Trading
+                </ActionLink>
+
+                <ActionLink href="/app/real-marketing">
+                  Open Real Marketing
+                </ActionLink>
+              </div>
+
+              <div className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <StatCard
+                  label="Page role"
+                  value="NFT Trading Hub"
+                  tone="gold"
+                />
+                <StatCard
+                  label="Primary focus"
+                  value="Secondary listings"
+                  tone="violet"
+                />
+                <StatCard
+                  label="Related hub"
+                  value="Real Marketing"
+                  tone="sky"
+                />
               </div>
             </div>
-          </GoldEdgeWrap>
-        </Reveal>
-
-        <Reveal delayMs={100}>
-          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <GoldEdgeWrap className="xl:col-span-2">
-              <div className="p-6 md:p-8">
-                <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/45">
-                  Trading structure
-                </div>
-
-                <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-lg font-extrabold text-white/90">
-                        Primary market
-                      </div>
-                      <div className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-black text-sky-100">
-                        REAL MARKETING
-                      </div>
-                    </div>
-
-                    <div className="mt-3 text-sm leading-relaxed text-white/55">
-                      Official purchase flow for storefront items, delivery flow
-                      and original product presentation.
-                    </div>
-                  </div>
-
-                  <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-lg font-extrabold text-white/90">
-                        NFT trading
-                      </div>
-                      <div className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-black text-amber-100">
-                        SECONDARY
-                      </div>
-                    </div>
-
-                    <div className="mt-3 text-sm leading-relaxed text-white/55">
-                      Dedicated page for resale, premium NFT discovery, holder
-                      listings and collectible market activity.
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </GoldEdgeWrap>
-
-            <GoldEdgeWrap>
-              <div className="p-6 md:p-8">
-                <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/45">
-                  Collections
-                </div>
-
-                <div className="mt-4 space-y-3">
-                  {[
-                    {
-                      label: "Public Standard",
-                      tone:
-                        "border-white/10 bg-white/[0.05] text-white/70",
-                    },
-                    {
-                      label: "Public Delivery",
-                      tone:
-                        "border-violet-500/20 bg-violet-500/10 text-violet-100",
-                    },
-                    {
-                      label: "Store Secondary",
-                      tone:
-                        "border-sky-500/20 bg-sky-500/10 text-sky-100",
-                    },
-                    {
-                      label: "Cafe Secondary",
-                      tone:
-                        "border-amber-500/20 bg-amber-500/10 text-amber-100",
-                    },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="text-sm font-extrabold text-white/90">
-                          {item.label}
-                        </div>
-
-                        <div
-                          className={cx(
-                            "rounded-full border px-2.5 py-1 text-[10px] font-black",
-                            item.tone
-                          )}
-                        >
-                          LIVE
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </GoldEdgeWrap>
           </div>
-        </Reveal>
+        </GoldEdgeWrap>
+      </Reveal>
 
-        <Reveal delayMs={160}>
-          <TradingClient
-            viewerKey={viewerKey}
-            viewerWallet={viewerWallet}
-            initialMarketView="all"
-            lockMarketView={false}
-          />
-        </Reveal>
+      <Reveal delayMs={120}>
+        <TradingClient
+          viewerKey={viewerKey}
+          viewerWallet={viewerWallet}
+          initialMarketView="all"
+          lockMarketView={false}
+        />
+      </Reveal>
 
-        <Reveal delayMs={220}>
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-6 pt-2 text-xs text-white/45">
-            <div>Realife NFT Trading</div>
-            <div className="flex items-center gap-4">
-              <span className="opacity-60">Secondary market</span>
-              <span className="opacity-60">NFT trading</span>
-              <span className="opacity-60">Public mint</span>
-              <span className="opacity-60">Store + Cafe resale</span>
-            </div>
+      <Reveal delayMs={180}>
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-6 pt-2 text-xs text-white/45">
+          <div>Realife NFT Trading</div>
+          <div className="flex items-center gap-4">
+            <span className="opacity-60">Secondary market</span>
+            <span className="opacity-60">NFT trading</span>
+            <span className="opacity-60">Public mint</span>
+            <span className="opacity-60">Store + Cafe resale</span>
           </div>
-        </Reveal>
-      </div>
-    </main>
+        </div>
+      </Reveal>
+    </div>
   );
 }
