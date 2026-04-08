@@ -244,6 +244,7 @@ model TwitterLinkAttempt {
 model Mint {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -256,6 +257,21 @@ model Mint {
   tokenUri String?
   name     String?
   image    String?
+
+  /**
+   * ---------------- Fast snapshot metadata for cards / grids ----------------
+   */
+  animationUrl     String?
+  description      String?
+  collection       String?
+  brand            String?
+  project          String?
+  item             String?
+  rarity           String?
+  category         String?
+  mediaKind        String?
+  metadataSyncedAt DateTime?
+  metadataError    String?
 
   verified Boolean @default(true)
 
@@ -274,6 +290,9 @@ model Mint {
   @@index([userId, createdAt])
   @@index([chainId, contract, tokenId])
   @@index([deliveryEnabled, physicalItemIncluded])
+  @@index([verified, createdAt])
+  @@index([metadataSyncedAt])
+  @@index([verified, metadataSyncedAt])
 }
 
 /**
@@ -302,6 +321,7 @@ model Holding {
   @@unique([userId, chainId, contract, tokenId])
   @@index([userId])
   @@index([chainId, contract, tokenId])
+  @@index([userId, updatedAt, id])
 }
 
 /**
@@ -366,6 +386,13 @@ model Listing {
   @@index([marketplaceContract])
   @@index([marketType, marketplaceListingId])
   @@index([marketplaceContract, marketplaceListingId])
+  /**
+   * ---------------- Fast listing page / trading page indexes ----------------
+   */
+  @@index([status, createdAt, id])
+  @@index([contract, status, createdAt, id])
+  @@index([marketType, status, createdAt, id])
+  @@index([sellerWallet, status, createdAt, id])
 }
 
 /**
