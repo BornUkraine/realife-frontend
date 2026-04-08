@@ -52,7 +52,9 @@ const PUBLIC_DELIVERY_CONTRACT = normAddr(
 
 type ForcedMarketType = "STANDARD" | "DELIVERY";
 
-function forcedMarketTypeByContract(contract: string | null): ForcedMarketType | null {
+function forcedMarketTypeByContract(
+  contract: string | null
+): ForcedMarketType | null {
   const c = normAddr(contract);
   if (!c) return null;
 
@@ -116,7 +118,9 @@ export async function GET(req: NextRequest) {
 
   const contract = normAddr(url.searchParams.get("contract"));
   const seller = normAddr(url.searchParams.get("seller"));
-  const marketplaceContract = normAddr(url.searchParams.get("marketplaceContract"));
+  const marketplaceContract = normAddr(
+    url.searchParams.get("marketplaceContract")
+  );
 
   const standardRaw = (url.searchParams.get("standard") || "").toUpperCase();
   const standard = ALLOWED_STANDARD.has(standardRaw) ? standardRaw : null;
@@ -199,22 +203,58 @@ export async function GET(req: NextRequest) {
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         take,
         skip,
-        include: {
+        select: {
+          id: true,
+          chainId: true,
+          contract: true,
+          tokenId: true,
+          standard: true,
+          status: true,
+
+          marketType: true,
+          marketplaceContract: true,
+
+          sellerWallet: true,
+          seller: {
+            select: {
+              handle: true,
+              publicId: true,
+            },
+          },
+
+          marketplaceListingId: true,
+          pricePerUnitWei: true,
+          amountTotal: true,
+          amountRemaining: true,
+
+          deliveryEnabled: true,
+          physicalItemIncluded: true,
+          officialItem: true,
+
+          createdAt: true,
+
           mint: {
             select: {
               name: true,
               image: true,
               tokenUri: true,
               verified: true,
+
               deliveryEnabled: true,
               physicalItemIncluded: true,
               officialItem: true,
-            },
-          },
-          seller: {
-            select: {
-              handle: true,
-              publicId: true,
+
+              animationUrl: true,
+              description: true,
+              collection: true,
+              brand: true,
+              project: true,
+              item: true,
+              rarity: true,
+              category: true,
+              mediaKind: true,
+              metadataSyncedAt: true,
+              metadataError: true,
             },
           },
         },
@@ -225,44 +265,58 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       total,
-      listings: rows.map((r) => {
-        const resolvedMarketType = forcedMarketTypeByContract(r.contract) || r.marketType;
+      listings: rows.map((r) => ({
+        id: r.id,
+        chainId: r.chainId,
+        contract: r.contract,
+        tokenId: r.tokenId,
+        standard: r.standard,
+        status: r.status,
 
-        return {
-          id: r.id,
-          chainId: r.chainId,
-          contract: r.contract,
-          tokenId: r.tokenId,
-          standard: r.standard,
-          status: r.status,
+        marketType: forcedMarketTypeByContract(r.contract) || r.marketType,
+        marketplaceContract: r.marketplaceContract,
 
-          marketType: resolvedMarketType,
-          marketplaceContract: r.marketplaceContract,
+        sellerWallet: r.sellerWallet,
+        seller: r.seller,
 
-          sellerWallet: r.sellerWallet,
-          seller: r.seller,
+        marketplaceListingId: s(r.marketplaceListingId),
+        pricePerUnitWei: s(r.pricePerUnitWei),
+        amountTotal: s(r.amountTotal),
+        amountRemaining: s(r.amountRemaining),
 
-          marketplaceListingId: s(r.marketplaceListingId),
-          pricePerUnitWei: s(r.pricePerUnitWei),
-          amountTotal: s(r.amountTotal),
-          amountRemaining: s(r.amountRemaining),
+        deliveryEnabled: r.deliveryEnabled,
+        physicalItemIncluded: r.physicalItemIncluded,
+        officialItem: r.officialItem,
 
-          deliveryEnabled: r.deliveryEnabled,
-          physicalItemIncluded: r.physicalItemIncluded,
-          officialItem: r.officialItem,
+        createdAt: r.createdAt.toISOString(),
 
-          createdAt: r.createdAt.toISOString(),
+        mint: r.mint
+          ? {
+              name: r.mint.name ?? null,
+              image: r.mint.image ?? null,
+              tokenUri: r.mint.tokenUri ?? null,
+              verified: r.mint.verified ?? false,
 
-          mint: r.mint
-            ? {
-                ...r.mint,
-                deliveryEnabled: r.mint.deliveryEnabled,
-                physicalItemIncluded: r.mint.physicalItemIncluded,
-                officialItem: r.mint.officialItem,
-              }
-            : null,
-        };
-      }),
+              deliveryEnabled: r.mint.deliveryEnabled,
+              physicalItemIncluded: r.mint.physicalItemIncluded,
+              officialItem: r.mint.officialItem,
+
+              animationUrl: r.mint.animationUrl ?? null,
+              description: r.mint.description ?? null,
+              collection: r.mint.collection ?? null,
+              brand: r.mint.brand ?? null,
+              project: r.mint.project ?? null,
+              item: r.mint.item ?? null,
+              rarity: r.mint.rarity ?? null,
+              category: r.mint.category ?? null,
+              mediaKind: r.mint.mediaKind ?? null,
+              metadataSyncedAt: r.mint.metadataSyncedAt
+                ? r.mint.metadataSyncedAt.toISOString()
+                : null,
+              metadataError: r.mint.metadataError ?? null,
+            }
+          : null,
+      })),
     });
   } catch (e) {
     console.error("[API_MARKET_LISTINGS_ERROR]", e);
