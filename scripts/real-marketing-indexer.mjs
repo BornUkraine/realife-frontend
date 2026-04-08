@@ -29,6 +29,12 @@ const STORE_CONTRACT = (
   .trim()
   .toLowerCase();
 
+if (!CAFE_STORE && !STORE_CONTRACT) {
+  throw new Error(
+    "No NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT / NEXT_PUBLIC_REALIFE_STORE_CONTRACT configured"
+  );
+}
+
 const DEFAULT_CREATOR_WALLET = (
   process.env.NEXT_PUBLIC_TREASURY_ADDRESS ||
   process.env.TREASURY_ADDRESS ||
@@ -56,15 +62,12 @@ const STORE_CREATOR_WALLET = (
 const DEFAULT_START_BLOCK = BigInt(
   process.env.REAL_MARKETING_INDEXER_START_BLOCK || "0"
 );
-
 const CONFIRMATIONS = BigInt(
   process.env.REAL_MARKETING_INDEXER_CONFIRMATIONS || "5"
 );
-
 const BATCH = BigInt(
   process.env.REAL_MARKETING_INDEXER_BATCH_BLOCKS || "2000"
 );
-
 const SLEEP_MS = Number(process.env.REAL_MARKETING_INDEXER_SLEEP_MS || "8000");
 
 const CAFE_START_BLOCK = BigInt(
@@ -86,22 +89,6 @@ const IPFS_GATEWAY_ORIGIN = (
 ).replace(/\/$/, "");
 
 const provider = new JsonRpcProvider(RPC_URL);
-
-/**
- * Extra verticals support:
- *
- * REAL_MARKETING_EXTRA_CONTRACTS='[
- *   {
- *     "mode":"store",
- *     "vertical":"travel",
- *     "address":"0x....",
- *     "creatorWallet":"0x....",
- *     "startBlock":"123456"
- *   }
- * ]'
- *
- * mode: "cafe" or "store"
- */
 
 const CAFE_EVENT_ABI = [
   "event ProductCreated(uint256 indexed tokenId,uint256 maxSupply,uint256 price,string uri)",
@@ -164,7 +151,8 @@ function norm(v) {
 }
 
 function prettyVertical(v) {
-  if (!v) return "Product";
+  if (v === "cafe") return "Cafe";
+  if (v === "store") return "Store";
   return v.charAt(0).toUpperCase() + v.slice(1);
 }
 
@@ -187,10 +175,7 @@ function ipfsToHttp(uri) {
     return `${IPFS_GATEWAY_ORIGIN}/ipfs/${p}`;
   }
 
-  if (u.startsWith("/ipfs/")) {
-    return `${IPFS_GATEWAY_ORIGIN}${u}`;
-  }
-
+  if (u.startsWith("/ipfs/")) return `${IPFS_GATEWAY_ORIGIN}${u}`;
   if (u.startsWith("Qm") || u.startsWith("bafy")) {
     return `${IPFS_GATEWAY_ORIGIN}/ipfs/${u}`;
   }
@@ -206,58 +191,6 @@ async function loadJson(url) {
   } catch {
     return null;
   }
-}
-
-function pickString(obj, keys) {
-  for (const key of keys) {
-    const v = obj?.[key];
-    if (typeof v === "string" && v.trim()) return v.trim();
-  }
-  return null;
-}
-
-function pickAttr(meta, names) {
-  const attrs = Array.isArray(meta?.attributes) ? meta.attributes : [];
-  const lowerNames = names.map((x) => String(x).toLowerCase());
-
-  for (const row of attrs) {
-    const trait = String(row?.trait_type || "").toLowerCase();
-    if (!trait) continue;
-    if (!lowerNames.includes(trait)) continue;
-
-    const value = row?.value;
-    if (value === undefined || value === null) continue;
-
-    const s = String(value).trim();
-    if (s) return s;
-  }
-
-  return null;
-}
-
-function inferMediaKind({ animationUrl, image }) {
-  const a = String(animationUrl || "").toLowerCase().split("?")[0].split("#")[0];
-  const i = String(image || "").toLowerCase().split("?")[0].split("#")[0];
-
-  if (
-    a.endsWith(".mp4") ||
-    a.endsWith(".webm") ||
-    a.endsWith(".mov") ||
-    a.endsWith(".m4v")
-  ) {
-    return "video";
-  }
-
-  if (
-    i.endsWith(".mp4") ||
-    i.endsWith(".webm") ||
-    i.endsWith(".mov") ||
-    i.endsWith(".m4v")
-  ) {
-    return "video";
-  }
-
-  return "image";
 }
 
 async function ensureUserByWallet(wallet) {
@@ -277,103 +210,41 @@ async function ensureUserByWallet(wallet) {
   return user.id;
 }
 
-async function readOptional(contract, fn, args = [], fallback = null) {
-  try {
-    return await contract[fn](...args);
-  } catch {
-    return fallback;
-  }
-}
+const CONTRACTS = [];
 
-function buildBaseConfig({
-  mode,
-  vertical,
-  address,
-  creatorWallet,
-  startBlock,
-}) {
-  if (!address) return null;
-
-  const isStoreLike = mode === "store";
-
-  return {
-    mode,
-    vertical,
-    address: norm(address),
-    creatorWallet: norm(creatorWallet || DEFAULT_CREATOR_WALLET || ""),
-    startBlock: BigInt(startBlock || DEFAULT_START_BLOCK),
-    iface: new Interface(isStoreLike ? STORE_EVENT_ABI : CAFE_EVENT_ABI),
-    contract: new Contract(
-      norm(address),
-      isStoreLike ? STORE_READ_ABI : CAFE_READ_ABI,
-      provider
-    ),
-    defaultDeliveryEnabled: false,
-    defaultPhysicalItemIncluded: false,
-    defaultOfficialItem: isStoreLike ? false : true,
-  };
-}
-
-function parseExtraContracts() {
-  const raw = String(process.env.REAL_MARKETING_EXTRA_CONTRACTS || "").trim();
-  if (!raw) return [];
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed
-      .map((row) => {
-        const mode = String(row?.mode || "").trim().toLowerCase();
-        const vertical = String(row?.vertical || "").trim().toLowerCase();
-        const address = String(row?.address || "").trim().toLowerCase();
-        const creatorWallet = String(row?.creatorWallet || "").trim().toLowerCase();
-        const startBlock = row?.startBlock != null ? String(row.startBlock) : "";
-
-        if (!vertical || !address) return null;
-        if (mode !== "cafe" && mode !== "store") return null;
-
-        return buildBaseConfig({
-          mode,
-          vertical,
-          address,
-          creatorWallet,
-          startBlock: startBlock || DEFAULT_START_BLOCK.toString(),
-        });
-      })
-      .filter(Boolean);
-  } catch (e) {
-    console.error("[REAL_MARKETING_EXTRA_CONTRACTS_PARSE_ERROR]", e);
-    return [];
-  }
-}
-
-const CONTRACTS = [
-  buildBaseConfig({
-    mode: "cafe",
+if (CAFE_STORE) {
+  CONTRACTS.push({
+    kind: "cafe",
     vertical: "cafe",
     address: CAFE_STORE,
     creatorWallet: CAFE_CREATOR_WALLET,
-    startBlock: CAFE_START_BLOCK.toString(),
-  }),
-  buildBaseConfig({
-    mode: "store",
+    startBlock: CAFE_START_BLOCK,
+    iface: new Interface(CAFE_EVENT_ABI),
+    contract: new Contract(CAFE_STORE, CAFE_READ_ABI, provider),
+    defaultDeliveryEnabled: false,
+    defaultPhysicalItemIncluded: false,
+    defaultOfficialItem: true,
+  });
+}
+
+if (STORE_CONTRACT) {
+  CONTRACTS.push({
+    kind: "store",
     vertical: "store",
     address: STORE_CONTRACT,
     creatorWallet: STORE_CREATOR_WALLET,
-    startBlock: STORE_START_BLOCK.toString(),
-  }),
-  ...parseExtraContracts(),
-].filter(Boolean);
-
-if (CONTRACTS.length === 0) {
-  throw new Error(
-    "No real-marketing contracts configured. Set cafe/store env or REAL_MARKETING_EXTRA_CONTRACTS."
-  );
+    startBlock: STORE_START_BLOCK,
+    iface: new Interface(STORE_EVENT_ABI),
+    contract: new Contract(STORE_CONTRACT, STORE_READ_ABI, provider),
+    defaultDeliveryEnabled: false,
+    defaultPhysicalItemIncluded: false,
+    defaultOfficialItem: false,
+  });
 }
 
 function stateKey(cfg) {
-  return `real-marketing:${cfg.mode}:${cfg.vertical}:${cfg.address}`;
+  if (cfg.kind === "cafe") return `cafe-store:${cfg.address}`;
+  return `store:${cfg.address}`;
 }
 
 async function getLastBlock(cfg) {
@@ -387,7 +258,6 @@ async function getLastBlock(cfg) {
       lastBlock: cfg.startBlock || DEFAULT_START_BLOCK,
     },
   });
-
   return BigInt(row.lastBlock);
 }
 
@@ -397,6 +267,14 @@ async function setLastBlock(cfg, bn) {
     where: { chainId_key: { chainId: CHAIN_ID, key } },
     data: { lastBlock: bn },
   });
+}
+
+async function readOptional(contract, fn, args = [], fallback = null) {
+  try {
+    return await contract[fn](...args);
+  } catch {
+    return fallback;
+  }
 }
 
 async function resolveTokenUri(cfg, tokenId, eventUri) {
@@ -410,144 +288,31 @@ async function resolveTokenUri(cfg, tokenId, eventUri) {
   }
 }
 
-async function buildMetadataSnapshot(tokenUri) {
-  const now = new Date();
-
-  if (!tokenUri) {
-    return {
-      metadataFetched: false,
-      metadataSyncedAt: now,
-      metadataError: "TOKEN_URI_EMPTY",
-      image: null,
-      animationUrl: null,
-      description: null,
-      collection: null,
-      brand: null,
-      project: null,
-      item: null,
-      rarity: null,
-      category: null,
-      mediaKind: null,
-      rawName: null,
-    };
-  }
-
-  const metaUrl = ipfsToHttp(tokenUri);
-  if (!metaUrl) {
-    return {
-      metadataFetched: false,
-      metadataSyncedAt: now,
-      metadataError: "TOKEN_URI_UNSUPPORTED",
-      image: null,
-      animationUrl: null,
-      description: null,
-      collection: null,
-      brand: null,
-      project: null,
-      item: null,
-      rarity: null,
-      category: null,
-      mediaKind: null,
-      rawName: null,
-    };
-  }
-
-  const meta = await loadJson(metaUrl);
-  if (!meta || typeof meta !== "object") {
-    return {
-      metadataFetched: false,
-      metadataSyncedAt: now,
-      metadataError: "METADATA_FETCH_FAILED",
-      image: null,
-      animationUrl: null,
-      description: null,
-      collection: null,
-      brand: null,
-      project: null,
-      item: null,
-      rarity: null,
-      category: null,
-      mediaKind: null,
-      rawName: null,
-    };
-  }
-
-  const image =
-    pickString(meta, ["image", "image_url", "imageUrl"]) || null;
-
-  const animationUrl =
-    pickString(meta, ["animation_url", "animationUrl", "animation"]) || null;
-
-  const description =
-    pickString(meta, ["description"]) || null;
-
-  const collection =
-    pickString(meta, ["collection"]) ||
-    pickAttr(meta, ["Collection"]) ||
-    null;
-
-  const brand =
-    pickString(meta, ["brand", "brandProject"]) ||
-    pickAttr(meta, ["Brand", "Brand Project"]) ||
-    null;
-
-  const project =
-    pickString(meta, ["project"]) ||
-    pickAttr(meta, ["Project"]) ||
-    null;
-
-  const item =
-    pickString(meta, ["item", "itemType"]) ||
-    pickAttr(meta, ["Item", "Item Type", "Drink"]) ||
-    null;
-
-  const rarity =
-    pickString(meta, ["rarity"]) ||
-    pickAttr(meta, ["Rarity"]) ||
-    null;
-
-  const category =
-    pickString(meta, ["category"]) ||
-    pickAttr(meta, ["Category"]) ||
-    null;
-
-  const mediaKind =
-    pickString(meta, ["mediaKind"]) ||
-    inferMediaKind({
-      animationUrl: ipfsToHttp(animationUrl),
-      image: ipfsToHttp(image),
-    });
-
-  return {
-    metadataFetched: true,
-    metadataSyncedAt: now,
-    metadataError: null,
-    image,
-    animationUrl,
-    description,
-    collection,
-    brand,
-    project,
-    item,
-    rarity,
-    category,
-    mediaKind,
-    rawName: pickString(meta, ["name"]) || null,
-  };
-}
-
 async function buildProductSnapshot(cfg, tokenId, opts = {}) {
   const tokenIdStr = tokenId.toString();
 
   const tokenUri = (await resolveTokenUri(cfg, tokenId, opts.eventUri)) || null;
 
-  const metadata = await buildMetadataSnapshot(tokenUri);
+  let name = null;
+  let image = null;
 
-  const name =
-    metadata.rawName ||
-    `Realife ${prettyVertical(cfg.vertical)} Product #${tokenIdStr}`;
+  if (tokenUri) {
+    const metaUrl = ipfsToHttp(tokenUri);
+    const meta = metaUrl ? await loadJson(metaUrl) : null;
 
-  const image = metadata.image || null;
+    if (meta && typeof meta === "object") {
+      if (typeof meta.name === "string" && meta.name.trim()) {
+        name = meta.name.trim();
+      }
+      if (typeof meta.image === "string" && meta.image.trim()) {
+        image = meta.image.trim();
+      }
+    }
+  }
+
+  if (!name) {
+    name = `Realife ${prettyVertical(cfg.vertical)} Product #${tokenIdStr}`;
+  }
 
   const paymentToken =
     norm(
@@ -566,24 +331,22 @@ async function buildProductSnapshot(cfg, tokenId, opts = {}) {
   let creatorWallet = norm(opts.creatorWallet || "");
   let primarySellerWallet = norm(opts.primarySellerWallet || "");
 
-  const maxSupply =
+  let maxSupply =
     opts.maxSupply != null
       ? BigInt(opts.maxSupply)
       : BigInt((await readOptional(cfg.contract, "maxSupply", [tokenId], 0n)) || 0n);
 
-  const price =
+  let price =
     opts.price != null
       ? BigInt(opts.price)
-      : BigInt(
-          (await readOptional(cfg.contract, "productPrices", [tokenId], 0n)) || 0n
-        );
+      : BigInt((await readOptional(cfg.contract, "productPrices", [tokenId], 0n)) || 0n);
 
-  const isActive =
+  let isActive =
     typeof opts.isActive === "boolean"
       ? opts.isActive
       : Boolean(await readOptional(cfg.contract, "isActive", [tokenId], true));
 
-  const mintedSupply = BigInt(
+  let mintedSupply = BigInt(
     (await readOptional(cfg.contract, "totalSupply", [tokenId], 0n)) || 0n
   );
 
@@ -602,7 +365,7 @@ async function buildProductSnapshot(cfg, tokenId, opts = {}) {
       ? opts.officialItem
       : cfg.defaultOfficialItem;
 
-  if (cfg.mode === "store") {
+  if (cfg.kind === "store") {
     if (!creatorWallet) {
       creatorWallet =
         norm(await readOptional(cfg.contract, "creatorOf", [tokenId], "")) ||
@@ -664,19 +427,6 @@ async function buildProductSnapshot(cfg, tokenId, opts = {}) {
     physicalItemIncluded,
     officialItem,
     lastTxHash: opts.lastTxHash ? String(opts.lastTxHash) : null,
-
-    animationUrl: metadata.animationUrl,
-    description: metadata.description,
-    collection: metadata.collection,
-    brand: metadata.brand,
-    project: metadata.project,
-    item: metadata.item,
-    rarity: metadata.rarity,
-    category: metadata.category,
-    mediaKind: metadata.mediaKind,
-    metadataSyncedAt: metadata.metadataSyncedAt,
-    metadataError: metadata.metadataError,
-    metadataFetched: metadata.metadataFetched,
   };
 }
 
@@ -691,26 +441,7 @@ async function upsertRealMarketingProduct(cfg, tokenId, opts = {}) {
         tokenId: tokenId.toString(),
       },
     },
-    create: {
-      chainId: CHAIN_ID,
-      contract: cfg.address,
-      tokenId: tokenId.toString(),
-      vertical: snapshot.vertical,
-      creatorWallet: snapshot.creatorWallet,
-      primarySellerWallet: snapshot.primarySellerWallet,
-      paymentToken: snapshot.paymentToken,
-      tokenUri: snapshot.tokenUri,
-      name: snapshot.name,
-      image: snapshot.image,
-      maxSupply: snapshot.maxSupply,
-      mintedSupply: snapshot.mintedSupply,
-      price: snapshot.price,
-      isActive: snapshot.isActive,
-      deliveryEnabled: snapshot.deliveryEnabled,
-      physicalItemIncluded: snapshot.physicalItemIncluded,
-      officialItem: snapshot.officialItem,
-      lastTxHash: snapshot.lastTxHash,
-    },
+    create: snapshot,
     update: {
       vertical: snapshot.vertical,
       creatorWallet: snapshot.creatorWallet,
@@ -733,32 +464,6 @@ async function upsertRealMarketingProduct(cfg, tokenId, opts = {}) {
   return snapshot;
 }
 
-function buildMintUpdateData(snapshot) {
-  return {
-    tokenUri: snapshot.tokenUri || undefined,
-    name: snapshot.name || undefined,
-    image: snapshot.image || undefined,
-    verified: true,
-    deliveryEnabled: Boolean(snapshot.deliveryEnabled),
-    physicalItemIncluded: Boolean(snapshot.physicalItemIncluded),
-    officialItem: Boolean(snapshot.officialItem),
-
-    animationUrl: snapshot.metadataFetched ? snapshot.animationUrl : undefined,
-    description: snapshot.metadataFetched ? snapshot.description : undefined,
-    collection: snapshot.metadataFetched ? snapshot.collection : undefined,
-    brand: snapshot.metadataFetched ? snapshot.brand : undefined,
-    project: snapshot.metadataFetched ? snapshot.project : undefined,
-    item: snapshot.metadataFetched ? snapshot.item : undefined,
-    rarity: snapshot.metadataFetched ? snapshot.rarity : undefined,
-    category: snapshot.metadataFetched ? snapshot.category : undefined,
-    mediaKind: snapshot.metadataFetched ? snapshot.mediaKind : undefined,
-
-    metadataSyncedAt: snapshot.metadataSyncedAt || undefined,
-    metadataError:
-      snapshot.metadataError !== undefined ? snapshot.metadataError : undefined,
-  };
-}
-
 async function ensureMintRecord(cfg, tokenId, opts = {}) {
   const tokenIdStr = tokenId.toString();
 
@@ -773,6 +478,14 @@ async function ensureMintRecord(cfg, tokenId, opts = {}) {
     select: {
       id: true,
       userId: true,
+      txHash: true,
+      tokenUri: true,
+      name: true,
+      image: true,
+      verified: true,
+      deliveryEnabled: true,
+      physicalItemIncluded: true,
+      officialItem: true,
     },
   });
 
@@ -799,8 +512,6 @@ async function ensureMintRecord(cfg, tokenId, opts = {}) {
     return null;
   }
 
-  const updateData = buildMintUpdateData(snapshot);
-
   const mint = await prisma.mint.upsert({
     where: {
       chainId_contract_tokenId: {
@@ -822,20 +533,16 @@ async function ensureMintRecord(cfg, tokenId, opts = {}) {
       deliveryEnabled: Boolean(snapshot.deliveryEnabled),
       physicalItemIncluded: Boolean(snapshot.physicalItemIncluded),
       officialItem: Boolean(snapshot.officialItem),
-
-      animationUrl: snapshot.animationUrl,
-      description: snapshot.description,
-      collection: snapshot.collection,
-      brand: snapshot.brand,
-      project: snapshot.project,
-      item: snapshot.item,
-      rarity: snapshot.rarity,
-      category: snapshot.category,
-      mediaKind: snapshot.mediaKind,
-      metadataSyncedAt: snapshot.metadataSyncedAt,
-      metadataError: snapshot.metadataError,
     },
-    update: updateData,
+    update: {
+      tokenUri: snapshot.tokenUri || undefined,
+      name: snapshot.name || undefined,
+      image: snapshot.image || undefined,
+      verified: true,
+      deliveryEnabled: Boolean(snapshot.deliveryEnabled),
+      physicalItemIncluded: Boolean(snapshot.physicalItemIncluded),
+      officialItem: Boolean(snapshot.officialItem),
+    },
   });
 
   return mint;
@@ -924,7 +631,7 @@ async function processLog(cfg, log) {
   if (eventName === "ProductCreated") {
     const tokenId = BigInt(parsed.args.tokenId);
 
-    if (cfg.mode === "cafe") {
+    if (cfg.kind === "cafe") {
       const uri = String(parsed.args.uri || "");
       const maxSupply = BigInt(parsed.args.maxSupply);
       const price = BigInt(parsed.args.price);
@@ -950,7 +657,6 @@ async function processLog(cfg, log) {
 
       console.log("[REAL_MARKETING_PRODUCT_CREATED]", {
         vertical: cfg.vertical,
-        mode: cfg.mode,
         tokenId: tokenId.toString(),
         uri,
         txHash,
@@ -959,7 +665,7 @@ async function processLog(cfg, log) {
       return;
     }
 
-    if (cfg.mode === "store") {
+    if (cfg.kind === "store") {
       const creator = norm(String(parsed.args.creator || ""));
       const seller = norm(String(parsed.args.seller || ""));
       const maxSupply = BigInt(parsed.args.maxSupply);
@@ -990,7 +696,6 @@ async function processLog(cfg, log) {
 
       console.log("[REAL_MARKETING_PRODUCT_CREATED]", {
         vertical: cfg.vertical,
-        mode: cfg.mode,
         tokenId: tokenId.toString(),
         creator,
         seller,
@@ -1018,7 +723,6 @@ async function processLog(cfg, log) {
 
     console.log("[REAL_MARKETING_PRODUCT_URI_UPDATED]", {
       vertical: cfg.vertical,
-      mode: cfg.mode,
       tokenId: tokenId.toString(),
       newUri,
       txHash,
@@ -1031,16 +735,13 @@ async function processLog(cfg, log) {
     const tokenId = BigInt(parsed.args.tokenId);
     const newPrice = BigInt(parsed.args.newPrice);
 
-    const snapshot = await upsertRealMarketingProduct(cfg, tokenId, {
+    await upsertRealMarketingProduct(cfg, tokenId, {
       price: newPrice,
       lastTxHash: txHash,
     });
 
-    await ensureMintRecord(cfg, tokenId, { snapshot });
-
     console.log("[REAL_MARKETING_PRODUCT_PRICE_UPDATED]", {
       vertical: cfg.vertical,
-      mode: cfg.mode,
       tokenId: tokenId.toString(),
       newPrice: newPrice.toString(),
       txHash,
@@ -1053,16 +754,13 @@ async function processLog(cfg, log) {
     const tokenId = BigInt(parsed.args.tokenId);
     const active = Boolean(parsed.args.isActive);
 
-    const snapshot = await upsertRealMarketingProduct(cfg, tokenId, {
+    await upsertRealMarketingProduct(cfg, tokenId, {
       isActive: active,
       lastTxHash: txHash,
     });
 
-    await ensureMintRecord(cfg, tokenId, { snapshot });
-
     console.log("[REAL_MARKETING_PRODUCT_STATUS_UPDATED]", {
       vertical: cfg.vertical,
-      mode: cfg.mode,
       tokenId: tokenId.toString(),
       active,
       txHash,
@@ -1084,7 +782,6 @@ async function processLog(cfg, log) {
 
     console.log("[REAL_MARKETING_DELIVERY_UPDATED]", {
       vertical: cfg.vertical,
-      mode: cfg.mode,
       tokenId: tokenId.toString(),
       enabled,
       txHash,
@@ -1106,7 +803,6 @@ async function processLog(cfg, log) {
 
     console.log("[REAL_MARKETING_PHYSICAL_UPDATED]", {
       vertical: cfg.vertical,
-      mode: cfg.mode,
       tokenId: tokenId.toString(),
       enabled,
       txHash,
@@ -1128,7 +824,6 @@ async function processLog(cfg, log) {
 
     console.log("[REAL_MARKETING_OFFICIAL_UPDATED]", {
       vertical: cfg.vertical,
-      mode: cfg.mode,
       tokenId: tokenId.toString(),
       enabled,
       txHash,
@@ -1150,7 +845,6 @@ async function processLog(cfg, log) {
 
     console.log("[REAL_MARKETING_PRIMARY_SELLER_UPDATED]", {
       vertical: cfg.vertical,
-      mode: cfg.mode,
       tokenId: tokenId.toString(),
       newSeller,
       txHash,
@@ -1166,7 +860,7 @@ async function processLog(cfg, log) {
     const totalPrice = BigInt(parsed.args.totalPrice);
 
     let seller = null;
-    if (cfg.mode === "store" && parsed.args.seller) {
+    if (cfg.kind === "store" && parsed.args.seller) {
       seller = norm(String(parsed.args.seller || ""));
     }
 
@@ -1184,7 +878,6 @@ async function processLog(cfg, log) {
 
     console.log("[REAL_MARKETING_PRODUCT_BOUGHT]", {
       vertical: cfg.vertical,
-      mode: cfg.mode,
       buyer,
       seller,
       tokenId: tokenId.toString(),
@@ -1214,7 +907,6 @@ async function processLog(cfg, log) {
 
     console.log("[REAL_MARKETING_PRODUCT_REDEEMED]", {
       vertical: cfg.vertical,
-      mode: cfg.mode,
       user,
       tokenId: tokenId.toString(),
       amount: amount.toString(),
@@ -1259,7 +951,6 @@ async function mainLoop() {
     chainId: CHAIN_ID,
     rpc: RPC_URL,
     contracts: CONTRACTS.map((c) => ({
-      mode: c.mode,
       vertical: c.vertical,
       address: c.address,
       startBlock: c.startBlock.toString(),
