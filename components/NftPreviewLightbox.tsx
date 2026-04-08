@@ -41,11 +41,21 @@ export default function NftPreviewLightbox({
   useEffect(() => {
     if (!open) return;
 
-    const prevBodyOverflow = document.body.style.overflow;
-    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY;
 
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyPosition = body.style.position;
+    const prevBodyTop = body.style.top;
+    const prevBodyWidth = body.style.width;
+    const prevHtmlOverflow = html.style.overflow;
+
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    html.style.overflow = "hidden";
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
@@ -54,9 +64,21 @@ export default function NftPreviewLightbox({
     window.addEventListener("keydown", onKey);
 
     return () => {
-      document.body.style.overflow = prevBodyOverflow;
-      document.documentElement.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      body.style.position = prevBodyPosition;
+      body.style.top = prevBodyTop;
+      body.style.width = prevBodyWidth;
+      html.style.overflow = prevHtmlOverflow;
+
       window.removeEventListener("keydown", onKey);
+
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: scrollY,
+          left: 0,
+          behavior: "auto",
+        });
+      });
     };
   }, [open]);
 

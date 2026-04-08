@@ -371,11 +371,21 @@ export default function TradingClient({
   useEffect(() => {
     if (!preview) return;
 
-    const prevBodyOverflow = document.body.style.overflow;
-    const prevHtmlOverflow = document.documentElement.style.overflow;
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY;
 
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyPosition = body.style.position;
+    const prevBodyTop = body.style.top;
+    const prevBodyWidth = body.style.width;
+    const prevHtmlOverflow = html.style.overflow;
+
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    html.style.overflow = "hidden";
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setPreview(null);
@@ -384,9 +394,21 @@ export default function TradingClient({
     window.addEventListener("keydown", onKey);
 
     return () => {
-      document.body.style.overflow = prevBodyOverflow;
-      document.documentElement.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      body.style.position = prevBodyPosition;
+      body.style.top = prevBodyTop;
+      body.style.width = prevBodyWidth;
+      html.style.overflow = prevHtmlOverflow;
+
       window.removeEventListener("keydown", onKey);
+
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: scrollY,
+          left: 0,
+          behavior: "auto",
+        });
+      });
     };
   }, [preview]);
 
@@ -984,22 +1006,22 @@ export default function TradingClient({
                   const topLabel = isCafe
                     ? x.collection || "CAFE"
                     : isStore
-                      ? x.collection || "STORE"
-                      : isPublicStandard
-                        ? "PUBLIC STANDARD"
-                        : isPublicDelivery
-                          ? "PUBLIC DELIVERY"
-                          : "TRADING";
+                    ? x.collection || "STORE"
+                    : isPublicStandard
+                    ? "PUBLIC STANDARD"
+                    : isPublicDelivery
+                    ? "PUBLIC DELIVERY"
+                    : "TRADING";
 
                   const topLabelClass = isCafe
                     ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
                     : isStore
-                      ? "border-sky-500/20 bg-sky-500/10 text-sky-100"
-                      : isPublicStandard
-                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
-                        : isPublicDelivery
-                          ? "border-violet-500/20 bg-violet-500/10 text-violet-100"
-                          : "border-white/10 bg-black/40 text-white/85";
+                    ? "border-sky-500/20 bg-sky-500/10 text-sky-100"
+                    : isPublicStandard
+                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
+                    : isPublicDelivery
+                    ? "border-violet-500/20 bg-violet-500/10 text-violet-100"
+                    : "border-white/10 bg-black/40 text-white/85";
 
                   const cardPreviewSrc =
                     x.mediaSrc ||

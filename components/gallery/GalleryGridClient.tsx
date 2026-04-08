@@ -61,8 +61,21 @@ export default function GalleryGridClient({
   useEffect(() => {
     if (!preview) return;
 
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY;
+
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyPosition = body.style.position;
+    const prevBodyTop = body.style.top;
+    const prevBodyWidth = body.style.width;
+    const prevHtmlOverflow = html.style.overflow;
+
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    html.style.overflow = "hidden";
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setPreview(null);
@@ -71,8 +84,21 @@ export default function GalleryGridClient({
     window.addEventListener("keydown", onKey);
 
     return () => {
-      document.body.style.overflow = prev;
+      body.style.overflow = prevBodyOverflow;
+      body.style.position = prevBodyPosition;
+      body.style.top = prevBodyTop;
+      body.style.width = prevBodyWidth;
+      html.style.overflow = prevHtmlOverflow;
+
       window.removeEventListener("keydown", onKey);
+
+      requestAnimationFrame(() => {
+        window.scrollTo({
+          top: scrollY,
+          left: 0,
+          behavior: "auto",
+        });
+      });
     };
   }, [preview]);
 
