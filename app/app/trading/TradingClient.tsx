@@ -197,7 +197,9 @@ async function fetchJSON(url: string) {
   return j;
 }
 
-async function loadMetadata(tokenUri?: string | null): Promise<ProductMeta | null> {
+async function loadMetadata(
+  tokenUri?: string | null
+): Promise<ProductMeta | null> {
   if (!tokenUri) return null;
 
   for (const gw of IPFS_GATEWAYS) {
@@ -491,9 +493,7 @@ export default function TradingClient({
             meta?.animation_url || meta?.animationUrl || meta?.animation || null;
 
           const imgHttp =
-            ipfsToHttp(metaImageRaw) ||
-            ipfsToHttp(item.mint?.image || null) ||
-            null;
+            ipfsToHttp(metaImageRaw) || ipfsToHttp(item.mint?.image || null) || null;
 
           const animHttp =
             ipfsToHttp(metaAnimationRaw, PINATA_IPFS) ||
@@ -622,14 +622,14 @@ export default function TradingClient({
               <button
                 onClick={() => setTab("market")}
                 className={cx(
-                  "px-4 py-2 rounded-2xl border text-[12px] font-black transition",
+                  "rounded-2xl border px-4 py-2 text-[12px] font-black transition",
                   tab === "market"
                     ? "border-white/15 bg-white/[0.10] text-white"
                     : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
                 )}
               >
                 NFT Trading
-                <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-white/80 bg-black/25 ring-1 ring-white/10">
+                <span className="ml-2 inline-flex h-5 items-center justify-center rounded-full bg-black/25 px-2 text-[10px] font-black text-white/80 ring-1 ring-white/10">
                   {tab === "market" ? total : "ALL"}
                 </span>
               </button>
@@ -637,14 +637,14 @@ export default function TradingClient({
               <button
                 onClick={() => setTab("my")}
                 className={cx(
-                  "px-4 py-2 rounded-2xl border text-[12px] font-black transition",
+                  "rounded-2xl border px-4 py-2 text-[12px] font-black transition",
                   tab === "my"
                     ? "border-white/15 bg-white/[0.10] text-white"
                     : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
                 )}
               >
                 My Activity
-                <span className="ml-2 inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-black/80 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15">
+                <span className="ml-2 inline-flex h-5 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-2 text-[10px] font-black text-black/80 ring-1 ring-black/15">
                   NEW
                 </span>
               </button>
@@ -654,7 +654,7 @@ export default function TradingClient({
               {lockMarketView ? (
                 <Link
                   href="/app/trading"
-                  className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-white/85 transition hover:bg-white/[0.10]"
                 >
                   All collections
                 </Link>
@@ -663,7 +663,7 @@ export default function TradingClient({
               {tab === "market" ? (
                 <button
                   onClick={() => loadPage(0, false, marketView)}
-                  className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100"
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-amber-100/90 transition hover:bg-white/[0.10] hover:text-amber-100"
                 >
                   Refresh
                 </button>
@@ -677,10 +677,10 @@ export default function TradingClient({
             <div className={cx(goldCard, "p-6 md:p-7")}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
+                  <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/45">
                     My Activity
                   </div>
-                  <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">
+                  <div className="mt-2 text-xl font-black tracking-tight text-white/90 md:text-2xl">
                     Listings • Purchases • Sales
                   </div>
                   <div className="mt-2 text-[12px] text-white/55">
@@ -746,12 +746,12 @@ export default function TradingClient({
                           }}
                           disabled={disabled}
                           className={cx(
-                            "inline-flex items-center justify-center px-4 py-2 rounded-2xl text-[12px] font-black transition ring-1",
+                            "inline-flex items-center justify-center rounded-2xl px-4 py-2 text-[12px] font-black transition ring-1",
                             marketView === viewKey
                               ? viewBadgeClass(viewKey)
-                              : "text-white/75 border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] ring-white/10",
+                              : "border border-white/10 bg-white/[0.04] text-white/75 ring-white/10 hover:bg-white/[0.08]",
                             disabled
-                              ? "opacity-45 cursor-not-allowed hover:bg-white/[0.04]"
+                              ? "cursor-not-allowed opacity-45 hover:bg-white/[0.04]"
                               : ""
                           )}
                         >
@@ -764,20 +764,20 @@ export default function TradingClient({
 
                 <div
                   className={cx(
-                    "flex flex-col md:flex-row md:items-center md:justify-between gap-4",
+                    "flex flex-col gap-4 md:flex-row md:items-center md:justify-between",
                     !lockMarketView ? "mt-5" : ""
                   )}
                 >
                   <div>
-                    <div className="text-[11px] uppercase tracking-[0.24em] text-white/45 font-black">
+                    <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/45">
                       {lockMarketView
                         ? "Premium NFT collection view"
                         : "Premium NFT trading view"}
                     </div>
-                    <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">
+                    <div className="mt-2 text-xl font-black tracking-tight text-white/90 md:text-2xl">
                       {marketCfg.title}
                     </div>
-                    <div className="mt-2 text-[13px] text-white/55 max-w-3xl">
+                    <div className="mt-2 max-w-3xl text-[13px] text-white/55">
                       {marketCfg.subtitle}
                     </div>
                   </div>
@@ -785,7 +785,7 @@ export default function TradingClient({
                   <div className="flex flex-wrap gap-2">
                     <div
                       className={cx(
-                        "px-3 py-2 rounded-2xl text-[11px] font-black ring-1",
+                        "rounded-2xl px-3 py-2 text-[11px] font-black ring-1",
                         viewBadgeClass(marketView)
                       )}
                     >
@@ -793,7 +793,7 @@ export default function TradingClient({
                     </div>
 
                     {marketCfg.contract ? (
-                      <div className="px-3 py-2 rounded-2xl border border-white/10 bg-white/[0.04] text-[11px] font-black text-white/80">
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] font-black text-white/80">
                         {shortAddr(marketCfg.contract)}
                       </div>
                     ) : null}
@@ -812,7 +812,7 @@ export default function TradingClient({
                       <div className="mt-3">
                         <Link
                           href="/app/real-marketing"
-                          className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/90"
+                          className="inline-flex items-center justify-center rounded-xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-white/90 transition hover:bg-white/[0.10]"
                         >
                           Go to Real Marketing →
                         </Link>
@@ -821,9 +821,9 @@ export default function TradingClient({
                   </div>
                 ) : null}
 
-                <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                       Loaded
                     </div>
                     <div className="mt-1 text-lg font-black text-white/90">
@@ -832,7 +832,7 @@ export default function TradingClient({
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                       Total
                     </div>
                     <div className="mt-1 text-lg font-black text-white/90">
@@ -841,7 +841,7 @@ export default function TradingClient({
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                       My listings
                     </div>
                     <div className="mt-1 text-lg font-black text-amber-100">
@@ -850,7 +850,7 @@ export default function TradingClient({
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                       View
                     </div>
                     <div className="mt-1 text-lg font-black text-emerald-200">
@@ -865,7 +865,7 @@ export default function TradingClient({
               <div className={cx(goldCard, "p-6 md:p-7")}>
                 <div className="flex flex-wrap items-end gap-3">
                   <div className="min-w-[220px] flex-1">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                       Search • {marketCfg.title}
                     </div>
                     <input
@@ -877,7 +877,7 @@ export default function TradingClient({
                   </div>
 
                   <div className="min-w-[220px]">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                       Sort
                     </div>
                     <select
@@ -894,13 +894,13 @@ export default function TradingClient({
                   </div>
 
                   <div className="min-w-[220px]">
-                    <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                       Quick
                     </div>
                     <div className="mt-2 flex items-center gap-2">
                       <button
                         onClick={() => setQ("")}
-                        className="px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition text-[12px] font-black text-white/80"
+                        className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[12px] font-black text-white/80 transition hover:bg-white/[0.08]"
                       >
                         Clear
                       </button>
@@ -910,7 +910,7 @@ export default function TradingClient({
                           onClick={() => {
                             setQ(wallet);
                           }}
-                          className="px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100"
+                          className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[12px] font-black text-amber-100/90 transition hover:bg-white/[0.08] hover:text-amber-100"
                         >
                           My listings
                         </button>
@@ -927,7 +927,7 @@ export default function TradingClient({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
               {(loading && rows.length === 0 ? Array.from({ length: 8 }) : filtered).map(
                 (x: any, idx: number) => {
                   const isSkeleton =
@@ -938,30 +938,28 @@ export default function TradingClient({
                       <div
                         key={`sk_${idx}`}
                         className={cx(
-                          "rounded-[26px] overflow-hidden border border-white/10 bg-white/[0.04]",
-                          "backdrop-blur-xl",
-                          "shadow-[0_24px_90px_rgba(0,0,0,0.55)]"
+                          "overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04]",
+                          "backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]"
                         )}
                       >
-                        <div className="aspect-square w-full bg-white/[0.03] animate-pulse" />
-                        <div className="p-5 space-y-3">
-                          <div className="h-4 w-3/4 bg-white/[0.06] rounded-lg animate-pulse" />
-                          <div className="h-3 w-1/2 bg-white/[0.06] rounded-lg animate-pulse" />
-                          <div className="h-10 w-full bg-white/[0.06] rounded-2xl animate-pulse" />
+                        <div className="aspect-square w-full animate-pulse bg-white/[0.03]" />
+                        <div className="space-y-3 p-5">
+                          <div className="h-4 w-3/4 animate-pulse rounded-lg bg-white/[0.06]" />
+                          <div className="h-3 w-1/2 animate-pulse rounded-lg bg-white/[0.06]" />
+                          <div className="h-10 w-full animate-pulse rounded-2xl bg-white/[0.06]" />
                         </div>
                       </div>
                     );
                   }
 
-                  const href = `/nft/${x.chainId}/${normAddr(x.contract)}/${encodeURIComponent(
-                    String(x.tokenId)
-                  )}`;
+                  const href = `/nft/${x.chainId}/${normAddr(
+                    x.contract
+                  )}/${encodeURIComponent(String(x.tokenId))}`;
 
                   const isMine = Boolean(wallet && normAddr(x.sellerWallet) === wallet);
 
                   const isCafe =
-                    Boolean(CAFE_CONTRACT) &&
-                    normAddr(x.contract) === CAFE_CONTRACT;
+                    Boolean(CAFE_CONTRACT) && normAddr(x.contract) === CAFE_CONTRACT;
 
                   const isStore =
                     Boolean(STORE_CONTRACT) &&
@@ -986,22 +984,22 @@ export default function TradingClient({
                   const topLabel = isCafe
                     ? x.collection || "CAFE"
                     : isStore
-                    ? x.collection || "STORE"
-                    : isPublicStandard
-                    ? "PUBLIC STANDARD"
-                    : isPublicDelivery
-                    ? "PUBLIC DELIVERY"
-                    : "TRADING";
+                      ? x.collection || "STORE"
+                      : isPublicStandard
+                        ? "PUBLIC STANDARD"
+                        : isPublicDelivery
+                          ? "PUBLIC DELIVERY"
+                          : "TRADING";
 
                   const topLabelClass = isCafe
-                    ? "text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] border-black/10"
+                    ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
                     : isStore
-                    ? "text-sky-100 bg-sky-500/10 border-sky-500/20"
-                    : isPublicStandard
-                    ? "text-emerald-100 bg-emerald-500/10 border-emerald-500/20"
-                    : isPublicDelivery
-                    ? "text-violet-100 bg-violet-500/10 border-violet-500/20"
-                    : "text-white/85 bg-black/50 border-white/10";
+                      ? "border-sky-500/20 bg-sky-500/10 text-sky-100"
+                      : isPublicStandard
+                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
+                        : isPublicDelivery
+                          ? "border-violet-500/20 bg-violet-500/10 text-violet-100"
+                          : "border-white/10 bg-black/40 text-white/85";
 
                   const cardPreviewSrc =
                     x.mediaSrc ||
@@ -1011,73 +1009,67 @@ export default function TradingClient({
 
                   const cardPoster =
                     x.mediaKind === "video"
-                      ? x.mediaPoster || x.metaImage || ipfsToHttp(x?.mint?.image || null)
+                      ? x.mediaPoster ||
+                        x.metaImage ||
+                        ipfsToHttp(x?.mint?.image || null)
                       : null;
 
-                  const cardImage =
-                    x.mediaKind === "video"
-                      ? cardPoster
-                      : cardPreviewSrc || x.metaImage || ipfsToHttp(x?.mint?.image || null);
+                  const mediaKind: "image" | "video" =
+                    x.mediaKind === "video" ? "video" : "image";
 
                   return (
                     <Link
                       key={x.id}
                       href={href}
                       className={cx(
-                        "group rounded-[26px] overflow-hidden border border-white/10 bg-white/[0.04]",
-                        "backdrop-blur-xl",
-                        "shadow-[0_24px_90px_rgba(0,0,0,0.55)] hover:-translate-y-1 transition-all duration-300 hover:bg-white/[0.08]"
+                        "group overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04] backdrop-blur-xl",
+                        "shadow-[0_24px_90px_rgba(0,0,0,0.55)] transition-all duration-300",
+                        "hover:-translate-y-1 hover:bg-white/[0.08]"
                       )}
                     >
-                      <div className="aspect-square w-full bg-black/30 relative">
-                        {cardImage ? (
-                          <img
-                            src={cardImage}
-                            alt={x.mint?.name || "NFT"}
-                            className="h-full w-full object-cover"
-                            referrerPolicy="no-referrer"
-                            draggable={false}
-                          />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center text-white/25 font-black">
-                            No media
-                          </div>
-                        )}
+                      <div className="relative aspect-square w-full bg-black">
+                        <NftMedia
+                          src={cardPreviewSrc}
+                          kind={mediaKind}
+                          alt={x.mint?.name || "NFT"}
+                          poster={mediaKind === "video" ? cardPoster : null}
+                          showControls={false}
+                          fit="contain"
+                          className="h-full w-full"
+                          roundedClass="rounded-none"
+                          mediaBgClass="bg-black"
+                        />
 
-                        <div className="absolute top-3 left-3 z-20 flex flex-col gap-2 opacity-0 transition-opacity pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
-                          <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-emerald-200">
-                            ACTIVE
-                          </div>
+                        <div className="absolute left-3 top-3 z-20 flex flex-col gap-2">
+                          {x.mediaKind === "video" ? (
+                            <div className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-bold text-amber-100 backdrop-blur-md">
+                              VIDEO
+                            </div>
+                          ) : null}
 
                           <div
                             className={cx(
-                              "px-2 py-1 rounded-full border text-[10px] font-black",
+                              "rounded-full border px-2 py-1 text-[10px] font-bold backdrop-blur-md",
                               topLabelClass
                             )}
                           >
                             {topLabel}
                           </div>
 
-                          {x.mediaKind === "video" ? (
-                            <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-amber-100">
-                              VIDEO
-                            </div>
-                          ) : null}
+                          <div className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-bold text-white/75 backdrop-blur-md">
+                            {marketLabel(rowMarketType)}
+                          </div>
 
                           {isMine ? (
-                            <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-amber-100">
+                            <div className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-bold text-amber-100 backdrop-blur-md">
                               YOUR LISTING
                             </div>
                           ) : null}
                         </div>
 
-                        <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-2 opacity-0 transition-all duration-200 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
-                          <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-white/85">
+                        <div className="absolute right-3 top-3 z-20 flex flex-col items-end gap-2">
+                          <div className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-bold text-white/75 backdrop-blur-md">
                             x{x.amountRemaining}
-                          </div>
-
-                          <div className="px-2 py-1 rounded-full border border-white/10 bg-black/50 backdrop-blur-md text-[10px] font-black text-white/85">
-                            {marketLabel(rowMarketType)}
                           </div>
 
                           {cardPreviewSrc ? (
@@ -1089,96 +1081,92 @@ export default function TradingClient({
                                 e.stopPropagation();
                                 setPreview({
                                   src: cardPreviewSrc,
-                                  kind: x.mediaKind === "video" ? "video" : "image",
-                                  poster: x.mediaKind === "video" ? cardPoster : null,
+                                  kind: mediaKind,
+                                  poster: mediaKind === "video" ? cardPoster : null,
                                   alt: x.mint?.name || `Token #${x.tokenId}`,
                                 });
                               }}
-                              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white/90 backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.35)] transition-all duration-200 hover:scale-[1.04] hover:bg-black/60 active:scale-[0.98]"
+                              className="pointer-events-none inline-flex h-10 w-10 translate-y-1 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white/90 opacity-0 backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.35)] transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0 group-focus-within:opacity-100 hover:scale-[1.04] hover:bg-black/60 active:scale-[0.98]"
                             >
                               <span className="text-lg leading-none">⤢</span>
                             </button>
                           ) : null}
                         </div>
 
-                        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.55)_0%,transparent_45%)]" />
+                        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.38)_0%,transparent_42%)]" />
                       </div>
 
                       <div className="p-5">
-                        <div className="text-sm font-extrabold text-white/90 truncate">
+                        <div className="truncate text-sm font-bold text-white/90">
                           {x.mint?.name || `Token #${x.tokenId}`}
                         </div>
 
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
-                            {marketLabel(rowMarketType)}
-                          </span>
+                        <div className="mt-1.5 flex items-center justify-between gap-2 text-[12px] text-white/40">
+                          <span className="truncate">{shortAddr(x.contract)}</span>
+                          <span className="font-mono">#{x.tokenId}</span>
+                        </div>
 
+                        <div className="mt-3 flex flex-wrap gap-2">
                           {showDeliveryBadge ? (
-                            <span className="px-2 py-1 rounded-full border border-violet-500/20 bg-violet-500/10 text-[10px] font-black text-violet-100">
+                            <span className="inline-flex items-center rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold text-violet-100">
                               DELIVERY
                             </span>
                           ) : null}
 
                           {showTradingOnlyBadge ? (
-                            <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                            <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-bold text-white/80">
                               TRADING ONLY
                             </span>
                           ) : null}
 
                           {showNoDeliveryBadge ? (
-                            <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
+                            <span className="inline-flex items-center rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-1 text-[10px] font-bold text-sky-100">
                               NO DELIVERY
                             </span>
                           ) : null}
 
                           {showNoRedemptionBadge ? (
-                            <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                            <span className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-100">
                               NO REDEMPTION
                             </span>
                           ) : null}
 
                           {x.officialItem || x.mint?.officialItem ? (
-                            <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                            <span className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-100">
                               OFFICIAL
                             </span>
                           ) : null}
 
                           {x.item ? (
-                            <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                            <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-bold text-white/80">
                               {x.item}
                             </span>
                           ) : null}
 
                           {x.rarity ? (
-                            <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                            <span className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-100">
                               {x.rarity}
                             </span>
                           ) : null}
                         </div>
 
-                        <div className="mt-3 flex items-center justify-between gap-2 text-[12px] text-white/55">
-                          <span className="truncate font-mono">
-                            {shortAddr(x.contract)}
-                          </span>
-                          <span className="font-mono">#{x.tokenId}</span>
-                        </div>
-
                         {x.brand || x.project || x.collection ? (
-                          <div className="mt-3 text-[12px] text-white/55 line-clamp-2">
+                          <div className="mt-3 line-clamp-1 text-[12px] text-white/55">
                             {x.brand ? (
-                              <span className="text-white/80 font-black">{x.brand}</span>
+                              <span className="font-black text-white/80">{x.brand}</span>
                             ) : null}
                             {x.brand && x.project ? <span> • </span> : null}
                             {x.project ? <span>{x.project}</span> : null}
-                            {(x.brand || x.project) && x.collection ? <span> • </span> : null}
+                            {(x.brand || x.project) && x.collection ? (
+                              <span> • </span>
+                            ) : null}
                             {x.collection ? <span>{x.collection}</span> : null}
                           </div>
                         ) : null}
 
                         <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
                           <div className="flex items-center justify-between gap-2">
-                            <div className="text-[12px] text-white/55 font-semibold">
+                            <div className="text-[12px] font-semibold text-white/55">
                               Price
                             </div>
                             <div className="text-[13px] font-black text-amber-100">
@@ -1200,7 +1188,7 @@ export default function TradingClient({
                           </div>
                         ) : null}
 
-                        <div className="mt-4 text-[12px] font-extrabold text-amber-100/90 group-hover:text-amber-100 flex items-center justify-between">
+                        <div className="mt-4 flex items-center justify-between text-[12px] font-bold text-amber-100/90 group-hover:text-amber-100">
                           <span>Open NFT</span>
                           <span>→</span>
                         </div>
@@ -1216,10 +1204,9 @@ export default function TradingClient({
                 disabled={loading || !canLoadMore}
                 onClick={() => loadPage(skip + take, true, marketView)}
                 className={cx(
-                  "mt-4 inline-flex items-center justify-center px-6 py-3 rounded-2xl text-black font-extrabold transition",
-                  "shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15",
-                  "hover:brightness-110",
-                  loading || !canLoadMore ? "opacity-60 cursor-not-allowed" : ""
+                  "mt-4 inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition",
+                  "shadow-[0_18px_60px_rgba(212,175,55,0.20)] hover:brightness-110",
+                  loading || !canLoadMore ? "cursor-not-allowed opacity-60" : ""
                 )}
               >
                 {loading ? "Loading…" : canLoadMore ? "Load more" : "No more"}
