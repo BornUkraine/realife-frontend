@@ -45,6 +45,26 @@ enum DeliveryStatus {
   CANCELLED
 }
 
+/**
+ * --------------------------------------------------------------------------
+ * Service-specific lifecycle
+ * Used for protected service orders:
+ * - digital services
+ * - online sessions
+ * - local/offline services
+ * --------------------------------------------------------------------------
+ */
+enum ServiceStatus {
+  NOT_REQUIRED
+  PENDING
+  IN_PROGRESS
+  SUBMITTED
+  REVISION_REQUESTED
+  COMPLETED
+  CONFIRMED
+  CANCELLED
+}
+
 enum OrderSourceType {
   STORE
   MARKETPLACE
@@ -58,6 +78,24 @@ enum OrderKind {
 enum MarketType {
   STANDARD
   DELIVERY
+  PROTECTED
+}
+
+/**
+ * --------------------------------------------------------------------------
+ * Fulfillment / execution type of the NFT-backed item
+ * --------------------------------------------------------------------------
+ * PHYSICAL_GOOD   -> physical item with shipping / delivery flow
+ * DIGITAL_SERVICE -> digital work, file, design, website, SMM, etc
+ * ONLINE_SESSION  -> consultation / lesson / call / online training
+ * LOCAL_SERVICE   -> local offline service in city/country
+ * --------------------------------------------------------------------------
+ */
+enum FulfillmentType {
+  PHYSICAL_GOOD
+  DIGITAL_SERVICE
+  ONLINE_SESSION
+  LOCAL_SERVICE
 }
 
 enum DeliveryMessageRole {
@@ -255,6 +293,14 @@ model Mint {
   physicalItemIncluded Boolean @default(false)
   officialItem         Boolean @default(false)
 
+  /**
+   * ---------------- Fulfillment / category metadata ---------------
+   * Used by PROTECTED marketplace and category filters in trading
+   */
+  fulfillmentType FulfillmentType?
+  category        String?
+  subcategory     String?
+
   holdings Holding[]
   listings Listing[]
   trades   Trade[]
@@ -263,6 +309,8 @@ model Mint {
   @@index([userId, createdAt])
   @@index([chainId, contract, tokenId])
   @@index([deliveryEnabled, physicalItemIncluded])
+  @@index([fulfillmentType])
+  @@index([category, subcategory])
 }
 
 /**
@@ -314,8 +362,9 @@ model Listing {
   seller   User? @relation(fields: [sellerId], references: [id], onDelete: SetNull)
 
   /**
-   * STANDARD = old normal marketplace
-   * DELIVERY = new delivery escrow marketplace
+   * STANDARD  = old normal marketplace
+   * DELIVERY  = old delivery escrow marketplace
+   * PROTECTED = new universal protected escrow marketplace
    */
   marketType MarketType @default(STANDARD)
 
@@ -337,9 +386,16 @@ model Listing {
   physicalItemIncluded Boolean @default(false)
   officialItem         Boolean @default(false)
 
-  status      ListingStatus @default(ACTIVE)
-  cancelledAt DateTime?
-  soldOutAt   DateTime?
+  /**
+   * ---------------- Snapshot of protected/service classification ------------
+   */
+  fulfillmentType FulfillmentType?
+  category        String?
+  subcategory     String?
+
+  status        ListingStatus @default(ACTIVE)
+  cancelledAt   DateTime?
+  soldOutAt     DateTime?
   createdTxHash String?
 
   @@unique([chainId, marketType, marketplaceListingId])
@@ -352,6 +408,8 @@ model Listing {
   @@index([marketplaceContract])
   @@index([marketType, marketplaceListingId])
   @@index([marketplaceContract, marketplaceListingId])
+  @@index([fulfillmentType])
+  @@index([category, subcategory])
 }
 
 /**
@@ -383,6 +441,13 @@ model Trade {
 
   marketplaceContract String?
 
+  /**
+   * ---------------- Snapshot of protected/service classification ------------
+   */
+  fulfillmentType FulfillmentType?
+  category        String?
+  subcategory     String?
+
   sellerWallet String
   buyerWallet  String
 
@@ -408,6 +473,8 @@ model Trade {
   @@index([marketType, marketplacePurchaseId])
   @@index([marketplaceContract, marketplaceListingId])
   @@index([marketplaceContract, marketplacePurchaseId])
+  @@index([fulfillmentType])
+  @@index([category, subcategory])
 }
 
 /**
@@ -503,6 +570,11 @@ model StoreOrder {
    */
   vertical String
 
+  /**
+   * STANDARD  = old normal marketplace
+   * DELIVERY  = old delivery escrow marketplace
+   * PROTECTED = new protected escrow marketplace for goods/services
+   */
   marketType MarketType @default(STANDARD)
 
   marketplaceContract String?
@@ -534,6 +606,18 @@ model StoreOrder {
   physicalItem     Boolean @default(false)
   officialItem     Boolean @default(false)
 
+  /**
+   * ---------------- Protected/service execution metadata --------------------
+   */
+  fulfillmentType FulfillmentType?
+  serviceStatus   ServiceStatus @default(NOT_REQUIRED)
+
+  /**
+   * ---------------- Catalog / trading filters ------------------------------
+   */
+  category    String?
+  subcategory String?
+
   escrowStatus   EscrowStatus   @default(PENDING)
   deliveryStatus DeliveryStatus @default(PENDING)
 
@@ -545,6 +629,15 @@ model StoreOrder {
   refundedAt     DateTime?
   disputedAt     DateTime?
   cancelledAt    DateTime?
+
+  /**
+   * ---------------- Service-specific timing fields -------------------------
+   */
+  scheduledFor        DateTime?
+  workStartedAt       DateTime?
+  submittedAt         DateTime?
+  revisionRequestedAt DateTime?
+  completedAt         DateTime?
 
   shippingName    String?
   shippingPhone   String?
@@ -580,6 +673,7 @@ model StoreOrder {
   @@index([marketplacePurchaseId])
   @@index([escrowStatus])
   @@index([deliveryStatus])
+  @@index([serviceStatus])
   @@index([createdAt])
   @@index([marketType])
   @@index([marketplaceContract])
@@ -587,6 +681,8 @@ model StoreOrder {
   @@index([marketType, marketplacePurchaseId])
   @@index([marketplaceContract, marketplaceListingId])
   @@index([marketplaceContract, marketplacePurchaseId])
+  @@index([fulfillmentType])
+  @@index([category, subcategory])
   @@map("store_orders")
 }
 
