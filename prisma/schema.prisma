@@ -364,7 +364,7 @@ model Listing {
   /**
    * STANDARD  = old normal marketplace
    * DELIVERY  = old delivery escrow marketplace
-   * PROTECTED = new universal protected escrow marketplace
+   * PROTECTED = new hybrid protected escrow marketplace
    */
   marketType MarketType @default(STANDARD)
 
@@ -573,7 +573,12 @@ model StoreOrder {
   /**
    * STANDARD  = old normal marketplace
    * DELIVERY  = old delivery escrow marketplace
-   * PROTECTED = new protected escrow marketplace for goods/services
+   * PROTECTED = new hybrid protected escrow marketplace
+   *
+   * In PROTECTED hybrid flow:
+   * - buyer receives NFT immediately on buy
+   * - funds stay in escrow
+   * - refund requires NFT return back to escrow contract
    */
   marketType MarketType @default(STANDARD)
 
@@ -629,6 +634,14 @@ model StoreOrder {
   refundedAt     DateTime?
   disputedAt     DateTime?
   cancelledAt    DateTime?
+
+  /**
+   * ---------------- Hybrid protected refund / confirm fields ---------------
+   */
+  buyerConfirmedAt  DateTime?
+  refundRequestedAt DateTime?
+  nftReturnedAt     DateTime?
+  refundRejectedAt  DateTime?
 
   /**
    * ---------------- Service-specific timing fields -------------------------

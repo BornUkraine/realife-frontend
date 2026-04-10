@@ -57,9 +57,14 @@ const provider = new JsonRpcProvider(RPC_URL);
 const ABI = [
   "event Listed(uint256 indexed listingId,address indexed seller,address indexed nft,uint256 tokenId,uint256 amount,uint256 pricePerUnitWei,uint8 fulfillmentType)",
   "event Cancelled(uint256 indexed listingId,address indexed seller,address indexed nft,uint256 tokenId,uint256 amountReturned)",
-  "event PurchaseFunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 pricePerUnitWei,uint256 totalPriceWei,uint8 fulfillmentType)",
-  "event PurchaseReleased(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 totalPriceWei,uint256 feeWei,uint256 sellerAmountWei,uint8 fulfillmentType)",
-  "event PurchaseRefunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 totalPriceWei,uint8 fulfillmentType)",
+  "event PurchaseFunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer,address seller,address nft,uint256 tokenId,uint256 amount,uint256 totalPriceWei,uint8 fulfillmentType)",
+  "event BuyerConfirmed(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
+  "event RefundRequested(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
+  "event PurchaseNftReturned(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
+  "event RefundRequestRejected(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
+  "event PurchaseReleased(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,uint256 totalPriceWei,uint256 feeWei,uint256 sellerAmountWei,uint8 fulfillmentType)",
+  "event PurchaseRefunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer,address seller,uint256 totalPriceWei,uint8 fulfillmentType)",
+  "event RefundRejectedAndNftRestored(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
 ];
 
 const iface = new Interface(ABI);
@@ -185,7 +190,6 @@ function nextServiceStatusForRefund(fulfillmentType, current) {
  * ==========================================================================
  * LISTED
  * ==========================================================================
- * Important difference vs old delivery indexer:
  * On PROTECTED listing, NFT moves into escrow marketplace custody.
  * So seller holding should decrease when listing is first seen.
  */
@@ -244,7 +248,6 @@ async function handleListed(parsed, log) {
       },
       select: {
         id: true,
-        status: true,
       },
     }),
   ]);
@@ -321,7 +324,7 @@ async function handleListed(parsed, log) {
     },
   });
 
-  // Decrease seller holding only on first sight of listing
+  // Seller sent NFT into escrow on listing
   if (!existingListing && sellerId) {
     await prisma.holding.updateMany({
       where: {
@@ -433,18 +436,19 @@ async function handleCancelled(parsed, blockTime) {
  * ==========================================================================
  * PURCHASE FUNDED
  * ==========================================================================
- * Buyer pays into escrow, but buyer does NOT receive NFT yet.
- * NFT remains in marketplace custody until release.
+ * In the HYBRID protected flow:
+ * - buyer pays into escrow
+ * - buyer immediately receives NFT
+ * - seller is not paid yet
  */
 async function handlePurchaseFunded(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const listingId = BigInt(parsed.args.listingId);
-  const seller = norm(parsed.args.seller);
   const buyer = norm(parsed.args.buyer);
+  const seller = norm(parsed.args.seller);
   const nft = norm(parsed.args.nft);
   const tokenId = BigInt(parsed.args.tokenId).toString();
   const amount = BigInt(parsed.args.amount);
-  const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
   const totalPriceWei = BigInt(parsed.args.totalPriceWei);
   const fulfillmentType = fulfillmentTypeFromRaw(parsed.args.fulfillmentType);
   const txHash = log.transactionHash;
@@ -497,6 +501,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
         id: true,
         status: true,
         amountRemaining: true,
+        pricePerUnitWei: true,
         deliveryEnabled: true,
         physicalItemIncluded: true,
         officialItem: true,
@@ -514,6 +519,11 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
     });
     return;
   }
+
+  const pricePerUnitWei =
+    currentListing?.pricePerUnitWei != null
+      ? BigInt(currentListing.pricePerUnitWei)
+      : totalPriceWei / amount;
 
   let createdTrade = false;
   let tradeRow = null;
@@ -591,6 +601,32 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
     });
   }
 
+  // Buyer already received NFT on PurchaseFunded
+  if (createdTrade && buyerId) {
+    await prisma.holding.upsert({
+      where: {
+        userId_chainId_contract_tokenId: {
+          userId: buyerId,
+          chainId: CHAIN_ID,
+          contract: nft,
+          tokenId,
+        },
+      },
+      create: {
+        userId: buyerId,
+        chainId: CHAIN_ID,
+        contract: nft,
+        tokenId,
+        standard: "ERC1155",
+        amount,
+      },
+      update: {
+        standard: "ERC1155",
+        amount: { increment: amount },
+      },
+    });
+  }
+
   const vertical = product?.vertical || "marketplace";
   const deliveryRequired = isPhysicalFulfillment(fulfillmentType);
   const physicalItem =
@@ -661,8 +697,8 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
           serviceStatus: isServiceFulfillment(fulfillmentType)
             ? "PENDING"
             : "NOT_REQUIRED",
-          escrowFundedAt: blockTime,
 
+          escrowFundedAt: blockTime,
           buyTxHash: txHash,
         },
       });
@@ -682,8 +718,8 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
   console.log("[PROTECTED_FUNDED]", {
     purchaseId: purchaseId.toString(),
     listingId: listingId.toString(),
-    seller,
     buyer,
+    seller,
     nft,
     tokenId,
     amount: amount.toString(),
@@ -694,11 +730,205 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
 
 /**
  * ==========================================================================
+ * BUYER CONFIRMED
+ * ==========================================================================
+ * Buyer confirmed delivery/service completion,
+ * but funds may still remain in escrow until release event.
+ */
+async function handleBuyerConfirmed(parsed, blockTime) {
+  const purchaseId = BigInt(parsed.args.purchaseId);
+
+  const rows = await prisma.storeOrder.findMany({
+    where: {
+      chainId: CHAIN_ID,
+      marketType: "PROTECTED",
+      marketplaceContract: MARKETPLACE,
+      marketplacePurchaseId: purchaseId,
+    },
+    select: {
+      id: true,
+      deliveryRequired: true,
+      fulfillmentType: true,
+      deliveryStatus: true,
+      serviceStatus: true,
+      confirmedAt: true,
+      buyerConfirmedAt: true,
+    },
+  });
+
+  for (const row of rows) {
+    const isPhysical = row.fulfillmentType === "PHYSICAL_GOOD";
+    const isService =
+      !!row.fulfillmentType && isServiceFulfillment(row.fulfillmentType);
+
+    await prisma.storeOrder.update({
+      where: { id: row.id },
+      data: {
+        buyerConfirmedAt: row.buyerConfirmedAt || blockTime,
+        confirmedAt: row.confirmedAt || blockTime,
+        deliveryStatus: isPhysical ? "CONFIRMED" : row.deliveryStatus,
+        serviceStatus: isService ? "CONFIRMED" : row.serviceStatus,
+      },
+    });
+  }
+
+  console.log("[PROTECTED_BUYER_CONFIRMED]", {
+    purchaseId: purchaseId.toString(),
+    updated: rows.length,
+  });
+}
+
+/**
+ * ==========================================================================
+ * REFUND REQUESTED
+ * ==========================================================================
+ * Buyer asked for refund.
+ * In hybrid flow NFT may still be with buyer until PurchaseNftReturned happens.
+ */
+async function handleRefundRequested(parsed, blockTime) {
+  const purchaseId = BigInt(parsed.args.purchaseId);
+
+  const rows = await prisma.storeOrder.findMany({
+    where: {
+      chainId: CHAIN_ID,
+      marketType: "PROTECTED",
+      marketplaceContract: MARKETPLACE,
+      marketplacePurchaseId: purchaseId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  for (const row of rows) {
+    await prisma.storeOrder.update({
+      where: { id: row.id },
+      data: {
+        escrowStatus: "DISPUTED",
+        disputedAt: blockTime,
+        refundRequestedAt: blockTime,
+      },
+    });
+  }
+
+  console.log("[PROTECTED_REFUND_REQUESTED]", {
+    purchaseId: purchaseId.toString(),
+    updated: rows.length,
+  });
+}
+
+/**
+ * ==========================================================================
+ * PURCHASE NFT RETURNED
+ * ==========================================================================
+ * Buyer returned NFT back to escrow contract.
+ * Buyer holding must decrease here.
+ */
+async function handlePurchaseNftReturned(parsed, blockTime) {
+  const purchaseId = BigInt(parsed.args.purchaseId);
+  const buyer = norm(parsed.args.buyer);
+
+  const rows = await prisma.storeOrder.findMany({
+    where: {
+      chainId: CHAIN_ID,
+      marketType: "PROTECTED",
+      marketplaceContract: MARKETPLACE,
+      marketplacePurchaseId: purchaseId,
+    },
+    select: {
+      id: true,
+      nftReturnedAt: true,
+      buyerId: true,
+      buyerWallet: true,
+      contract: true,
+      tokenId: true,
+      amount: true,
+    },
+  });
+
+  for (const row of rows) {
+    if (row.nftReturnedAt) continue;
+
+    await prisma.storeOrder.update({
+      where: { id: row.id },
+      data: {
+        escrowStatus: "DISPUTED",
+        disputedAt: blockTime,
+        nftReturnedAt: blockTime,
+      },
+    });
+
+    const buyerId = row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
+    if (buyerId) {
+      await prisma.holding.updateMany({
+        where: {
+          userId: buyerId,
+          chainId: CHAIN_ID,
+          contract: row.contract,
+          tokenId: row.tokenId,
+        },
+        data: {
+          amount: { decrement: row.amount },
+        },
+      });
+    }
+  }
+
+  console.log("[PROTECTED_NFT_RETURNED]", {
+    purchaseId: purchaseId.toString(),
+    updated: rows.length,
+  });
+}
+
+/**
+ * ==========================================================================
+ * REFUND REQUEST REJECTED
+ * ==========================================================================
+ * Refund request was rejected before final refund.
+ * Purchase goes back to FUNDED state.
+ */
+async function handleRefundRequestRejected(parsed, blockTime) {
+  const purchaseId = BigInt(parsed.args.purchaseId);
+
+  const rows = await prisma.storeOrder.findMany({
+    where: {
+      chainId: CHAIN_ID,
+      marketType: "PROTECTED",
+      marketplaceContract: MARKETPLACE,
+      marketplacePurchaseId: purchaseId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  for (const row of rows) {
+    await prisma.storeOrder.update({
+      where: { id: row.id },
+      data: {
+        escrowStatus: "FUNDED",
+        refundRejectedAt: blockTime,
+      },
+    });
+  }
+
+  console.log("[PROTECTED_REFUND_REQUEST_REJECTED]", {
+    purchaseId: purchaseId.toString(),
+    updated: rows.length,
+  });
+}
+
+/**
+ * ==========================================================================
  * PURCHASE RELEASED
  * ==========================================================================
  * Escrow resolves in seller favor:
- * - buyer receives NFT
+ * - buyer already has NFT
  * - seller receives funds
+ *
+ * Important:
+ * In hybrid flow buyer holding should NOT change here,
+ * because buyer already received NFT on PurchaseFunded.
  */
 async function handleReleased(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
@@ -720,11 +950,7 @@ async function handleReleased(parsed, log, blockTime) {
       fulfillmentType: true,
       confirmedAt: true,
       completedAt: true,
-      buyerId: true,
-      buyerWallet: true,
-      contract: true,
-      tokenId: true,
-      amount: true,
+      buyerConfirmedAt: true,
     },
   });
 
@@ -747,33 +973,6 @@ async function handleReleased(parsed, log, blockTime) {
         completedAt: isService ? row.completedAt || blockTime : row.completedAt,
       },
     });
-
-    const buyerId = row.buyerId || (await ensureUserByWallet(row.buyerWallet));
-
-    if (buyerId) {
-      await prisma.holding.upsert({
-        where: {
-          userId_chainId_contract_tokenId: {
-            userId: buyerId,
-            chainId: CHAIN_ID,
-            contract: row.contract,
-            tokenId: row.tokenId,
-          },
-        },
-        create: {
-          userId: buyerId,
-          chainId: CHAIN_ID,
-          contract: row.contract,
-          tokenId: row.tokenId,
-          standard: "ERC1155",
-          amount: row.amount,
-        },
-        update: {
-          standard: "ERC1155",
-          amount: { increment: row.amount },
-        },
-      });
-    }
   }
 
   console.log("[PROTECTED_RELEASED]", {
@@ -790,6 +989,10 @@ async function handleReleased(parsed, log, blockTime) {
  * Escrow resolves in buyer favor:
  * - buyer gets funds back
  * - seller gets NFT back
+ *
+ * Important:
+ * buyer holding was already decreased on PurchaseNftReturned,
+ * so here we only restore seller holding.
  */
 async function handleRefunded(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
@@ -875,6 +1078,80 @@ async function handleRefunded(parsed, log, blockTime) {
 
 /**
  * ==========================================================================
+ * REFUND REJECTED AND NFT RESTORED TO BUYER
+ * ==========================================================================
+ * If buyer already returned NFT but refund was rejected,
+ * NFT is sent back to buyer and holding must increase again.
+ */
+async function handleRefundRejectedAndRestored(parsed, blockTime) {
+  const purchaseId = BigInt(parsed.args.purchaseId);
+  const buyer = norm(parsed.args.buyer);
+
+  const rows = await prisma.storeOrder.findMany({
+    where: {
+      chainId: CHAIN_ID,
+      marketType: "PROTECTED",
+      marketplaceContract: MARKETPLACE,
+      marketplacePurchaseId: purchaseId,
+    },
+    select: {
+      id: true,
+      nftReturnedAt: true,
+      buyerId: true,
+      buyerWallet: true,
+      contract: true,
+      tokenId: true,
+      amount: true,
+    },
+  });
+
+  for (const row of rows) {
+    if (!row.nftReturnedAt) continue;
+
+    await prisma.storeOrder.update({
+      where: { id: row.id },
+      data: {
+        escrowStatus: "FUNDED",
+        refundRejectedAt: blockTime,
+        nftReturnedAt: null,
+      },
+    });
+
+    const buyerId = row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
+    if (buyerId) {
+      await prisma.holding.upsert({
+        where: {
+          userId_chainId_contract_tokenId: {
+            userId: buyerId,
+            chainId: CHAIN_ID,
+            contract: row.contract,
+            tokenId: row.tokenId,
+          },
+        },
+        create: {
+          userId: buyerId,
+          chainId: CHAIN_ID,
+          contract: row.contract,
+          tokenId: row.tokenId,
+          standard: "ERC1155",
+          amount: row.amount,
+        },
+        update: {
+          standard: "ERC1155",
+          amount: { increment: row.amount },
+        },
+      });
+    }
+  }
+
+  console.log("[PROTECTED_REFUND_RESTORED_TO_BUYER]", {
+    purchaseId: purchaseId.toString(),
+    updated: rows.length,
+  });
+}
+
+/**
+ * ==========================================================================
  * MAIN LOOP
  * ==========================================================================
  */
@@ -910,9 +1187,7 @@ async function mainLoop() {
         toBlock: Number(toBlock),
       });
 
-      console.log(
-        `[PROTECTED_SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`
-      );
+      console.log(`[PROTECTED_SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`);
 
       for (const log of logs) {
         let parsed = null;
@@ -939,12 +1214,32 @@ async function mainLoop() {
           await handlePurchaseFunded(parsed, log, blockTime);
         }
 
+        if (parsed.name === "BuyerConfirmed") {
+          await handleBuyerConfirmed(parsed, blockTime);
+        }
+
+        if (parsed.name === "RefundRequested") {
+          await handleRefundRequested(parsed, blockTime);
+        }
+
+        if (parsed.name === "PurchaseNftReturned") {
+          await handlePurchaseNftReturned(parsed, blockTime);
+        }
+
+        if (parsed.name === "RefundRequestRejected") {
+          await handleRefundRequestRejected(parsed, blockTime);
+        }
+
         if (parsed.name === "PurchaseReleased") {
           await handleReleased(parsed, log, blockTime);
         }
 
         if (parsed.name === "PurchaseRefunded") {
           await handleRefunded(parsed, log, blockTime);
+        }
+
+        if (parsed.name === "RefundRejectedAndNftRestored") {
+          await handleRefundRejectedAndRestored(parsed, blockTime);
         }
       }
 
