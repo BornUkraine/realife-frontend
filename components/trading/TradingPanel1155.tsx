@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -16,8 +22,15 @@ import { formatUnits, parseUnits } from "viem";
 
 import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
+import { realifeMarketplaceProtectedEscrow1155Abi } from "@/lib/realifeMarketplaceProtectedEscrow1155Abi";
 
-type MarketType = "STANDARD" | "DELIVERY";
+type MarketType = "STANDARD" | "PROTECTED";
+
+type FulfillmentType =
+  | "PHYSICAL_GOOD"
+  | "DIGITAL_SERVICE"
+  | "ONLINE_SESSION"
+  | "LOCAL_SERVICE";
 
 type ContractView =
   | "publicStandard"
@@ -41,6 +54,10 @@ type Listing = {
   physicalItemIncluded?: boolean;
   officialItem?: boolean;
 
+  fulfillmentType?: FulfillmentType | null;
+  category?: string | null;
+  subcategory?: string | null;
+
   marketType?: MarketType;
   marketplaceContract?: string | null;
 };
@@ -55,6 +72,10 @@ type Trade = {
   amount: string;
   pricePerUnitWei: string;
   totalPriceWei: string;
+
+  fulfillmentType?: FulfillmentType | null;
+  category?: string | null;
+  subcategory?: string | null;
 
   marketType?: MarketType;
   marketplaceContract?: string | null;
@@ -74,6 +95,10 @@ type MarketNftResponse = {
     deliveryEnabled?: boolean;
     physicalItemIncluded?: boolean;
     officialItem?: boolean;
+
+    fulfillmentType?: FulfillmentType | null;
+    category?: string | null;
+    subcategory?: string | null;
   };
   stats: {
     activeListings: number;
@@ -114,6 +139,10 @@ function toLower(a?: string | null) {
   return String(a || "").trim().toLowerCase();
 }
 
+function normText(a?: string | null) {
+  return String(a || "").trim().toLowerCase();
+}
+
 function clampInt(n: number, min: number, max: number) {
   if (!Number.isFinite(n)) return min;
   return Math.max(min, Math.min(max, n));
@@ -145,7 +174,7 @@ function explorerTxUrl(chainId: number, txHash: string) {
 }
 
 function marketLabel(mt?: MarketType | null) {
-  return mt === "DELIVERY" ? "DELIVERY" : "STANDARD";
+  return mt === "PROTECTED" ? "PROTECTED" : "STANDARD";
 }
 
 function listingKeyOf(x: {
@@ -232,28 +261,133 @@ function classifyContractView(contract: string): ContractView {
   return "unknown";
 }
 
-function forcedMarketTypeByContractView(view: ContractView): MarketType | null {
-  switch (view) {
-    case "publicDelivery":
-      return "DELIVERY";
-    case "publicStandard":
-    case "cafe":
-    case "store":
-      return "STANDARD";
-    default:
-      return null;
+function textLooksProtected(...values: Array<string | null | undefined>) {
+  const s = values.map(normText).filter(Boolean).join(" ");
+
+  if (!s) return false;
+
+  const needles = [
+    "service",
+    "services",
+    "digital service",
+    "online session",
+    "local service",
+    "consultation",
+    "consulting",
+    "lesson",
+    "lessons",
+    "training",
+    "coaching",
+    "mentoring",
+    "tutoring",
+    "website",
+    "website development",
+    "website design",
+    "web design",
+    "web development",
+    "landing page",
+    "development",
+    "design",
+    "graphic design",
+    "logo design",
+    "ui ux",
+    "seo",
+    "smm",
+    "marketing work",
+    "promo work",
+    "ai work",
+    "audit",
+    "call",
+    "meeting",
+    "session",
+  ];
+
+  return needles.some((x) => s.includes(x));
+}
+
+function isProtectedFulfillment(v?: FulfillmentType | string | null) {
+  const x = String(v || "").trim().toUpperCase();
+  return (
+    x === "PHYSICAL_GOOD" ||
+    x === "DIGITAL_SERVICE" ||
+    x === "ONLINE_SESSION" ||
+    x === "LOCAL_SERVICE"
+  );
+}
+
+function inferProtectedAsset(params: {
+  contractView: ContractView;
+  deliveryEnabled?: boolean;
+  physicalItemIncluded?: boolean;
+  fulfillmentType?: FulfillmentType | string | null;
+  category?: string | null;
+  subcategory?: string | null;
+}) {
+  const {
+    contractView,
+    deliveryEnabled,
+    physicalItemIncluded,
+    fulfillmentType,
+    category,
+    subcategory,
+  } = params;
+
+  if (contractView === "store" || contractView === "cafe") return false;
+  if (contractView === "publicDelivery") return true;
+
+  if (isProtectedFulfillment(fulfillmentType)) return true;
+  if (deliveryEnabled || physicalItemIncluded) return true;
+  if (textLooksProtected(category, subcategory)) return true;
+
+  return false;
+}
+
+function resolveAssetMarketType(params: {
+  contractView: ContractView;
+  assetIsProtected: boolean;
+  preferredMarketType?: MarketType;
+  marketType?: MarketType;
+}): MarketType {
+  const { contractView, assetIsProtected, preferredMarketType, marketType } = params;
+
+  if (contractView === "store" || contractView === "cafe") return "STANDARD";
+  if (contractView === "publicDelivery") return "PROTECTED";
+  if (assetIsProtected) return "PROTECTED";
+
+  if (preferredMarketType === "PROTECTED" || marketType === "PROTECTED") {
+    return "PROTECTED";
   }
+
+  if (preferredMarketType === "STANDARD" || marketType === "STANDARD") {
+    return "STANDARD";
+  }
+
+  return "STANDARD";
+}
+
+function resolveRowMarketType(params: {
+  contractView: ContractView;
+  fallbackMarketType: MarketType;
+  rowMarketType?: MarketType | null;
+}): MarketType {
+  const { contractView, fallbackMarketType, rowMarketType } = params;
+
+  if (contractView === "store" || contractView === "cafe") return "STANDARD";
+  if (contractView === "publicDelivery") return "PROTECTED";
+  return rowMarketType || fallbackMarketType;
 }
 
 function MarketNotice({
   contractView,
+  assetIsProtected,
 }: {
   contractView: ContractView;
+  assetIsProtected: boolean;
 }) {
   if (contractView === "store") {
     return (
-      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100 leading-relaxed">
-        <div className="font-black mb-1">Realife Store • Secondary Trading</div>
+      <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] leading-relaxed text-sky-100">
+        <div className="mb-1 font-black">Realife Store • Secondary Trading</div>
         <div>
           This NFT uses the <span className="font-black">STANDARD marketplace</span>.
           Delivery does not work here.
@@ -265,7 +399,7 @@ function MarketNotice({
 
         <Link
           href="/app/real-marketing"
-          className="inline-flex mt-3 px-4 py-2 rounded-xl bg-sky-500/20 hover:bg-sky-500/30 transition font-black text-sky-100"
+          className="mt-3 inline-flex rounded-xl bg-sky-500/20 px-4 py-2 font-black text-sky-100 transition hover:bg-sky-500/30"
         >
           Go to Real Marketing →
         </Link>
@@ -275,8 +409,8 @@ function MarketNotice({
 
   if (contractView === "cafe") {
     return (
-      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100 leading-relaxed">
-        <div className="font-black mb-1">Realife Cafe • Secondary Trading</div>
+      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] leading-relaxed text-amber-100">
+        <div className="mb-1 font-black">Realife Cafe • Secondary Trading</div>
         <div>
           This NFT uses the <span className="font-black">STANDARD marketplace</span>.
           Redemption does not work here.
@@ -289,7 +423,7 @@ function MarketNotice({
 
         <Link
           href="/app/real-marketing"
-          className="inline-flex mt-3 px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 transition font-black text-amber-100"
+          className="mt-3 inline-flex rounded-xl bg-amber-500/20 px-4 py-2 font-black text-amber-100 transition hover:bg-amber-500/30"
         >
           Go to Real Marketing →
         </Link>
@@ -299,15 +433,29 @@ function MarketNotice({
 
   if (contractView === "publicDelivery") {
     return (
-      <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] text-violet-100 leading-relaxed">
-        <div className="font-black mb-1">Public Delivery NFT</div>
+      <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] leading-relaxed text-violet-100">
+        <div className="mb-1 font-black">Public Delivery NFT</div>
         <div>
-          This NFT uses the <span className="font-black">DELIVERY marketplace</span>.
-          Physical item delivery is enabled for this asset.
+          This NFT uses the <span className="font-black">PROTECTED marketplace</span>.
+          Escrow / refund / protected order flow is enabled for this asset.
         </div>
         <div className="mt-2 text-violet-100/80">
-          After purchase, delivery flow and escrow are handled through Orders &amp;
-          Delivery.
+          After purchase, the protected order flow is handled through Orders.
+        </div>
+      </div>
+    );
+  }
+
+  if (contractView === "publicStandard" && assetIsProtected) {
+    return (
+      <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-4 text-[12px] leading-relaxed text-fuchsia-100">
+        <div className="mb-1 font-black">Public Standard Contract • Protected Asset</div>
+        <div>
+          This NFT is stored in the standard mint contract, but it should trade on the{" "}
+          <span className="font-black">PROTECTED marketplace</span>.
+        </div>
+        <div className="mt-2 text-fuchsia-100/80">
+          This is used for protected goods / services / sessions.
         </div>
       </div>
     );
@@ -315,14 +463,13 @@ function MarketNotice({
 
   if (contractView === "publicStandard") {
     return (
-      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100 leading-relaxed">
-        <div className="font-black mb-1">Public Standard NFT</div>
+      <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] leading-relaxed text-emerald-100">
+        <div className="mb-1 font-black">Public Standard NFT</div>
         <div>
           This NFT uses the <span className="font-black">STANDARD marketplace</span>.
-          Delivery is not included for this asset.
         </div>
         <div className="mt-2 text-emerald-100/80">
-          This is a normal user-created NFT without delivery flow.
+          This is a normal user-created NFT without protected escrow flow.
         </div>
       </div>
     );
@@ -338,6 +485,10 @@ export default function TradingPanel1155({
   marketType,
   preferredMarketType,
   deliveryEnabled,
+  physicalItemIncluded,
+  fulfillmentType,
+  category,
+  subcategory,
 }: {
   chainId: number;
   contract: string;
@@ -345,6 +496,10 @@ export default function TradingPanel1155({
   marketType?: MarketType;
   preferredMarketType?: MarketType;
   deliveryEnabled?: boolean;
+  physicalItemIncluded?: boolean;
+  fulfillmentType?: FulfillmentType | null;
+  category?: string | null;
+  subcategory?: string | null;
 }) {
   const router = useRouter();
   const { address, isConnected } = useAccount();
@@ -364,11 +519,12 @@ export default function TradingPanel1155({
     );
   }, []);
 
-  const DELIVERY_MARKETPLACE_ADDRESS = useMemo(() => {
+  const PROTECTED_MARKETPLACE_ADDRESS = useMemo(() => {
     return toLower(
-      process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_DELIVERY_ADDRESS ||
-        process.env.NEXT_PUBLIC_MARKETPLACE_DELIVERY_ADDRESS ||
-        process.env.NEXT_PUBLIC_DELIVERY_MARKETPLACE_ADDRESS ||
+      process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_CONTRACT ||
+        process.env.NEXT_PUBLIC_PROTECTED_MARKETPLACE_ADDRESS ||
+        process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_PROTECTED_ADDRESS ||
+        process.env.NEXT_PUBLIC_MARKETPLACE_PROTECTED_ADDRESS ||
         ""
     );
   }, []);
@@ -376,13 +532,13 @@ export default function TradingPanel1155({
   const nftAddr = useMemo(() => toLower(contract), [contract]);
   const me = useMemo(() => toLower(address), [address]);
   const canTradeOnThisChain = currentChainId === chainId;
-
   const contractView = useMemo(() => classifyContractView(nftAddr), [nftAddr]);
 
-  const forcedMarketType = useMemo(
-    () => forcedMarketTypeByContractView(contractView),
-    [contractView]
-  );
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
+  const [data, setData] = useState<MarketNftResponse | null>(null);
+  const [tab, setTab] = useState<"buy" | "sell">("buy");
 
   const tokenIdBI = useMemo(() => {
     try {
@@ -392,14 +548,53 @@ export default function TradingPanel1155({
     }
   }, [tokenId]);
 
+  const assetDeliveryEnabled =
+    data?.mint?.deliveryEnabled ?? deliveryEnabled ?? false;
+
+  const assetPhysicalItemIncluded =
+    data?.mint?.physicalItemIncluded ?? physicalItemIncluded ?? false;
+
+  const assetFulfillmentType =
+    data?.mint?.fulfillmentType ?? fulfillmentType ?? null;
+
+  const assetCategory = data?.mint?.category ?? category ?? null;
+  const assetSubcategory = data?.mint?.subcategory ?? subcategory ?? null;
+
+  const assetIsProtected = useMemo(() => {
+    return inferProtectedAsset({
+      contractView,
+      deliveryEnabled: assetDeliveryEnabled,
+      physicalItemIncluded: assetPhysicalItemIncluded,
+      fulfillmentType: assetFulfillmentType,
+      category: assetCategory,
+      subcategory: assetSubcategory,
+    });
+  }, [
+    contractView,
+    assetDeliveryEnabled,
+    assetPhysicalItemIncluded,
+    assetFulfillmentType,
+    assetCategory,
+    assetSubcategory,
+  ]);
+
+  const resolvedMarketType: MarketType = useMemo(() => {
+    return resolveAssetMarketType({
+      contractView,
+      assetIsProtected,
+      preferredMarketType,
+      marketType,
+    });
+  }, [contractView, assetIsProtected, preferredMarketType, marketType]);
+
   const revalidateMarketTags = useCallback(async () => {
     const tags = [
       `market:nft:${chainId}:${nftAddr}:${tokenId}`,
       `market:contract:${chainId}:${nftAddr}`,
       `market:nft:${chainId}:${nftAddr}:${tokenId}:STANDARD`,
-      `market:nft:${chainId}:${nftAddr}:${tokenId}:DELIVERY`,
+      `market:nft:${chainId}:${nftAddr}:${tokenId}:PROTECTED`,
       `market:contract:${chainId}:${nftAddr}:STANDARD`,
-      `market:contract:${chainId}:${nftAddr}:DELIVERY`,
+      `market:contract:${chainId}:${nftAddr}:PROTECTED`,
     ];
 
     try {
@@ -412,19 +607,6 @@ export default function TradingPanel1155({
       //
     }
   }, [chainId, nftAddr, tokenId]);
-
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
-  const [data, setData] = useState<MarketNftResponse | null>(null);
-  const [tab, setTab] = useState<"buy" | "sell">("buy");
-
-  const resolvedMarketType: MarketType = useMemo(() => {
-    if (forcedMarketType) return forcedMarketType;
-    if (preferredMarketType) return preferredMarketType;
-    if (marketType) return marketType;
-    return deliveryEnabled ? "DELIVERY" : "STANDARD";
-  }, [forcedMarketType, preferredMarketType, marketType, deliveryEnabled]);
 
   const refresh = useCallback(async () => {
     setErr(null);
@@ -451,27 +633,19 @@ export default function TradingPanel1155({
     refresh();
   }, [refresh]);
 
-  const sellMarketType: MarketType = useMemo(() => {
-    if (contractView === "publicDelivery") return "DELIVERY";
-    if (
-      contractView === "publicStandard" ||
-      contractView === "store" ||
-      contractView === "cafe"
-    ) {
-      return "STANDARD";
-    }
-    return resolvedMarketType;
-  }, [contractView, resolvedMarketType]);
+  const sellMarketType = resolvedMarketType;
 
   const sellMarketplaceAddress = useMemo(() => {
-    return sellMarketType === "DELIVERY"
-      ? DELIVERY_MARKETPLACE_ADDRESS
+    return sellMarketType === "PROTECTED"
+      ? PROTECTED_MARKETPLACE_ADDRESS
       : STANDARD_MARKETPLACE_ADDRESS;
-  }, [
-    sellMarketType,
-    DELIVERY_MARKETPLACE_ADDRESS,
-    STANDARD_MARKETPLACE_ADDRESS,
-  ]);
+  }, [sellMarketType, PROTECTED_MARKETPLACE_ADDRESS, STANDARD_MARKETPLACE_ADDRESS]);
+
+  const sellMarketplaceAbi = useMemo(() => {
+    return sellMarketType === "PROTECTED"
+      ? realifeMarketplaceProtectedEscrow1155Abi
+      : marketplaceSpot1155Abi;
+  }, [sellMarketType]);
 
   const hasSellMarketplace = sellMarketplaceAddress.startsWith("0x");
 
@@ -540,38 +714,38 @@ export default function TradingPanel1155({
   }, [data?.listings, selectedListingKey]);
 
   const selectedListingMarketType: MarketType = useMemo(() => {
-    if (contractView === "publicDelivery") return "DELIVERY";
-    if (
-      contractView === "publicStandard" ||
-      contractView === "store" ||
-      contractView === "cafe"
-    ) {
-      return "STANDARD";
-    }
-    if (selectedListing?.marketType) return selectedListing.marketType;
-    return resolvedMarketType;
-  }, [contractView, selectedListing?.marketType, resolvedMarketType]);
-
-  const selectedListingCreatesDeliveryOrder = useMemo(() => {
-    return selectedListingMarketType === "DELIVERY";
-  }, [selectedListingMarketType]);
+    return resolveRowMarketType({
+      contractView,
+      fallbackMarketType: resolvedMarketType,
+      rowMarketType: selectedListing?.marketType,
+    });
+  }, [contractView, resolvedMarketType, selectedListing?.marketType]);
 
   const selectedListingMarketplaceAddress = useMemo(() => {
     const direct = toLower(selectedListing?.marketplaceContract || "");
     if (direct.startsWith("0x")) return direct;
 
-    return selectedListingMarketType === "DELIVERY"
-      ? DELIVERY_MARKETPLACE_ADDRESS
+    return selectedListingMarketType === "PROTECTED"
+      ? PROTECTED_MARKETPLACE_ADDRESS
       : STANDARD_MARKETPLACE_ADDRESS;
   }, [
     selectedListing?.marketplaceContract,
     selectedListingMarketType,
-    DELIVERY_MARKETPLACE_ADDRESS,
+    PROTECTED_MARKETPLACE_ADDRESS,
     STANDARD_MARKETPLACE_ADDRESS,
   ]);
 
+  const selectedListingMarketplaceAbi = useMemo(() => {
+    return selectedListingMarketType === "PROTECTED"
+      ? realifeMarketplaceProtectedEscrow1155Abi
+      : marketplaceSpot1155Abi;
+  }, [selectedListingMarketType]);
+
   const hasSelectedListingMarketplace =
     selectedListingMarketplaceAddress.startsWith("0x");
+
+  const selectedListingCreatesProtectedOrder =
+    selectedListingMarketType === "PROTECTED";
 
   const maxBuyBI = useMemo(() => {
     try {
@@ -686,7 +860,7 @@ export default function TradingPanel1155({
       const priceWei = parseEthOrZero(sellPriceEth);
 
       const hash = await writeContractAsync({
-        abi: marketplaceSpot1155Abi,
+        abi: sellMarketplaceAbi as any,
         address: sellMarketplaceAddress as `0x${string}`,
         functionName: "list1155",
         args: [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei],
@@ -710,21 +884,23 @@ export default function TradingPanel1155({
   async function cancelListing(listing: Listing) {
     if (!isConnected) return openConnectModal?.();
 
-    const listingMarketType: MarketType =
-      contractView === "publicDelivery"
-        ? "DELIVERY"
-        : contractView === "publicStandard" ||
-          contractView === "store" ||
-          contractView === "cafe"
-        ? "STANDARD"
-        : listing.marketType || resolvedMarketType;
+    const listingMarketType = resolveRowMarketType({
+      contractView,
+      fallbackMarketType: resolvedMarketType,
+      rowMarketType: listing.marketType,
+    });
 
     const directMarketplace = toLower(listing.marketplaceContract || "");
     const listingMarketplaceAddress = directMarketplace.startsWith("0x")
       ? directMarketplace
-      : listingMarketType === "DELIVERY"
-      ? DELIVERY_MARKETPLACE_ADDRESS
+      : listingMarketType === "PROTECTED"
+      ? PROTECTED_MARKETPLACE_ADDRESS
       : STANDARD_MARKETPLACE_ADDRESS;
+
+    const listingMarketplaceAbi =
+      listingMarketType === "PROTECTED"
+        ? realifeMarketplaceProtectedEscrow1155Abi
+        : marketplaceSpot1155Abi;
 
     if (!listingMarketplaceAddress.startsWith("0x")) {
       setErr(
@@ -743,7 +919,7 @@ export default function TradingPanel1155({
       await ensureChain();
 
       const hash = await writeContractAsync({
-        abi: marketplaceSpot1155Abi,
+        abi: listingMarketplaceAbi as any,
         address: listingMarketplaceAddress as `0x${string}`,
         functionName: "cancel",
         args: [BigInt(listing.marketplaceListingId)],
@@ -787,7 +963,7 @@ export default function TradingPanel1155({
       const total = pricePer * amt;
 
       const hash = await writeContractAsync({
-        abi: marketplaceSpot1155Abi,
+        abi: selectedListingMarketplaceAbi as any,
         address: selectedListingMarketplaceAddress as `0x${string}`,
         functionName: "buy",
         args: [BigInt(selectedListing.marketplaceListingId), amt],
@@ -795,7 +971,7 @@ export default function TradingPanel1155({
       });
 
       setHint(
-        selectedListingCreatesDeliveryOrder
+        selectedListingCreatesProtectedOrder
           ? `Buy sent to ${marketLabel(
               selectedListingMarketType
             )} market. Waiting for confirmation…`
@@ -805,10 +981,10 @@ export default function TradingPanel1155({
       await publicClient?.waitForTransactionReceipt({ hash });
 
       setHint(
-        selectedListingCreatesDeliveryOrder
+        selectedListingCreatesProtectedOrder
           ? `Bought on ${marketLabel(
               selectedListingMarketType
-            )} ✅ Updating… Delivery order will appear in Orders & Delivery after indexer sync.`
+            )} ✅ Updating… Protected order will appear in Orders after indexer sync.`
           : "Bought ✅ Updating…"
       );
 
@@ -822,7 +998,7 @@ export default function TradingPanel1155({
   }
 
   const wrap =
-    "rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.60)]";
+    "rounded-[34px] overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] p-px shadow-[0_34px_130px_rgba(0,0,0,0.60)]";
   const card =
     "rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10";
 
@@ -845,8 +1021,8 @@ export default function TradingPanel1155({
     iAmSellerOfSelected;
 
   const sellEnvMissingText =
-    sellMarketType === "DELIVERY"
-      ? "Missing delivery marketplace env (NEXT_PUBLIC_REALIFE_MARKETPLACE_DELIVERY_ADDRESS)"
+    sellMarketType === "PROTECTED"
+      ? "Missing protected marketplace env (NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_CONTRACT)"
       : "Missing standard marketplace env (NEXT_PUBLIC_REALIFE_MARKETPLACE_ADDRESS or NEXT_PUBLIC_MARKETPLACE_ADDRESS)";
 
   return (
@@ -855,10 +1031,10 @@ export default function TradingPanel1155({
         <div className="p-6 md:p-7">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
+              <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/45">
                 Trading • ERC-1155
               </div>
-              <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">
+              <div className="mt-2 text-xl font-black tracking-tight text-white/90 md:text-2xl">
                 Buy / Sell
               </div>
               <div className="mt-2 text-[12px] text-white/55">
@@ -868,21 +1044,21 @@ export default function TradingPanel1155({
 
             <div className="flex items-center gap-2">
               {!hasSellMarketplace ? (
-                <div className="px-3 py-2 rounded-2xl border border-rose-500/25 bg-rose-500/10 text-[11px] font-black text-rose-100">
+                <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 px-3 py-2 text-[11px] font-black text-rose-100">
                   {sellEnvMissingText}
                 </div>
               ) : null}
 
               <Link
                 href="/app/orders"
-                className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
+                className="inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-white/85 transition hover:bg-white/[0.10]"
               >
                 Orders
               </Link>
 
               <button
                 onClick={() => refreshAll()}
-                className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100"
+                className="inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-amber-100/90 transition hover:bg-white/[0.10] hover:text-amber-100"
               >
                 Refresh
               </button>
@@ -909,14 +1085,17 @@ export default function TradingPanel1155({
           </div>
 
           <div className="mt-5">
-            <MarketNotice contractView={contractView} />
+            <MarketNotice
+              contractView={contractView}
+              assetIsProtected={assetIsProtected}
+            />
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-2">
             {!isConnected ? (
               <button
                 onClick={() => openConnectModal?.()}
-                className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-5 py-3 font-extrabold text-black ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] transition hover:brightness-110"
               >
                 Connect Wallet
               </button>
@@ -925,14 +1104,14 @@ export default function TradingPanel1155({
             {isConnected && !canTradeOnThisChain ? (
               <button
                 onClick={() => switchChainAsync?.({ chainId })}
-                className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-5 py-3 font-extrabold transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
                 Switch Chain ({chainId})
               </button>
             ) : null}
 
             {isConnected ? (
-              <div className="text-[12px] text-white/55 font-semibold">
+              <div className="text-[12px] font-semibold text-white/55">
                 Wallet:{" "}
                 <span className="font-mono text-white/80">
                   {shortAddr(address || "")}
@@ -940,15 +1119,15 @@ export default function TradingPanel1155({
               </div>
             ) : null}
 
-            <div className="text-[12px] text-white/55 font-semibold">
+            <div className="text-[12px] font-semibold text-white/55">
               Sell target:{" "}
-              <span className="text-amber-100 font-black">
+              <span className="font-black text-amber-100">
                 {marketLabel(sellMarketType)}
               </span>
             </div>
 
             {isConnected ? (
-              <div className="text-[12px] text-white/55 font-semibold">
+              <div className="text-[12px] font-semibold text-white/55">
                 Approval:{" "}
                 <span className={isApproved ? "text-emerald-200" : "text-amber-100"}>
                   {isApproved ? "Approved" : "Required"}
@@ -957,9 +1136,9 @@ export default function TradingPanel1155({
             ) : null}
           </div>
 
-          <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                 Floor
               </div>
               <div className="mt-1 text-lg font-black text-amber-100">
@@ -968,7 +1147,7 @@ export default function TradingPanel1155({
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                 Last sale
               </div>
               <div className="mt-1 text-lg font-black text-white/90">
@@ -977,7 +1156,7 @@ export default function TradingPanel1155({
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                 Active
               </div>
               <div className="mt-1 text-lg font-black text-white/90">
@@ -986,7 +1165,7 @@ export default function TradingPanel1155({
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                 You own
               </div>
               <div className="mt-1 text-lg font-black text-emerald-200">
@@ -1008,7 +1187,7 @@ export default function TradingPanel1155({
             <div className="mt-6 rounded-[26px] border border-white/10 bg-white/[0.04] p-5 md:p-6">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
+                  <div className="text-[12px] font-black uppercase tracking-wider text-white/80">
                     Create listing
                   </div>
                   <div className="mt-1 text-[12px] text-white/50">
@@ -1021,8 +1200,8 @@ export default function TradingPanel1155({
                     disabled={busy !== null}
                     onClick={approveAll}
                     className={cx(
-                      "inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100",
-                      busy ? "opacity-60 cursor-not-allowed" : ""
+                      "inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-amber-100/90 transition hover:bg-white/[0.10] hover:text-amber-100",
+                      busy ? "cursor-not-allowed opacity-60" : ""
                     )}
                   >
                     {busy === "approve"
@@ -1030,7 +1209,7 @@ export default function TradingPanel1155({
                       : `Approve ${marketLabel(sellMarketType).toLowerCase()} market`}
                   </button>
                 ) : (
-                  <div className="text-[12px] text-white/50 font-semibold">
+                  <div className="text-[12px] font-semibold text-white/50">
                     {isConnected
                       ? isApproved
                         ? "Approved ✅"
@@ -1042,10 +1221,10 @@ export default function TradingPanel1155({
 
               {contractView === "publicDelivery" ? (
                 <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] text-violet-100">
-                  This NFT uses the <span className="font-black">DELIVERY marketplace</span>.
-                  When bought, the order should appear in{" "}
-                  <Link href="/app/orders" className="underline font-black">
-                    Orders &amp; Delivery
+                  This NFT uses the <span className="font-black">PROTECTED marketplace</span>.
+                  After buy, the protected order should appear in{" "}
+                  <Link href="/app/orders" className="font-black underline">
+                    Orders
                   </Link>
                   .
                 </div>
@@ -1063,16 +1242,22 @@ export default function TradingPanel1155({
                   <span className="font-black">TRADING ONLY</span>. Official redemption
                   does not work here.
                 </div>
+              ) : contractView === "publicStandard" && assetIsProtected ? (
+                <div className="mt-4 rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-4 text-[12px] text-fuchsia-100">
+                  This asset should use the{" "}
+                  <span className="font-black">PROTECTED marketplace</span> because it
+                  behaves like a protected good / service / session.
+                </div>
               ) : contractView === "publicStandard" ? (
                 <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100">
                   This NFT uses the <span className="font-black">STANDARD marketplace</span>.
-                  It is a normal public standard NFT without delivery flow.
+                  It is a normal public standard NFT without protected flow.
                 </div>
               ) : null}
 
-              <div className="mt-5 grid md:grid-cols-2 gap-4">
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <label className="block">
-                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                     Amount
                   </div>
 
@@ -1124,7 +1309,7 @@ export default function TradingPanel1155({
                 </label>
 
                 <label className="block">
-                  <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                     Price per unit (ETH)
                   </div>
 
@@ -1147,8 +1332,8 @@ export default function TradingPanel1155({
                   disabled={sellDisabled}
                   onClick={listNow}
                   className={cx(
-                    "inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 hover:brightness-110",
-                    sellDisabled ? "opacity-60 cursor-not-allowed" : ""
+                    "inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-5 py-3 font-extrabold text-black ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] transition hover:brightness-110",
+                    sellDisabled ? "cursor-not-allowed opacity-60" : ""
                   )}
                 >
                   {busy === "list"
@@ -1157,18 +1342,18 @@ export default function TradingPanel1155({
                 </button>
 
                 {balance <= 0n ? (
-                  <div className="text-[12px] text-white/55 font-semibold">
+                  <div className="text-[12px] font-semibold text-white/55">
                     You have 0 balance.
                   </div>
                 ) : null}
               </div>
             </div>
           ) : (
-            <div className="mt-6 grid lg:grid-cols-[1.15fr_0.85fr] gap-4">
+            <div className="mt-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
               <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5 md:p-6">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
+                    <div className="text-[12px] font-black uppercase tracking-wider text-white/80">
                       Active listings
                     </div>
                     <div className="mt-1 text-[12px] text-white/50">
@@ -1194,16 +1379,13 @@ export default function TradingPanel1155({
                       const isMine = toLower(l.sellerWallet) === me;
                       const isCancelling = busy === `cancel:${k}`;
 
-                      const rowMarketType: MarketType =
-                        contractView === "publicDelivery"
-                          ? "DELIVERY"
-                          : contractView === "publicStandard" ||
-                            contractView === "store" ||
-                            contractView === "cafe"
-                          ? "STANDARD"
-                          : l.marketType || resolvedMarketType;
+                      const rowMarketType = resolveRowMarketType({
+                        contractView,
+                        fallbackMarketType: resolvedMarketType,
+                        rowMarketType: l.marketType,
+                      });
 
-                      const showDeliveryBadge = contractView === "publicDelivery";
+                      const showProtectedBadge = rowMarketType === "PROTECTED";
                       const showTradingOnlyBadge =
                         contractView === "store" || contractView === "cafe";
                       const showNoDeliveryBadge = contractView === "store";
@@ -1221,7 +1403,7 @@ export default function TradingPanel1155({
                             }
                           }}
                           className={cx(
-                            "rounded-2xl border p-4 transition outline-none cursor-pointer",
+                            "cursor-pointer rounded-2xl border p-4 outline-none transition",
                             active
                               ? "border-white/18 bg-white/[0.10]"
                               : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
@@ -1231,7 +1413,7 @@ export default function TradingPanel1155({
                             <div className="min-w-0">
                               <div className="text-sm font-extrabold text-white/92">
                                 {fmtEth(l.pricePerUnitWei)} ETH
-                                <span className="ml-2 text-white/35 text-[12px] font-black">
+                                <span className="ml-2 text-[12px] font-black text-white/35">
                                   per unit
                                 </span>
                               </div>
@@ -1243,40 +1425,40 @@ export default function TradingPanel1155({
                               </div>
 
                               <div className="mt-2 flex flex-wrap gap-2">
-                                <span className="px-2 py-1 rounded-full border border-white/10 bg-black/20 text-[10px] font-black text-white/80">
+                                <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[10px] font-black text-white/80">
                                   Left {l.amountRemaining}
                                 </span>
 
-                                <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                                <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
                                   {marketLabel(rowMarketType)}
                                 </span>
 
-                                {showDeliveryBadge ? (
-                                  <span className="px-2 py-1 rounded-full border border-violet-500/20 bg-violet-500/10 text-[10px] font-black text-violet-100">
-                                    DELIVERY
+                                {showProtectedBadge ? (
+                                  <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-2 py-1 text-[10px] font-black text-fuchsia-100">
+                                    PROTECTED
                                   </span>
                                 ) : null}
 
                                 {showTradingOnlyBadge ? (
-                                  <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
                                     TRADING ONLY
                                   </span>
                                 ) : null}
 
                                 {showNoDeliveryBadge ? (
-                                  <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
+                                  <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[10px] font-black text-sky-100">
                                     NO DELIVERY
                                   </span>
                                 ) : null}
 
                                 {showNoRedemptionBadge ? (
-                                  <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                                  <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-black text-amber-100">
                                     NO REDEMPTION
                                   </span>
                                 ) : null}
 
                                 {l.officialItem ? (
-                                  <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                                  <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-black text-amber-100">
                                     OFFICIAL
                                   </span>
                                 ) : null}
@@ -1294,9 +1476,9 @@ export default function TradingPanel1155({
                                     cancelListing(l);
                                   }}
                                   className={cx(
-                                    "inline-flex items-center justify-center px-3 py-2 rounded-xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[11px] font-black text-white/80",
+                                    "inline-flex items-center justify-center rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-[11px] font-black text-white/80 transition hover:bg-white/[0.10]",
                                     isCancelling || busy !== null
-                                      ? "opacity-60 cursor-not-allowed"
+                                      ? "cursor-not-allowed opacity-60"
                                       : ""
                                   )}
                                 >
@@ -1308,7 +1490,7 @@ export default function TradingPanel1155({
 
                           {isMine ? (
                             <div className="mt-2">
-                              <span className="inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-black/80 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15">
+                              <span className="inline-flex h-5 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-2 text-[10px] font-black text-black/80 ring-1 ring-black/15">
                                 YOUR LISTING
                               </span>
                             </div>
@@ -1322,7 +1504,7 @@ export default function TradingPanel1155({
 
               <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5 md:p-6">
                 <div>
-                  <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
+                  <div className="text-[12px] font-black uppercase tracking-wider text-white/80">
                     Buy selected
                   </div>
                   <div className="mt-1 text-[12px] text-white/50">
@@ -1333,12 +1515,12 @@ export default function TradingPanel1155({
                 {selectedListing ? (
                   <>
                     <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                         Selected listing
                       </div>
                       <div className="mt-2 text-sm font-extrabold text-white/92">
                         {fmtEth(selectedListing.pricePerUnitWei)} ETH
-                        <span className="ml-2 text-white/35 text-[12px] font-black">
+                        <span className="ml-2 text-[12px] font-black text-white/35">
                           per unit
                         </span>
                       </div>
@@ -1350,48 +1532,42 @@ export default function TradingPanel1155({
                       </div>
                       <div className="mt-2 text-[12px] text-white/55">
                         Remaining:{" "}
-                        <span className="text-white/82 font-black">
+                        <span className="font-black text-white/82">
                           {selectedListing.amountRemaining}
                         </span>
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                        <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
                           {marketLabel(selectedListingMarketType)}
                         </span>
 
-                        {contractView === "publicDelivery" ? (
-                          <span className="px-2 py-1 rounded-full border border-violet-500/20 bg-violet-500/10 text-[10px] font-black text-violet-100">
-                            DELIVERY
+                        {selectedListingCreatesProtectedOrder ? (
+                          <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-2 py-1 text-[10px] font-black text-fuchsia-100">
+                            PROTECTED ORDER AFTER BUY
                           </span>
                         ) : null}
 
                         {contractView === "store" || contractView === "cafe" ? (
-                          <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                          <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
                             TRADING ONLY
                           </span>
                         ) : null}
 
                         {contractView === "store" ? (
-                          <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
+                          <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[10px] font-black text-sky-100">
                             NO DELIVERY
                           </span>
                         ) : null}
 
                         {contractView === "cafe" ? (
-                          <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                          <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-black text-amber-100">
                             NO REDEMPTION
                           </span>
                         ) : null}
 
-                        {selectedListingCreatesDeliveryOrder ? (
-                          <span className="px-2 py-1 rounded-full border border-violet-500/20 bg-violet-500/10 text-[10px] font-black text-violet-100">
-                            DELIVERY ORDER AFTER BUY
-                          </span>
-                        ) : null}
-
                         {selectedListing.officialItem ? (
-                          <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                          <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-black text-amber-100">
                             OFFICIAL
                           </span>
                         ) : null}
@@ -1400,9 +1576,9 @@ export default function TradingPanel1155({
 
                     {contractView === "publicDelivery" ? (
                       <div className="mt-4 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] text-violet-100">
-                        This purchase should create a delivery order in{" "}
-                        <Link href="/app/orders" className="underline font-black">
-                          Orders &amp; Delivery
+                        This purchase should create a protected order in{" "}
+                        <Link href="/app/orders" className="font-black underline">
+                          Orders
                         </Link>{" "}
                         after the marketplace indexer syncs the trade.
                       </div>
@@ -1419,16 +1595,21 @@ export default function TradingPanel1155({
                         <span className="font-black">STANDARD marketplace</span>. Redemption
                         does not work here. For official cafe flow, use Real Marketing.
                       </div>
+                    ) : contractView === "publicStandard" && assetIsProtected ? (
+                      <div className="mt-4 rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-4 text-[12px] text-fuchsia-100">
+                        This asset is traded through the{" "}
+                        <span className="font-black">PROTECTED marketplace</span>.
+                        Protected flow is used for goods / services / sessions.
+                      </div>
                     ) : contractView === "publicStandard" ? (
                       <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100">
                         This is a Public Standard NFT and it uses the{" "}
-                        <span className="font-black">STANDARD marketplace</span>. Delivery
-                        is not included.
+                        <span className="font-black">STANDARD marketplace</span>.
                       </div>
                     ) : null}
 
-                    <label className="block mt-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                    <label className="mt-4 block">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                         Amount
                       </div>
 
@@ -1479,7 +1660,7 @@ export default function TradingPanel1155({
                     </label>
 
                     <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4">
-                      <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+                      <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                         Total
                       </div>
                       <div className="mt-1 text-lg font-black text-amber-100">
@@ -1492,14 +1673,14 @@ export default function TradingPanel1155({
                         disabled={buyDisabled}
                         onClick={buyNow}
                         className={cx(
-                          "inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 hover:brightness-110",
-                          buyDisabled ? "opacity-60 cursor-not-allowed" : ""
+                          "inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-5 py-3 font-extrabold text-black ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] transition hover:brightness-110",
+                          buyDisabled ? "cursor-not-allowed opacity-60" : ""
                         )}
                       >
                         {busy === "buy" ? "Buying…" : "Buy now"}
                       </button>
 
-                      <div className="text-[12px] text-white/55 font-semibold">
+                      <div className="text-[12px] font-semibold text-white/55">
                         Listing #{selectedListing.marketplaceListingId}
                       </div>
                     </div>
@@ -1522,7 +1703,7 @@ export default function TradingPanel1155({
           <div className="mt-6 rounded-[26px] border border-white/10 bg-white/[0.04] p-5 md:p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">
+                <div className="text-[12px] font-black uppercase tracking-wider text-white/80">
                   Recent trades
                 </div>
                 <div className="mt-1 text-[12px] text-white/50">
@@ -1530,7 +1711,7 @@ export default function TradingPanel1155({
                 </div>
               </div>
 
-              <div className="text-[12px] text-white/55 font-semibold">
+              <div className="text-[12px] font-semibold text-white/55">
                 {data?.trades?.length ?? 0}
               </div>
             </div>
@@ -1545,8 +1726,8 @@ export default function TradingPanel1155({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-[12px] font-black text-amber-100">
                         {fmtEth(t.totalPriceWei)} ETH
-                        <span className="ml-2 text-white/35 font-black">•</span>
-                        <span className="ml-2 text-white/70 font-black">x{t.amount}</span>
+                        <span className="ml-2 font-black text-white/35">•</span>
+                        <span className="ml-2 font-black text-white/70">x{t.amount}</span>
                       </div>
 
                       <div className="text-[11px] text-white/40">
@@ -1557,20 +1738,18 @@ export default function TradingPanel1155({
                     <div className="mt-2 text-[12px] text-white/55">
                       {shortAddr(t.sellerWallet)} → {shortAddr(t.buyerWallet)}
                       <span className="ml-2 text-white/35">•</span>
-                      <span className="ml-2 text-white/70 font-black">
+                      <span className="ml-2 font-black text-white/70">
                         {marketLabel(
-                          contractView === "publicDelivery"
-                            ? "DELIVERY"
-                            : contractView === "publicStandard" ||
-                              contractView === "store" ||
-                              contractView === "cafe"
-                            ? "STANDARD"
-                            : t.marketType || resolvedMarketType
+                          resolveRowMarketType({
+                            contractView,
+                            fallbackMarketType: resolvedMarketType,
+                            rowMarketType: t.marketType,
+                          })
                         )}
                       </span>
                       <span className="ml-2 text-white/35">•</span>
                       <a
-                        className="ml-2 text-amber-100/90 hover:text-amber-100 font-black"
+                        className="ml-2 font-black text-amber-100/90 hover:text-amber-100"
                         href={explorerTxUrl(chainId, t.txHash)}
                         target="_blank"
                         rel="noreferrer"
@@ -1588,7 +1767,7 @@ export default function TradingPanel1155({
 
           <div className="mt-6 text-[11px] text-white/35">
             After buy / list / cancel, the indexer may take a few seconds to update
-            listings, trades and delivery orders.
+            listings, trades and protected orders.
           </div>
         </div>
       </div>

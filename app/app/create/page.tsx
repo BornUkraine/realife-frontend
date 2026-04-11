@@ -94,7 +94,7 @@ export default function CreatePage() {
 
                 <Pill>
                   <span className="text-white/80 font-extrabold">
-                    Standard + delivery contracts
+                    Standard + delivery mint contracts
                   </span>
                 </Pill>
               </div>
@@ -116,21 +116,39 @@ export default function CreatePage() {
                 <span className="font-semibold text-white">
                   products, services, portfolios, projects, websites,
                 </span>{" "}
-                and digital work.
+                digital work, and physical goods.
+              </div>
+
+              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
+                This page does{" "}
+                <span className="font-semibold text-white">
+                  not choose a marketplace directly
+                </span>
+                . It only creates the NFT and stores metadata/classification that
+                the platform can use later when you list the NFT.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
                 <span className="font-semibold text-white">
-                  Without delivery
+                  Standard mint contract
                 </span>{" "}
-                is the public standard mint flow for digital, service, creative,
-                portfolio, and regular NFT listings.{" "}
+                is used for normal collectible NFTs and also for service-style
+                NFTs such as{" "}
                 <span className="font-semibold text-white">
-                  With delivery
+                  consultation, training, website, portfolio, project, digital
+                  service
+                </span>
+                . Those NFTs can still mint normally here, and later the site
+                can route them into the protected marketplace flow when listed.
+              </div>
+
+              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
+                <span className="font-semibold text-white">
+                  Delivery mint contract
                 </span>{" "}
-                uses the delivery mint contract and is available only for
-                approved seller wallets that are enabled in app profile access
-                and allowlisted on-chain.
+                is only for approved seller wallets. It is the restricted mint
+                flow for physical delivery-enabled items. Regular users cannot
+                freely mint into that contract.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
@@ -155,6 +173,48 @@ export default function CreatePage() {
                   <span className="break-all font-semibold text-white">
                     {publicDeliveryMintContract}
                   </span>
+                </div>
+              </div>
+
+              <div className="mt-4 grid max-w-5xl grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                    Standard collectible flow
+                  </div>
+                  <div className="mt-2 text-sm font-extrabold text-white">
+                    Mint via standard contract
+                  </div>
+                  <div className="mt-2 text-xs leading-relaxed text-white/60">
+                    Art, collectible, public NFT. Later usually lists on the
+                    standard marketplace.
+                  </div>
+                </div>
+
+                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                    Service / trust flow
+                  </div>
+                  <div className="mt-2 text-sm font-extrabold text-white">
+                    Mint via standard contract
+                  </div>
+                  <div className="mt-2 text-xs leading-relaxed text-white/60">
+                    Consultation, website, portfolio, project, digital service,
+                    training. Later the platform can route listing into the
+                    protected marketplace.
+                  </div>
+                </div>
+
+                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                    Physical delivery flow
+                  </div>
+                  <div className="mt-2 text-sm font-extrabold text-white">
+                    Mint via delivery contract
+                  </div>
+                  <div className="mt-2 text-xs leading-relaxed text-white/60">
+                    Only for approved seller wallets. Used for delivery-enabled
+                    physical items and protected trust flow.
+                  </div>
                 </div>
               </div>
 

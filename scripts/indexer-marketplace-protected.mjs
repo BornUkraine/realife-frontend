@@ -57,14 +57,14 @@ const provider = new JsonRpcProvider(RPC_URL);
 const ABI = [
   "event Listed(uint256 indexed listingId,address indexed seller,address indexed nft,uint256 tokenId,uint256 amount,uint256 pricePerUnitWei,uint8 fulfillmentType)",
   "event Cancelled(uint256 indexed listingId,address indexed seller,address indexed nft,uint256 tokenId,uint256 amountReturned)",
-  "event PurchaseFunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer,address seller,address nft,uint256 tokenId,uint256 amount,uint256 totalPriceWei,uint8 fulfillmentType)",
+  "event PurchaseFunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 pricePerUnitWei,uint256 totalPriceWei,uint8 fulfillmentType)",
   "event BuyerConfirmed(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
   "event RefundRequested(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
-  "event PurchaseNftReturned(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
+  "event PurchaseNftReturned(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer,address nft,uint256 tokenId,uint256 amount)",
   "event RefundRequestRejected(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
-  "event PurchaseReleased(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,uint256 totalPriceWei,uint256 feeWei,uint256 sellerAmountWei,uint8 fulfillmentType)",
-  "event PurchaseRefunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer,address seller,uint256 totalPriceWei,uint8 fulfillmentType)",
-  "event RefundRejectedAndNftRestored(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
+  "event PurchaseReleased(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 totalPriceWei,uint256 feeWei,uint256 sellerAmountWei,uint8 fulfillmentType)",
+  "event PurchaseRefunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 totalPriceWei,uint8 fulfillmentType)",
+  "event RefundRejectedAndNftRestored(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer,address nft,uint256 tokenId,uint256 amount)",
 ];
 
 const iface = new Interface(ABI);
@@ -324,7 +324,6 @@ async function handleListed(parsed, log) {
     },
   });
 
-  // Seller sent NFT into escrow on listing
   if (!existingListing && sellerId) {
     await prisma.holding.updateMany({
       where: {
@@ -444,11 +443,12 @@ async function handleCancelled(parsed, blockTime) {
 async function handlePurchaseFunded(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const listingId = BigInt(parsed.args.listingId);
-  const buyer = norm(parsed.args.buyer);
   const seller = norm(parsed.args.seller);
+  const buyer = norm(parsed.args.buyer);
   const nft = norm(parsed.args.nft);
   const tokenId = BigInt(parsed.args.tokenId).toString();
   const amount = BigInt(parsed.args.amount);
+  const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
   const totalPriceWei = BigInt(parsed.args.totalPriceWei);
   const fulfillmentType = fulfillmentTypeFromRaw(parsed.args.fulfillmentType);
   const txHash = log.transactionHash;
@@ -501,7 +501,6 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
         id: true,
         status: true,
         amountRemaining: true,
-        pricePerUnitWei: true,
         deliveryEnabled: true,
         physicalItemIncluded: true,
         officialItem: true,
@@ -519,11 +518,6 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
     });
     return;
   }
-
-  const pricePerUnitWei =
-    currentListing?.pricePerUnitWei != null
-      ? BigInt(currentListing.pricePerUnitWei)
-      : totalPriceWei / amount;
 
   let createdTrade = false;
   let tradeRow = null;
@@ -601,7 +595,6 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
     });
   }
 
-  // Buyer already received NFT on PurchaseFunded
   if (createdTrade && buyerId) {
     await prisma.holding.upsert({
       where: {
@@ -732,8 +725,6 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
  * ==========================================================================
  * BUYER CONFIRMED
  * ==========================================================================
- * Buyer confirmed delivery/service completion,
- * but funds may still remain in escrow until release event.
  */
 async function handleBuyerConfirmed(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
@@ -782,8 +773,6 @@ async function handleBuyerConfirmed(parsed, blockTime) {
  * ==========================================================================
  * REFUND REQUESTED
  * ==========================================================================
- * Buyer asked for refund.
- * In hybrid flow NFT may still be with buyer until PurchaseNftReturned happens.
  */
 async function handleRefundRequested(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
@@ -858,7 +847,9 @@ async function handlePurchaseNftReturned(parsed, blockTime) {
       },
     });
 
-    const buyerId = row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
+    const buyerId =
+      row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
+
     if (buyerId) {
       await prisma.holding.updateMany({
         where: {
@@ -884,8 +875,6 @@ async function handlePurchaseNftReturned(parsed, blockTime) {
  * ==========================================================================
  * REFUND REQUEST REJECTED
  * ==========================================================================
- * Refund request was rejected before final refund.
- * Purchase goes back to FUNDED state.
  */
 async function handleRefundRequestRejected(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
@@ -922,11 +911,6 @@ async function handleRefundRequestRejected(parsed, blockTime) {
  * ==========================================================================
  * PURCHASE RELEASED
  * ==========================================================================
- * Escrow resolves in seller favor:
- * - buyer already has NFT
- * - seller receives funds
- *
- * Important:
  * In hybrid flow buyer holding should NOT change here,
  * because buyer already received NFT on PurchaseFunded.
  */
@@ -986,11 +970,6 @@ async function handleReleased(parsed, log, blockTime) {
  * ==========================================================================
  * PURCHASE REFUNDED
  * ==========================================================================
- * Escrow resolves in buyer favor:
- * - buyer gets funds back
- * - seller gets NFT back
- *
- * Important:
  * buyer holding was already decreased on PurchaseNftReturned,
  * so here we only restore seller holding.
  */
@@ -1117,7 +1096,9 @@ async function handleRefundRejectedAndRestored(parsed, blockTime) {
       },
     });
 
-    const buyerId = row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
+    const buyerId =
+      row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
+
     if (buyerId) {
       await prisma.holding.upsert({
         where: {
@@ -1187,7 +1168,9 @@ async function mainLoop() {
         toBlock: Number(toBlock),
       });
 
-      console.log(`[PROTECTED_SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`);
+      console.log(
+        `[PROTECTED_SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`
+      );
 
       for (const log of logs) {
         let parsed = null;

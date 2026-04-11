@@ -15,8 +15,16 @@ import { parseUnits, formatUnits } from "viem";
 
 import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
+import { realifeMarketplaceProtectedEscrow1155Abi } from "@/lib/realifeMarketplaceProtectedEscrow1155Abi";
 
-type MarketType = "STANDARD" | "DELIVERY";
+type MarketType = "STANDARD" | "PROTECTED";
+
+type FulfillmentType =
+  | "PHYSICAL_GOOD"
+  | "DIGITAL_SERVICE"
+  | "ONLINE_SESSION"
+  | "LOCAL_SERVICE";
+
 type ContractView =
   | "publicStandard"
   | "publicDelivery"
@@ -29,6 +37,10 @@ function cx(...a: Array<string | false | null | undefined>) {
 }
 
 function toLower(a?: string | null) {
+  return String(a || "").trim().toLowerCase();
+}
+
+function normText(a?: string | null) {
   return String(a || "").trim().toLowerCase();
 }
 
@@ -71,7 +83,7 @@ function parsePriceWeiSafe(v: string) {
 }
 
 function marketLabel(mt: MarketType) {
-  return mt === "DELIVERY" ? "DELIVERY" : "STANDARD";
+  return mt === "PROTECTED" ? "PROTECTED" : "STANDARD";
 }
 
 const CAFE_CONTRACT = String(
@@ -113,17 +125,109 @@ function classifyContractView(contract: string): ContractView {
   return "unknown";
 }
 
-function forcedMarketTypeByContractView(view: ContractView): MarketType | null {
-  switch (view) {
-    case "publicDelivery":
-      return "DELIVERY";
-    case "publicStandard":
-    case "cafe":
-    case "store":
-      return "STANDARD";
-    default:
-      return null;
+function textLooksProtected(...values: Array<string | null | undefined>) {
+  const s = values.map(normText).filter(Boolean).join(" ");
+
+  if (!s) return false;
+
+  const needles = [
+    "service",
+    "services",
+    "digital service",
+    "online session",
+    "local service",
+    "consultation",
+    "consulting",
+    "lesson",
+    "lessons",
+    "training",
+    "coaching",
+    "mentoring",
+    "tutoring",
+    "website",
+    "website development",
+    "website design",
+    "web design",
+    "web development",
+    "landing page",
+    "development",
+    "design",
+    "graphic design",
+    "logo design",
+    "ui ux",
+    "seo",
+    "smm",
+    "marketing work",
+    "promo work",
+    "ai work",
+    "audit",
+    "call",
+    "meeting",
+    "session",
+  ];
+
+  return needles.some((x) => s.includes(x));
+}
+
+function isProtectedFulfillment(v?: FulfillmentType | string | null) {
+  const x = String(v || "").trim().toUpperCase();
+  return (
+    x === "PHYSICAL_GOOD" ||
+    x === "DIGITAL_SERVICE" ||
+    x === "ONLINE_SESSION" ||
+    x === "LOCAL_SERVICE"
+  );
+}
+
+function inferProtectedAsset(params: {
+  contractView: ContractView;
+  deliveryEnabled?: boolean;
+  physicalItemIncluded?: boolean;
+  fulfillmentType?: FulfillmentType | string | null;
+  category?: string | null;
+  subcategory?: string | null;
+}) {
+  const {
+    contractView,
+    deliveryEnabled,
+    physicalItemIncluded,
+    fulfillmentType,
+    category,
+    subcategory,
+  } = params;
+
+  if (contractView === "store" || contractView === "cafe") return false;
+  if (contractView === "publicDelivery") return true;
+
+  if (isProtectedFulfillment(fulfillmentType)) return true;
+  if (deliveryEnabled || physicalItemIncluded) return true;
+  if (textLooksProtected(category, subcategory)) return true;
+
+  return false;
+}
+
+function resolveAssetMarketType(params: {
+  contractView: ContractView;
+  assetIsProtected: boolean;
+  preferredMarketType?: MarketType;
+  marketTypeHint?: MarketType;
+}): MarketType {
+  const { contractView, assetIsProtected, preferredMarketType, marketTypeHint } =
+    params;
+
+  if (contractView === "store" || contractView === "cafe") return "STANDARD";
+  if (contractView === "publicDelivery") return "PROTECTED";
+  if (assetIsProtected) return "PROTECTED";
+
+  if (preferredMarketType === "PROTECTED" || marketTypeHint === "PROTECTED") {
+    return "PROTECTED";
   }
+
+  if (preferredMarketType === "STANDARD" || marketTypeHint === "STANDARD") {
+    return "STANDARD";
+  }
+
+  return "STANDARD";
 }
 
 export default function QuickList1155({
@@ -134,6 +238,9 @@ export default function QuickList1155({
   name,
   deliveryEnabled,
   physicalItemIncluded,
+  fulfillmentType,
+  category,
+  subcategory,
   marketTypeHint,
   preferredMarketType,
 }: {
@@ -144,6 +251,9 @@ export default function QuickList1155({
   name?: string | null;
   deliveryEnabled?: boolean;
   physicalItemIncluded?: boolean;
+  fulfillmentType?: FulfillmentType | null;
+  category?: string | null;
+  subcategory?: string | null;
   marketTypeHint?: MarketType;
   preferredMarketType?: MarketType;
 }) {
@@ -166,24 +276,19 @@ export default function QuickList1155({
     );
   }, []);
 
-  const DELIVERY_MARKETPLACE_ADDRESS = useMemo(() => {
+  const PROTECTED_MARKETPLACE_ADDRESS = useMemo(() => {
     return toLower(
-      process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_DELIVERY_ADDRESS ||
-        process.env.NEXT_PUBLIC_MARKETPLACE_DELIVERY_ADDRESS ||
-        process.env.NEXT_PUBLIC_DELIVERY_MARKETPLACE_ADDRESS ||
+      process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_CONTRACT ||
+        process.env.NEXT_PUBLIC_PROTECTED_MARKETPLACE_ADDRESS ||
+        process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_PROTECTED_ADDRESS ||
+        process.env.NEXT_PUBLIC_MARKETPLACE_PROTECTED_ADDRESS ||
         ""
     );
   }, []);
 
   const nftAddr = useMemo(() => toLower(contract), [contract]);
   const needSwitch = isConnected && currentChainId !== chainId;
-
   const contractView = useMemo(() => classifyContractView(nftAddr), [nftAddr]);
-
-  const forcedMarketType = useMemo(
-    () => forcedMarketTypeByContractView(contractView),
-    [contractView]
-  );
 
   const tokenIdBI = useMemo(() => {
     try {
@@ -195,29 +300,48 @@ export default function QuickList1155({
 
   const hintMax = useMemo(() => toBigIntSafe(maxAmountHint), [maxAmountHint]);
 
-  const inferredMarketType: MarketType = useMemo(() => {
-    if (forcedMarketType) return forcedMarketType;
-    if (preferredMarketType) return preferredMarketType;
-    if (marketTypeHint) return marketTypeHint;
-    if (deliveryEnabled || physicalItemIncluded) return "DELIVERY";
-    return "STANDARD";
+  const assetIsProtected = useMemo(() => {
+    return inferProtectedAsset({
+      contractView,
+      deliveryEnabled,
+      physicalItemIncluded,
+      fulfillmentType,
+      category,
+      subcategory,
+    });
   }, [
-    forcedMarketType,
-    preferredMarketType,
-    marketTypeHint,
+    contractView,
     deliveryEnabled,
     physicalItemIncluded,
+    fulfillmentType,
+    category,
+    subcategory,
   ]);
 
+  const inferredMarketType: MarketType = useMemo(() => {
+    return resolveAssetMarketType({
+      contractView,
+      assetIsProtected,
+      preferredMarketType,
+      marketTypeHint,
+    });
+  }, [contractView, assetIsProtected, preferredMarketType, marketTypeHint]);
+
   const marketplaceAddress = useMemo(() => {
-    return inferredMarketType === "DELIVERY"
-      ? DELIVERY_MARKETPLACE_ADDRESS
+    return inferredMarketType === "PROTECTED"
+      ? PROTECTED_MARKETPLACE_ADDRESS
       : STANDARD_MARKETPLACE_ADDRESS;
   }, [
     inferredMarketType,
-    DELIVERY_MARKETPLACE_ADDRESS,
+    PROTECTED_MARKETPLACE_ADDRESS,
     STANDARD_MARKETPLACE_ADDRESS,
   ]);
+
+  const marketplaceAbi = useMemo(() => {
+    return inferredMarketType === "PROTECTED"
+      ? realifeMarketplaceProtectedEscrow1155Abi
+      : marketplaceSpot1155Abi;
+  }, [inferredMarketType]);
 
   const hasMarketplace = marketplaceAddress.startsWith("0x");
 
@@ -329,9 +453,9 @@ export default function QuickList1155({
       `market:nft:${chainId}:${nftAddr}:${tokenId}`,
       `market:contract:${chainId}:${nftAddr}`,
       `market:nft:${chainId}:${nftAddr}:${tokenId}:STANDARD`,
-      `market:nft:${chainId}:${nftAddr}:${tokenId}:DELIVERY`,
+      `market:nft:${chainId}:${nftAddr}:${tokenId}:PROTECTED`,
       `market:contract:${chainId}:${nftAddr}:STANDARD`,
-      `market:contract:${chainId}:${nftAddr}:DELIVERY`,
+      `market:contract:${chainId}:${nftAddr}:PROTECTED`,
     ];
 
     try {
@@ -392,7 +516,7 @@ export default function QuickList1155({
       const amt = BigInt(clampInt(amount, 1, Math.max(1, maxAmount)));
 
       const hash = await writeContractAsync({
-        abi: marketplaceSpot1155Abi,
+        abi: marketplaceAbi as any,
         address: marketplaceAddress as `0x${string}`,
         functionName: "list1155",
         args: [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei],
@@ -428,16 +552,15 @@ export default function QuickList1155({
     !priceWei;
 
   const missingEnvText =
-    inferredMarketType === "DELIVERY"
-      ? "Missing delivery marketplace env"
+    inferredMarketType === "PROTECTED"
+      ? "Missing protected marketplace env"
       : "Missing standard marketplace env";
 
   const compactNote = useMemo(() => {
     switch (contractView) {
       case "store":
         return {
-          className:
-            "border border-sky-500/20 bg-sky-500/10 text-sky-100",
+          className: "border border-sky-500/20 bg-sky-500/10 text-sky-100",
           text: (
             <>
               Store resale is <span className="font-black">trading only</span>.
@@ -446,8 +569,7 @@ export default function QuickList1155({
         };
       case "cafe":
         return {
-          className:
-            "border border-amber-500/20 bg-amber-500/10 text-amber-100",
+          className: "border border-amber-500/20 bg-amber-500/10 text-amber-100",
           text: (
             <>
               Cafe resale is <span className="font-black">trading only</span>.
@@ -456,28 +578,49 @@ export default function QuickList1155({
         };
       case "publicDelivery":
         return {
-          className:
-            "border border-violet-500/20 bg-violet-500/10 text-violet-100",
+          className: "border border-violet-500/20 bg-violet-500/10 text-violet-100",
           text: (
             <>
-              Use <span className="font-black">DELIVERY</span> market.
+              Use <span className="font-black">PROTECTED</span> market.
             </>
           ),
         };
       case "publicStandard":
-        return {
-          className:
-            "border border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
-          text: (
-            <>
-              Use <span className="font-black">STANDARD</span> market.
-            </>
-          ),
-        };
+        return assetIsProtected
+          ? {
+              className:
+                "border border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-100",
+              text: (
+                <>
+                  This asset should use{" "}
+                  <span className="font-black">PROTECTED</span> market.
+                </>
+              ),
+            }
+          : {
+              className:
+                "border border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
+              text: (
+                <>
+                  Use <span className="font-black">STANDARD</span> market.
+                </>
+              ),
+            };
       default:
-        return null;
+        return inferredMarketType === "PROTECTED"
+          ? {
+              className:
+                "border border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-100",
+              text: (
+                <>
+                  Protected flow detected. Use{" "}
+                  <span className="font-black">PROTECTED</span> market.
+                </>
+              ),
+            }
+          : null;
     }
-  }, [contractView]);
+  }, [contractView, assetIsProtected, inferredMarketType]);
 
   const headerBadges = useMemo(() => {
     switch (contractView) {
@@ -485,8 +628,7 @@ export default function QuickList1155({
         return [
           {
             label: "TRADING ONLY",
-            className:
-              "border border-sky-500/20 bg-sky-500/10 text-sky-100",
+            className: "border border-sky-500/20 bg-sky-500/10 text-sky-100",
           },
         ];
       case "cafe":
@@ -601,7 +743,7 @@ export default function QuickList1155({
                 {!isConnected ? (
                   <button
                     onClick={() => openConnectModal?.()}
-                    className="mt-3 inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2.5 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+                    className="mt-3 inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2.5 font-extrabold text-black ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] transition hover:brightness-110"
                   >
                     Connect Wallet
                   </button>
@@ -730,6 +872,16 @@ export default function QuickList1155({
                   >
                     {busy === "list" ? "Listing..." : "List"}
                   </button>
+                </div>
+
+                <div className="mt-3 text-center text-[11px] text-white/45">
+                  {name ? (
+                    <>
+                      NFT: <span className="font-semibold text-white/75">{name}</span>
+                    </>
+                  ) : (
+                    <>Quick list</>
+                  )}
                 </div>
               </div>
             </div>

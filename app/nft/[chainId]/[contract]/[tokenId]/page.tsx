@@ -38,6 +38,10 @@ function norm(a: string) {
   return String(a || "").trim().toLowerCase();
 }
 
+function normText(v?: string | null) {
+  return String(v || "").trim().toLowerCase();
+}
+
 function fmtDate(v?: Date | string | null) {
   if (!v) return "—";
   const d = typeof v === "string" ? new Date(v) : v;
@@ -425,7 +429,7 @@ function marketTagNft(
   chainId: number,
   contract: string,
   tokenId: string,
-  marketType?: "STANDARD" | "DELIVERY"
+  marketType?: "STANDARD" | "PROTECTED"
 ) {
   return `market:nft:${chainId}:${contract}:${tokenId}:${marketType || "ALL"}`;
 }
@@ -433,7 +437,7 @@ function marketTagNft(
 function marketTagContract(
   chainId: number,
   contract: string,
-  marketType?: "STANDARD" | "DELIVERY"
+  marketType?: "STANDARD" | "PROTECTED"
 ) {
   return `market:contract:${chainId}:${contract}:${marketType || "ALL"}`;
 }
@@ -590,18 +594,91 @@ function toInt(v: any) {
   return Number.isFinite(n) ? Math.trunc(n) : 0;
 }
 
+function isProtectedFulfillment(v?: string | null) {
+  const x = String(v || "").trim().toUpperCase();
+  return (
+    x === "PHYSICAL_GOOD" ||
+    x === "DIGITAL_SERVICE" ||
+    x === "ONLINE_SESSION" ||
+    x === "LOCAL_SERVICE"
+  );
+}
+
+function textLooksProtected(...values: Array<string | null | undefined>) {
+  const s = values.map(normText).filter(Boolean).join(" ");
+  if (!s) return false;
+
+  const needles = [
+    "service",
+    "services",
+    "digital service",
+    "online session",
+    "local service",
+    "consultation",
+    "consulting",
+    "lesson",
+    "lessons",
+    "training",
+    "coaching",
+    "website",
+    "web design",
+    "web development",
+    "development",
+    "design",
+    "smm",
+    "marketing work",
+    "promo work",
+    "ai work",
+  ];
+
+  return needles.some((x) => s.includes(x));
+}
+
+function suggestSecondaryMarketType(input: {
+  contract: string;
+  fulfillmentType?: string | null;
+  deliveryEnabled?: boolean | null;
+  physicalItemIncluded?: boolean | null;
+  category?: string | null;
+  subcategory?: string | null;
+}) {
+  const c = norm(input.contract);
+
+  if (c && (c === CAFE_1155_CONTRACT || c === STORE_1155_CONTRACT)) {
+    return "STANDARD" as const;
+  }
+
+  if (c && c === USER_DELIVERY_1155_CONTRACT) {
+    return "PROTECTED" as const;
+  }
+
+  if (isProtectedFulfillment(input.fulfillmentType)) {
+    return "PROTECTED" as const;
+  }
+
+  if (input.deliveryEnabled || input.physicalItemIncluded) {
+    return "PROTECTED" as const;
+  }
+
+  if (textLooksProtected(input.category, input.subcategory)) {
+    return "PROTECTED" as const;
+  }
+
+  return "STANDARD" as const;
+}
+
 async function loadMarketNft(
   origin: string | null,
   chainId: number,
   contract: string,
   tokenId: string,
-  marketType: "STANDARD" | "DELIVERY"
+  marketType?: "STANDARD" | "PROTECTED"
 ) {
   const qs =
     `chainId=${encodeURIComponent(String(chainId))}` +
     `&contract=${encodeURIComponent(contract)}` +
     `&tokenId=${encodeURIComponent(tokenId)}` +
-    `&marketType=${encodeURIComponent(marketType)}` +
+    (marketType ? `&marketType=${encodeURIComponent(marketType)}` : "") +
     `&listingsTake=50&tradesTake=50`;
 
   const url = origin ? `${origin}/api/market/nft?${qs}` : `/api/market/nft?${qs}`;
@@ -847,6 +924,9 @@ export default async function NftDetailsPage({
       deliveryEnabled: true,
       physicalItemIncluded: true,
       officialItem: true,
+      fulfillmentType: true,
+      category: true,
+      subcategory: true,
       user: {
         select: {
           handle: true,
@@ -998,6 +1078,13 @@ export default async function NftDetailsPage({
   const metaCategory =
     pickAttrAny(meta, ["Category", "category"]) ||
     pickAny(meta, ["category"]) ||
+    nft.category ||
+    null;
+
+  const metaSubcategory =
+    pickAttrAny(meta, ["Subcategory", "subcategory"]) ||
+    pickAny(meta, ["subcategory"]) ||
+    nft.subcategory ||
     null;
 
   const metaItem =
@@ -1045,6 +1132,12 @@ export default async function NftDetailsPage({
     pickAttrAny(meta, ["Delivery Mode"]) ||
     (metaDeliveryEnabled || metaPhysicalItemIncluded ? "Delivery" : "Digital");
 
+  const metaFulfillmentType =
+    pickAny(meta, ["fulfillmentType"]) ||
+    pickAttrAny(meta, ["Fulfillment Type", "Fulfillment"]) ||
+    nft.fulfillmentType ||
+    null;
+
   const dbDeliveryEnabled = Boolean(nft.deliveryEnabled);
   const dbPhysicalItemIncluded = Boolean(nft.physicalItemIncluded);
   const dbOfficialItem = Boolean(nft.officialItem);
@@ -1065,14 +1158,22 @@ export default async function NftDetailsPage({
     ? Boolean(storeStore?.officialItem || dbOfficialItem || metaOfficialItem)
     : false;
 
-  const userDeliveryMarketplaceFlow = isUserDelivery1155Nft;
-
   const storePrimaryDeliveryCapable =
     isStoreNft &&
     (effectiveStoreDeliveryEnabled || effectiveStorePhysicalItemIncluded);
 
-  const secondaryMarketType: "STANDARD" | "DELIVERY" =
-    userDeliveryMarketplaceFlow ? "DELIVERY" : "STANDARD";
+  const suggestedSecondaryMarketType = suggestSecondaryMarketType({
+    contract,
+    fulfillmentType: metaFulfillmentType || nft.fulfillmentType,
+    deliveryEnabled: isStoreNft
+      ? false
+      : Boolean(dbDeliveryEnabled || metaDeliveryEnabled),
+    physicalItemIncluded: isStoreNft
+      ? false
+      : Boolean(dbPhysicalItemIncluded || metaPhysicalItemIncluded),
+    category: metaCategory || nft.category,
+    subcategory: metaSubcategory || nft.subcategory,
+  });
 
   let kind: "image" | "video" = "image";
   let media: string | null = fallbackPoster;
@@ -1124,9 +1225,9 @@ export default async function NftDetailsPage({
     : isStoreNft
     ? "ERC-1155 • STORE"
     : isUserDelivery1155Nft
-    ? "ERC-1155 • DELIVERY"
+    ? "ERC-1155 • DELIVERY CONTRACT"
     : isUserStandard1155Nft
-    ? "ERC-1155 • STANDARD"
+    ? "ERC-1155 • STANDARD CONTRACT"
     : "ERC-1155";
 
   const origin = await getOrigin();
@@ -1134,9 +1235,30 @@ export default async function NftDetailsPage({
     origin,
     chainId,
     contract,
-    tokenId,
-    secondaryMarketType
+    tokenId
   );
+
+  const apiResolvedMarketType =
+    market?.mint?.resolvedMarketType === "PROTECTED" ? "PROTECTED" : null;
+
+  const secondaryMarketType: "STANDARD" | "PROTECTED" =
+    apiResolvedMarketType || suggestedSecondaryMarketType;
+
+  const usesProtectedSecondaryMarket = secondaryMarketType === "PROTECTED";
+
+  const protectedIsServiceLike =
+    usesProtectedSecondaryMarket &&
+    !isUserDelivery1155Nft &&
+    (isProtectedFulfillment(metaFulfillmentType || nft.fulfillmentType) ||
+      textLooksProtected(metaCategory, metaSubcategory));
+
+  const protectedFlowLabel = isProtectedFulfillment(metaFulfillmentType || nft.fulfillmentType)
+    ? String(metaFulfillmentType || nft.fulfillmentType).replaceAll("_", " ")
+    : protectedIsServiceLike
+    ? "SERVICE"
+    : isUserDelivery1155Nft
+    ? "PHYSICAL ITEM"
+    : "PROTECTED";
 
   const stats = market?.stats || null;
   const listings: any[] = Array.isArray(market?.listings) ? market.listings : [];
@@ -1149,7 +1271,7 @@ export default async function NftDetailsPage({
   );
 
   const hasStorefrontPanel = isCafeNft || isStoreNft;
-  const hasSecondaryActionPanel = hasStorefrontPanel || userDeliveryMarketplaceFlow;
+  const hasSecondaryActionPanel = hasStorefrontPanel || usesProtectedSecondaryMarket;
 
   const storeCheckoutMode =
     effectiveStoreDeliveryEnabled || effectiveStorePhysicalItemIncluded
@@ -1192,8 +1314,8 @@ export default async function NftDetailsPage({
               <InfoPill>{standardLabel}</InfoPill>
               {metaRarity ? <InfoPill>{metaRarity}</InfoPill> : null}
 
-              {userDeliveryMarketplaceFlow ? (
-                <InfoPill tone="violet">MARKETPLACE DELIVERY ITEM</InfoPill>
+              {usesProtectedSecondaryMarket ? (
+                <InfoPill tone="violet">PROTECTED SECONDARY FLOW</InfoPill>
               ) : null}
 
               {storePrimaryDeliveryCapable ? (
@@ -1206,7 +1328,7 @@ export default async function NftDetailsPage({
               {isCafeNft ? <InfoPill tone="gold">SECONDARY TRADING ONLY</InfoPill> : null}
               {isCafeNft ? <InfoPill tone="gold">SECONDARY NO REDEMPTION</InfoPill> : null}
 
-              <InfoPill tone={secondaryMarketType === "DELIVERY" ? "violet" : "sky"}>
+              <InfoPill tone={secondaryMarketType === "PROTECTED" ? "violet" : "sky"}>
                 Market: {secondaryMarketType}
               </InfoPill>
             </div>
@@ -1288,9 +1410,9 @@ export default async function NftDetailsPage({
                         : isStoreNft
                         ? "Realife Store Edition"
                         : isUserDelivery1155Nft
-                        ? "Realife Delivery Edition"
+                        ? "Realife Delivery Contract Edition"
                         : isUserStandard1155Nft
-                        ? "Realife Standard Edition"
+                        ? "Realife Standard Contract Edition"
                         : "Realife Edition"}
                     </div>
 
@@ -1326,10 +1448,8 @@ export default async function NftDetailsPage({
                         ? "Realife Cafe Edition"
                         : isStoreNft
                         ? "Realife Store Edition"
-                        : isUserDelivery1155Nft
-                        ? "Marketplace Delivery Edition"
-                        : isUserStandard1155Nft
-                        ? "Marketplace Standard Edition"
+                        : usesProtectedSecondaryMarket
+                        ? "Protected Marketplace Edition"
                         : "Realife Edition"}
                     </div>
 
@@ -1343,8 +1463,8 @@ export default async function NftDetailsPage({
                     {metaCollection ? <InfoPill>{metaCollection}</InfoPill> : null}
                     {metaRarity ? <InfoPill>{metaRarity}</InfoPill> : null}
 
-                    {userDeliveryMarketplaceFlow ? (
-                      <InfoPill tone="violet">DELIVERY</InfoPill>
+                    {usesProtectedSecondaryMarket ? (
+                      <InfoPill tone="violet">PROTECTED</InfoPill>
                     ) : null}
 
                     {storePrimaryDeliveryCapable ? (
@@ -1361,7 +1481,7 @@ export default async function NftDetailsPage({
                       <InfoPill>Official item</InfoPill>
                     ) : null}
 
-                    <InfoPill tone={secondaryMarketType === "DELIVERY" ? "violet" : "sky"}>
+                    <InfoPill tone={secondaryMarketType === "PROTECTED" ? "violet" : "sky"}>
                       {secondaryMarketType} market
                     </InfoPill>
                   </div>
@@ -1388,14 +1508,23 @@ export default async function NftDetailsPage({
                     />
                   </div>
 
-                  {userDeliveryMarketplaceFlow ? (
+                  {usesProtectedSecondaryMarket ? (
                     <div className="mt-5 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
                       <div className="text-[12px] font-bold text-violet-100">
-                        Marketplace delivery flow
+                        Protected marketplace flow
                       </div>
                       <div className="mt-2 text-[12px] leading-relaxed text-violet-50/90">
-                        Trade the NFT first through the delivery marketplace. Delivery,
-                        tracking, and escrow completion happen later in the site order flow.
+                        This NFT uses the <span className="font-black">PROTECTED marketplace</span>.
+                        Buyer receives the NFT, but funds stay in protected escrow until completion
+                        is confirmed or refund resolution is finished.
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <InfoPill tone="violet">{protectedFlowLabel}</InfoPill>
+                        {metaCategory ? <InfoPill tone="violet">{metaCategory}</InfoPill> : null}
+                        {metaSubcategory ? (
+                          <InfoPill tone="violet">{metaSubcategory}</InfoPill>
+                        ) : null}
                       </div>
                     </div>
                   ) : null}
@@ -1550,7 +1679,7 @@ export default async function NftDetailsPage({
             </div>
           ) : null}
 
-          {userDeliveryMarketplaceFlow ? (
+          {usesProtectedSecondaryMarket ? (
             <div className="reveal" style={{ animationDelay: "180ms" }}>
               <div
                 className={cx(
@@ -1561,23 +1690,24 @@ export default async function NftDetailsPage({
               >
                 <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/30 p-6 ring-1 ring-black/10 backdrop-blur-2xl md:p-7">
                   <div className="text-[12px] font-bold uppercase tracking-wider text-white/80">
-                    Delivery & Escrow
+                    Protected Escrow
                   </div>
 
                   <div className="mt-2 text-xl font-black tracking-tight text-white/90">
-                    Marketplace purchase flow
+                    Protected marketplace purchase flow
                   </div>
 
                   <div className="mt-3 text-[13px] leading-relaxed text-white/60">
-                    This item is bought through the delivery marketplace. Delivery details,
-                    tracking, and escrow are handled later in the site orders flow.
+                    This asset is traded through the protected marketplace. Buyer gets the NFT,
+                    while payment remains in escrow until completion confirmation or refund
+                    resolution.
                   </div>
 
                   <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <StatCard label="Delivery enabled" value="Yes" tone="gold" />
-                    <StatCard label="Physical item" value="Included" tone="gold" />
-                    <StatCard label="Delivery mode" value={metaDeliveryMode || "—"} />
-                    <StatCard label="Item type" value={metaItemType || "—"} />
+                    <StatCard label="Secondary market" value="PROTECTED" tone="gold" />
+                    <StatCard label="Flow type" value={protectedFlowLabel} tone="gold" />
+                    <StatCard label="Category" value={metaCategory || "—"} />
+                    <StatCard label="Subcategory" value={metaSubcategory || "—"} />
                   </div>
 
                   <div className="mt-5 rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4">
@@ -1585,10 +1715,10 @@ export default async function NftDetailsPage({
                       Buyer journey
                     </div>
                     <div className="mt-2 space-y-2 text-[12px] leading-relaxed text-violet-50/90">
-                      <div>• buyer purchases NFT in delivery marketplace trading</div>
-                      <div>• delivery order is created in site UI flow</div>
-                      <div>• seller ships physical item and adds tracking</div>
-                      <div>• buyer confirms delivery, escrow is released</div>
+                      <div>• buyer purchases NFT through protected marketplace</div>
+                      <div>• NFT moves to buyer, funds stay in escrow</div>
+                      <div>• buyer confirms completion or requests refund</div>
+                      <div>• if refund is requested, NFT is returned and escrow is resolved</div>
                     </div>
                   </div>
                 </div>
@@ -1603,7 +1733,13 @@ export default async function NftDetailsPage({
               tokenId={tokenId}
               marketType={secondaryMarketType}
               preferredMarketType={secondaryMarketType}
-              deliveryEnabled={userDeliveryMarketplaceFlow}
+              deliveryEnabled={Boolean(dbDeliveryEnabled || metaDeliveryEnabled)}
+              physicalItemIncluded={Boolean(
+                dbPhysicalItemIncluded || metaPhysicalItemIncluded
+              )}
+              fulfillmentType={metaFulfillmentType || nft.fulfillmentType || null}
+              category={metaCategory || nft.category || null}
+              subcategory={metaSubcategory || nft.subcategory || null}
             />
           </div>
         </div>
@@ -1653,6 +1789,9 @@ export default async function NftDetailsPage({
                   ) : null}
                   {metaCollection ? <StatCard label="Collection" value={metaCollection} /> : null}
                   {metaCategory ? <StatCard label="Category" value={metaCategory} /> : null}
+                  {metaSubcategory ? (
+                    <StatCard label="Subcategory" value={metaSubcategory} />
+                  ) : null}
                   {metaItemType ? <StatCard label="Item Type" value={metaItemType} /> : null}
                   {metaItem && metaItem !== metaItemType ? (
                     <StatCard label="Item" value={metaItem} />
@@ -1662,6 +1801,12 @@ export default async function NftDetailsPage({
                     <StatCard label="Project" value={metaProject} />
                   ) : null}
                   {metaVertical ? <StatCard label="Vertical" value={metaVertical} /> : null}
+                  {metaFulfillmentType ? (
+                    <StatCard
+                      label="Fulfillment"
+                      value={String(metaFulfillmentType).replaceAll("_", " ")}
+                    />
+                  ) : null}
                 </div>
               </div>
             </AccordionSection>

@@ -37,6 +37,13 @@ const ADMIN_WALLETS = (
   .map((v) => v.trim().toLowerCase())
   .filter(Boolean);
 
+const ALLOWED_FULFILLMENT_TYPE = new Set([
+  "PHYSICAL_GOOD",
+  "DIGITAL_SERVICE",
+  "ONLINE_SESSION",
+  "LOCAL_SERVICE",
+]);
+
 const cafeProductCreatedAbi = [
   {
     type: "event",
@@ -105,7 +112,9 @@ function toBool(v: unknown) {
 }
 
 function uniqueStrings(values: Array<string | null | undefined>) {
-  return Array.from(new Set(values.map((v) => norm(String(v || ""))).filter(Boolean)));
+  return Array.from(
+    new Set(values.map((v) => norm(String(v || ""))).filter(Boolean))
+  );
 }
 
 function hasOwn(obj: unknown, key: string) {
@@ -115,6 +124,105 @@ function hasOwn(obj: unknown, key: string) {
 function cleanString(v: unknown, max = 2000) {
   const s = String(v || "").trim();
   return s ? s.slice(0, max) : null;
+}
+
+function parseFulfillmentType(v: unknown) {
+  const raw = String(v || "").trim().toUpperCase();
+  if (!raw) return null;
+  return ALLOWED_FULFILLMENT_TYPE.has(raw) ? raw : null;
+}
+
+function isPhysicalFulfillment(v: string | null | undefined) {
+  return String(v || "").toUpperCase() === "PHYSICAL_GOOD";
+}
+
+function deriveMintFlags(params: {
+  isCatalogOnly: boolean;
+  isCatalogCafeContract: boolean;
+  isCatalogStoreContract: boolean;
+  isDeliveryUserContract: boolean;
+  rawFulfillmentType: string | null;
+  rawDeliveryEnabled: boolean | undefined;
+  rawPhysicalItemIncluded: boolean | undefined;
+  rawOfficialItem: boolean | undefined;
+}) {
+  const {
+    isCatalogOnly,
+    isCatalogCafeContract,
+    isCatalogStoreContract,
+    isDeliveryUserContract,
+    rawFulfillmentType,
+    rawDeliveryEnabled,
+    rawPhysicalItemIncluded,
+    rawOfficialItem,
+  } = params;
+
+  let fulfillmentType = rawFulfillmentType;
+
+  if (isDeliveryUserContract) {
+    if (fulfillmentType && fulfillmentType !== "PHYSICAL_GOOD") {
+      return {
+        ok: false as const,
+        error: "DELIVERY_CONTRACT_REQUIRES_PHYSICAL_GOOD",
+        message:
+          "Delivery mint contract can only be used for PHYSICAL_GOOD NFTs.",
+      };
+    }
+    fulfillmentType = "PHYSICAL_GOOD";
+  }
+
+  if (!fulfillmentType && (rawDeliveryEnabled || rawPhysicalItemIncluded)) {
+    fulfillmentType = "PHYSICAL_GOOD";
+  }
+
+  let deliveryEnabledFinal = false;
+  let physicalItemIncludedFinal = false;
+  let officialItemFinal = false;
+
+  if (isPhysicalFulfillment(fulfillmentType)) {
+    deliveryEnabledFinal = true;
+    physicalItemIncludedFinal = true;
+
+    if (isCatalogOnly) {
+      if (rawOfficialItem !== undefined) {
+        officialItemFinal = rawOfficialItem;
+      } else if (isCatalogCafeContract || isCatalogStoreContract) {
+        officialItemFinal = true;
+      }
+    }
+  } else if (fulfillmentType) {
+    deliveryEnabledFinal = false;
+    physicalItemIncludedFinal = false;
+
+    if (isCatalogOnly) {
+      if (rawOfficialItem !== undefined) {
+        officialItemFinal = rawOfficialItem;
+      } else if (isCatalogCafeContract || isCatalogStoreContract) {
+        officialItemFinal = true;
+      }
+    }
+  } else if (isCatalogOnly) {
+    deliveryEnabledFinal = Boolean(rawDeliveryEnabled);
+    physicalItemIncludedFinal = Boolean(rawPhysicalItemIncluded);
+
+    if (rawOfficialItem !== undefined) {
+      officialItemFinal = rawOfficialItem;
+    } else if (isCatalogCafeContract || isCatalogStoreContract) {
+      officialItemFinal = true;
+    }
+  } else {
+    deliveryEnabledFinal = false;
+    physicalItemIncludedFinal = false;
+    officialItemFinal = false;
+  }
+
+  return {
+    ok: true as const,
+    fulfillmentType,
+    deliveryEnabled: deliveryEnabledFinal,
+    physicalItemIncluded: physicalItemIncludedFinal,
+    officialItem: officialItemFinal,
+  };
 }
 
 async function getSessionWallet(userId?: string | null) {
@@ -142,9 +250,7 @@ async function requireAdmin() {
   const session = await getServerSession(authOptions);
 
   const sessionUserId =
-    (session as any)?.user?.id ||
-    (session as any)?.userId ||
-    null;
+    (session as any)?.user?.id || (session as any)?.userId || null;
 
   const sessionWalletDirect = normAddr(
     (session as any)?.user?.walletAddress ||
@@ -164,8 +270,7 @@ async function requireAdmin() {
   }
 
   const isAdminSession = Boolean(
-    (session as any)?.user?.isAdmin ||
-      (session as any)?.isAdmin
+    (session as any)?.user?.isAdmin || (session as any)?.isAdmin
   );
 
   const isAllowlistedWallet =
@@ -194,10 +299,7 @@ type ContractKind =
   | "CATALOG_CAFE"
   | "CATALOG_STORE";
 
-function extractTokenIdFromLog(
-  log: any,
-  kind: ContractKind
-): string | null {
+function extractTokenIdFromLog(log: any, kind: ContractKind): string | null {
   try {
     if (kind === "PUBLIC_STANDARD") {
       const decoded = decodeEventLog({
@@ -287,7 +389,9 @@ async function verifyOnchainMintTx(params: {
     };
   }
 
-  const receipt = await client.getTransactionReceipt({ hash: txHash }).catch(() => null);
+  const receipt = await client
+    .getTransactionReceipt({ hash: txHash })
+    .catch(() => null);
   if (!receipt) {
     return {
       ok: false as const,
@@ -376,15 +480,13 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     hint:
-      "Use POST /api/mints to save a public mint or a catalog-only cafe/store entry. Public standard mint is open to authenticated users, delivery mint requires approvedPhysicalSeller, catalogOnly requires admin, and txHash is verified on-chain.",
+      "Use POST /api/mints to save a public mint or a catalog-only cafe/store entry. Public standard mint is open to authenticated users, physical goods require approvedPhysicalSeller, catalogOnly requires admin, and txHash is verified on-chain. You can also send fulfillmentType/category/subcategory.",
   });
 }
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  const userId =
-    (session as any)?.user?.id ||
-    (session as any)?.userId;
+  const userId = (session as any)?.user?.id || (session as any)?.userId;
 
   if (!userId) {
     return NextResponse.json(
@@ -416,6 +518,10 @@ export async function POST(req: Request) {
     deliveryEnabled,
     physicalItemIncluded,
     officialItem,
+
+    fulfillmentType,
+    category,
+    subcategory,
   } = body as any;
 
   if (!chainId || !contract || tokenId === undefined || tokenId === null) {
@@ -432,6 +538,17 @@ export async function POST(req: Request) {
   const cTokenUri = cleanString(tokenUri, 4000);
   const cName = cleanString(name, 300);
   const cImage = cleanString(image, 4000);
+
+  const rawFulfillmentType = parseFulfillmentType(fulfillmentType);
+  if (hasOwn(body, "fulfillmentType") && !rawFulfillmentType && fulfillmentType) {
+    return NextResponse.json(
+      { ok: false, error: "BAD_FULFILLMENT_TYPE" },
+      { status: 400 }
+    );
+  }
+
+  const cCategory = cleanString(category, 120);
+  const cSubcategory = cleanString(subcategory, 120);
 
   if (!Number.isFinite(cChainId) || cChainId <= 0) {
     return NextResponse.json(
@@ -567,7 +684,8 @@ export async function POST(req: Request) {
       {
         ok: false,
         error: "CATALOG_ONLY_INVALID_CONTRACT",
-        message: "catalogOnly flow is allowed only for cafe/store catalog contracts.",
+        message:
+          "catalogOnly flow is allowed only for cafe/store catalog contracts.",
       },
       { status: 400 }
     );
@@ -578,7 +696,8 @@ export async function POST(req: Request) {
       {
         ok: false,
         error: "PUBLIC_MINT_INVALID_CONTRACT",
-        message: "Public mint flow supports only standard user contract or delivery user contract.",
+        message:
+          "Public mint flow supports only standard user contract or delivery user contract.",
       },
       { status: 400 }
     );
@@ -589,13 +708,53 @@ export async function POST(req: Request) {
     if (!admin.ok) return admin.response;
   }
 
+  const hasDeliveryEnabled = hasOwn(body, "deliveryEnabled");
+  const hasPhysicalItemIncluded = hasOwn(body, "physicalItemIncluded");
+  const hasOfficialItem = hasOwn(body, "officialItem");
+
+  const rawDeliveryEnabled = hasDeliveryEnabled
+    ? toBool(deliveryEnabled)
+    : undefined;
+  const rawPhysicalItemIncluded = hasPhysicalItemIncluded
+    ? toBool(physicalItemIncluded)
+    : undefined;
+  const rawOfficialItem = hasOfficialItem ? toBool(officialItem) : undefined;
+
+  const derived = deriveMintFlags({
+    isCatalogOnly,
+    isCatalogCafeContract,
+    isCatalogStoreContract,
+    isDeliveryUserContract,
+    rawFulfillmentType,
+    rawDeliveryEnabled,
+    rawPhysicalItemIncluded,
+    rawOfficialItem,
+  });
+
+  if (!derived.ok) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: derived.error,
+        message: derived.message,
+      },
+      { status: 400 }
+    );
+  }
+
+  const finalFulfillmentType = derived.fulfillmentType;
+  const finalDeliveryEnabled = derived.deliveryEnabled;
+  const finalPhysicalItemIncluded = derived.physicalItemIncluded;
+  const finalOfficialItem = derived.officialItem;
+
   const sessionWallet = await getSessionWallet(userId);
   if (!sessionWallet || !isAddressLike(sessionWallet)) {
     return NextResponse.json(
       {
         ok: false,
         error: "SESSION_WALLET_MISSING",
-        message: "Current session wallet is missing, so tx ownership cannot be verified.",
+        message:
+          "Current session wallet is missing, so tx ownership cannot be verified.",
       },
       { status: 400 }
     );
@@ -636,56 +795,11 @@ export async function POST(req: Request) {
     );
   }
 
-  const hasDeliveryEnabled = hasOwn(body, "deliveryEnabled");
-  const hasPhysicalItemIncluded = hasOwn(body, "physicalItemIncluded");
-  const hasOfficialItem = hasOwn(body, "officialItem");
-
-  const rawDeliveryEnabled = hasDeliveryEnabled ? toBool(deliveryEnabled) : undefined;
-  const rawPhysicalItemIncluded = hasPhysicalItemIncluded ? toBool(physicalItemIncluded) : undefined;
-  const rawOfficialItem = hasOfficialItem ? toBool(officialItem) : undefined;
-
-  let createDeliveryEnabled = false;
-  let createPhysicalItemIncluded = false;
-  let createOfficialItem = false;
-
-  let updateDeliveryEnabled: boolean | undefined = undefined;
-  let updatePhysicalItemIncluded: boolean | undefined = undefined;
-  let updateOfficialItem: boolean | undefined = undefined;
-
-  if (isCatalogOnly) {
-    createDeliveryEnabled = Boolean(rawDeliveryEnabled);
-    createPhysicalItemIncluded = Boolean(rawPhysicalItemIncluded);
-    createOfficialItem = Boolean(rawOfficialItem);
-
-    updateDeliveryEnabled =
-      rawDeliveryEnabled === undefined ? undefined : rawDeliveryEnabled;
-    updatePhysicalItemIncluded =
-      rawPhysicalItemIncluded === undefined ? undefined : rawPhysicalItemIncluded;
-    updateOfficialItem =
-      rawOfficialItem === undefined ? undefined : rawOfficialItem;
-  } else if (isDeliveryUserContract) {
-    createDeliveryEnabled = true;
-    createPhysicalItemIncluded = true;
-    createOfficialItem = false;
-
-    updateDeliveryEnabled = true;
-    updatePhysicalItemIncluded = true;
-    updateOfficialItem = false;
-  } else {
-    createDeliveryEnabled = false;
-    createPhysicalItemIncluded = false;
-    createOfficialItem = false;
-
-    updateDeliveryEnabled = false;
-    updatePhysicalItemIncluded = false;
-    updateOfficialItem = false;
-  }
+  let sInt = 1;
+  let supplyBI = 0n;
 
   const shouldCreateHolding = !isCatalogOnly;
   const shouldReward = !isCatalogOnly;
-
-  let sInt = 1;
-  let supplyBI = 0n;
 
   if (shouldCreateHolding) {
     const parsedSupply = toPosInt(supply, 1);
@@ -706,7 +820,9 @@ export async function POST(req: Request) {
   }
 
   const std =
-    String(standard || "ERC1155").toUpperCase() === "ERC721" ? "ERC721" : "ERC1155";
+    String(standard || "ERC1155").toUpperCase() === "ERC721"
+      ? "ERC721"
+      : "ERC1155";
 
   if (std === "ERC721" && shouldCreateHolding && supplyBI !== 1n) {
     return NextResponse.json(
@@ -733,13 +849,14 @@ export async function POST(req: Request) {
         };
       }
 
-      if (!isCatalogOnly && isDeliveryUserContract && !u.approvedPhysicalSeller) {
+      if (isPhysicalFulfillment(finalFulfillmentType) && !u.approvedPhysicalSeller) {
         return {
           status: 403 as const,
           body: {
             ok: false,
-            error: "DELIVERY_NOT_ALLOWED",
-            message: "Delivery mint is available only for approved seller wallets.",
+            error: "PHYSICAL_GOOD_NOT_ALLOWED",
+            message:
+              "Physical goods mint is available only for approved seller wallets.",
           },
         };
       }
@@ -763,9 +880,13 @@ export async function POST(req: Request) {
         image: cImage,
         verified: true,
 
-        deliveryEnabled: createDeliveryEnabled,
-        physicalItemIncluded: createPhysicalItemIncluded,
-        officialItem: createOfficialItem,
+        deliveryEnabled: finalDeliveryEnabled,
+        physicalItemIncluded: finalPhysicalItemIncluded,
+        officialItem: finalOfficialItem,
+
+        fulfillmentType: finalFulfillmentType || undefined,
+        category: cCategory || undefined,
+        subcategory: cSubcategory || undefined,
       };
 
       const dataUpdate = {
@@ -775,9 +896,13 @@ export async function POST(req: Request) {
         image: cImage || undefined,
         verified: true,
 
-        deliveryEnabled: updateDeliveryEnabled,
-        physicalItemIncluded: updatePhysicalItemIncluded,
-        officialItem: updateOfficialItem,
+        deliveryEnabled: finalDeliveryEnabled,
+        physicalItemIncluded: finalPhysicalItemIncluded,
+        officialItem: finalOfficialItem,
+
+        fulfillmentType: finalFulfillmentType || undefined,
+        category: cCategory || undefined,
+        subcategory: cSubcategory || undefined,
       };
 
       let mint: any = null;
@@ -842,9 +967,12 @@ export async function POST(req: Request) {
               supply: sInt,
               standard: std,
               catalogOnly: false,
-              deliveryEnabled: createDeliveryEnabled,
-              physicalItemIncluded: createPhysicalItemIncluded,
-              officialItem: createOfficialItem,
+              deliveryEnabled: finalDeliveryEnabled,
+              physicalItemIncluded: finalPhysicalItemIncluded,
+              officialItem: finalOfficialItem,
+              fulfillmentType: finalFulfillmentType,
+              category: cCategory,
+              subcategory: cSubcategory,
             },
           },
         });

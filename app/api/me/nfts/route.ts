@@ -11,6 +11,29 @@ function s(v: unknown) {
   return typeof v === "bigint" ? v.toString() : v;
 }
 
+function suggestedMarketTypeFromAsset(input: {
+  fulfillmentType?: string | null;
+  deliveryEnabled?: boolean | null;
+  physicalItemIncluded?: boolean | null;
+}) {
+  const ft = String(input.fulfillmentType || "").toUpperCase();
+
+  if (
+    ft === "PHYSICAL_GOOD" ||
+    ft === "DIGITAL_SERVICE" ||
+    ft === "ONLINE_SESSION" ||
+    ft === "LOCAL_SERVICE"
+  ) {
+    return "PROTECTED" as const;
+  }
+
+  if (input.deliveryEnabled || input.physicalItemIncluded) {
+    return "PROTECTED" as const;
+  }
+
+  return "STANDARD" as const;
+}
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   const uid = (session as any)?.userId || (session as any)?.user?.id;
@@ -28,7 +51,7 @@ export async function GET(req: Request) {
     1,
     Math.min(48, Number.isFinite(rawTake) ? Math.trunc(rawTake) : 24)
   );
-  const cursor = url.searchParams.get("cursor"); // Holding.id
+  const cursor = url.searchParams.get("cursor");
 
   try {
     const items = await prisma.holding.findMany({
@@ -60,6 +83,12 @@ export async function GET(req: Request) {
             verified: true,
             txHash: true,
             createdAt: true,
+            deliveryEnabled: true,
+            physicalItemIncluded: true,
+            officialItem: true,
+            fulfillmentType: true,
+            category: true,
+            subcategory: true,
           },
         },
       },
@@ -71,7 +100,7 @@ export async function GET(req: Request) {
 
     const nfts = data.map((x) => ({
       id: x.id,
-      updatedAt: x.updatedAt,
+      updatedAt: x.updatedAt.toISOString(),
       chainId: x.chainId,
       contract: String(x.contract || "").toLowerCase(),
       tokenId: x.tokenId,
@@ -82,7 +111,18 @@ export async function GET(req: Request) {
       tokenUri: x.mint?.tokenUri ?? null,
       verified: x.mint?.verified ?? false,
       txHash: x.mint?.txHash ?? null,
-      mintedAt: x.mint?.createdAt ?? null,
+      mintedAt: x.mint?.createdAt ? x.mint.createdAt.toISOString() : null,
+      deliveryEnabled: x.mint?.deliveryEnabled ?? false,
+      physicalItemIncluded: x.mint?.physicalItemIncluded ?? false,
+      officialItem: x.mint?.officialItem ?? false,
+      fulfillmentType: x.mint?.fulfillmentType ?? null,
+      category: x.mint?.category ?? null,
+      subcategory: x.mint?.subcategory ?? null,
+      suggestedMarketType: suggestedMarketTypeFromAsset({
+        fulfillmentType: x.mint?.fulfillmentType ?? null,
+        deliveryEnabled: x.mint?.deliveryEnabled ?? false,
+        physicalItemIncluded: x.mint?.physicalItemIncluded ?? false,
+      }),
     }));
 
     return NextResponse.json({ ok: true, nfts, nextCursor });

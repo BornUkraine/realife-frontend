@@ -36,6 +36,10 @@ function norm(a: string) {
   return String(a || "").trim().toLowerCase();
 }
 
+function normText(v?: string | null) {
+  return String(v || "").trim().toLowerCase();
+}
+
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const API_BASE = (
@@ -93,6 +97,94 @@ const IPFS_GATEWAYS = [
 
 const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
 
+// ─── Market classification helpers ────────────────────────────────────────────
+
+function isProtectedFulfillment(v?: string | null) {
+  const x = String(v || "").trim().toUpperCase();
+  return (
+    x === "PHYSICAL_GOOD" ||
+    x === "DIGITAL_SERVICE" ||
+    x === "ONLINE_SESSION" ||
+    x === "LOCAL_SERVICE"
+  );
+}
+
+function textLooksProtected(...values: Array<string | null | undefined>) {
+  const s = values.map(normText).filter(Boolean).join(" ");
+  if (!s) return false;
+
+  const needles = [
+    "service",
+    "services",
+    "digital service",
+    "online session",
+    "local service",
+    "consultation",
+    "consulting",
+    "lesson",
+    "lessons",
+    "training",
+    "coaching",
+    "mentoring",
+    "tutoring",
+    "website",
+    "website development",
+    "website design",
+    "web design",
+    "web development",
+    "landing page",
+    "development",
+    "design",
+    "graphic design",
+    "logo design",
+    "ui ux",
+    "seo",
+    "smm",
+    "marketing work",
+    "promo work",
+    "ai work",
+    "audit",
+    "call",
+    "meeting",
+    "session",
+  ];
+
+  return needles.some((x) => s.includes(x));
+}
+
+function suggestSecondaryMarketType(input: {
+  contract: string;
+  fulfillmentType?: string | null;
+  deliveryEnabled?: boolean | null;
+  physicalItemIncluded?: boolean | null;
+  category?: string | null;
+  subcategory?: string | null;
+}) {
+  const c = norm(input.contract);
+
+  if (c && (c === CAFE_1155_CONTRACT || c === STORE_1155_CONTRACT)) {
+    return "STANDARD" as const;
+  }
+
+  if (c && c === USER_1155_DELIVERY_CONTRACT) {
+    return "PROTECTED" as const;
+  }
+
+  if (isProtectedFulfillment(input.fulfillmentType)) {
+    return "PROTECTED" as const;
+  }
+
+  if (input.deliveryEnabled || input.physicalItemIncluded) {
+    return "PROTECTED" as const;
+  }
+
+  if (textLooksProtected(input.category, input.subcategory)) {
+    return "PROTECTED" as const;
+  }
+
+  return "STANDARD" as const;
+}
+
 // ─── IPFS / metadata helpers ──────────────────────────────────────────────────
 
 function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
@@ -112,6 +204,10 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
     let p = u.slice("ipfs://".length);
     if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
     return `${gw}${p}`;
+  }
+
+  if (u.startsWith("/ipfs/")) {
+    return `${gw}${u.slice("/ipfs/".length)}`;
   }
 
   if (u.startsWith("Qm") || u.startsWith("bafy")) return `${gw}${u}`;
@@ -180,6 +276,22 @@ function pickAttrValue(meta: any, trait: string): string | null {
   const v = hit?.value;
   if (v === undefined || v === null) return null;
   return String(v);
+}
+
+function pickAttrAny(meta: any, traits: string[]): string | null {
+  for (const tr of traits) {
+    const v = pickAttrValue(meta, tr);
+    if (v && v.trim()) return v.trim();
+  }
+  return null;
+}
+
+function pickAny(meta: any, keys: string[]): string | null {
+  for (const k of keys) {
+    const v = meta?.[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return null;
 }
 
 async function mapLimit<T, R>(
@@ -351,7 +463,11 @@ export default async function PublicNFTsPage({
   const holdingWhere: any = {
     userId: user.id,
     amount: { gt: 0n },
-    mint: { verified: true },
+    mint: {
+      is: {
+        verified: true,
+      },
+    },
   };
 
   if (ALLOWED_1155_CONTRACTS.length > 0) {
@@ -381,6 +497,12 @@ export default async function PublicNFTsPage({
             image: true,
             tokenUri: true,
             createdAt: true,
+            deliveryEnabled: true,
+            physicalItemIncluded: true,
+            officialItem: true,
+            fulfillmentType: true,
+            category: true,
+            subcategory: true,
           },
         },
       },
@@ -409,6 +531,24 @@ export default async function PublicNFTsPage({
       if (!meta && x.mint?.tokenUri) {
         meta = await loadMetadataFromTokenUri(x.mint.tokenUri);
       }
+
+      const metaCategory =
+        pickAttrAny(meta, ["Category", "category"]) ||
+        pickAny(meta, ["category"]) ||
+        x.mint?.category ||
+        null;
+
+      const metaSubcategory =
+        pickAttrAny(meta, ["Subcategory", "subcategory"]) ||
+        pickAny(meta, ["subcategory"]) ||
+        x.mint?.subcategory ||
+        null;
+
+      const metaFulfillmentType =
+        pickAny(meta, ["fulfillmentType"]) ||
+        pickAttrAny(meta, ["Fulfillment Type", "Fulfillment"]) ||
+        x.mint?.fulfillmentType ||
+        null;
 
       if (meta) {
         const metaImage =
@@ -458,6 +598,22 @@ export default async function PublicNFTsPage({
         }
       }
 
+      const secondaryMarketType = suggestSecondaryMarketType({
+        contract,
+        fulfillmentType: metaFulfillmentType,
+        deliveryEnabled: x.mint?.deliveryEnabled,
+        physicalItemIncluded: x.mint?.physicalItemIncluded,
+        category: metaCategory,
+        subcategory: metaSubcategory,
+      });
+
+      const usesProtectedSecondaryMarket = secondaryMarketType === "PROTECTED";
+      const isProtectedServiceLike =
+        usesProtectedSecondaryMarket &&
+        !isDeliveryUserNft &&
+        (isProtectedFulfillment(metaFulfillmentType) ||
+          textLooksProtected(metaCategory, metaSubcategory));
+
       return {
         id: x.id,
         chainId: x.chainId,
@@ -475,6 +631,15 @@ export default async function PublicNFTsPage({
         isStoreNft,
         isUser1155Nft,
         isDeliveryUserNft,
+        deliveryEnabled: Boolean(x.mint?.deliveryEnabled),
+        physicalItemIncluded: Boolean(x.mint?.physicalItemIncluded),
+        officialItem: Boolean(x.mint?.officialItem),
+        fulfillmentType: metaFulfillmentType,
+        category: metaCategory,
+        subcategory: metaSubcategory,
+        secondaryMarketType,
+        usesProtectedSecondaryMarket,
+        isProtectedServiceLike,
         href: buildNftHref(x.chainId, contract, String(x.tokenId), galleryBackHref),
       };
     });
@@ -482,6 +647,9 @@ export default async function PublicNFTsPage({
 
   const cafeCount = enriched.filter((x) => x.isCafeNft).length;
   const storeCount = enriched.filter((x) => x.isStoreNft).length;
+  const protectedCount = enriched.filter(
+    (x) => x.secondaryMarketType === "PROTECTED"
+  ).length;
 
   return (
     <main className="min-h-screen bg-[#060505] text-white overflow-x-hidden">
@@ -553,10 +721,15 @@ export default async function PublicNFTsPage({
 
                     <span>{itemsCount} items</span>
 
-                    {(cafeCount > 0 || storeCount > 0) && effectiveTab === "nfts" ? (
+                    {(cafeCount > 0 || storeCount > 0 || protectedCount > 0) &&
+                    effectiveTab === "nfts" ? (
                       <>
                         <span>•</span>
                         <span>
+                          {protectedCount > 0 ? `Protected ${protectedCount}` : ""}
+                          {protectedCount > 0 && (cafeCount > 0 || storeCount > 0)
+                            ? " • "
+                            : ""}
                           {cafeCount > 0 ? `Cafe ${cafeCount}` : ""}
                           {cafeCount > 0 && storeCount > 0 ? " • " : ""}
                           {storeCount > 0 ? `Store ${storeCount}` : ""}
@@ -585,11 +758,15 @@ export default async function PublicNFTsPage({
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="mt-6 grid grid-cols-2 md:grid-cols-5 gap-3">
                 <StatChip label="Items" value={itemsCount} tone="gold" />
                 <StatChip
                   label="Tab"
                   value={effectiveTab === "activity" ? "My Activity" : "NFTs"}
+                />
+                <StatChip
+                  label="Protected"
+                  value={effectiveTab === "nfts" ? protectedCount : "—"}
                 />
                 <StatChip
                   label="Cafe NFTs"
