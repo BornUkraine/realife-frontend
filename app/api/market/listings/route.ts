@@ -5,8 +5,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type MarketType = "STANDARD" | "PROTECTED";
-
 function s(v: unknown) {
   return typeof v === "bigint" ? v.toString() : v;
 }
@@ -18,8 +16,8 @@ function toInt(v: string | null) {
   return Math.trunc(n);
 }
 
-function normAddr(v: string | null | undefined) {
-  const x = String(v || "").trim();
+function normAddr(v: string | null) {
+  const x = (v || "").trim();
   if (!x) return null;
   return x.toLowerCase();
 }
@@ -28,7 +26,9 @@ function normText(v: string | null | undefined) {
   return String(v || "").trim().toLowerCase();
 }
 
-const ALLOWED_MARKET_TYPE = new Set<MarketType>(["STANDARD", "PROTECTED"]);
+const ALLOWED_STATUS = new Set(["ACTIVE", "CANCELLED", "SOLD_OUT"]);
+const ALLOWED_STANDARD = new Set(["ERC721", "ERC1155"]);
+const ALLOWED_MARKET_TYPE = new Set(["STANDARD", "PROTECTED"]);
 
 const CAFE_CONTRACT = normAddr(
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
@@ -54,11 +54,11 @@ const PUBLIC_DELIVERY_CONTRACT = normAddr(
     null
 );
 
-type ForcedMarketType = "STANDARD" | "PROTECTED";
+type FixedMarketType = "STANDARD" | "PROTECTED";
 
 function fixedMarketTypeByContract(
-  contract: string | null | undefined
-): ForcedMarketType | null {
+  contract: string | null
+): FixedMarketType | null {
   const c = normAddr(contract);
   if (!c) return null;
 
@@ -69,12 +69,41 @@ function fixedMarketTypeByContract(
     return "PROTECTED";
   }
 
+  if (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) {
+    return null;
+  }
+
   return null;
 }
 
-function isPublicStandardContract(contract: string | null | undefined) {
-  const c = normAddr(contract);
-  return Boolean(PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT);
+function getFixedContractMarketRules(): Array<{
+  contract: string;
+  marketType: FixedMarketType;
+}> {
+  const out: Array<{ contract: string; marketType: FixedMarketType }> = [];
+
+  if (PUBLIC_DELIVERY_CONTRACT) {
+    out.push({
+      contract: PUBLIC_DELIVERY_CONTRACT,
+      marketType: "PROTECTED",
+    });
+  }
+
+  if (CAFE_CONTRACT) {
+    out.push({
+      contract: CAFE_CONTRACT,
+      marketType: "STANDARD",
+    });
+  }
+
+  if (STORE_CONTRACT) {
+    out.push({
+      contract: STORE_CONTRACT,
+      marketType: "STANDARD",
+    });
+  }
+
+  return out;
 }
 
 function isProtectedFulfillment(v: string | null | undefined) {
@@ -123,51 +152,20 @@ function suggestedMarketTypeFromAsset(input: {
   physicalItemIncluded?: boolean | null;
   category?: string | null;
   subcategory?: string | null;
-}): MarketType {
+}) {
   if (isProtectedFulfillment(input.fulfillmentType)) {
-    return "PROTECTED";
+    return "PROTECTED" as const;
   }
 
   if (input.deliveryEnabled || input.physicalItemIncluded) {
-    return "PROTECTED";
+    return "PROTECTED" as const;
   }
 
   if (textLooksProtected(input.category, input.subcategory)) {
-    return "PROTECTED";
+    return "PROTECTED" as const;
   }
 
-  return "STANDARD";
-}
-
-function resolveMarketType(params: {
-  contract: string | null | undefined;
-  requestedMarketType?: MarketType | null;
-  storedMarketType?: string | null;
-  suggestedMarketType: MarketType;
-}): MarketType {
-  const {
-    contract,
-    requestedMarketType = null,
-    storedMarketType = null,
-    suggestedMarketType,
-  } = params;
-
-  const fixed = fixedMarketTypeByContract(contract);
-  if (fixed) return fixed;
-
-  if (isPublicStandardContract(contract)) {
-    return suggestedMarketType;
-  }
-
-  if (storedMarketType === "STANDARD" || storedMarketType === "PROTECTED") {
-    return storedMarketType;
-  }
-
-  if (requestedMarketType === "STANDARD" || requestedMarketType === "PROTECTED") {
-    return requestedMarketType;
-  }
-
-  return suggestedMarketType;
+  return "STANDARD" as const;
 }
 
 export async function GET(req: NextRequest) {
@@ -177,118 +175,110 @@ export async function GET(req: NextRequest) {
   const chainId = chainIdRaw && chainIdRaw > 0 ? chainIdRaw : null;
 
   const contract = normAddr(url.searchParams.get("contract"));
-  const tokenId = (url.searchParams.get("tokenId") || "").trim();
-
-  const marketTypeRaw = (url.searchParams.get("marketType") || "").toUpperCase();
-  const requestedMarketType = ALLOWED_MARKET_TYPE.has(marketTypeRaw as MarketType)
-    ? (marketTypeRaw as MarketType)
-    : null;
-
+  const seller = normAddr(url.searchParams.get("seller"));
   const marketplaceContract = normAddr(
     url.searchParams.get("marketplaceContract")
   );
 
-  const listingsTake = Math.max(
-    1,
-    Math.min(toInt(url.searchParams.get("listingsTake")) ?? 50, 200)
-  );
-  const tradesTake = Math.max(
-    1,
-    Math.min(toInt(url.searchParams.get("tradesTake")) ?? 100, 500)
-  );
+  const standardRaw = (url.searchParams.get("standard") || "").toUpperCase();
+  const standard = ALLOWED_STANDARD.has(standardRaw) ? standardRaw : null;
 
-  if (!chainId || !contract || !tokenId) {
-    return NextResponse.json(
-      { ok: false, error: "Missing chainId/contract/tokenId" },
-      { status: 400 }
-    );
+  const statusRaw = (url.searchParams.get("status") || "ACTIVE").toUpperCase();
+  const status = ALLOWED_STATUS.has(statusRaw) ? statusRaw : "ACTIVE";
+
+  const marketTypeRaw = (url.searchParams.get("marketType") || "").toUpperCase();
+  const requestedMarketType = ALLOWED_MARKET_TYPE.has(marketTypeRaw)
+    ? marketTypeRaw
+    : null;
+
+  const take = Math.max(
+    1,
+    Math.min(toInt(url.searchParams.get("take")) ?? 30, 100)
+  );
+  const skip = Math.max(toInt(url.searchParams.get("skip")) ?? 0, 0);
+
+  const where: any = {
+    status,
+    mint: {
+      is: {
+        verified: true,
+      },
+    },
+  };
+
+  if (chainId !== null) where.chainId = chainId;
+  if (seller) where.sellerWallet = seller;
+  if (standard) where.standard = standard;
+  if (marketplaceContract) where.marketplaceContract = marketplaceContract;
+
+  const fixedRules = getFixedContractMarketRules();
+  const fixedContracts = Array.from(new Set(fixedRules.map((x) => x.contract)));
+
+  if (contract) {
+    where.contract = contract;
+
+    const fixedMarketType = fixedMarketTypeByContract(contract);
+    const resolvedRequestedMarketType = fixedMarketType || requestedMarketType;
+
+    if (resolvedRequestedMarketType) {
+      where.marketType = resolvedRequestedMarketType;
+    }
+  } else {
+    if (fixedRules.length > 0) {
+      const fixedClauses = fixedRules
+        .filter((rule) => {
+          if (!requestedMarketType) return true;
+          return rule.marketType === requestedMarketType;
+        })
+        .map((rule) => ({
+          contract: rule.contract,
+          marketType: rule.marketType,
+        }));
+
+      const orClauses: any[] = [...fixedClauses];
+
+      if (fixedContracts.length > 0) {
+        const flexibleClause: any = {
+          contract: { notIn: fixedContracts },
+        };
+
+        if (requestedMarketType) {
+          flexibleClause.marketType = requestedMarketType;
+        }
+
+        orClauses.push(flexibleClause);
+      }
+
+      if (orClauses.length > 0) {
+        where.OR = orClauses;
+      }
+    } else if (requestedMarketType) {
+      where.marketType = requestedMarketType;
+    }
   }
 
   try {
-    const mint = await prisma.mint.findUnique({
-      where: {
-        chainId_contract_tokenId: {
-          chainId,
-          contract,
-          tokenId,
-        },
-      },
-      select: {
-        chainId: true,
-        contract: true,
-        tokenId: true,
-        name: true,
-        image: true,
-        tokenUri: true,
-        txHash: true,
-        verified: true,
-        deliveryEnabled: true,
-        physicalItemIncluded: true,
-        officialItem: true,
-        fulfillmentType: true,
-        category: true,
-        subcategory: true,
-        createdAt: true,
-      },
-    });
-
-    if (!mint || !mint.verified) {
-      return NextResponse.json(
-        { ok: false, error: "NFT_NOT_FOUND_OR_NOT_VERIFIED" },
-        { status: 404 }
-      );
-    }
-
-    const suggestedMarketType = suggestedMarketTypeFromAsset({
-      fulfillmentType: mint.fulfillmentType,
-      deliveryEnabled: mint.deliveryEnabled,
-      physicalItemIncluded: mint.physicalItemIncluded,
-      category: mint.category,
-      subcategory: mint.subcategory,
-    });
-
-    const resolvedMarketType = resolveMarketType({
-      contract,
-      requestedMarketType,
-      suggestedMarketType,
-    });
-
-    const listingsWhere: any = {
-      chainId,
-      contract,
-      tokenId,
-      status: "ACTIVE",
-      marketType: resolvedMarketType,
-      mint: {
-        is: {
-          verified: true,
-        },
-      },
-    };
-
-    const tradesWhere: any = {
-      chainId,
-      contract,
-      tokenId,
-      marketType: resolvedMarketType,
-      mint: {
-        is: {
-          verified: true,
-        },
-      },
-    };
-
-    if (marketplaceContract) {
-      listingsWhere.marketplaceContract = marketplaceContract;
-      tradesWhere.marketplaceContract = marketplaceContract;
-    }
-
-    const [listings, trades] = await Promise.all([
+    const [rows, total] = await Promise.all([
       prisma.listing.findMany({
-        where: listingsWhere,
+        where,
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        take: listingsTake,
+        take,
+        skip,
         include: {
+          mint: {
+            select: {
+              name: true,
+              image: true,
+              tokenUri: true,
+              verified: true,
+              deliveryEnabled: true,
+              physicalItemIncluded: true,
+              officialItem: true,
+              fulfillmentType: true,
+              category: true,
+              subcategory: true,
+            },
+          },
           seller: {
             select: {
               handle: true,
@@ -297,137 +287,72 @@ export async function GET(req: NextRequest) {
           },
         },
       }),
-      prisma.trade.findMany({
-        where: tradesWhere,
-        orderBy: [{ blockTime: "desc" }, { id: "desc" }],
-        take: tradesTake,
-      }),
+      prisma.listing.count({ where }),
     ]);
-
-    const floorWei =
-      listings.length === 0
-        ? null
-        : listings.reduce(
-            (min, x) => (x.pricePerUnitWei < min ? x.pricePerUnitWei : min),
-            listings[0].pricePerUnitWei
-          );
-
-    const lastSaleWei = trades[0]?.totalPriceWei ?? null;
-    const volumeTotalWei = trades.reduce((acc, t) => acc + t.totalPriceWei, 0n);
 
     return NextResponse.json({
       ok: true,
-      mint: {
-        chainId: mint.chainId,
-        contract: mint.contract,
-        tokenId: mint.tokenId,
-        name: mint.name,
-        image: mint.image,
-        tokenUri: mint.tokenUri,
-        txHash: mint.txHash,
-        verified: mint.verified,
-        createdAt: mint.createdAt.toISOString(),
-        deliveryEnabled: mint.deliveryEnabled,
-        physicalItemIncluded: mint.physicalItemIncluded,
-        officialItem: mint.officialItem,
-        fulfillmentType: mint.fulfillmentType,
-        category: mint.category,
-        subcategory: mint.subcategory,
-        suggestedMarketType,
-        resolvedMarketType,
-      },
-      stats: {
-        activeListings: listings.length,
-        tradesCount: trades.length,
-        floorWei: floorWei ? s(floorWei) : null,
-        lastSaleWei: lastSaleWei ? s(lastSaleWei) : null,
-        volumeTotalWei: s(volumeTotalWei),
-      },
-      listings: listings.map((r) => {
+      total,
+      listings: rows.map((r) => {
         const rowSuggestedMarketType = suggestedMarketTypeFromAsset({
-          fulfillmentType: r.fulfillmentType,
-          deliveryEnabled: r.deliveryEnabled,
-          physicalItemIncluded: r.physicalItemIncluded,
-          category: r.category,
-          subcategory: r.subcategory,
+          fulfillmentType: r.fulfillmentType ?? r.mint?.fulfillmentType ?? null,
+          deliveryEnabled:
+            r.deliveryEnabled ?? r.mint?.deliveryEnabled ?? null,
+          physicalItemIncluded:
+            r.physicalItemIncluded ?? r.mint?.physicalItemIncluded ?? null,
+          category: r.category ?? r.mint?.category ?? null,
+          subcategory: r.subcategory ?? r.mint?.subcategory ?? null,
         });
 
-        const rowResolvedMarketType = resolveMarketType({
-          contract: r.contract,
-          storedMarketType: r.marketType,
-          suggestedMarketType: rowSuggestedMarketType,
-        });
+        const resolvedMarketType =
+          fixedMarketTypeByContract(r.contract) ||
+          r.marketType ||
+          rowSuggestedMarketType;
 
         return {
           id: r.id,
+          chainId: r.chainId,
+          contract: r.contract,
+          tokenId: r.tokenId,
           standard: r.standard,
-          marketType: rowResolvedMarketType,
+          status: r.status,
+          marketType: resolvedMarketType,
           suggestedMarketType: rowSuggestedMarketType,
           marketplaceContract: r.marketplaceContract,
-
           sellerWallet: r.sellerWallet,
           seller: r.seller,
-
           marketplaceListingId: s(r.marketplaceListingId),
           pricePerUnitWei: s(r.pricePerUnitWei),
           amountTotal: s(r.amountTotal),
           amountRemaining: s(r.amountRemaining),
-
           deliveryEnabled: r.deliveryEnabled,
           physicalItemIncluded: r.physicalItemIncluded,
           officialItem: r.officialItem,
           fulfillmentType: r.fulfillmentType,
           category: r.category,
           subcategory: r.subcategory,
-
           createdAt: r.createdAt.toISOString(),
-        };
-      }),
-      trades: trades.map((t) => {
-        const rowSuggestedMarketType = suggestedMarketTypeFromAsset({
-          fulfillmentType: t.fulfillmentType,
-          deliveryEnabled: null,
-          physicalItemIncluded: null,
-          category: t.category,
-          subcategory: t.subcategory,
-        });
-
-        const rowResolvedMarketType = resolveMarketType({
-          contract,
-          storedMarketType: t.marketType,
-          suggestedMarketType: rowSuggestedMarketType,
-        });
-
-        return {
-          txHash: t.txHash,
-          logIndex: t.logIndex,
-          blockNum: s(t.blockNum),
-          blockTime: t.blockTime.toISOString(),
-
-          marketType: rowResolvedMarketType,
-          marketplaceContract: t.marketplaceContract,
-          marketplaceListingId: t.marketplaceListingId
-            ? s(t.marketplaceListingId)
+          mint: r.mint
+            ? {
+                ...r.mint,
+                suggestedMarketType: suggestedMarketTypeFromAsset({
+                  fulfillmentType: r.mint.fulfillmentType,
+                  deliveryEnabled: r.mint.deliveryEnabled,
+                  physicalItemIncluded: r.mint.physicalItemIncluded,
+                  category: r.mint.category,
+                  subcategory: r.mint.subcategory,
+                }),
+              }
             : null,
-          marketplacePurchaseId: t.marketplacePurchaseId
-            ? s(t.marketplacePurchaseId)
-            : null,
-
-          fulfillmentType: t.fulfillmentType,
-          category: t.category,
-          subcategory: t.subcategory,
-
-          sellerWallet: t.sellerWallet,
-          buyerWallet: t.buyerWallet,
-
-          amount: s(t.amount),
-          pricePerUnitWei: s(t.pricePerUnitWei),
-          totalPriceWei: s(t.totalPriceWei),
         };
       }),
     });
   } catch (e) {
-    console.error("[API_MARKET_NFT_ERROR]", e);
-    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
+    console.error("[API_MARKET_LISTINGS_ERROR]", e);
+
+    return NextResponse.json(
+      { ok: false, error: "INTERNAL" },
+      { status: 500 }
+    );
   }
 }
