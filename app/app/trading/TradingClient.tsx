@@ -8,12 +8,14 @@ import { useAccount } from "wagmi";
 import ActivityPanel from "@/components/trading/ActivityPanel";
 import NftMedia from "@/components/NftMedia";
 
-type MarketType = "STANDARD" | "DELIVERY";
+type MarketType = "STANDARD" | "PROTECTED";
+
 type MarketView =
   | "all"
   | "cafe"
   | "store"
   | "publicStandard"
+  | "publicProtected"
   | "publicDelivery";
 
 type MarketListing = {
@@ -31,21 +33,30 @@ type MarketListing = {
   amountRemaining: string;
   createdAt: string;
 
-  marketType?: MarketType;
+  marketType?: MarketType | null;
+  suggestedMarketType?: MarketType | null;
   marketplaceContract?: string | null;
-  deliveryEnabled?: boolean;
-  physicalItemIncluded?: boolean;
-  officialItem?: boolean;
+
+  deliveryEnabled?: boolean | null;
+  physicalItemIncluded?: boolean | null;
+  officialItem?: boolean | null;
+  fulfillmentType?: string | null;
+  category?: string | null;
+  subcategory?: string | null;
 
   mint?: {
     name?: string | null;
     image?: string | null;
     tokenUri?: string | null;
     verified?: boolean;
-    deliveryEnabled?: boolean;
-    physicalItemIncluded?: boolean;
-    officialItem?: boolean;
-  };
+    deliveryEnabled?: boolean | null;
+    physicalItemIncluded?: boolean | null;
+    officialItem?: boolean | null;
+    fulfillmentType?: string | null;
+    category?: string | null;
+    subcategory?: string | null;
+    suggestedMarketType?: MarketType | null;
+  } | null;
 };
 
 type ProductMeta = {
@@ -76,6 +87,7 @@ type EnrichedMarketListing = MarketListing & {
   mediaKind?: "image" | "video";
   mediaSrc?: string | null;
   mediaPoster?: string | null;
+  resolvedMarketType: MarketType;
 };
 
 type PreviewState = {
@@ -101,6 +113,10 @@ function normAddr(v?: string | null) {
   return x ? x.toLowerCase() : "";
 }
 
+function normText(v?: string | null) {
+  return String(v || "").trim().toLowerCase();
+}
+
 function fmtEth(weiStr?: string | null) {
   try {
     if (!weiStr) return "—";
@@ -115,7 +131,21 @@ function fmtEth(weiStr?: string | null) {
 }
 
 function marketLabel(mt?: MarketType | null) {
-  return mt === "DELIVERY" ? "DELIVERY" : "STANDARD";
+  return mt === "PROTECTED" ? "PROTECTED" : "STANDARD";
+}
+
+function normalizeMarketView(view?: MarketView): Exclude<MarketView, "publicDelivery"> {
+  if (view === "publicDelivery") return "publicProtected";
+  if (
+    view === "all" ||
+    view === "cafe" ||
+    view === "store" ||
+    view === "publicStandard" ||
+    view === "publicProtected"
+  ) {
+    return view;
+  }
+  return "all";
 }
 
 const PRIMARY_IPFS_ORIGIN = (
@@ -227,7 +257,23 @@ function getAttr(meta: ProductMeta | null, trait: string) {
   return found?.value != null ? String(found.value) : null;
 }
 
-function getMarketViewConfig(view: MarketView) {
+function resolveRowMarketType(item: MarketListing): MarketType {
+  const contract = normAddr(item.contract);
+
+  if (CAFE_CONTRACT && contract === CAFE_CONTRACT) return "STANDARD";
+  if (STORE_CONTRACT && contract === STORE_CONTRACT) return "STANDARD";
+  if (PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT) {
+    return "PROTECTED";
+  }
+
+  if (item.marketType === "PROTECTED") return "PROTECTED";
+  if (item.suggestedMarketType === "PROTECTED") return "PROTECTED";
+  if (item.mint?.suggestedMarketType === "PROTECTED") return "PROTECTED";
+
+  return "STANDARD";
+}
+
+function getMarketViewConfig(view: Exclude<MarketView, "publicDelivery">) {
   switch (view) {
     case "cafe":
       return {
@@ -236,6 +282,7 @@ function getMarketViewConfig(view: MarketView) {
         subtitle:
           "Secondary NFT trading page for Realife Cafe NFTs that were bought through the official cafe flow and later listed by holders.",
         contract: CAFE_CONTRACT || null,
+        marketType: null as MarketType | null,
       };
 
     case "store":
@@ -245,6 +292,7 @@ function getMarketViewConfig(view: MarketView) {
         subtitle:
           "Secondary NFT trading page for official Realife Store NFTs later listed by holders.",
         contract: STORE_CONTRACT || null,
+        marketType: null as MarketType | null,
       };
 
     case "publicStandard":
@@ -252,17 +300,19 @@ function getMarketViewConfig(view: MarketView) {
         label: "Public Mint • Standard",
         title: "Public Standard NFT Trading",
         subtitle:
-          "User-created NFTs minted through the standard public contract without delivery mode.",
+          "User-created NFTs from the standard public contract that trade in the STANDARD market flow.",
         contract: PUBLIC_STANDARD_CONTRACT || null,
+        marketType: "STANDARD" as MarketType,
       };
 
-    case "publicDelivery":
+    case "publicProtected":
       return {
-        label: "Public Mint • Delivery",
-        title: "Public Delivery NFT Trading",
+        label: "Public Mint • Protected",
+        title: "Public Protected NFT Trading",
         subtitle:
-          "User-created NFTs minted through the delivery-enabled public contract, shown in a separate premium NFT trading view.",
-        contract: PUBLIC_DELIVERY_CONTRACT || null,
+          "Protected public NFTs across delivery-contract items and protected listings from the standard public contract.",
+        contract: null,
+        marketType: "PROTECTED" as MarketType,
       };
 
     case "all":
@@ -271,13 +321,14 @@ function getMarketViewConfig(view: MarketView) {
         label: "All Trading NFTs",
         title: "NFT Trading",
         subtitle:
-          "All verified Realife NFTs available for secondary trading across supported contracts, including standard, delivery, cafe and store listings.",
+          "All verified Realife NFTs available for secondary trading across STANDARD and PROTECTED flows, including public, cafe and store listings.",
         contract: null,
+        marketType: null as MarketType | null,
       };
   }
 }
 
-function getMarketViewNote(view: MarketView) {
+function getMarketViewNote(view: Exclude<MarketView, "publicDelivery">) {
   switch (view) {
     case "cafe":
       return {
@@ -290,21 +341,21 @@ function getMarketViewNote(view: MarketView) {
       return {
         tone: "border-sky-500/20 bg-sky-500/10 text-sky-100",
         text:
-          "This page shows secondary NFT trading of Realife Store NFTs. Some NFTs may originally come from official store items with delivery in the primary flow, but secondary trading uses the STANDARD marketplace only. Secondary buyers do not get automatic delivery through trading. For official purchase with delivery, use Real Marketing.",
+          "This page shows secondary NFT trading of Realife Store NFTs. Some NFTs may originally come from official store items with delivery in the primary flow, but secondary trading for store NFTs remains STANDARD only. Secondary buyers do not get automatic delivery through trading. For official purchase with delivery, use Real Marketing.",
       };
 
-    case "publicDelivery":
+    case "publicProtected":
       return {
         tone: "border-violet-500/20 bg-violet-500/10 text-violet-100",
         text:
-          "These NFTs come from the delivery-enabled public mint contract. Delivery-related traits stay visible on cards, while trading remains a premium NFT collection-style market view.",
+          "This view shows PROTECTED public NFTs. It includes delivery-contract NFTs and protected assets from the public standard contract when the asset itself requires protected flow.",
       };
 
     case "publicStandard":
       return {
         tone: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
         text:
-          "This page focuses on user-created standard public mint NFTs without delivery mode.",
+          "This page focuses on user-created standard public NFTs that trade in the STANDARD market flow.",
       };
 
     default:
@@ -312,7 +363,7 @@ function getMarketViewNote(view: MarketView) {
   }
 }
 
-function viewBadgeClass(view: MarketView) {
+function viewBadgeClass(view: Exclude<MarketView, "publicDelivery">) {
   switch (view) {
     case "cafe":
       return "text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.18)]";
@@ -320,7 +371,7 @@ function viewBadgeClass(view: MarketView) {
       return "text-sky-100 border border-sky-500/20 bg-sky-500/10 ring-sky-500/10";
     case "publicStandard":
       return "text-emerald-100 border border-emerald-500/20 bg-emerald-500/10 ring-emerald-500/10";
-    case "publicDelivery":
+    case "publicProtected":
       return "text-violet-100 border border-violet-500/20 bg-violet-500/10 ring-violet-500/10";
     case "all":
     default:
@@ -347,7 +398,9 @@ export default function TradingClient({
 
   const [mounted, setMounted] = useState(false);
   const [tab, setTab] = useState<"market" | "my">("market");
-  const [marketView, setMarketView] = useState<MarketView>(initialMarketView);
+  const [marketView, setMarketView] = useState<
+    Exclude<MarketView, "publicDelivery">
+  >(normalizeMarketView(initialMarketView));
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -365,7 +418,7 @@ export default function TradingClient({
   }, []);
 
   useEffect(() => {
-    setMarketView(initialMarketView);
+    setMarketView(normalizeMarketView(initialMarketView));
   }, [initialMarketView]);
 
   useEffect(() => {
@@ -427,10 +480,13 @@ export default function TradingClient({
         const collection = String(x.collection || "").toLowerCase();
         const item = String(x.item || "").toLowerCase();
         const rarity = String(x.rarity || "").toLowerCase();
-        const market = String(x.marketType || "").toLowerCase();
+        const market = String(x.resolvedMarketType || "").toLowerCase();
         const brand = String(x.brand || "").toLowerCase();
         const project = String(x.project || "").toLowerCase();
         const contract = String(x.contract || "").toLowerCase();
+        const fulfillmentType = String(x.fulfillmentType || "").toLowerCase();
+        const category = String(x.category || "").toLowerCase();
+        const subcategory = String(x.subcategory || "").toLowerCase();
 
         return (
           name.includes(qq) ||
@@ -442,7 +498,10 @@ export default function TradingClient({
           brand.includes(qq) ||
           project.includes(qq) ||
           market.includes(qq) ||
-          contract.includes(qq)
+          contract.includes(qq) ||
+          fulfillmentType.includes(qq) ||
+          category.includes(qq) ||
+          subcategory.includes(qq)
         );
       });
     }
@@ -472,7 +531,7 @@ export default function TradingClient({
   async function loadPage(
     nextSkip: number,
     append: boolean,
-    view: MarketView = marketView
+    view: Exclude<MarketView, "publicDelivery"> = marketView
   ) {
     setErr(null);
     setLoading(true);
@@ -480,7 +539,7 @@ export default function TradingClient({
     try {
       const cfg = getMarketViewConfig(view);
 
-      if (view !== "all" && !cfg.contract) {
+      if ((view === "cafe" || view === "store" || view === "publicStandard") && !cfg.contract) {
         setRows([]);
         setTotal(0);
         setSkip(0);
@@ -496,6 +555,10 @@ export default function TradingClient({
 
       if (cfg.contract) {
         params.set("contract", cfg.contract);
+      }
+
+      if (cfg.marketType) {
+        params.set("marketType", cfg.marketType);
       }
 
       const url = `/api/market/listings?${params.toString()}`;
@@ -546,6 +609,7 @@ export default function TradingClient({
             mediaKind,
             mediaSrc: mediaKind === "video" ? mediaSrc : imgHttp || null,
             mediaPoster,
+            resolvedMarketType: resolveRowMarketType(item),
           } satisfies EnrichedMarketListing;
         })
       );
@@ -752,11 +816,15 @@ export default function TradingClient({
                         ["cafe", "Realife Cafe NFT"],
                         ["store", "Realife Store NFT"],
                         ["publicStandard", "Public Mint • Standard"],
-                        ["publicDelivery", "Public Mint • Delivery"],
-                      ] as Array<[MarketView, string]>
+                        ["publicProtected", "Public Mint • Protected"],
+                      ] as Array<[Exclude<MarketView, "publicDelivery">, string]>
                     ).map(([viewKey, label]) => {
                       const cfg = getMarketViewConfig(viewKey);
-                      const disabled = viewKey !== "all" && !cfg.contract;
+                      const disabled =
+                        (viewKey === "cafe" ||
+                          viewKey === "store" ||
+                          viewKey === "publicStandard") &&
+                        !cfg.contract;
 
                       return (
                         <button
@@ -817,6 +885,12 @@ export default function TradingClient({
                     {marketCfg.contract ? (
                       <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] font-black text-white/80">
                         {shortAddr(marketCfg.contract)}
+                      </div>
+                    ) : null}
+
+                    {marketCfg.marketType ? (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] font-black text-white/80">
+                        {marketCfg.marketType}
                       </div>
                     ) : null}
                   </div>
@@ -893,7 +967,7 @@ export default function TradingClient({
                     <input
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
-                      placeholder="name / token id / seller / rarity / item / brand / project / collection…"
+                      placeholder="name / token id / seller / rarity / item / brand / project / collection / category…"
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                     />
                   </div>
@@ -980,47 +1054,49 @@ export default function TradingClient({
 
                   const isMine = Boolean(wallet && normAddr(x.sellerWallet) === wallet);
 
+                  const contractLc = normAddr(x.contract);
                   const isCafe =
-                    Boolean(CAFE_CONTRACT) && normAddr(x.contract) === CAFE_CONTRACT;
-
+                    Boolean(CAFE_CONTRACT) && contractLc === CAFE_CONTRACT;
                   const isStore =
-                    Boolean(STORE_CONTRACT) &&
-                    normAddr(x.contract) === STORE_CONTRACT;
-
-                  const isPublicStandard =
+                    Boolean(STORE_CONTRACT) && contractLc === STORE_CONTRACT;
+                  const isPublicStandardContract =
                     Boolean(PUBLIC_STANDARD_CONTRACT) &&
-                    normAddr(x.contract) === PUBLIC_STANDARD_CONTRACT;
-
-                  const isPublicDelivery =
+                    contractLc === PUBLIC_STANDARD_CONTRACT;
+                  const isPublicDeliveryContract =
                     Boolean(PUBLIC_DELIVERY_CONTRACT) &&
-                    normAddr(x.contract) === PUBLIC_DELIVERY_CONTRACT;
+                    contractLc === PUBLIC_DELIVERY_CONTRACT;
 
-                  const rowMarketType: MarketType =
-                    isPublicDelivery ? "DELIVERY" : "STANDARD";
+                  const rowMarketType: MarketType = x.resolvedMarketType;
+                  const isProtected = rowMarketType === "PROTECTED";
 
-                  const showDeliveryBadge = isPublicDelivery;
                   const showTradingOnlyBadge = isStore || isCafe;
                   const showNoDeliveryBadge = isStore;
                   const showNoRedemptionBadge = isCafe;
+                  const showProtectedBadge = isProtected;
+                  const showDeliveryContractBadge = isPublicDeliveryContract;
+                  const showProtectedServiceBadge =
+                    isProtected &&
+                    isPublicStandardContract &&
+                    !isPublicDeliveryContract;
 
                   const topLabel = isCafe
                     ? x.collection || "CAFE"
                     : isStore
                     ? x.collection || "STORE"
-                    : isPublicStandard
+                    : isProtected
+                    ? "PUBLIC PROTECTED"
+                    : isPublicStandardContract
                     ? "PUBLIC STANDARD"
-                    : isPublicDelivery
-                    ? "PUBLIC DELIVERY"
                     : "TRADING";
 
                   const topLabelClass = isCafe
                     ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
                     : isStore
                     ? "border-sky-500/20 bg-sky-500/10 text-sky-100"
-                    : isPublicStandard
-                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
-                    : isPublicDelivery
+                    : isProtected
                     ? "border-violet-500/20 bg-violet-500/10 text-violet-100"
+                    : isPublicStandardContract
+                    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
                     : "border-white/10 bg-black/40 text-white/85";
 
                   const cardPreviewSrc =
@@ -1129,9 +1205,21 @@ export default function TradingClient({
                         </div>
 
                         <div className="mt-3 flex flex-wrap gap-2">
-                          {showDeliveryBadge ? (
+                          {showProtectedBadge ? (
                             <span className="inline-flex items-center rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold text-violet-100">
-                              DELIVERY
+                              PROTECTED
+                            </span>
+                          ) : null}
+
+                          {showDeliveryContractBadge ? (
+                            <span className="inline-flex items-center rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold text-violet-100">
+                              DELIVERY CONTRACT
+                            </span>
+                          ) : null}
+
+                          {showProtectedServiceBadge ? (
+                            <span className="inline-flex items-center rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-2.5 py-1 text-[10px] font-bold text-fuchsia-100">
+                              PROTECTED ASSET
                             </span>
                           ) : null}
 
@@ -1170,6 +1258,12 @@ export default function TradingClient({
                               {x.rarity}
                             </span>
                           ) : null}
+
+                          {x.fulfillmentType ? (
+                            <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-bold text-white/80">
+                              {String(x.fulfillmentType).replaceAll("_", " ")}
+                            </span>
+                          ) : null}
                         </div>
 
                         {x.brand || x.project || x.collection ? (
@@ -1183,6 +1277,12 @@ export default function TradingClient({
                               <span> • </span>
                             ) : null}
                             {x.collection ? <span>{x.collection}</span> : null}
+                          </div>
+                        ) : null}
+
+                        {(x.category || x.subcategory) ? (
+                          <div className="mt-2 line-clamp-1 text-[12px] text-white/45">
+                            {[x.category, x.subcategory].filter(Boolean).join(" • ")}
                           </div>
                         ) : null}
 
