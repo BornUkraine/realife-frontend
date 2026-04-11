@@ -5,6 +5,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+type MarketType = "STANDARD" | "PROTECTED";
+
 function s(v: unknown) {
   return typeof v === "bigint" ? v.toString() : v;
 }
@@ -16,8 +18,8 @@ function toInt(v: string | null) {
   return Math.trunc(n);
 }
 
-function normAddr(v: string | null) {
-  const x = (v || "").trim();
+function normAddr(v: string | null | undefined) {
+  const x = String(v || "").trim();
   if (!x) return null;
   return x.toLowerCase();
 }
@@ -28,7 +30,7 @@ function normText(v: string | null | undefined) {
 
 const ALLOWED_STATUS = new Set(["ACTIVE", "CANCELLED", "SOLD_OUT"]);
 const ALLOWED_STANDARD = new Set(["ERC721", "ERC1155"]);
-const ALLOWED_MARKET_TYPE = new Set(["STANDARD", "PROTECTED"]);
+const ALLOWED_MARKET_TYPE = new Set<MarketType>(["STANDARD", "PROTECTED"]);
 
 const CAFE_CONTRACT = normAddr(
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
@@ -57,7 +59,7 @@ const PUBLIC_DELIVERY_CONTRACT = normAddr(
 type FixedMarketType = "STANDARD" | "PROTECTED";
 
 function fixedMarketTypeByContract(
-  contract: string | null
+  contract: string | null | undefined
 ): FixedMarketType | null {
   const c = normAddr(contract);
   if (!c) return null;
@@ -69,6 +71,7 @@ function fixedMarketTypeByContract(
     return "PROTECTED";
   }
 
+  // public standard contract is flexible: STANDARD or PROTECTED by asset/listing
   if (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) {
     return null;
   }
@@ -152,20 +155,47 @@ function suggestedMarketTypeFromAsset(input: {
   physicalItemIncluded?: boolean | null;
   category?: string | null;
   subcategory?: string | null;
-}) {
+}): MarketType {
   if (isProtectedFulfillment(input.fulfillmentType)) {
-    return "PROTECTED" as const;
+    return "PROTECTED";
   }
 
   if (input.deliveryEnabled || input.physicalItemIncluded) {
-    return "PROTECTED" as const;
+    return "PROTECTED";
   }
 
   if (textLooksProtected(input.category, input.subcategory)) {
-    return "PROTECTED" as const;
+    return "PROTECTED";
   }
 
-  return "STANDARD" as const;
+  return "STANDARD";
+}
+
+function resolveMarketType(params: {
+  contract: string | null | undefined;
+  suggestedMarketType: MarketType;
+  requestedMarketType?: MarketType | null;
+  storedMarketType?: string | null;
+}): MarketType {
+  const {
+    contract,
+    suggestedMarketType,
+    requestedMarketType = null,
+    storedMarketType = null,
+  } = params;
+
+  const fixed = fixedMarketTypeByContract(contract);
+  if (fixed) return fixed;
+
+  if (storedMarketType === "STANDARD" || storedMarketType === "PROTECTED") {
+    return storedMarketType;
+  }
+
+  if (requestedMarketType === "STANDARD" || requestedMarketType === "PROTECTED") {
+    return requestedMarketType;
+  }
+
+  return suggestedMarketType;
 }
 
 export async function GET(req: NextRequest) {
@@ -187,8 +217,10 @@ export async function GET(req: NextRequest) {
   const status = ALLOWED_STATUS.has(statusRaw) ? statusRaw : "ACTIVE";
 
   const marketTypeRaw = (url.searchParams.get("marketType") || "").toUpperCase();
-  const requestedMarketType = ALLOWED_MARKET_TYPE.has(marketTypeRaw)
-    ? marketTypeRaw
+  const requestedMarketType = ALLOWED_MARKET_TYPE.has(
+    marketTypeRaw as MarketType
+  )
+    ? (marketTypeRaw as MarketType)
     : null;
 
   const take = Math.max(
@@ -296,18 +328,19 @@ export async function GET(req: NextRequest) {
       listings: rows.map((r) => {
         const rowSuggestedMarketType = suggestedMarketTypeFromAsset({
           fulfillmentType: r.fulfillmentType ?? r.mint?.fulfillmentType ?? null,
-          deliveryEnabled:
-            r.deliveryEnabled ?? r.mint?.deliveryEnabled ?? null,
+          deliveryEnabled: r.deliveryEnabled ?? r.mint?.deliveryEnabled ?? null,
           physicalItemIncluded:
             r.physicalItemIncluded ?? r.mint?.physicalItemIncluded ?? null,
           category: r.category ?? r.mint?.category ?? null,
           subcategory: r.subcategory ?? r.mint?.subcategory ?? null,
         });
 
-        const resolvedMarketType =
-          fixedMarketTypeByContract(r.contract) ||
-          r.marketType ||
-          rowSuggestedMarketType;
+        const resolvedMarketType = resolveMarketType({
+          contract: r.contract,
+          suggestedMarketType: rowSuggestedMarketType,
+          storedMarketType: r.marketType,
+          requestedMarketType,
+        });
 
         return {
           id: r.id,
@@ -316,22 +349,28 @@ export async function GET(req: NextRequest) {
           tokenId: r.tokenId,
           standard: r.standard,
           status: r.status,
+
           marketType: resolvedMarketType,
           suggestedMarketType: rowSuggestedMarketType,
           marketplaceContract: r.marketplaceContract,
+
           sellerWallet: r.sellerWallet,
           seller: r.seller,
+
           marketplaceListingId: s(r.marketplaceListingId),
           pricePerUnitWei: s(r.pricePerUnitWei),
           amountTotal: s(r.amountTotal),
           amountRemaining: s(r.amountRemaining),
+
           deliveryEnabled: r.deliveryEnabled,
           physicalItemIncluded: r.physicalItemIncluded,
           officialItem: r.officialItem,
           fulfillmentType: r.fulfillmentType,
           category: r.category,
           subcategory: r.subcategory,
+
           createdAt: r.createdAt.toISOString(),
+
           mint: r.mint
             ? {
                 ...r.mint,
