@@ -186,13 +186,11 @@ function nextServiceStatusForRefund(fulfillmentType, current) {
   return "CANCELLED";
 }
 
-/**
- * ==========================================================================
+/* ============================================================================
  * LISTED
- * ==========================================================================
- * On PROTECTED listing, NFT moves into escrow marketplace custody.
- * So seller holding should decrease when listing is first seen.
- */
+ * NFT moves into protected marketplace custody.
+ * Seller holding decreases on first seen listing.
+ * ========================================================================== */
 async function handleListed(parsed, log) {
   const listingId = BigInt(parsed.args.listingId);
   const seller = norm(parsed.args.seller);
@@ -242,13 +240,11 @@ async function handleListed(parsed, log) {
       where: {
         chainId_marketType_marketplaceListingId: {
           chainId: CHAIN_ID,
-          marketType: "PROTECTED",
+          marketType: MARKET_TYPE,
           marketplaceListingId: listingId,
         },
       },
-      select: {
-        id: true,
-      },
+      select: { id: true },
     }),
   ]);
 
@@ -268,7 +264,6 @@ async function handleListed(parsed, log) {
     Boolean(mint.physicalItemIncluded);
 
   const officialItem = product?.officialItem ?? Boolean(mint.officialItem);
-
   const category = mint.category || null;
   const subcategory = mint.subcategory || null;
 
@@ -276,13 +271,13 @@ async function handleListed(parsed, log) {
     where: {
       chainId_marketType_marketplaceListingId: {
         chainId: CHAIN_ID,
-        marketType: "PROTECTED",
+        marketType: MARKET_TYPE,
         marketplaceListingId: listingId,
       },
     },
     update: {
       marketplaceContract: MARKETPLACE,
-      marketType: "PROTECTED",
+      marketType: MARKET_TYPE,
       status: "ACTIVE",
       sellerId,
       sellerWallet: seller,
@@ -306,7 +301,7 @@ async function handleListed(parsed, log) {
       tokenId,
       standard: "ERC1155",
       marketplaceContract: MARKETPLACE,
-      marketType: "PROTECTED",
+      marketType: MARKET_TYPE,
       sellerId,
       sellerWallet: seller,
       marketplaceListingId: listingId,
@@ -349,13 +344,10 @@ async function handleListed(parsed, log) {
   });
 }
 
-/**
- * ==========================================================================
+/* ============================================================================
  * CANCELLED
- * ==========================================================================
- * Listing was cancelled before full sale.
  * Remaining escrowed NFT amount returns back to seller custody.
- */
+ * ========================================================================== */
 async function handleCancelled(parsed, blockTime) {
   const listingId = BigInt(parsed.args.listingId);
   const amountReturned = BigInt(parsed.args.amountReturned);
@@ -364,7 +356,7 @@ async function handleCancelled(parsed, blockTime) {
     where: {
       chainId_marketType_marketplaceListingId: {
         chainId: CHAIN_ID,
-        marketType: "PROTECTED",
+        marketType: MARKET_TYPE,
         marketplaceListingId: listingId,
       },
     },
@@ -389,7 +381,7 @@ async function handleCancelled(parsed, blockTime) {
     where: {
       chainId_marketType_marketplaceListingId: {
         chainId: CHAIN_ID,
-        marketType: "PROTECTED",
+        marketType: MARKET_TYPE,
         marketplaceListingId: listingId,
       },
     },
@@ -431,15 +423,10 @@ async function handleCancelled(parsed, blockTime) {
   });
 }
 
-/**
- * ==========================================================================
+/* ============================================================================
  * PURCHASE FUNDED
- * ==========================================================================
- * In the HYBRID protected flow:
- * - buyer pays into escrow
- * - buyer immediately receives NFT
- * - seller is not paid yet
- */
+ * Buyer receives NFT immediately. Funds stay in escrow.
+ * ========================================================================== */
 async function handlePurchaseFunded(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const listingId = BigInt(parsed.args.listingId);
@@ -493,7 +480,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
       where: {
         chainId_marketType_marketplaceListingId: {
           chainId: CHAIN_ID,
-          marketType: "PROTECTED",
+          marketType: MARKET_TYPE,
           marketplaceListingId: listingId,
         },
       },
@@ -531,7 +518,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
         standard: "ERC1155",
 
         marketplaceContract: MARKETPLACE,
-        marketType: "PROTECTED",
+        marketType: MARKET_TYPE,
         marketplaceListingId: listingId,
         marketplacePurchaseId: purchaseId,
 
@@ -583,7 +570,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
       where: {
         chainId_marketType_marketplaceListingId: {
           chainId: CHAIN_ID,
-          marketType: "PROTECTED",
+          marketType: MARKET_TYPE,
           marketplaceListingId: listingId,
         },
       },
@@ -622,6 +609,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
 
   const vertical = product?.vertical || "marketplace";
   const deliveryRequired = isPhysicalFulfillment(fulfillmentType);
+
   const physicalItem =
     isPhysicalFulfillment(fulfillmentType) ||
     currentListing?.physicalItemIncluded ||
@@ -639,7 +627,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
   if (tradeRow?.id) {
     const existingOrder = await prisma.storeOrder.findFirst({
       where: {
-        marketType: "PROTECTED",
+        marketType: MARKET_TYPE,
         marketplaceContract: MARKETPLACE,
         marketplacePurchaseId: purchaseId,
       },
@@ -657,7 +645,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
           orderKind: "SECONDARY",
           vertical,
 
-          marketType: "PROTECTED",
+          marketType: MARKET_TYPE,
           marketplaceContract: MARKETPLACE,
 
           buyerWallet: buyer,
@@ -721,27 +709,24 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
   });
 }
 
-/**
- * ==========================================================================
+/* ============================================================================
  * BUYER CONFIRMED
- * ==========================================================================
- */
+ * ========================================================================== */
 async function handleBuyerConfirmed(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
 
   const rows = await prisma.storeOrder.findMany({
     where: {
       chainId: CHAIN_ID,
-      marketType: "PROTECTED",
+      marketType: MARKET_TYPE,
       marketplaceContract: MARKETPLACE,
       marketplacePurchaseId: purchaseId,
     },
     select: {
       id: true,
-      deliveryRequired: true,
-      fulfillmentType: true,
       deliveryStatus: true,
       serviceStatus: true,
+      fulfillmentType: true,
       confirmedAt: true,
       buyerConfirmedAt: true,
     },
@@ -769,24 +754,20 @@ async function handleBuyerConfirmed(parsed, blockTime) {
   });
 }
 
-/**
- * ==========================================================================
+/* ============================================================================
  * REFUND REQUESTED
- * ==========================================================================
- */
+ * ========================================================================== */
 async function handleRefundRequested(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
 
   const rows = await prisma.storeOrder.findMany({
     where: {
       chainId: CHAIN_ID,
-      marketType: "PROTECTED",
+      marketType: MARKET_TYPE,
       marketplaceContract: MARKETPLACE,
       marketplacePurchaseId: purchaseId,
     },
-    select: {
-      id: true,
-    },
+    select: { id: true },
   });
 
   for (const row of rows) {
@@ -806,13 +787,11 @@ async function handleRefundRequested(parsed, blockTime) {
   });
 }
 
-/**
- * ==========================================================================
+/* ============================================================================
  * PURCHASE NFT RETURNED
- * ==========================================================================
  * Buyer returned NFT back to escrow contract.
- * Buyer holding must decrease here.
- */
+ * Buyer holding decreases here.
+ * ========================================================================== */
 async function handlePurchaseNftReturned(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const buyer = norm(parsed.args.buyer);
@@ -820,7 +799,7 @@ async function handlePurchaseNftReturned(parsed, blockTime) {
   const rows = await prisma.storeOrder.findMany({
     where: {
       chainId: CHAIN_ID,
-      marketType: "PROTECTED",
+      marketType: MARKET_TYPE,
       marketplaceContract: MARKETPLACE,
       marketplacePurchaseId: purchaseId,
     },
@@ -871,24 +850,20 @@ async function handlePurchaseNftReturned(parsed, blockTime) {
   });
 }
 
-/**
- * ==========================================================================
+/* ============================================================================
  * REFUND REQUEST REJECTED
- * ==========================================================================
- */
+ * ========================================================================== */
 async function handleRefundRequestRejected(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
 
   const rows = await prisma.storeOrder.findMany({
     where: {
       chainId: CHAIN_ID,
-      marketType: "PROTECTED",
+      marketType: MARKET_TYPE,
       marketplaceContract: MARKETPLACE,
       marketplacePurchaseId: purchaseId,
     },
-    select: {
-      id: true,
-    },
+    select: { id: true },
   });
 
   for (const row of rows) {
@@ -907,13 +882,10 @@ async function handleRefundRequestRejected(parsed, blockTime) {
   });
 }
 
-/**
- * ==========================================================================
+/* ============================================================================
  * PURCHASE RELEASED
- * ==========================================================================
- * In hybrid flow buyer holding should NOT change here,
- * because buyer already received NFT on PurchaseFunded.
- */
+ * Buyer already received NFT on PurchaseFunded.
+ * ========================================================================== */
 async function handleReleased(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const txHash = log.transactionHash;
@@ -921,20 +893,18 @@ async function handleReleased(parsed, log, blockTime) {
   const rows = await prisma.storeOrder.findMany({
     where: {
       chainId: CHAIN_ID,
-      marketType: "PROTECTED",
+      marketType: MARKET_TYPE,
       marketplaceContract: MARKETPLACE,
       marketplacePurchaseId: purchaseId,
     },
     select: {
       id: true,
       escrowStatus: true,
-      deliveryRequired: true,
       deliveryStatus: true,
       serviceStatus: true,
       fulfillmentType: true,
       confirmedAt: true,
       completedAt: true,
-      buyerConfirmedAt: true,
     },
   });
 
@@ -966,13 +936,11 @@ async function handleReleased(parsed, log, blockTime) {
   });
 }
 
-/**
- * ==========================================================================
+/* ============================================================================
  * PURCHASE REFUNDED
- * ==========================================================================
- * buyer holding was already decreased on PurchaseNftReturned,
- * so here we only restore seller holding.
- */
+ * Buyer holding was already decreased on PurchaseNftReturned.
+ * Restore seller holding here.
+ * ========================================================================== */
 async function handleRefunded(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const txHash = log.transactionHash;
@@ -980,7 +948,7 @@ async function handleRefunded(parsed, log, blockTime) {
   const rows = await prisma.storeOrder.findMany({
     where: {
       chainId: CHAIN_ID,
-      marketType: "PROTECTED",
+      marketType: MARKET_TYPE,
       marketplaceContract: MARKETPLACE,
       marketplacePurchaseId: purchaseId,
     },
@@ -1055,13 +1023,10 @@ async function handleRefunded(parsed, log, blockTime) {
   });
 }
 
-/**
- * ==========================================================================
+/* ============================================================================
  * REFUND REJECTED AND NFT RESTORED TO BUYER
- * ==========================================================================
- * If buyer already returned NFT but refund was rejected,
- * NFT is sent back to buyer and holding must increase again.
- */
+ * NFT goes back to buyer after earlier return.
+ * ========================================================================== */
 async function handleRefundRejectedAndRestored(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const buyer = norm(parsed.args.buyer);
@@ -1069,7 +1034,7 @@ async function handleRefundRejectedAndRestored(parsed, blockTime) {
   const rows = await prisma.storeOrder.findMany({
     where: {
       chainId: CHAIN_ID,
-      marketType: "PROTECTED",
+      marketType: MARKET_TYPE,
       marketplaceContract: MARKETPLACE,
       marketplacePurchaseId: purchaseId,
     },
@@ -1131,11 +1096,9 @@ async function handleRefundRejectedAndRestored(parsed, blockTime) {
   });
 }
 
-/**
- * ==========================================================================
+/* ============================================================================
  * MAIN LOOP
- * ==========================================================================
- */
+ * ========================================================================== */
 async function mainLoop() {
   let last = await getLastBlock();
 
