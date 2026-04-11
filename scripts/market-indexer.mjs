@@ -20,7 +20,9 @@ const MARKETPLACE = (
   .trim()
   .toLowerCase();
 
-if (!MARKETPLACE) throw new Error("STANDARD marketplace address missing");
+if (!MARKETPLACE) {
+  throw new Error("STANDARD marketplace address missing");
+}
 
 const MARKET_TYPE = "STANDARD";
 
@@ -28,14 +30,6 @@ const START_BLOCK = BigInt(process.env.START_BLOCK || "0");
 const CONFIRMATIONS = BigInt(process.env.CONFIRMATIONS || "5");
 const BATCH = BigInt(process.env.BATCH_BLOCKS || "2000");
 const SLEEP_MS = Number(process.env.SLEEP_MS || "8000");
-
-const PAYMENT_TOKEN_FALLBACK = String(
-  process.env.NEXT_PUBLIC_PAYMENT_TOKEN_ADDRESS ||
-    process.env.PAYMENT_TOKEN_ADDRESS ||
-    ""
-)
-  .trim()
-  .toLowerCase();
 
 const provider = new JsonRpcProvider(RPC_URL);
 
@@ -133,6 +127,7 @@ async function mainLoop() {
         } catch {
           continue;
         }
+
         if (!parsed) continue;
 
         const blockTime = await getBlockTime(log.blockNumber);
@@ -157,8 +152,6 @@ async function mainLoop() {
                 },
               },
               select: {
-                vertical: true,
-                paymentToken: true,
                 deliveryEnabled: true,
                 physicalItemIncluded: true,
                 officialItem: true,
@@ -177,6 +170,9 @@ async function mainLoop() {
                 deliveryEnabled: true,
                 physicalItemIncluded: true,
                 officialItem: true,
+                fulfillmentType: true,
+                category: true,
+                subcategory: true,
               },
             }),
             prisma.user.findUnique({
@@ -198,6 +194,10 @@ async function mainLoop() {
 
           const officialItem =
             product?.officialItem ?? Boolean(mint.officialItem);
+
+          const fulfillmentType = mint.fulfillmentType || null;
+          const category = mint.category || null;
+          const subcategory = mint.subcategory || null;
 
           const sellerId = sellerUser?.id ?? null;
 
@@ -231,6 +231,10 @@ async function mainLoop() {
               deliveryEnabled: Boolean(deliveryEnabled),
               physicalItemIncluded: Boolean(physicalItemIncluded),
               officialItem: Boolean(officialItem),
+
+              fulfillmentType,
+              category,
+              subcategory,
             },
             create: {
               chainId: CHAIN_ID,
@@ -253,6 +257,10 @@ async function mainLoop() {
               deliveryEnabled: Boolean(deliveryEnabled),
               physicalItemIncluded: Boolean(physicalItemIncluded),
               officialItem: Boolean(officialItem),
+
+              fulfillmentType,
+              category,
+              subcategory,
             },
           });
 
@@ -267,6 +275,7 @@ async function mainLoop() {
             deliveryEnabled: Boolean(deliveryEnabled),
             physicalItemIncluded: Boolean(physicalItemIncluded),
             officialItem: Boolean(officialItem),
+            fulfillmentType,
           });
         }
 
@@ -281,7 +290,10 @@ async function mainLoop() {
               marketplaceListingId: listingId,
               status: "ACTIVE",
             },
-            data: { status: "CANCELLED", cancelledAt: blockTime },
+            data: {
+              status: "CANCELLED",
+              cancelledAt: blockTime,
+            },
           });
 
           console.log("[CANCELLED]", {
@@ -300,24 +312,8 @@ async function mainLoop() {
           const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
           const totalPriceWei = BigInt(parsed.args.totalPriceWei);
 
-          const [product, mint, sellerUser, buyerUser, currentListing] =
+          const [mint, sellerUser, buyerUser, currentListing] =
             await Promise.all([
-              prisma.realMarketingProduct.findUnique({
-                where: {
-                  chainId_contract_tokenId: {
-                    chainId: CHAIN_ID,
-                    contract: nft,
-                    tokenId,
-                  },
-                },
-                select: {
-                  vertical: true,
-                  paymentToken: true,
-                  deliveryEnabled: true,
-                  physicalItemIncluded: true,
-                  officialItem: true,
-                },
-              }),
               prisma.mint.findUnique({
                 where: {
                   chainId_contract_tokenId: {
@@ -331,6 +327,9 @@ async function mainLoop() {
                   deliveryEnabled: true,
                   physicalItemIncluded: true,
                   officialItem: true,
+                  fulfillmentType: true,
+                  category: true,
+                  subcategory: true,
                 },
               }),
               prisma.user.findUnique({
@@ -356,12 +355,18 @@ async function mainLoop() {
                   deliveryEnabled: true,
                   physicalItemIncluded: true,
                   officialItem: true,
+                  fulfillmentType: true,
+                  category: true,
+                  subcategory: true,
                 },
               }),
             ]);
 
           if (!mint?.verified) {
-            console.log("[SKIP] trade mint missing/not verified", { nft, tokenId });
+            console.log("[SKIP] trade mint missing/not verified", {
+              nft,
+              tokenId,
+            });
             continue;
           }
 
@@ -385,6 +390,12 @@ async function mainLoop() {
                 logIndex,
                 blockNum: BigInt(log.blockNumber),
                 blockTime,
+
+                fulfillmentType:
+                  currentListing?.fulfillmentType ?? mint.fulfillmentType ?? null,
+                category: currentListing?.category ?? mint.category ?? null,
+                subcategory:
+                  currentListing?.subcategory ?? mint.subcategory ?? null,
 
                 sellerWallet: seller,
                 buyerWallet: buyer,
@@ -465,97 +476,12 @@ async function mainLoop() {
                   contract: nft,
                   tokenId,
                   standard: "ERC1155",
-                  amount: amount,
-                },
-                update: { amount: { increment: amount }, standard: "ERC1155" },
-              });
-            }
-          }
-
-          const deliveryEnabled =
-            currentListing?.deliveryEnabled ??
-            product?.deliveryEnabled ??
-            Boolean(mint.deliveryEnabled);
-
-          const physicalItemIncluded =
-            currentListing?.physicalItemIncluded ??
-            product?.physicalItemIncluded ??
-            Boolean(mint.physicalItemIncluded);
-
-          const officialItem =
-            currentListing?.officialItem ??
-            product?.officialItem ??
-            Boolean(mint.officialItem);
-
-          const deliveryRequired =
-            Boolean(deliveryEnabled) || Boolean(physicalItemIncluded);
-
-          const vertical = product?.vertical || "marketplace";
-          const paymentToken =
-            norm(product?.paymentToken || "") || PAYMENT_TOKEN_FALLBACK || null;
-
-          if (tradeRow?.id && deliveryRequired) {
-            const existingOrder = await prisma.storeOrder.findFirst({
-              where: {
-                tradeId: tradeRow.id,
-                marketType: MARKET_TYPE,
-              },
-              select: { id: true },
-            });
-
-            if (!existingOrder) {
-              await prisma.storeOrder.create({
-                data: {
-                  chainId: CHAIN_ID,
-                  contract: nft,
-                  tokenId,
-
-                  sourceType: "MARKETPLACE",
-                  orderKind: "SECONDARY",
-                  vertical,
-
-                  marketType: MARKET_TYPE,
-                  marketplaceContract: MARKETPLACE,
-
-                  buyerWallet: buyer,
-                  sellerWallet: seller,
-
-                  buyerId: buyerUser?.id ?? null,
-                  sellerId: sellerUser?.id ?? null,
-
-                  listingId: currentListing?.id ?? null,
-                  tradeId: tradeRow.id,
-                  marketplaceListingId: listingId,
-                  marketplacePurchaseId: null,
-
                   amount,
-                  unitPrice: pricePerUnitWei,
-                  totalPrice: totalPriceWei,
-
-                  paymentToken,
-
-                  deliveryRequired: true,
-                  physicalItem: Boolean(physicalItemIncluded),
-                  officialItem: Boolean(officialItem),
-
-                  escrowStatus: "PENDING",
-                  deliveryStatus: "PENDING",
-
-                  buyTxHash: txHash,
                 },
-              });
-
-              console.log("[STORE_ORDER_CREATED]", {
-                marketType: MARKET_TYPE,
-                tradeId: tradeRow.id,
-                listingId: listingId.toString(),
-                nft,
-                tokenId,
-                buyer,
-                seller,
-                vertical,
-                deliveryRequired,
-                physicalItemIncluded: Boolean(physicalItemIncluded),
+                update: {
+                  amount: { increment: amount },
+                  standard: "ERC1155",
+                },
               });
             }
           }
@@ -570,10 +496,6 @@ async function mainLoop() {
             amount: amount.toString(),
             totalPriceWei: totalPriceWei.toString(),
             createdTrade,
-            vertical,
-            deliveryEnabled: Boolean(deliveryEnabled),
-            physicalItemIncluded: Boolean(physicalItemIncluded),
-            deliveryRequired: Boolean(deliveryRequired),
           });
         }
       }
