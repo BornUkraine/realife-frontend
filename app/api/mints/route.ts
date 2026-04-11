@@ -22,8 +22,10 @@ const RPC_URL =
   process.env.BASE_RPC ||
   "https://sepolia.base.org";
 
+const ACTIVE_CHAIN = CHAIN_ID === 8453 ? base : baseSepolia;
+
 const client = createPublicClient({
-  chain: CHAIN_ID === 8453 ? base : baseSepolia,
+  chain: ACTIVE_CHAIN,
   transport: http(RPC_URL),
 });
 
@@ -50,6 +52,12 @@ type FulfillmentType =
   | "DIGITAL_SERVICE"
   | "ONLINE_SESSION"
   | "LOCAL_SERVICE";
+
+type ContractKind =
+  | "PUBLIC_STANDARD"
+  | "PUBLIC_DELIVERY"
+  | "CATALOG_CAFE"
+  | "CATALOG_STORE";
 
 const cafeProductCreatedAbi = [
   {
@@ -145,6 +153,54 @@ function isPhysicalFulfillment(v: string | null | undefined) {
   return String(v || "").toUpperCase() === "PHYSICAL_GOOD";
 }
 
+function getContractSets() {
+  const STANDARD_USER_CONTRACTS = uniqueStrings([
+    process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT,
+    process.env.REALIFE_1155_NEW_CONTRACT,
+  ]);
+
+  const DELIVERY_USER_CONTRACTS = uniqueStrings([
+    process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT,
+    process.env.REALIFE_1155_DELIVERY_CONTRACT,
+  ]);
+
+  const CATALOG_CAFE_CONTRACTS = uniqueStrings([
+    process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT,
+    process.env.REALIFE_CAFE_STORE_CONTRACT,
+  ]);
+
+  const CATALOG_STORE_CONTRACTS = uniqueStrings([
+    process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT,
+    process.env.REALIFE_STORE_CONTRACT,
+    process.env.STORE_CONTRACT_ADDRESS,
+  ]);
+
+  const CATALOG_CONTRACTS = uniqueStrings([
+    ...CATALOG_CAFE_CONTRACTS,
+    ...CATALOG_STORE_CONTRACTS,
+  ]);
+
+  const PUBLIC_USER_CONTRACTS = uniqueStrings([
+    ...STANDARD_USER_CONTRACTS,
+    ...DELIVERY_USER_CONTRACTS,
+  ]);
+
+  const ALL_ALLOWED_CONTRACTS = uniqueStrings([
+    ...PUBLIC_USER_CONTRACTS,
+    ...CATALOG_CONTRACTS,
+  ]);
+
+  return {
+    STANDARD_USER_CONTRACTS,
+    DELIVERY_USER_CONTRACTS,
+    CATALOG_CAFE_CONTRACTS,
+    CATALOG_STORE_CONTRACTS,
+    CATALOG_CONTRACTS,
+    PUBLIC_USER_CONTRACTS,
+    ALL_ALLOWED_CONTRACTS,
+  };
+}
+
 function deriveMintFlags(params: {
   isCatalogOnly: boolean;
   isCatalogCafeContract: boolean;
@@ -234,13 +290,12 @@ function deriveMintFlags(params: {
   };
 }
 
-async function getSessionWallet(userId?: string | null) {
-  const session = await getServerSession(authOptions);
-
+async function getSessionWalletFromSession(
+  session: any,
+  userId?: string | null
+) {
   const sessionWalletDirect = normAddr(
-    (session as any)?.user?.walletAddress ||
-      (session as any)?.walletAddress ||
-      ""
+    session?.user?.walletAddress || session?.walletAddress || ""
   );
 
   if (sessionWalletDirect) return sessionWalletDirect;
@@ -255,19 +310,12 @@ async function getSessionWallet(userId?: string | null) {
   return normAddr(dbUser?.walletAddress || "");
 }
 
-async function requireAdmin() {
-  const session = await getServerSession(authOptions);
+async function requireAdminFromSession(session: any) {
+  const sessionUserId = session?.user?.id || session?.userId || null;
 
-  const sessionUserId =
-    (session as any)?.user?.id || (session as any)?.userId || null;
-
-  const sessionWalletDirect = normAddr(
-    (session as any)?.user?.walletAddress ||
-      (session as any)?.walletAddress ||
-      ""
+  let sessionWallet = normAddr(
+    session?.user?.walletAddress || session?.walletAddress || ""
   );
-
-  let sessionWallet = sessionWalletDirect;
 
   if (!sessionWallet && sessionUserId) {
     const dbUser = await prisma.user.findUnique({
@@ -278,9 +326,7 @@ async function requireAdmin() {
     sessionWallet = normAddr(dbUser?.walletAddress || "");
   }
 
-  const isAdminSession = Boolean(
-    (session as any)?.user?.isAdmin || (session as any)?.isAdmin
-  );
+  const isAdminSession = Boolean(session?.user?.isAdmin || session?.isAdmin);
 
   const isAllowlistedWallet =
     !!sessionWallet &&
@@ -297,16 +343,8 @@ async function requireAdmin() {
     };
   }
 
-  return {
-    ok: true as const,
-  };
+  return { ok: true as const };
 }
-
-type ContractKind =
-  | "PUBLIC_STANDARD"
-  | "PUBLIC_DELIVERY"
-  | "CATALOG_CAFE"
-  | "CATALOG_STORE";
 
 function extractTokenIdFromLog(log: any, kind: ContractKind): string | null {
   try {
@@ -401,6 +439,7 @@ async function verifyOnchainMintTx(params: {
   const receipt = await client
     .getTransactionReceipt({ hash: txHash })
     .catch(() => null);
+
   if (!receipt) {
     return {
       ok: false as const,
@@ -495,11 +534,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  const userId = (session as any)?.user?.id || (session as any)?.userId;
+  const userId = (session as any)?.user?.id || (session as any)?.userId || null;
 
   if (!userId) {
     return NextResponse.json(
-      { ok: false, reason: "UNAUTHORIZED" },
+      { ok: false, error: "UNAUTHORIZED" },
       { status: 401 }
     );
   }
@@ -599,41 +638,15 @@ export async function POST(req: Request) {
 
   const isCatalogOnly = toBool(catalogOnly);
 
-  const STANDARD_USER_CONTRACTS = uniqueStrings([
-    process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT,
-    process.env.REALIFE_1155_NEW_CONTRACT,
-  ]);
-
-  const DELIVERY_USER_CONTRACTS = uniqueStrings([
-    process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT,
-    process.env.REALIFE_1155_DELIVERY_CONTRACT,
-  ]);
-
-  const CATALOG_CAFE_CONTRACTS = uniqueStrings([
-    process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT,
-    process.env.REALIFE_CAFE_STORE_CONTRACT,
-  ]);
-
-  const CATALOG_STORE_CONTRACTS = uniqueStrings([
-    process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT,
-    process.env.REALIFE_STORE_CONTRACT,
-    process.env.STORE_CONTRACT_ADDRESS,
-  ]);
-
-  const CATALOG_CONTRACTS = uniqueStrings([
-    ...CATALOG_CAFE_CONTRACTS,
-    ...CATALOG_STORE_CONTRACTS,
-  ]);
-
-  const PUBLIC_USER_CONTRACTS = uniqueStrings([
-    ...STANDARD_USER_CONTRACTS,
-    ...DELIVERY_USER_CONTRACTS,
-  ]);
-
-  const ALL_ALLOWED_CONTRACTS = uniqueStrings([
-    ...PUBLIC_USER_CONTRACTS,
-    ...CATALOG_CONTRACTS,
-  ]);
+  const {
+    STANDARD_USER_CONTRACTS,
+    DELIVERY_USER_CONTRACTS,
+    CATALOG_CAFE_CONTRACTS,
+    CATALOG_STORE_CONTRACTS,
+    CATALOG_CONTRACTS,
+    PUBLIC_USER_CONTRACTS,
+    ALL_ALLOWED_CONTRACTS,
+  } = getContractSets();
 
   if (isCatalogOnly) {
     if (CATALOG_CONTRACTS.length === 0) {
@@ -713,7 +726,7 @@ export async function POST(req: Request) {
   }
 
   if (isCatalogOnly) {
-    const admin = await requireAdmin();
+    const admin = await requireAdminFromSession(session);
     if (!admin.ok) return admin.response;
   }
 
@@ -756,7 +769,7 @@ export async function POST(req: Request) {
   const finalPhysicalItemIncluded = derived.physicalItemIncluded;
   const finalOfficialItem = derived.officialItem;
 
-  const sessionWallet = await getSessionWallet(userId);
+  const sessionWallet = await getSessionWalletFromSession(session, userId);
   if (!sessionWallet || !isAddressLike(sessionWallet)) {
     return NextResponse.json(
       {
@@ -818,12 +831,14 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
+
     if (parsedSupply > 1_000_000) {
       return NextResponse.json(
         { ok: false, error: "SUPPLY_TOO_BIG" },
         { status: 400 }
       );
     }
+
     sInt = parsedSupply;
     supplyBI = BigInt(parsedSupply);
   }
@@ -887,7 +902,7 @@ export async function POST(req: Request) {
         chainId: cChainId,
         contract: cContract,
         tokenId: cTokenId,
-        txHash: cTxHash || null,
+        txHash: cTxHash,
         tokenUri: cTokenUri,
         name: cName,
         image: cImage,
@@ -976,7 +991,7 @@ export async function POST(req: Request) {
               chainId: cChainId,
               contract: cContract,
               tokenId: cTokenId,
-              txHash: cTxHash || null,
+              txHash: cTxHash,
               supply: sInt,
               standard: std,
               catalogOnly: false,
