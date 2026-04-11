@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createPublicClient, decodeEventLog, http } from "viem";
-import { baseSepolia } from "viem/chains";
+import { base, baseSepolia } from "viem/chains";
 
 import { realife1155Abi } from "@/lib/realife1155Abi";
 import { realife1155DeliveryAbi } from "@/lib/realife1155DeliveryAbi";
@@ -19,10 +19,11 @@ const CHAIN_ID = Number(process.env.CHAIN_ID || "84532");
 const RPC_URL =
   process.env.RPC_URL ||
   process.env.BASE_SEPOLIA_RPC ||
+  process.env.BASE_RPC ||
   "https://sepolia.base.org";
 
 const client = createPublicClient({
-  chain: baseSepolia,
+  chain: CHAIN_ID === 8453 ? base : baseSepolia,
   transport: http(RPC_URL),
 });
 
@@ -43,6 +44,12 @@ const ALLOWED_FULFILLMENT_TYPE = new Set([
   "ONLINE_SESSION",
   "LOCAL_SERVICE",
 ]);
+
+type FulfillmentType =
+  | "PHYSICAL_GOOD"
+  | "DIGITAL_SERVICE"
+  | "ONLINE_SESSION"
+  | "LOCAL_SERVICE";
 
 const cafeProductCreatedAbi = [
   {
@@ -126,10 +133,12 @@ function cleanString(v: unknown, max = 2000) {
   return s ? s.slice(0, max) : null;
 }
 
-function parseFulfillmentType(v: unknown) {
+function parseFulfillmentType(v: unknown): FulfillmentType | null {
   const raw = String(v || "").trim().toUpperCase();
   if (!raw) return null;
-  return ALLOWED_FULFILLMENT_TYPE.has(raw) ? raw : null;
+  return ALLOWED_FULFILLMENT_TYPE.has(raw)
+    ? (raw as FulfillmentType)
+    : null;
 }
 
 function isPhysicalFulfillment(v: string | null | undefined) {
@@ -141,7 +150,7 @@ function deriveMintFlags(params: {
   isCatalogCafeContract: boolean;
   isCatalogStoreContract: boolean;
   isDeliveryUserContract: boolean;
-  rawFulfillmentType: string | null;
+  rawFulfillmentType: FulfillmentType | null;
   rawDeliveryEnabled: boolean | undefined;
   rawPhysicalItemIncluded: boolean | undefined;
   rawOfficialItem: boolean | undefined;
@@ -480,7 +489,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     hint:
-      "Use POST /api/mints to save a public mint or a catalog-only cafe/store entry. Public standard mint is open to authenticated users, physical goods require approvedPhysicalSeller, catalogOnly requires admin, and txHash is verified on-chain. You can also send fulfillmentType/category/subcategory.",
+      "Use POST /api/mints to save a public mint or a catalog-only cafe/store entry. Public standard mint is open to authenticated users, physical goods require approvedPhysicalSeller, catalogOnly requires admin, and txHash is verified on-chain. fulfillmentType/category/subcategory are supported.",
   });
 }
 
@@ -849,7 +858,11 @@ export async function POST(req: Request) {
         };
       }
 
-      if (isPhysicalFulfillment(finalFulfillmentType) && !u.approvedPhysicalSeller) {
+      if (
+        !isCatalogOnly &&
+        isPhysicalFulfillment(finalFulfillmentType) &&
+        !u.approvedPhysicalSeller
+      ) {
         return {
           status: 403 as const,
           body: {
