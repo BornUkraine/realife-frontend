@@ -97,10 +97,10 @@ function StatCard({
     tone === "gold"
       ? "text-amber-100"
       : tone === "violet"
-        ? "text-violet-100"
-        : tone === "sky"
-          ? "text-sky-100"
-          : "text-white/90";
+      ? "text-violet-100"
+      : tone === "sky"
+      ? "text-sky-100"
+      : "text-white/90";
 
   return (
     <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-xl">
@@ -152,7 +152,7 @@ export default async function TradingPage() {
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    Holder listings
+                    STANDARD + PROTECTED
                   </span>
                 </Pill>
 
@@ -176,7 +176,7 @@ export default async function TradingPage() {
                   Realife NFTs
                 </span>
                 , focused on secondary listings, holder activity and premium
-                collectible trading across supported contracts.
+                collectible trading across supported contracts and market flows.
               </p>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
@@ -205,8 +205,8 @@ export default async function TradingPage() {
                   tone="gold"
                 />
                 <StatCard
-                  label="Primary focus"
-                  value="Secondary listings"
+                  label="Market flows"
+                  value="Standard + Protected"
                   tone="violet"
                 />
                 <StatCard
@@ -234,8 +234,8 @@ export default async function TradingPage() {
           <div>Realife NFT Trading</div>
           <div className="flex items-center gap-4">
             <span className="opacity-60">Secondary market</span>
-            <span className="opacity-60">NFT trading</span>
-            <span className="opacity-60">Public mint</span>
+            <span className="opacity-60">STANDARD</span>
+            <span className="opacity-60">PROTECTED</span>
             <span className="opacity-60">Store + Cafe resale</span>
           </div>
         </div>
