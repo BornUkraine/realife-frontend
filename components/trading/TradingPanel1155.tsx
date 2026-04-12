@@ -377,6 +377,59 @@ function resolveRowMarketType(params: {
   return rowMarketType || fallbackMarketType;
 }
 
+function resolveProtectedFulfillmentType(params: {
+  contractView: ContractView;
+  deliveryEnabled?: boolean;
+  physicalItemIncluded?: boolean;
+  fulfillmentType?: FulfillmentType | string | null;
+  category?: string | null;
+  subcategory?: string | null;
+}): FulfillmentType {
+  const {
+    contractView,
+    deliveryEnabled,
+    physicalItemIncluded,
+    fulfillmentType,
+    category,
+    subcategory,
+  } = params;
+
+  if (isProtectedFulfillment(fulfillmentType)) {
+    return String(fulfillmentType).trim().toUpperCase() as FulfillmentType;
+  }
+
+  if (contractView === "publicDelivery") return "PHYSICAL_GOOD";
+  if (deliveryEnabled || physicalItemIncluded) return "PHYSICAL_GOOD";
+
+  if (textLooksProtected(category, subcategory)) {
+    if (normText(category).includes("session") || normText(subcategory).includes("session")) {
+      return "ONLINE_SESSION";
+    }
+    if (
+      normText(category).includes("local service") ||
+      normText(subcategory).includes("local service")
+    ) {
+      return "LOCAL_SERVICE";
+    }
+    return "DIGITAL_SERVICE";
+  }
+
+  return "DIGITAL_SERVICE";
+}
+
+function fulfillmentTypeToUint8(v: FulfillmentType): number {
+  if (v === "PHYSICAL_GOOD") return 0;
+  if (v === "DIGITAL_SERVICE") return 1;
+  if (v === "ONLINE_SESSION") return 2;
+  if (v === "LOCAL_SERVICE") return 3;
+  return 1;
+}
+
+function fulfillmentTypeLabel(v?: FulfillmentType | null) {
+  if (!v) return "DIGITAL SERVICE";
+  return String(v).replaceAll("_", " ");
+}
+
 function MarketNotice({
   contractView,
   assetIsProtected,
@@ -586,6 +639,28 @@ export default function TradingPanel1155({
       marketType,
     });
   }, [contractView, assetIsProtected, preferredMarketType, marketType]);
+
+  const protectedFulfillmentType = useMemo(() => {
+    return resolveProtectedFulfillmentType({
+      contractView,
+      deliveryEnabled: assetDeliveryEnabled,
+      physicalItemIncluded: assetPhysicalItemIncluded,
+      fulfillmentType: assetFulfillmentType,
+      category: assetCategory,
+      subcategory: assetSubcategory,
+    });
+  }, [
+    contractView,
+    assetDeliveryEnabled,
+    assetPhysicalItemIncluded,
+    assetFulfillmentType,
+    assetCategory,
+    assetSubcategory,
+  ]);
+
+  const protectedFulfillmentTypeUint8 = useMemo(() => {
+    return fulfillmentTypeToUint8(protectedFulfillmentType);
+  }, [protectedFulfillmentType]);
 
   const revalidateMarketTags = useCallback(async () => {
     const tags = [
@@ -859,16 +934,34 @@ export default function TradingPanel1155({
       const amt = BigInt(clampInt(sellAmount, 1, Math.max(1, maxSell)));
       const priceWei = parseEthOrZero(sellPriceEth);
 
+      const listArgs =
+        sellMarketType === "PROTECTED"
+          ? [
+              nftAddr as `0x${string}`,
+              tokenIdBI,
+              amt,
+              priceWei,
+              protectedFulfillmentTypeUint8,
+            ]
+          : [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei];
+
       const hash = await writeContractAsync({
         abi: sellMarketplaceAbi as any,
         address: sellMarketplaceAddress as `0x${string}`,
         functionName: "list1155",
-        args: [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei],
+        args: listArgs as any,
       });
 
       setHint(
-        `${marketLabel(sellMarketType)} listing sent. Waiting for confirmation…`
+        sellMarketType === "PROTECTED"
+          ? `${marketLabel(
+              sellMarketType
+            )} listing sent (${fulfillmentTypeLabel(
+              protectedFulfillmentType
+            )}). Waiting for confirmation…`
+          : `${marketLabel(sellMarketType)} listing sent. Waiting for confirmation…`
       );
+
       await publicClient?.waitForTransactionReceipt({ hash });
 
       setHint(`Listed on ${marketLabel(sellMarketType)} ✅ Updating…`);
@@ -1083,6 +1176,15 @@ export default function TradingPanel1155({
               {marketLabel(resolvedMarketType)}
             </span>
           </div>
+
+          {sellMarketType === "PROTECTED" ? (
+            <div className="mt-3 rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-4 text-[12px] text-fuchsia-100">
+              Protected listing type:{" "}
+              <span className="font-black">
+                {fulfillmentTypeLabel(protectedFulfillmentType)}
+              </span>
+            </div>
+          ) : null}
 
           <div className="mt-5">
             <MarketNotice
