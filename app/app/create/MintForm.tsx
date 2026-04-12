@@ -35,30 +35,43 @@ const CATEGORIES = [
   "Marketing",
   "AI & Automation",
   "Development & Tech",
+  "Business & Professional Services",
   "Education & Coaching",
   "Health & Wellness",
-  "Legal & Consulting",
+  "Beauty & Personal Care",
   "Home & Repair",
-  "Events & Local Service",
-  "Logistics",
-  "Fashion",
-  "Electronics",
+  "Travel & Tours",
+  "Events & Tickets",
+  "Logistics & Delivery",
+  "Clothing & Merch",
+  "Accessories & Jewelry",
+  "Electronics & Gadgets",
   "Home & Decor",
   "Food & Beverage",
-  "Beauty",
   "Sports & Outdoor",
+  "Automotive",
+  "Pet Products & Services",
   "Collectible Product",
   "Other Product",
+  "Other Service",
   "Other",
 ] as const;
 
 const ITEM_TYPE_SUGGESTIONS = [
   "Product",
   "T-shirt",
+  "Hoodie",
+  "Merch",
+  "Accessory",
+  "Jewelry",
   "Coffee",
   "Chocolate",
+  "Drink",
   "Artwork",
   "Collectible",
+  "Ticket",
+  "Tour",
+  "Travel Plan",
   "Website",
   "Portfolio",
   "Project",
@@ -68,6 +81,7 @@ const ITEM_TYPE_SUGGESTIONS = [
   "Training",
   "Lesson",
   "Local Service",
+  "Repair Service",
 ] as const;
 
 type MintCategory = (typeof CATEGORIES)[number];
@@ -111,6 +125,9 @@ const ONLINE_SESSION_HINTS = [
   "tutoring",
   "fitness coaching",
   "yoga coaching",
+  "online workout",
+  "online yoga",
+  "zoom",
 ];
 
 const DIGITAL_SERVICE_HINTS = [
@@ -134,6 +151,15 @@ const DIGITAL_SERVICE_HINTS = [
   "presentation",
   "resume",
   "cv",
+  "travel plan",
+  "trip plan",
+  "itinerary",
+  "route plan",
+  "guide pdf",
+  "business service",
+  "consulting",
+  "legal",
+  "accounting",
 ];
 
 const LOCAL_SERVICE_HINTS = [
@@ -152,6 +178,16 @@ const LOCAL_SERVICE_HINTS = [
   "gym service",
   "trainer in person",
   "yoga in person",
+  "tour",
+  "city tour",
+  "walking tour",
+  "guide",
+  "event entry",
+  "ticket",
+  "pass",
+  "admission",
+  "pet grooming",
+  "pet walking",
 ];
 
 const PHYSICAL_HINTS = [
@@ -159,6 +195,9 @@ const PHYSICAL_HINTS = [
   "t-shirt",
   "hoodie",
   "jacket",
+  "pants",
+  "socks",
+  "underwear",
   "coffee",
   "chocolate",
   "bag",
@@ -175,6 +214,15 @@ const PHYSICAL_HINTS = [
   "merch",
   "sneakers",
   "watch",
+  "jewelry",
+  "ring",
+  "necklace",
+  "bracelet",
+  "cup",
+  "mug",
+  "cap",
+  "hat",
+  "car part",
 ];
 
 function useMounted() {
@@ -270,8 +318,9 @@ function normalizeSuggestedMarketType(
 
 function normalizeAiPath(v?: string | null): AiSuggestedPath {
   const s = normText(v);
-  if (s === "physical_product" || s === "physical product")
+  if (s === "physical_product" || s === "physical product") {
     return "physical_product";
+  }
   if (s === "service") return "service";
   if (s === "collectible") return "collectible";
   return null;
@@ -280,12 +329,14 @@ function normalizeAiPath(v?: string | null): AiSuggestedPath {
 function isPhysicalCategory(category: string) {
   const s = normText(category);
   return [
-    "fashion",
-    "electronics",
+    "clothing & merch",
+    "accessories & jewelry",
+    "electronics & gadgets",
     "home & decor",
     "food & beverage",
-    "beauty",
+    "beauty & personal care",
     "sports & outdoor",
+    "automotive",
     "collectible product",
     "other product",
   ].includes(s);
@@ -301,6 +352,7 @@ function normalizeCategoryValue(v?: string | null): MintCategory {
   if (s === "art" || s === "painting" || s === "collectible") {
     return "Art / Collectible";
   }
+
   if (
     s === "creative & design" ||
     s === "creative and design" ||
@@ -308,10 +360,13 @@ function normalizeCategoryValue(v?: string | null): MintCategory {
   ) {
     return "Creative & Design";
   }
+
   if (s === "marketing" || s === "promotion") return "Marketing";
+
   if (s === "ai & automation" || s === "ai / automation" || s === "ai work") {
     return "AI & Automation";
   }
+
   if (
     s === "development & tech" ||
     s === "development / tech" ||
@@ -319,6 +374,18 @@ function normalizeCategoryValue(v?: string | null): MintCategory {
   ) {
     return "Development & Tech";
   }
+
+  if (
+    s === "business & professional services" ||
+    s === "business / professional services" ||
+    s === "business services" ||
+    s === "professional services" ||
+    s === "consulting" ||
+    s === "legal"
+  ) {
+    return "Business & Professional Services";
+  }
+
   if (
     s === "education & coaching" ||
     s === "education / coaching" ||
@@ -326,39 +393,103 @@ function normalizeCategoryValue(v?: string | null): MintCategory {
   ) {
     return "Education & Coaching";
   }
+
   if (s === "health & wellness" || s === "health / wellness") {
     return "Health & Wellness";
   }
+
   if (
-    s === "legal & consulting" ||
-    s === "legal / consulting" ||
-    s === "consulting"
+    s === "beauty & personal care" ||
+    s === "beauty / personal care" ||
+    s === "beauty"
   ) {
-    return "Legal & Consulting";
+    return "Beauty & Personal Care";
   }
+
   if (s === "home & repair" || s === "home / repair" || s === "repair") {
     return "Home & Repair";
   }
-  if (
-    s === "events & local service" ||
-    s === "events / local service" ||
-    s === "local service" ||
-    s === "events"
-  ) {
-    return "Events & Local Service";
-  }
-  if (s === "logistics") return "Logistics";
 
-  if (s === "fashion" || s === "apparel") return "Fashion";
-  if (s === "electronics" || s === "tech product") return "Electronics";
-  if (s === "home decor" || s === "home & decor") return "Home & Decor";
+  if (
+    s === "travel & tours" ||
+    s === "travel / tours" ||
+    s === "travel" ||
+    s === "tours" ||
+    s === "tourism"
+  ) {
+    return "Travel & Tours";
+  }
+
+  if (
+    s === "events & tickets" ||
+    s === "events / tickets" ||
+    s === "event" ||
+    s === "ticket" ||
+    s === "tickets"
+  ) {
+    return "Events & Tickets";
+  }
+
+  if (
+    s === "logistics & delivery" ||
+    s === "logistics / delivery" ||
+    s === "logistics"
+  ) {
+    return "Logistics & Delivery";
+  }
+
+  if (
+    s === "clothing & merch" ||
+    s === "clothing / merch" ||
+    s === "clothing" ||
+    s === "fashion" ||
+    s === "apparel" ||
+    s === "merch"
+  ) {
+    return "Clothing & Merch";
+  }
+
+  if (
+    s === "accessories & jewelry" ||
+    s === "accessories / jewelry" ||
+    s === "accessories" ||
+    s === "jewelry"
+  ) {
+    return "Accessories & Jewelry";
+  }
+
+  if (s === "electronics & gadgets" || s === "electronics" || s === "gadgets") {
+    return "Electronics & Gadgets";
+  }
+
+  if (s === "home decor" || s === "home & decor") {
+    return "Home & Decor";
+  }
+
   if (s === "food" || s === "food & beverage" || s === "beverage") {
     return "Food & Beverage";
   }
-  if (s === "beauty" || s === "beauty product") return "Beauty";
-  if (s === "sports" || s === "sports & outdoor") return "Sports & Outdoor";
+
+  if (s === "sports" || s === "sports & outdoor") {
+    return "Sports & Outdoor";
+  }
+
+  if (s === "automotive" || s === "auto") {
+    return "Automotive";
+  }
+
+  if (
+    s === "pet products & services" ||
+    s === "pet products / services" ||
+    s === "pets" ||
+    s === "pet"
+  ) {
+    return "Pet Products & Services";
+  }
+
   if (s === "collectible product") return "Collectible Product";
   if (s === "other product" || s === "product") return "Other Product";
+  if (s === "other service" || s === "service") return "Other Service";
 
   return "Other";
 }
@@ -386,14 +517,18 @@ function inferFulfillmentType(params: {
 
   if (
     categoryNorm === "education & coaching" ||
+    categoryNorm === "health & wellness" ||
     ONLINE_SESSION_HINTS.some((x) => merged.includes(x))
   ) {
     return "ONLINE_SESSION";
   }
 
   if (
-    categoryNorm === "events & local service" ||
     categoryNorm === "home & repair" ||
+    categoryNorm === "events & tickets" ||
+    (categoryNorm === "travel & tours" &&
+      !DIGITAL_SERVICE_HINTS.some((x) => merged.includes(x))) ||
+    categoryNorm === "logistics & delivery" ||
     LOCAL_SERVICE_HINTS.some((x) => merged.includes(x))
   ) {
     return "LOCAL_SERVICE";
@@ -405,15 +540,22 @@ function inferFulfillmentType(params: {
       "marketing",
       "ai & automation",
       "development & tech",
-      "legal & consulting",
-      "logistics",
+      "business & professional services",
+      "other service",
     ].includes(categoryNorm) ||
+    (categoryNorm === "travel & tours" &&
+      DIGITAL_SERVICE_HINTS.some((x) => merged.includes(x))) ||
     DIGITAL_SERVICE_HINTS.some((x) => merged.includes(x))
   ) {
     return "DIGITAL_SERVICE";
   }
 
-  if (isPhysicalCategory(category) || PHYSICAL_HINTS.some((x) => merged.includes(x))) {
+  if (
+    isPhysicalCategory(category) ||
+    (categoryNorm === "pet products & services" &&
+      !LOCAL_SERVICE_HINTS.some((x) => merged.includes(x))) ||
+    PHYSICAL_HINTS.some((x) => merged.includes(x))
+  ) {
     return "PHYSICAL_GOOD";
   }
 
@@ -1096,8 +1238,9 @@ export default function MintForm() {
   const balanceLabel = useMemo(() => {
     if (!mounted || !connected) return "—";
     if (isBalanceLoading) return "loading…";
-    if (!balanceData)
+    if (!balanceData) {
       return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
+    }
     const s = formatUnits(balanceData.value, balanceData.decimals);
     return `${fmtEth(s)} ${balanceData.symbol ?? "ETH"}`;
   }, [mounted, connected, isBalanceLoading, balanceData]);
@@ -1222,6 +1365,33 @@ export default function MintForm() {
     ? preparedMedia || filePreviewUrl
     : filePreviewUrl;
   const effectivePoster = tokenURI ? preparedPoster : posterPreviewUrl;
+
+  const previewSearchTags = useMemo(() => {
+    const raw = [
+      project,
+      category,
+      itemType.trim(),
+      itemLabel.trim(),
+      subcategory.trim(),
+      brand.trim(),
+      deliveryMode === "delivery" ? "delivery" : "standard",
+      suggestedMarketType === "protected" ? "protected flow" : "standard flow",
+    ];
+
+    return Array.from(new Set(raw.map((x) => String(x || "").trim()).filter(Boolean))).slice(
+      0,
+      10
+    );
+  }, [
+    project,
+    category,
+    itemType,
+    itemLabel,
+    subcategory,
+    brand,
+    deliveryMode,
+    suggestedMarketType,
+  ]);
 
   const isDeliveryMode = deliveryMode === "delivery";
   const activeMintMode: ActiveMintMode = isDeliveryMode ? "delivery" : "standard";
@@ -1462,9 +1632,7 @@ export default function MintForm() {
     }
 
     if (file.type.startsWith("video/") && !posterFile) {
-      setAiSuggestError(
-        "For AI suggest with video, add poster image first."
-      );
+      setAiSuggestError("For AI suggest with video, add poster image first.");
       return;
     }
 
@@ -2015,8 +2183,9 @@ export default function MintForm() {
           </div>
 
           <div className="mt-3 text-[11px] leading-relaxed text-white/55">
-            Best for product photos, service cards, portfolios, websites, merch,
-            packaging, and real-world items. For video, poster image is recommended.
+            Best for product photos, merch, clothes, jewelry, travel cards,
+            tickets, service cards, portfolios, websites, packaging, and other
+            real-world items. For video, poster image is recommended.
           </div>
 
           {aiSuggestError ? (
@@ -2128,7 +2297,7 @@ export default function MintForm() {
             </Pill>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {CATEGORIES.map((c) => {
               const active = category === c;
               return (
@@ -2150,7 +2319,7 @@ export default function MintForm() {
                   <span className="font-extrabold text-left">{c}</span>
                   <span
                     className={[
-                      "flex h-5 w-5 items-center justify-center rounded-md border text-xs shrink-0",
+                      "flex h-5 w-5 shrink-0 items-center justify-center rounded-md border text-xs",
                       active ? "border-black/35 bg-black/10" : "border-white/25",
                     ].join(" ")}
                   >
@@ -2184,7 +2353,7 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: Graphic T-shirt / Fitness coaching / Coffee bag / Website audit"
+            placeholder="Example: Graphic T-shirt / Fitness coaching / Coffee bag / City walking tour / Event ticket"
             value={itemLabel}
             onChange={(e) => {
               resetPreparedState();
@@ -2215,7 +2384,7 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: T-shirt / Consultation / Website / Digital Service / Coffee"
+            placeholder="Example: T-shirt / Tour / Ticket / Consultation / Website / Coffee"
             value={itemType}
             onChange={(e) => {
               resetPreparedState();
@@ -2267,7 +2436,7 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: Streetwear / Yoga coaching / Landing page / Handmade chocolate / Plumbing repair"
+            placeholder="Example: Streetwear / Yoga coaching / Landing page / Handmade chocolate / City landmarks tour"
             value={subcategory}
             onChange={(e) => {
               resetPreparedState();
@@ -2852,6 +3021,135 @@ export default function MintForm() {
                 <span className="font-semibold text-white">{brand.trim()}</span>
               </>
             ) : null}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="mb-4 flex items-end justify-between">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Live NFT preview
+              </div>
+              <div className="mt-1 text-[11px] text-white/55">
+                Preview how the item structure looks before mint.
+              </div>
+            </div>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+              Live
+            </Pill>
+          </div>
+
+          <div className="overflow-hidden rounded-[26px] border border-white/10 bg-black/30">
+            <div className="relative aspect-[16/10]">
+              {effectivePreviewSrc ? (
+                <NftMedia
+                  src={effectivePreviewSrc}
+                  kind={effectivePreviewKind}
+                  alt={name.trim() || "NFT preview"}
+                  poster={effectivePreviewKind === "video" ? effectivePoster : null}
+                  showControls={effectivePreviewKind === "video"}
+                  className="h-full w-full"
+                  roundedClass="rounded-none"
+                  fit="contain"
+                  mediaBgClass="bg-black"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-xs text-white/45">
+                  Upload media to see preview
+                </div>
+              )}
+
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.55),transparent_60%)]" />
+
+              <div className="absolute bottom-3 left-3 right-3">
+                <div className="truncate text-sm font-black text-white">
+                  {name.trim() || "Untitled NFT"}
+                </div>
+                <div className="mt-1 truncate text-[11px] text-white/70">
+                  {project} • {category}
+                  {brand.trim() ? ` • ${brand.trim()}` : ""}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                Specific item
+              </div>
+              <div className="mt-2 text-sm font-extrabold text-white">
+                {itemLabel.trim() || "—"}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                Item type
+              </div>
+              <div className="mt-2 text-sm font-extrabold text-white">
+                {itemType.trim() || "—"}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                NFT class
+              </div>
+              <div className="mt-2 text-sm font-extrabold text-white">
+                {humanFulfillmentType(fulfillmentType)}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                Suggested listing
+              </div>
+              <div className="mt-2 text-sm font-extrabold text-amber-200">
+                {humanSuggestedMarketType(suggestedMarketType)}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                Delivery mode
+              </div>
+              <div className="mt-2 text-sm font-extrabold text-white">
+                {deliveryMode === "delivery" ? "With delivery" : "Without delivery"}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                Supply
+              </div>
+              <div className="mt-2 text-sm font-extrabold text-white">
+                {clampSupply(supply)}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4">
+            <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+              Buyer search preview
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {previewSearchTags.length > 0 ? (
+                previewSearchTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-bold text-white/75"
+                  >
+                    {tag}
+                  </span>
+                ))
+              ) : (
+                <span className="text-[11px] text-white/45">
+                  Fill category, item type, item, brand, and niche to build search context.
+                </span>
+              )}
+            </div>
           </div>
         </Card>
       </div>

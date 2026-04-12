@@ -14,9 +14,9 @@
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [{ "name": "next" }],
-
+    "ignoreDeprecations": "6.0",
     "types": ["node"],
-
+    
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]

@@ -103,6 +103,12 @@ export default function CreatePage() {
                     AI image suggest
                   </span>
                 </Pill>
+
+                <Pill>
+                  <span className="font-extrabold text-white/80">
+                    Real-world categories
+                  </span>
+                </Pill>
               </div>
 
               <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
@@ -121,8 +127,9 @@ export default function CreatePage() {
                 Create NFTs for{" "}
                 <span className="font-semibold text-white">
                   products, services, portfolios, projects, websites,
+                  collectibles, clothing, merch, travel offers, tickets,
                 </span>{" "}
-                digital work, collectibles, and physical goods.
+                digital work, and physical goods.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
@@ -135,7 +142,7 @@ export default function CreatePage() {
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                The new mint form uses a cleaner structure:
+                The mint form now uses a cleaner real-world structure:
                 <span className="font-semibold text-white">
                   {" "}
                   main category → item type → specific item / offer → subcategory
@@ -150,35 +157,26 @@ export default function CreatePage() {
                 item label, subcategory, brand, and title.
               </div>
 
-              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                <span className="font-semibold text-white">
-                  Standard mint contract
-                </span>{" "}
-                is used for normal collectible NFTs and also for service-style
-                NFTs such as{" "}
-                <span className="font-semibold text-white">
-                  consultation, training, website, portfolio, project, digital
-                  service
-                </span>
-                . Those NFTs can mint normally here, and later the site can
-                route them into the protected marketplace flow when listed.
-              </div>
-
-              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                <span className="font-semibold text-white">
-                  Delivery mint contract
-                </span>{" "}
-                is only for approved seller wallets. It is the restricted mint
-                flow for physical delivery-enabled items.
-              </div>
-
-              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                Mint and earn{" "}
-                <span className="font-extrabold text-amber-200">+10 points</span>.
-                <span className="text-white/55">
-                  {" "}
-                  More mints → more points → stronger creator reputation.
-                </span>
+              <div className="mt-4 flex max-w-5xl flex-wrap gap-2">
+                {[
+                  "Clothing & Merch",
+                  "Accessories & Jewelry",
+                  "Travel & Tours",
+                  "Events & Tickets",
+                  "Business & Professional Services",
+                  "Food & Beverage",
+                  "Beauty & Personal Care",
+                  "Home & Repair",
+                  "Electronics & Gadgets",
+                  "Health & Wellness",
+                ].map((x) => (
+                  <span
+                    key={x}
+                    className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-semibold text-white/75"
+                  >
+                    {x}
+                  </span>
+                ))}
               </div>
 
               <div className="mt-4 grid max-w-4xl grid-cols-1 gap-3 md:grid-cols-2">
@@ -197,7 +195,7 @@ export default function CreatePage() {
                 </div>
               </div>
 
-              <div className="mt-4 grid max-w-5xl grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="mt-4 grid max-w-6xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
                   <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
                     Standard collectible flow
@@ -235,6 +233,19 @@ export default function CreatePage() {
                   <div className="mt-2 text-xs leading-relaxed text-white/60">
                     Only for approved seller wallets. Used for delivery-enabled
                     physical items and protected trust flow.
+                  </div>
+                </div>
+
+                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                    AI image suggest
+                  </div>
+                  <div className="mt-2 text-sm font-extrabold text-white">
+                    Detect category from photo
+                  </div>
+                  <div className="mt-2 text-xs leading-relaxed text-white/60">
+                    AI can suggest category, item type, item label, niche,
+                    title, and brand from the uploaded image.
                   </div>
                 </div>
               </div>
@@ -285,6 +296,7 @@ export default function CreatePage() {
             <span className="opacity-60">Public mint</span>
             <span className="opacity-60">Standard + delivery</span>
             <span className="opacity-60">AI suggest</span>
+            <span className="opacity-60">Real-world categories</span>
           </div>
         </div>
       </Reveal>
