@@ -486,17 +486,34 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
   return null;
 }
 
-async function loadMetadataFromBackend1155(tokenId: string) {
+async function loadMetadataFromBackend1155(
+  tokenId: string,
+  contract?: string | null
+) {
   const base = String(API_BASE || "").replace(/\/$/, "");
+  const c = String(contract || "").trim().toLowerCase();
   if (!base || !tokenId) return null;
 
   try {
-    const r = await fetch(`${base}/metadata1155/${encodeURIComponent(tokenId)}`, {
-      cache: "no-store",
-    });
+    const url =
+      c && c.startsWith("0x")
+        ? `${base}/metadata1155/${encodeURIComponent(c)}/${encodeURIComponent(
+            tokenId
+          )}`
+        : `${base}/metadata1155/${encodeURIComponent(tokenId)}`;
+
+    const r = await fetch(url, { cache: "no-store" });
     if (!r.ok) return null;
+
     const j = await r.json().catch(() => null);
-    if (j && typeof j === "object") return j;
+    if (!j || typeof j !== "object") return null;
+
+    const returnedContract = String((j as any)?.contract || "")
+      .trim()
+      .toLowerCase();
+
+    if (c && returnedContract && returnedContract !== c) return null;
+    return j;
   } catch {
     //
   }
@@ -620,15 +637,28 @@ function textLooksProtected(...values: Array<string | null | undefined>) {
     "lessons",
     "training",
     "coaching",
+    "mentoring",
+    "tutoring",
     "website",
+    "website development",
+    "website design",
     "web design",
     "web development",
+    "landing page",
     "development",
     "design",
+    "graphic design",
+    "logo design",
+    "ui ux",
+    "seo",
     "smm",
     "marketing work",
     "promo work",
     "ai work",
+    "audit",
+    "call",
+    "meeting",
+    "session",
   ];
 
   return needles.some((x) => s.includes(x));
@@ -665,6 +695,74 @@ function suggestSecondaryMarketType(input: {
   }
 
   return "STANDARD" as const;
+}
+
+function inferProtectedSubtype(input: {
+  contract: string;
+  fulfillmentType?: string | null;
+  deliveryEnabled?: boolean | null;
+  physicalItemIncluded?: boolean | null;
+  category?: string | null;
+  subcategory?: string | null;
+}) {
+  const ft = String(input.fulfillmentType || "").trim().toUpperCase();
+
+  if (
+    ft === "PHYSICAL_GOOD" ||
+    ft === "DIGITAL_SERVICE" ||
+    ft === "ONLINE_SESSION" ||
+    ft === "LOCAL_SERVICE"
+  ) {
+    return ft as
+      | "PHYSICAL_GOOD"
+      | "DIGITAL_SERVICE"
+      | "ONLINE_SESSION"
+      | "LOCAL_SERVICE";
+  }
+
+  if (norm(input.contract) === USER_DELIVERY_1155_CONTRACT) {
+    return "PHYSICAL_GOOD" as const;
+  }
+
+  if (input.deliveryEnabled || input.physicalItemIncluded) {
+    return "PHYSICAL_GOOD" as const;
+  }
+
+  const category = normText(input.category);
+  const subcategory = normText(input.subcategory);
+  const merged = [category, subcategory].filter(Boolean).join(" ");
+
+  if (merged.includes("online session") || merged.includes("session")) {
+    return "ONLINE_SESSION" as const;
+  }
+
+  if (merged.includes("local service")) {
+    return "LOCAL_SERVICE" as const;
+  }
+
+  if (textLooksProtected(input.category, input.subcategory)) {
+    return "DIGITAL_SERVICE" as const;
+  }
+
+  return null;
+}
+
+function fulfillmentTypeLabel(v?: string | null) {
+  const s = String(v || "").trim().toUpperCase();
+  if (!s) return null;
+  return s.replaceAll("_", " ");
+}
+
+function fulfillmentTypeTone(
+  v?: string | null
+): "default" | "gold" | "emerald" | "sky" | "violet" {
+  const s = String(v || "").trim().toUpperCase();
+
+  if (s === "PHYSICAL_GOOD") return "emerald";
+  if (s === "LOCAL_SERVICE") return "sky";
+  if (s === "ONLINE_SESSION") return "gold";
+  if (s === "DIGITAL_SERVICE") return "violet";
+  return "violet";
 }
 
 async function loadMarketNft(
@@ -1030,8 +1128,10 @@ export default async function NftDetailsPage({
 
   const fallbackPoster = ipfsToHttp(nft.image, IPFS_GATEWAYS[0]);
 
-  const liveMeta = isUserStandard1155Nft
-    ? await loadMetadataFromBackend1155(tokenId)
+  const shouldUseBackendMetadata = isUserStandard1155Nft || isUserDelivery1155Nft;
+
+  const liveMeta = shouldUseBackendMetadata
+    ? await loadMetadataFromBackend1155(tokenId, contract)
     : null;
 
   const meta =
@@ -1126,11 +1226,6 @@ export default async function NftDetailsPage({
     pickAnyBoolean(meta, ["officialItem"]) ??
     pickAttrBoolean(meta, ["Official Item"]) ??
     false;
-
-  const metaDeliveryMode =
-    pickAny(meta, ["deliveryMode"]) ||
-    pickAttrAny(meta, ["Delivery Mode"]) ||
-    (metaDeliveryEnabled || metaPhysicalItemIncluded ? "Delivery" : "Digital");
 
   const metaFulfillmentType =
     pickAny(meta, ["fulfillmentType"]) ||
@@ -1246,19 +1341,24 @@ export default async function NftDetailsPage({
 
   const usesProtectedSecondaryMarket = secondaryMarketType === "PROTECTED";
 
-  const protectedIsServiceLike =
-    usesProtectedSecondaryMarket &&
-    !isUserDelivery1155Nft &&
-    (isProtectedFulfillment(metaFulfillmentType || nft.fulfillmentType) ||
-      textLooksProtected(metaCategory, metaSubcategory));
+  const protectedSubtype =
+    usesProtectedSecondaryMarket
+      ? inferProtectedSubtype({
+          contract,
+          fulfillmentType: metaFulfillmentType || nft.fulfillmentType,
+          deliveryEnabled: isStoreNft
+            ? false
+            : Boolean(dbDeliveryEnabled || metaDeliveryEnabled),
+          physicalItemIncluded: isStoreNft
+            ? false
+            : Boolean(dbPhysicalItemIncluded || metaPhysicalItemIncluded),
+          category: metaCategory || nft.category,
+          subcategory: metaSubcategory || nft.subcategory,
+        })
+      : null;
 
-  const protectedFlowLabel = isProtectedFulfillment(metaFulfillmentType || nft.fulfillmentType)
-    ? String(metaFulfillmentType || nft.fulfillmentType).replaceAll("_", " ")
-    : protectedIsServiceLike
-    ? "SERVICE"
-    : isUserDelivery1155Nft
-    ? "PHYSICAL ITEM"
-    : "PROTECTED";
+  const protectedSubtypeLabel = fulfillmentTypeLabel(protectedSubtype);
+  const protectedFlowTypeLabel = protectedSubtypeLabel || "PROTECTED";
 
   const stats = market?.stats || null;
   const listings: any[] = Array.isArray(market?.listings) ? market.listings : [];
@@ -1316,6 +1416,12 @@ export default async function NftDetailsPage({
 
               {usesProtectedSecondaryMarket ? (
                 <InfoPill tone="violet">PROTECTED SECONDARY FLOW</InfoPill>
+              ) : null}
+
+              {protectedSubtypeLabel ? (
+                <InfoPill tone={fulfillmentTypeTone(protectedSubtype)}>
+                  {protectedSubtypeLabel}
+                </InfoPill>
               ) : null}
 
               {storePrimaryDeliveryCapable ? (
@@ -1467,6 +1573,12 @@ export default async function NftDetailsPage({
                       <InfoPill tone="violet">PROTECTED</InfoPill>
                     ) : null}
 
+                    {protectedSubtypeLabel ? (
+                      <InfoPill tone={fulfillmentTypeTone(protectedSubtype)}>
+                        {protectedSubtypeLabel}
+                      </InfoPill>
+                    ) : null}
+
                     {storePrimaryDeliveryCapable ? (
                       <InfoPill tone="emerald">PRIMARY DELIVERY AVAILABLE</InfoPill>
                     ) : null}
@@ -1520,7 +1632,11 @@ export default async function NftDetailsPage({
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-2">
-                        <InfoPill tone="violet">{protectedFlowLabel}</InfoPill>
+                        {protectedSubtypeLabel ? (
+                          <InfoPill tone={fulfillmentTypeTone(protectedSubtype)}>
+                            {protectedSubtypeLabel}
+                          </InfoPill>
+                        ) : null}
                         {metaCategory ? <InfoPill tone="violet">{metaCategory}</InfoPill> : null}
                         {metaSubcategory ? (
                           <InfoPill tone="violet">{metaSubcategory}</InfoPill>
@@ -1705,7 +1821,7 @@ export default async function NftDetailsPage({
 
                   <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
                     <StatCard label="Secondary market" value="PROTECTED" tone="gold" />
-                    <StatCard label="Flow type" value={protectedFlowLabel} tone="gold" />
+                    <StatCard label="Flow type" value={protectedFlowTypeLabel} tone="gold" />
                     <StatCard label="Category" value={metaCategory || "—"} />
                     <StatCard label="Subcategory" value={metaSubcategory || "—"} />
                   </div>
@@ -1824,6 +1940,9 @@ export default async function NftDetailsPage({
                 <StatCard label="Minted" value={fmtDate(nft.createdAt)} />
                 <StatCard label="Total Supply" value={supplyLabel || "—"} />
                 <StatCard label="Market Type" value={secondaryMarketType} />
+                {usesProtectedSecondaryMarket && protectedSubtypeLabel ? (
+                  <StatCard label="Protected Type" value={protectedSubtypeLabel} />
+                ) : null}
                 {isStoreNft && storeStore?.primarySellerWallet ? (
                   <StatCard
                     label="Primary Seller"
@@ -1935,42 +2054,66 @@ export default async function NftDetailsPage({
                       </div>
                     ) : (
                       <div className="mt-4 space-y-2">
-                        {listings.slice(0, 10).map((l) => (
-                          <div
-                            key={`${l.marketType || secondaryMarketType}:${l.marketplaceListingId}`}
-                            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="text-[13px] font-black text-amber-100">
-                                {fmtEth(l.pricePerUnitWei)} ETH{" "}
-                                <span className="text-[11px] font-black text-white/35">
-                                  / unit
-                                </span>
-                              </div>
-                              <div className="text-[12px] font-semibold text-white/60">
-                                Remaining:{" "}
-                                <span className="font-black text-white/90">
-                                  {l.amountRemaining}
-                                </span>
-                              </div>
-                            </div>
+                        {listings.slice(0, 10).map((l) => {
+                          const rowMarketType =
+                            (l.marketType || secondaryMarketType) as
+                              | "STANDARD"
+                              | "PROTECTED";
 
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/40">
-                              <span>Seller:</span>
-                              <span className="font-mono text-white/75">
-                                {shortAddr(l.sellerWallet)}
-                              </span>
-                              <span className="text-white/35">•</span>
-                              <span className="font-black text-white/70">
-                                Listing #{l.marketplaceListingId}
-                              </span>
-                              <span className="text-white/35">•</span>
-                              <span className="font-black text-white/70">
-                                {l.marketType || secondaryMarketType}
-                              </span>
+                          const rowSubtype = inferProtectedSubtype({
+                            contract,
+                            fulfillmentType: l.fulfillmentType,
+                            deliveryEnabled: l.deliveryEnabled,
+                            physicalItemIncluded: l.physicalItemIncluded,
+                            category: l.category,
+                            subcategory: l.subcategory,
+                          });
+
+                          return (
+                            <div
+                              key={`${rowMarketType}:${l.marketplaceListingId}`}
+                              className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="text-[13px] font-black text-amber-100">
+                                  {fmtEth(l.pricePerUnitWei)} ETH{" "}
+                                  <span className="text-[11px] font-black text-white/35">
+                                    / unit
+                                  </span>
+                                </div>
+                                <div className="text-[12px] font-semibold text-white/60">
+                                  Remaining:{" "}
+                                  <span className="font-black text-white/90">
+                                    {l.amountRemaining}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/40">
+                                <span>Seller:</span>
+                                <span className="font-mono text-white/75">
+                                  {shortAddr(l.sellerWallet)}
+                                </span>
+                                <span className="text-white/35">•</span>
+                                <span className="font-black text-white/70">
+                                  Listing #{l.marketplaceListingId}
+                                </span>
+                                <span className="text-white/35">•</span>
+                                <span className="font-black text-white/70">
+                                  {rowMarketType}
+                                </span>
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {rowSubtype && rowMarketType === "PROTECTED" ? (
+                                  <InfoPill tone={fulfillmentTypeTone(rowSubtype)}>
+                                    {fulfillmentTypeLabel(rowSubtype)}
+                                  </InfoPill>
+                                ) : null}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -1991,46 +2134,70 @@ export default async function NftDetailsPage({
                       </div>
                     ) : (
                       <div className="mt-4 space-y-2">
-                        {trades.slice(0, 10).map((t) => (
-                          <div
-                            key={`${t.txHash}:${t.logIndex}`}
-                            className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="text-[13px] font-black text-amber-100">
-                                {fmtEth(t.totalPriceWei)} ETH{" "}
-                                <span className="text-[11px] font-black text-white/35">•</span>
-                                <span className="ml-2 text-[12px] font-black text-white/80">
-                                  x{t.amount}
-                                </span>
-                              </div>
-                              <div className="text-[11px] text-white/40">
-                                {fmtDate(t.blockTime)}
-                              </div>
-                            </div>
+                        {trades.slice(0, 10).map((t) => {
+                          const rowMarketType =
+                            (t.marketType || secondaryMarketType) as
+                              | "STANDARD"
+                              | "PROTECTED";
 
-                            <div className="mt-2 text-[12px] text-white/40">
-                              {shortAddr(t.sellerWallet)} → {shortAddr(t.buyerWallet)}
-                              <span className="text-white/35"> • </span>
-                              <span className="font-black text-white/70">
-                                {t.marketType || secondaryMarketType}
-                              </span>
-                              <span className="text-white/35"> • </span>
-                              <a
-                                className="font-black text-amber-100/90 hover:text-amber-100"
-                                href={
-                                  chainId === 84532
-                                    ? `https://sepolia.basescan.org/tx/${t.txHash}`
-                                    : `https://basescan.org/tx/${t.txHash}`
-                                }
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                Tx ↗
-                              </a>
+                          const rowSubtype = inferProtectedSubtype({
+                            contract,
+                            fulfillmentType: t.fulfillmentType,
+                            deliveryEnabled: null,
+                            physicalItemIncluded: null,
+                            category: t.category,
+                            subcategory: t.subcategory,
+                          });
+
+                          return (
+                            <div
+                              key={`${t.txHash}:${t.logIndex}`}
+                              className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                            >
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="text-[13px] font-black text-amber-100">
+                                  {fmtEth(t.totalPriceWei)} ETH{" "}
+                                  <span className="text-[11px] font-black text-white/35">•</span>
+                                  <span className="ml-2 text-[12px] font-black text-white/80">
+                                    x{t.amount}
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-white/40">
+                                  {fmtDate(t.blockTime)}
+                                </div>
+                              </div>
+
+                              <div className="mt-2 text-[12px] text-white/40">
+                                {shortAddr(t.sellerWallet)} → {shortAddr(t.buyerWallet)}
+                                <span className="text-white/35"> • </span>
+                                <span className="font-black text-white/70">
+                                  {rowMarketType}
+                                </span>
+                                <span className="text-white/35"> • </span>
+                                <a
+                                  className="font-black text-amber-100/90 hover:text-amber-100"
+                                  href={
+                                    chainId === 84532
+                                      ? `https://sepolia.basescan.org/tx/${t.txHash}`
+                                      : `https://basescan.org/tx/${t.txHash}`
+                                  }
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Tx ↗
+                                </a>
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {rowSubtype && rowMarketType === "PROTECTED" ? (
+                                  <InfoPill tone={fulfillmentTypeTone(rowSubtype)}>
+                                    {fulfillmentTypeLabel(rowSubtype)}
+                                  </InfoPill>
+                                ) : null}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
