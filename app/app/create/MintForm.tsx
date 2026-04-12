@@ -1378,10 +1378,9 @@ export default function MintForm() {
       suggestedMarketType === "protected" ? "protected flow" : "standard flow",
     ];
 
-    return Array.from(new Set(raw.map((x) => String(x || "").trim()).filter(Boolean))).slice(
-      0,
-      10
-    );
+    return Array.from(
+      new Set(raw.map((x) => String(x || "").trim()).filter(Boolean))
+    ).slice(0, 10);
   }, [
     project,
     category,
@@ -1456,6 +1455,18 @@ export default function MintForm() {
     setAiSuggestError("");
   }
 
+  function clearFieldsForNewAsset() {
+    setCategory("Other");
+    setSubcategory("");
+    setItemType("");
+    setItemLabel("");
+    setName("");
+    setBrand("");
+    setDescription("");
+    setProofUrl("");
+    setPreviewCategory("Other");
+  }
+
   useEffect(() => {
     if (!approvedPhysicalSeller && deliveryMode === "delivery") {
       setDeliveryMode("none");
@@ -1468,6 +1479,7 @@ export default function MintForm() {
     setError("");
     clearAiSuggestion();
     resetPreparedState();
+    clearFieldsForNewAsset();
 
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
     if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
@@ -1721,11 +1733,11 @@ export default function MintForm() {
       setSubcategory(aiSuggestion.subcategory);
     }
 
-    if (aiSuggestion.brand && !brand.trim()) {
+    if (aiSuggestion.brand !== null) {
       setBrand(aiSuggestion.brand);
     }
 
-    if (aiSuggestion.title && !name.trim()) {
+    if (aiSuggestion.title !== null) {
       setName(aiSuggestion.title);
     }
   }
