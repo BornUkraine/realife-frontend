@@ -185,6 +185,62 @@ function suggestSecondaryMarketType(input: {
   return "STANDARD" as const;
 }
 
+function inferProtectedSubtype(input: {
+  contract: string;
+  fulfillmentType?: string | null;
+  deliveryEnabled?: boolean | null;
+  physicalItemIncluded?: boolean | null;
+  category?: string | null;
+  subcategory?: string | null;
+}) {
+  const ft = String(input.fulfillmentType || "").trim().toUpperCase();
+
+  if (
+    ft === "PHYSICAL_GOOD" ||
+    ft === "DIGITAL_SERVICE" ||
+    ft === "ONLINE_SESSION" ||
+    ft === "LOCAL_SERVICE"
+  ) {
+    return ft as
+      | "PHYSICAL_GOOD"
+      | "DIGITAL_SERVICE"
+      | "ONLINE_SESSION"
+      | "LOCAL_SERVICE";
+  }
+
+  if (norm(input.contract) === USER_1155_DELIVERY_CONTRACT) {
+    return "PHYSICAL_GOOD" as const;
+  }
+
+  if (input.deliveryEnabled || input.physicalItemIncluded) {
+    return "PHYSICAL_GOOD" as const;
+  }
+
+  const category = normText(input.category);
+  const subcategory = normText(input.subcategory);
+  const merged = [category, subcategory].filter(Boolean).join(" ");
+
+  if (merged.includes("online session") || merged.includes("session")) {
+    return "ONLINE_SESSION" as const;
+  }
+
+  if (merged.includes("local service")) {
+    return "LOCAL_SERVICE" as const;
+  }
+
+  if (textLooksProtected(input.category, input.subcategory)) {
+    return "DIGITAL_SERVICE" as const;
+  }
+
+  return null;
+}
+
+function fulfillmentTypeLabel(v?: string | null) {
+  const s = String(v || "").trim().toUpperCase();
+  if (!s) return null;
+  return s.replaceAll("_", " ");
+}
+
 // ─── IPFS / metadata helpers ──────────────────────────────────────────────────
 
 function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
@@ -608,11 +664,19 @@ export default async function PublicNFTsPage({
       });
 
       const usesProtectedSecondaryMarket = secondaryMarketType === "PROTECTED";
-      const isProtectedServiceLike =
-        usesProtectedSecondaryMarket &&
-        !isDeliveryUserNft &&
-        (isProtectedFulfillment(metaFulfillmentType) ||
-          textLooksProtected(metaCategory, metaSubcategory));
+
+      const protectedSubtype = usesProtectedSecondaryMarket
+        ? inferProtectedSubtype({
+            contract,
+            fulfillmentType: metaFulfillmentType,
+            deliveryEnabled: x.mint?.deliveryEnabled,
+            physicalItemIncluded: x.mint?.physicalItemIncluded,
+            category: metaCategory,
+            subcategory: metaSubcategory,
+          })
+        : null;
+
+      const protectedSubtypeLabel = fulfillmentTypeLabel(protectedSubtype);
 
       return {
         id: x.id,
@@ -639,7 +703,8 @@ export default async function PublicNFTsPage({
         subcategory: metaSubcategory,
         secondaryMarketType,
         usesProtectedSecondaryMarket,
-        isProtectedServiceLike,
+        protectedSubtype,
+        protectedSubtypeLabel,
         href: buildNftHref(x.chainId, contract, String(x.tokenId), galleryBackHref),
       };
     });
@@ -649,6 +714,17 @@ export default async function PublicNFTsPage({
   const storeCount = enriched.filter((x) => x.isStoreNft).length;
   const protectedCount = enriched.filter(
     (x) => x.secondaryMarketType === "PROTECTED"
+  ).length;
+
+  const physicalProtectedCount = enriched.filter(
+    (x) => x.protectedSubtype === "PHYSICAL_GOOD"
+  ).length;
+
+  const serviceProtectedCount = enriched.filter(
+    (x) =>
+      x.protectedSubtype === "DIGITAL_SERVICE" ||
+      x.protectedSubtype === "ONLINE_SESSION" ||
+      x.protectedSubtype === "LOCAL_SERVICE"
   ).length;
 
   return (
@@ -721,13 +797,31 @@ export default async function PublicNFTsPage({
 
                     <span>{itemsCount} items</span>
 
-                    {(cafeCount > 0 || storeCount > 0 || protectedCount > 0) &&
+                    {(cafeCount > 0 ||
+                      storeCount > 0 ||
+                      protectedCount > 0 ||
+                      physicalProtectedCount > 0 ||
+                      serviceProtectedCount > 0) &&
                     effectiveTab === "nfts" ? (
                       <>
                         <span>•</span>
                         <span>
                           {protectedCount > 0 ? `Protected ${protectedCount}` : ""}
-                          {protectedCount > 0 && (cafeCount > 0 || storeCount > 0)
+                          {protectedCount > 0 && physicalProtectedCount > 0 ? " • " : ""}
+                          {physicalProtectedCount > 0
+                            ? `Physical ${physicalProtectedCount}`
+                            : ""}
+                          {(protectedCount > 0 || physicalProtectedCount > 0) &&
+                          serviceProtectedCount > 0
+                            ? " • "
+                            : ""}
+                          {serviceProtectedCount > 0
+                            ? `Services ${serviceProtectedCount}`
+                            : ""}
+                          {(protectedCount > 0 ||
+                            physicalProtectedCount > 0 ||
+                            serviceProtectedCount > 0) &&
+                          (cafeCount > 0 || storeCount > 0)
                             ? " • "
                             : ""}
                           {cafeCount > 0 ? `Cafe ${cafeCount}` : ""}
@@ -758,7 +852,7 @@ export default async function PublicNFTsPage({
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="mt-6 grid grid-cols-2 md:grid-cols-7 gap-3">
                 <StatChip label="Items" value={itemsCount} tone="gold" />
                 <StatChip
                   label="Tab"
@@ -767,6 +861,14 @@ export default async function PublicNFTsPage({
                 <StatChip
                   label="Protected"
                   value={effectiveTab === "nfts" ? protectedCount : "—"}
+                />
+                <StatChip
+                  label="Physical"
+                  value={effectiveTab === "nfts" ? physicalProtectedCount : "—"}
+                />
+                <StatChip
+                  label="Services"
+                  value={effectiveTab === "nfts" ? serviceProtectedCount : "—"}
                 />
                 <StatChip
                   label="Cafe NFTs"
