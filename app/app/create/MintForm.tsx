@@ -29,37 +29,62 @@ const PROJECTS = [
   "Other",
 ] as const;
 
-const CATEGORIES = [
-  "Marketing work",
-  "Hype / Promo",
-  "Charity / Social",
-  "Educational",
-  "Personal creative",
-  "AI work",
-  "Services",
-  "Resume / CV",
+const OFFER_TYPES = [
+  {
+    value: "collectible",
+    title: "Collectible / standard NFT",
+    subtitle:
+      "Art, collectible, flex NFT, creative media, public edition without service obligation.",
+  },
+  {
+    value: "physical_product",
+    title: "Physical product",
+    subtitle:
+      "A real item, product, merch, packaged goods, object, fashion item, gadget or tangible good.",
+  },
+  {
+    value: "digital_service",
+    title: "Digital service",
+    subtitle:
+      "Website, design, AI work, digital deliverable, portfolio, project, audit, remote professional work.",
+  },
+  {
+    value: "online_session",
+    title: "Online session",
+    subtitle:
+      "Consultation, coaching, training, lesson, call, remote session or online meeting.",
+  },
+  {
+    value: "local_service",
+    title: "Local service",
+    subtitle:
+      "Offline / in-person local work: repair, installation, interior help, trainer, engineer, builder, etc.",
+  },
+] as const;
+
+const SEARCH_CATEGORIES = [
+  "Products / goods",
+  "Professional services",
+  "Creative / design",
+  "AI / automation",
+  "Education / coaching",
+  "Wellness / fitness",
+  "Local trades / repair",
+  "Fashion / accessories",
+  "Food / beverage",
+  "Home / living",
+  "Tech / gadgets",
+  "Legal / consulting",
+  "Logistics / transport",
   "Other",
 ] as const;
 
-const ITEM_TYPES = [
-  "Art / Painting",
-  "Antique",
-  "Collectible",
-  "Fashion / Accessory",
-  "Tech / Gadget",
-  "Home / Decor",
-  "Product",
-  "Other valuable item",
-  "Digital Service",
-  "Consultation",
-  "Training",
-  "Coaching",
-  "Lesson",
-  "Portfolio",
-  "Project",
-  "Website",
-  "Digital Product",
-] as const;
+type OfferType =
+  | "collectible"
+  | "physical_product"
+  | "digital_service"
+  | "online_session"
+  | "local_service";
 
 type DeliveryMode = "none" | "delivery";
 type ActiveMintMode = "standard" | "delivery";
@@ -71,23 +96,40 @@ type FulfillmentType =
   | null;
 type SuggestedMarketType = "standard" | "protected";
 
+type AiSuggestion = {
+  offerType: OfferType;
+  category: (typeof SEARCH_CATEGORIES)[number];
+  itemLabel: string;
+  tags: string[];
+  confidence: number;
+  summary: string;
+};
+
 const ZERO_ADDRESS =
   "0x0000000000000000000000000000000000000000" as const;
 
-const ONLINE_SESSION_ITEM_TYPES = new Set([
-  "Consultation",
-  "Training",
-  "Coaching",
-  "Lesson",
-] as const);
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ||
+  "https://accurate-art-production.up.railway.app";
 
-const DIGITAL_SERVICE_ITEM_TYPES = new Set([
-  "Digital Service",
-  "Portfolio",
-  "Project",
-  "Website",
-  "Digital Product",
-] as const);
+const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
+
+const CONTRACT_1155_STANDARD =
+  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT as
+    | `0x${string}`
+    | undefined;
+
+const CONTRACT_1155_DELIVERY =
+  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT as
+    | `0x${string}`
+    | undefined;
+
+const IPFS_GATEWAYS = [
+  "https://nftstorage.link/ipfs/",
+  "https://gateway.pinata.cloud/ipfs/",
+  "https://cloudflare-ipfs.com/ipfs/",
+  "https://ipfs.io/ipfs/",
+] as const;
 
 function useMounted() {
   const [mounted, setMounted] = useState(false);
@@ -119,8 +161,128 @@ function prettyError(e: any) {
   );
 }
 
-function normText(v?: string | null) {
-  return String(v || "").trim().toLowerCase();
+function persistableUrl(input?: string | null) {
+  const s = (input || "").trim();
+  if (!s) return null;
+  if (s.startsWith("blob:")) return null;
+  return s;
+}
+
+function ipfsToHttp(u?: string | null, gw: string = IPFS_GATEWAYS[0]) {
+  const s = (u || "").trim();
+  if (!s) return null;
+
+  if (
+    s.startsWith("http://") ||
+    s.startsWith("https://") ||
+    s.startsWith("data:") ||
+    s.startsWith("blob:")
+  ) {
+    return s;
+  }
+
+  if (s.startsWith("ipfs://")) {
+    let p = s.slice("ipfs://".length);
+    if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
+    return `${gw}${p}`;
+  }
+
+  if (s.startsWith("bafy") || s.startsWith("Qm")) {
+    return `${gw}${s}`;
+  }
+
+  return s;
+}
+
+async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
+  for (const gw of IPFS_GATEWAYS) {
+    const url = ipfsToHttp(tokenUri, gw);
+    if (!url) continue;
+
+    try {
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) continue;
+      const j = await r.json().catch(() => null);
+      if (j && typeof j === "object") return j;
+    } catch {
+      //
+    }
+  }
+
+  return null;
+}
+
+function normalizeTokenIdValue(v: unknown): string | null {
+  if (typeof v === "bigint") return v.toString();
+  if (typeof v === "number") return String(v);
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
+}
+
+function extractMintTokenIdFromReceipt(
+  receipt: any,
+  mode: ActiveMintMode,
+  contract?: `0x${string}`
+): string | null {
+  const logs = receipt?.logs ?? [];
+
+  for (const log of logs) {
+    try {
+      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) {
+        continue;
+      }
+
+      if (mode === "delivery") {
+        const decoded = decodeEventLog({
+          abi: realife1155DeliveryAbi,
+          data: log.data,
+          topics: log.topics,
+        }) as { eventName?: string; args?: any };
+
+        if (
+          decoded.eventName === "ProductCreated" ||
+          decoded.eventName === "EditionCreated" ||
+          decoded.eventName === "DeliveryEditionCreated"
+        ) {
+          const args = decoded.args;
+          return (
+            normalizeTokenIdValue(args?.tokenId) ||
+            normalizeTokenIdValue(args?.id) ||
+            normalizeTokenIdValue(args?.editionId) ||
+            normalizeTokenIdValue(args?.[0])
+          );
+        }
+      } else {
+        const decoded = decodeEventLog({
+          abi: realife1155Abi,
+          data: log.data,
+          topics: log.topics,
+        }) as { eventName?: string; args?: any };
+
+        if (decoded.eventName === "EditionCreated") {
+          const args = decoded.args;
+          return (
+            normalizeTokenIdValue(args?.tokenId) ||
+            normalizeTokenIdValue(args?.id) ||
+            normalizeTokenIdValue(args?.editionId) ||
+            normalizeTokenIdValue(args?.[0])
+          );
+        }
+      }
+    } catch {
+      //
+    }
+  }
+
+  return null;
+}
+
+function humanOfferType(v: OfferType) {
+  if (v === "physical_product") return "Physical product";
+  if (v === "digital_service") return "Digital service";
+  if (v === "online_session") return "Online session";
+  if (v === "local_service") return "Local service";
+  return "Collectible / standard NFT";
 }
 
 function humanFulfillmentType(v: FulfillmentType) {
@@ -128,7 +290,7 @@ function humanFulfillmentType(v: FulfillmentType) {
   if (v === "DIGITAL_SERVICE") return "Digital service";
   if (v === "ONLINE_SESSION") return "Online session";
   if (v === "LOCAL_SERVICE") return "Local service";
-  return "Collectible / standard NFT";
+  return "Standard NFT";
 }
 
 function humanSuggestedMarketType(v: SuggestedMarketType) {
@@ -137,68 +299,40 @@ function humanSuggestedMarketType(v: SuggestedMarketType) {
 
 function inferFulfillmentType(params: {
   deliveryMode: DeliveryMode;
-  itemType: string;
-  categories: string[];
-  subcategory: string;
+  offerType: OfferType;
 }): FulfillmentType {
-  const { deliveryMode, itemType, categories, subcategory } = params;
+  const { deliveryMode, offerType } = params;
 
   if (deliveryMode === "delivery") return "PHYSICAL_GOOD";
-
-  if (ONLINE_SESSION_ITEM_TYPES.has(itemType as any)) {
-    return "ONLINE_SESSION";
-  }
-
-  if (DIGITAL_SERVICE_ITEM_TYPES.has(itemType as any)) {
-    return "DIGITAL_SERVICE";
-  }
-
-  const cats = categories.map(normText);
-  const sub = normText(subcategory);
-
-  if (
-    sub.includes("offline") ||
-    sub.includes("local") ||
-    sub.includes("in-person") ||
-    sub.includes("in person")
-  ) {
-    return "LOCAL_SERVICE";
-  }
-
-  if (cats.includes("services")) return "DIGITAL_SERVICE";
-  if (cats.includes("resume / cv")) return "DIGITAL_SERVICE";
-  if (cats.includes("marketing work")) return "DIGITAL_SERVICE";
-  if (cats.includes("hype / promo")) return "DIGITAL_SERVICE";
-  if (cats.includes("educational")) return "ONLINE_SESSION";
+  if (offerType === "digital_service") return "DIGITAL_SERVICE";
+  if (offerType === "online_session") return "ONLINE_SESSION";
+  if (offerType === "local_service") return "LOCAL_SERVICE";
 
   return null;
 }
 
-function inferSuggestedMarketType(
-  fulfillmentType: FulfillmentType,
-  deliveryMode: DeliveryMode
-): SuggestedMarketType {
+function inferSuggestedMarketType(params: {
+  deliveryMode: DeliveryMode;
+  offerType: OfferType;
+  fulfillmentType: FulfillmentType;
+}): SuggestedMarketType {
+  const { deliveryMode, offerType, fulfillmentType } = params;
+
   if (deliveryMode === "delivery") return "protected";
   if (fulfillmentType) return "protected";
+
+  // Physical product without delivery stays standard in current Realife routing
+  // until seller explicitly uses delivery-enabled flow.
+  if (offerType === "physical_product") return "standard";
+
   return "standard";
 }
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ||
-  "https://accurate-art-production.up.railway.app";
-const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
+function cx(...a: Array<string | false | null | undefined>) {
+  return a.filter(Boolean).join(" ");
+}
 
-const CONTRACT_1155_STANDARD =
-  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT as
-    | `0x${string}`
-    | undefined;
-
-const CONTRACT_1155_DELIVERY =
-  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT as
-    | `0x${string}`
-    | undefined;
-
-/* ---------------- UI kit ---------------- */
+/* ---------------- UI ---------------- */
 
 function Pill({ children }: { children: ReactNode }) {
   return (
@@ -309,128 +443,51 @@ function GhostButton({
   );
 }
 
-/* ---------------- helpers ---------------- */
-
-function persistableUrl(input?: string | null) {
-  const s = (input || "").trim();
-  if (!s) return null;
-  if (s.startsWith("blob:")) return null;
-  return s;
+async function readFileAsDataUrl(file: File): Promise<string> {
+  return await new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error("Failed to read file"));
+    fr.onload = () => resolve(String(fr.result || ""));
+    fr.readAsDataURL(file);
+  });
 }
 
-const IPFS_GATEWAYS = [
-  "https://nftstorage.link/ipfs/",
-  "https://gateway.pinata.cloud/ipfs/",
-  "https://cloudflare-ipfs.com/ipfs/",
-  "https://ipfs.io/ipfs/",
-] as const;
-
-function ipfsToHttp(u?: string | null, gw: string = IPFS_GATEWAYS[0]) {
-  const s = (u || "").trim();
-  if (!s) return null;
-
-  if (
-    s.startsWith("http://") ||
-    s.startsWith("https://") ||
-    s.startsWith("data:") ||
-    s.startsWith("blob:")
-  ) {
-    return s;
+async function imageFileToOptimizedDataUrl(
+  file: File,
+  maxSide = 1280,
+  quality = 0.86
+): Promise<string> {
+  if (!file.type.startsWith("image/")) {
+    return readFileAsDataUrl(file);
   }
 
-  if (s.startsWith("ipfs://")) {
-    let p = s.slice("ipfs://".length);
-    if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
-    return `${gw}${p}`;
-  }
+  const src = await readFileAsDataUrl(file);
 
-  if (s.startsWith("bafy") || s.startsWith("Qm")) {
-    return `${gw}${s}`;
-  }
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error("Failed to decode image"));
+    el.src = src;
+  });
 
-  return s;
-}
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) return src;
 
-async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
-  for (const gw of IPFS_GATEWAYS) {
-    const url = ipfsToHttp(tokenUri, gw);
-    if (!url) continue;
+  const scale = Math.min(1, maxSide / Math.max(w, h));
+  const tw = Math.max(1, Math.round(w * scale));
+  const th = Math.max(1, Math.round(h * scale));
 
-    try {
-      const r = await fetch(url, { cache: "no-store" });
-      if (!r.ok) continue;
-      const j = await r.json().catch(() => null);
-      if (j && typeof j === "object") return j;
-    } catch {
-      //
-    }
-  }
-  return null;
-}
+  const canvas = document.createElement("canvas");
+  canvas.width = tw;
+  canvas.height = th;
 
-function normalizeTokenIdValue(v: unknown): string | null {
-  if (typeof v === "bigint") return v.toString();
-  if (typeof v === "number") return String(v);
-  if (typeof v === "string" && v.trim()) return v.trim();
-  return null;
-}
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return src;
 
-function extractMintTokenIdFromReceipt(
-  receipt: any,
-  mode: ActiveMintMode,
-  contract?: `0x${string}`
-): string | null {
-  const logs = receipt?.logs ?? [];
+  ctx.drawImage(img, 0, 0, tw, th);
 
-  for (const log of logs) {
-    try {
-      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) {
-        continue;
-      }
-
-      if (mode === "delivery") {
-        const decoded = decodeEventLog({
-          abi: realife1155DeliveryAbi,
-          data: log.data,
-          topics: log.topics,
-        }) as { eventName?: string; args?: any };
-
-        if (
-          decoded.eventName === "ProductCreated" ||
-          decoded.eventName === "EditionCreated" ||
-          decoded.eventName === "DeliveryEditionCreated"
-        ) {
-          const args = decoded.args;
-          return (
-            normalizeTokenIdValue(args?.tokenId) ||
-            normalizeTokenIdValue(args?.id) ||
-            normalizeTokenIdValue(args?.editionId) ||
-            normalizeTokenIdValue(args?.[0])
-          );
-        }
-      } else {
-        const decoded = decodeEventLog({
-          abi: realife1155Abi,
-          data: log.data,
-          topics: log.topics,
-        }) as { eventName?: string; args?: any };
-
-        if (decoded.eventName === "EditionCreated") {
-          const args = decoded.args;
-          return (
-            normalizeTokenIdValue(args?.tokenId) ||
-            normalizeTokenIdValue(args?.id) ||
-            normalizeTokenIdValue(args?.editionId) ||
-            normalizeTokenIdValue(args?.[0])
-          );
-        }
-      }
-    } catch {
-      //
-    }
-  }
-
-  return null;
+  return canvas.toDataURL("image/jpeg", quality);
 }
 
 function Stepper({
@@ -449,6 +506,7 @@ function Stepper({
   activeMintMode,
   deliveryOnchainApproved,
   deliveryAccessLoading,
+  offerType,
   fulfillmentType,
   suggestedMarketType,
 }: {
@@ -467,6 +525,7 @@ function Stepper({
   activeMintMode: ActiveMintMode;
   deliveryOnchainApproved: boolean;
   deliveryAccessLoading: boolean;
+  offerType: OfferType;
   fulfillmentType: FulfillmentType;
   suggestedMarketType: SuggestedMarketType;
 }) {
@@ -536,6 +595,20 @@ function Stepper({
             </Pill>
 
             <Pill>
+              <span className="text-white/70">Offer path:</span>
+              <span className="text-white font-extrabold">
+                {humanOfferType(offerType)}
+              </span>
+            </Pill>
+
+            <Pill>
+              <span className="text-white/70">NFT class:</span>
+              <span className="text-white font-extrabold">
+                {humanFulfillmentType(fulfillmentType)}
+              </span>
+            </Pill>
+
+            <Pill>
               <span className="text-white/70">Mode:</span>
               <span className="text-white font-extrabold">
                 {deliveryMode === "delivery"
@@ -555,13 +628,6 @@ function Stepper({
               <span className="text-white/70">Later listing:</span>
               <span className="text-amber-200 font-extrabold">
                 {humanSuggestedMarketType(suggestedMarketType)}
-              </span>
-            </Pill>
-
-            <Pill>
-              <span className="text-white/70">NFT class:</span>
-              <span className="text-white font-extrabold">
-                {humanFulfillmentType(fulfillmentType)}
               </span>
             </Pill>
 
@@ -661,7 +727,7 @@ function Stepper({
                   <>
                     Delivery mode is enabled for this wallet. The NFT will be
                     minted through the restricted delivery mint contract and
-                    later should use protected delivery/trust flow.
+                    later should use protected delivery / trust flow.
                   </>
                 ) : (
                   <>
@@ -687,6 +753,12 @@ function Stepper({
                   Protected marketplace
                 </span>
                 .
+              </>
+            ) : offerType === "physical_product" ? (
+              <>
+                This looks like a physical product, but since delivery mode is
+                not enabled it will still mint through the standard public mint
+                flow. Turn on delivery later only if this wallet is approved.
               </>
             ) : (
               <>
@@ -925,11 +997,12 @@ export default function MintForm() {
   const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null);
 
   const [project, setProject] = useState<(typeof PROJECTS)[number]>("Realife");
-  const [categories, setCategories] = useState<string[]>([]);
+
+  const [offerType, setOfferType] = useState<OfferType>("collectible");
+  const [searchCategory, setSearchCategory] = useState<string>("Other");
   const [subcategory, setSubcategory] = useState("");
-  const [itemType, setItemType] = useState<(typeof ITEM_TYPES)[number]>(
-    "Art / Painting"
-  );
+  const [itemLabel, setItemLabel] = useState("");
+  const [tagsText, setTagsText] = useState("");
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>("none");
 
   const [name, setName] = useState("");
@@ -955,25 +1028,32 @@ export default function MintForm() {
     `0x${string}` | undefined
   >(undefined);
 
+  const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState("");
+
   const selectedCategoryLabel = useMemo(
-    () => (categories.length ? categories.join(", ") : "Other"),
-    [categories]
+    () => (searchCategory?.trim() ? searchCategory.trim() : "Other"),
+    [searchCategory]
   );
 
   const fulfillmentType = useMemo<FulfillmentType>(
     () =>
       inferFulfillmentType({
         deliveryMode,
-        itemType,
-        categories,
-        subcategory,
+        offerType,
       }),
-    [deliveryMode, itemType, categories, subcategory]
+    [deliveryMode, offerType]
   );
 
   const suggestedMarketType = useMemo<SuggestedMarketType>(
-    () => inferSuggestedMarketType(fulfillmentType, deliveryMode),
-    [fulfillmentType, deliveryMode]
+    () =>
+      inferSuggestedMarketType({
+        deliveryMode,
+        offerType,
+        fulfillmentType,
+      }),
+    [deliveryMode, offerType, fulfillmentType]
   );
 
   const pickedKind = useMemo<"image" | "video">(
@@ -1053,15 +1133,10 @@ export default function MintForm() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approvedPhysicalSeller]);
 
-  function toggleCategory(cat: string) {
-    resetPreparedState();
-    setCategories((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
-    );
-  }
-
   function onPickFile(f: File | null) {
     setError("");
+    setAiError("");
+    setAiSuggestion(null);
     resetPreparedState();
 
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
@@ -1082,6 +1157,8 @@ export default function MintForm() {
 
   function onPickPoster(f: File | null) {
     setError("");
+    setAiError("");
+    setAiSuggestion(null);
     resetPreparedState();
 
     if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
@@ -1109,6 +1186,73 @@ export default function MintForm() {
 
   function openPosterPicker() {
     posterInputRef.current?.click();
+  }
+
+  function applyAiSuggestion() {
+    if (!aiSuggestion) return;
+
+    setOfferType(aiSuggestion.offerType);
+    setSearchCategory(aiSuggestion.category);
+    if (!itemLabel.trim()) {
+      setItemLabel(aiSuggestion.itemLabel);
+    } else {
+      setItemLabel(aiSuggestion.itemLabel);
+    }
+    setTagsText(aiSuggestion.tags.join(", "));
+  }
+
+  async function handleAiSuggest() {
+    setAiError("");
+    setAiSuggestion(null);
+
+    const sourceFile =
+      file?.type?.startsWith("image/")
+        ? file
+        : posterFile?.type?.startsWith("image/")
+        ? posterFile
+        : null;
+
+    if (!sourceFile) {
+      setAiError(
+        file?.type?.startsWith("video/")
+          ? "For video, upload a poster image first so AI can analyze the NFT visually."
+          : "Upload an image first."
+      );
+      return;
+    }
+
+    setAiLoading(true);
+
+    try {
+      const imageDataUrl = await imageFileToOptimizedDataUrl(sourceFile, 1280, 0.86);
+
+      const res = await fetch("/api/ai-suggest", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          imageDataUrl,
+          name: name.trim(),
+          description: description.trim(),
+          brand: brand.trim(),
+          offerType,
+          category: selectedCategoryLabel,
+          subcategory: subcategory.trim(),
+          itemLabel: itemLabel.trim(),
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.ok || !data?.suggestion) {
+        throw new Error(data?.error || "AI suggestion failed");
+      }
+
+      setAiSuggestion(data.suggestion as AiSuggestion);
+    } catch (e: any) {
+      setAiError(prettyError(e));
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   const { data: txHash, writeContractAsync, isPending: isWalletPromptOpen } =
@@ -1190,7 +1334,7 @@ export default function MintForm() {
       qp.set("category", finalCategory);
       qp.set("subcategory", subcategory.trim());
       qp.set("project", project);
-      qp.set("itemType", itemType);
+      qp.set("itemType", itemLabel.trim() || humanOfferType(offerType));
       qp.set("brand", brand.trim());
       qp.set("delivery", targetMode === "delivery" ? "1" : "0");
       qp.set("market", suggestedMarketType);
@@ -1266,7 +1410,7 @@ export default function MintForm() {
       formData.append("project", project);
       formData.append("category", selectedCategoryLabel);
       formData.append("subcategory", subcategory.trim());
-      formData.append("itemType", itemType);
+      formData.append("itemType", itemLabel.trim() || humanOfferType(offerType));
       formData.append("brand", brand.trim());
       formData.append("deliveryMode", deliveryMode);
       formData.append("deliveryEnabled", isDeliveryMode ? "true" : "false");
@@ -1274,6 +1418,8 @@ export default function MintForm() {
         "physicalItemIncluded",
         isDeliveryMode ? "true" : "false"
       );
+      formData.append("offerType", offerType);
+      formData.append("tags", tagsText.trim());
       formData.append("fulfillmentType", fulfillmentType || "");
       formData.append("suggestedMarketType", suggestedMarketType);
       formData.append("supply", String(clampSupply(supply)));
@@ -1436,6 +1582,7 @@ export default function MintForm() {
         deliveryAccessLoading={
           isDeliveryAccessLoading || isDeliveryAccessFetching
         }
+        offerType={offerType}
         fulfillmentType={fulfillmentType}
         suggestedMarketType={suggestedMarketType}
       />
@@ -1448,7 +1595,7 @@ export default function MintForm() {
                 Select project
               </div>
               <div className="text-[11px] text-white/55 mt-1">
-                Choose the context for your mint (premium metadata).
+                Choose the context for your mint.
               </div>
             </div>
             <Pill>
@@ -1490,7 +1637,7 @@ export default function MintForm() {
                 Upload your file
               </div>
               <div className="text-[11px] text-white/55 mt-1">
-                Photo / video / design / product image (token media).
+                Photo / video / design / product image.
               </div>
             </div>
             <Pill>
@@ -1573,7 +1720,7 @@ export default function MintForm() {
                 <div>
                   <div className="text-sm font-extrabold">Poster (thumbnail)</div>
                   <div className="mt-1 text-[11px] text-white/55">
-                    Optional. If you skip it, backend may auto-generate poster.
+                    Optional for mint preview, but recommended for AI suggestion.
                   </div>
                 </div>
                 <Pill>
@@ -1638,11 +1785,183 @@ export default function MintForm() {
         </Card>
 
         <Card>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">
+                AI assistant
+              </div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Analyze the uploaded NFT image and suggest offer path, search
+                category, item label and tags.
+              </div>
+            </div>
+
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+              Smart assist
+            </Pill>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 md:flex-row">
+            <GhostButton
+              disabled={aiLoading || !file}
+              onClick={handleAiSuggest}
+              className="md:w-auto md:px-6"
+            >
+              {aiLoading ? "Analyzing image…" : "Suggest with AI"}
+            </GhostButton>
+
+            {aiSuggestion ? (
+              <GoldButton
+                onClick={applyAiSuggestion}
+                className="md:w-auto md:px-6"
+              >
+                Apply AI suggestion
+              </GoldButton>
+            ) : null}
+          </div>
+
+          {aiError ? (
+            <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              {aiError}
+            </div>
+          ) : null}
+
+          {aiSuggestion ? (
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <Pill>
+                  <span className="text-white/70">Offer:</span>
+                  <span className="text-white font-extrabold">
+                    {humanOfferType(aiSuggestion.offerType)}
+                  </span>
+                </Pill>
+
+                <Pill>
+                  <span className="text-white/70">Category:</span>
+                  <span className="text-white font-extrabold">
+                    {aiSuggestion.category}
+                  </span>
+                </Pill>
+
+                <Pill>
+                  <span className="text-white/70">Confidence:</span>
+                  <span className="text-amber-200 font-extrabold">
+                    {Math.round(aiSuggestion.confidence * 100)}%
+                  </span>
+                </Pill>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                    Suggested item
+                  </div>
+                  <div className="mt-2 text-sm font-extrabold text-white">
+                    {aiSuggestion.itemLabel}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                    Suggested tags
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {aiSuggestion.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-bold text-white/80"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 text-[12px] leading-relaxed text-white/60">
+                {aiSuggestion.summary}
+              </div>
+
+              {aiSuggestion.offerType === "physical_product" &&
+              approvedPhysicalSeller &&
+              deliveryMode !== "delivery" ? (
+                <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100">
+                  AI thinks this looks like a physical product. Since this wallet
+                  is approved, you can switch to <span className="font-black">With delivery</span>{" "}
+                  to mint it in the delivery-enabled physical flow.
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </Card>
+
+        <Card>
           <div className="flex items-end justify-between mb-4">
             <div>
-              <div className="text-sm font-extrabold tracking-tight">Category</div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Offer path
+              </div>
               <div className="text-[11px] text-white/55 mt-1">
-                Choose one or more categories to describe your NFT.
+                Main route that defines how the NFT should behave later.
+              </div>
+            </div>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+              Required
+            </Pill>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3">
+            {OFFER_TYPES.map((entry) => {
+              const active = offerType === entry.value;
+
+              return (
+                <button
+                  key={entry.value}
+                  type="button"
+                  onClick={() => {
+                    resetPreparedState();
+                    setOfferType(entry.value);
+                  }}
+                  className={cx(
+                    "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
+                    active
+                      ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                      : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white"
+                  )}
+                >
+                  <div className="text-sm font-extrabold">{entry.title}</div>
+                  <div
+                    className={
+                      active
+                        ? "text-black/70 text-xs mt-1"
+                        : "text-white/55 text-xs mt-1"
+                    }
+                  >
+                    {entry.subtitle}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-3 text-xs text-white/60">
+            Selected offer path:{" "}
+            <span className="font-semibold text-white">
+              {humanOfferType(offerType)}
+            </span>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="flex items-end justify-between mb-4">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Search category
+              </div>
+              <div className="text-[11px] text-white/55 mt-1">
+                Broad marketplace search bucket for filtering later.
               </div>
             </div>
             <Pill>
@@ -1652,13 +1971,16 @@ export default function MintForm() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {CATEGORIES.map((c) => {
-              const active = categories.includes(c);
+            {SEARCH_CATEGORIES.map((c) => {
+              const active = searchCategory === c;
               return (
                 <button
                   key={c}
                   type="button"
-                  onClick={() => toggleCategory(c)}
+                  onClick={() => {
+                    resetPreparedState();
+                    setSearchCategory(c);
+                  }}
                   className={[
                     "flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border text-sm transition",
                     "shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
@@ -1667,10 +1989,10 @@ export default function MintForm() {
                       : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
                   ].join(" ")}
                 >
-                  <span className="font-extrabold">{c}</span>
+                  <span className="font-extrabold text-left">{c}</span>
                   <span
                     className={[
-                      "w-5 h-5 rounded-md border flex items-center justify-center text-xs",
+                      "w-5 h-5 rounded-md border flex items-center justify-center text-xs shrink-0",
                       active ? "border-black/35 bg-black/10" : "border-white/25",
                     ].join(" ")}
                   >
@@ -1682,10 +2004,8 @@ export default function MintForm() {
           </div>
 
           <p className="mt-3 text-xs text-white/60">
-            Selected:{" "}
-            <span className="font-semibold text-white">
-              {selectedCategoryLabel}
-            </span>
+            Selected category:{" "}
+            <span className="font-semibold text-white">{selectedCategoryLabel}</span>
           </p>
         </Card>
 
@@ -1696,7 +2016,7 @@ export default function MintForm() {
                 Subcategory / niche
               </div>
               <div className="text-[11px] text-white/55 mt-1">
-                Optional precision for routing and filtering later.
+                Optional precision for routing and buyer search later.
               </div>
             </div>
             <Pill>
@@ -1707,7 +2027,7 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: Landing page, SMM pack, 1:1 consult, Local meetup, Handmade product"
+            placeholder="Example: Yoga coach, Toy figure, Luxury T-shirt, Plumbing help, Landing page"
             value={subcategory}
             onChange={(e) => {
               resetPreparedState();
@@ -1723,14 +2043,13 @@ export default function MintForm() {
         </Card>
 
         <Card>
-          <div className="flex items-end justify-between mb-4">
+          <div className="flex items-end justify-between mb-3">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
-                Item type
+                Item label
               </div>
               <div className="text-[11px] text-white/55 mt-1">
-                Describe what this NFT represents: a product, service, project,
-                website, or portfolio.
+                Free text item name. AI can suggest it from the uploaded image.
               </div>
             </div>
             <Pill>
@@ -1739,43 +2058,42 @@ export default function MintForm() {
             </Pill>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {ITEM_TYPES.map((t) => {
-              const active = itemType === t;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => {
-                    resetPreparedState();
-                    setItemType(t);
-                  }}
-                  className={[
-                    "flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border text-sm transition",
-                    "shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
-                    active
-                      ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                      : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
-                  ].join(" ")}
-                >
-                  <span className="font-extrabold text-left">{t}</span>
-                  <span
-                    className={[
-                      "w-5 h-5 rounded-md border flex items-center justify-center text-xs shrink-0",
-                      active ? "border-black/35 bg-black/10" : "border-white/25",
-                    ].join(" ")}
-                  >
-                    {active ? "✓" : ""}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+          <input
+            type="text"
+            placeholder="Example: Toy, Coffee bag, Consultation, Yoga session, Website, T-shirt"
+            value={itemLabel}
+            onChange={(e) => {
+              resetPreparedState();
+              setItemLabel(e.target.value);
+            }}
+            className={[
+              "w-full rounded-2xl px-4 py-3 text-sm",
+              "bg-white/[0.04] border border-white/10 text-white",
+              "placeholder:text-white/35",
+              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+            ].join(" ")}
+          />
 
-          <p className="mt-3 text-xs text-white/60">
-            Selected item type:{" "}
-            <span className="font-semibold text-white">{itemType}</span>
-          </p>
+          <div className="mt-4">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
+              Tags
+            </div>
+            <input
+              type="text"
+              placeholder="comma separated tags, optional"
+              value={tagsText}
+              onChange={(e) => {
+                resetPreparedState();
+                setTagsText(e.target.value);
+              }}
+              className={[
+                "mt-2 w-full rounded-2xl px-4 py-3 text-sm",
+                "bg-white/[0.04] border border-white/10 text-white",
+                "placeholder:text-white/35",
+                "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              ].join(" ")}
+            />
+          </div>
         </Card>
 
         <Card>
@@ -1817,8 +2135,8 @@ export default function MintForm() {
                     : "text-white/55 text-xs mt-1"
                 }
               >
-                Standard public mint. This includes normal collectible NFTs and
-                also service-style NFTs that can later route to Protected flow.
+                Standard public mint. Includes normal collectibles and also
+                service-style NFTs that can later route to Protected flow.
               </div>
             </button>
 
@@ -1941,7 +2259,16 @@ export default function MintForm() {
             </Pill>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[11px] text-white/50 uppercase tracking-[0.16em]">
+                Offer path
+              </div>
+              <div className="mt-2 text-sm font-extrabold text-white">
+                {humanOfferType(offerType)}
+              </div>
+            </div>
+
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="text-[11px] text-white/50 uppercase tracking-[0.16em]">
                 Mint contract
@@ -1973,13 +2300,25 @@ export default function MintForm() {
           </div>
 
           <div className="mt-3 text-[11px] text-white/55 leading-relaxed">
-            {suggestedMarketType === "protected" ? (
+            {deliveryMode === "delivery" ? (
+              <>
+                Delivery mode forces the NFT into the delivery-enabled physical
+                item flow and later it should use protected escrow / trust
+                mechanics.
+              </>
+            ) : suggestedMarketType === "protected" ? (
               <>
                 Because this NFT is classified as{" "}
                 <span className="text-white font-semibold">
                   {humanFulfillmentType(fulfillmentType)}
                 </span>
-                , later listing should go through protected escrow/trust flow.
+                , later listing should go through protected escrow / trust flow.
+              </>
+            ) : offerType === "physical_product" ? (
+              <>
+                Physical product path is selected, but delivery is still off.
+                So mint stays standard for now until seller uses delivery-enabled
+                flow.
               </>
             ) : (
               <>
@@ -2158,7 +2497,7 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: Atelier Realife / Vintage House / Custom Studio"
+            placeholder="Example: Atelier Realife / Custom Studio / Crypto Cafe / Fashion Brand"
             value={brand}
             onChange={(e) => {
               resetPreparedState();
@@ -2180,8 +2519,7 @@ export default function MintForm() {
                 Amount / Supply
               </div>
               <div className="text-[11px] text-white/55 mt-1">
-                ERC-1155 editions: set supply (for example 1 for unique or more
-                for editions).
+                ERC-1155 editions: set supply.
               </div>
             </div>
             <Pill>
@@ -2224,7 +2562,7 @@ export default function MintForm() {
           </div>
 
           <textarea
-            placeholder="Tell the story of your work..."
+            placeholder="Tell the story of your work, product or service..."
             value={description}
             onChange={(e) => {
               resetPreparedState();
@@ -2308,11 +2646,9 @@ export default function MintForm() {
           ) : null}
 
           <div className="mt-3 text-[11px] text-white/55 leading-relaxed">
-            Current mode:{" "}
+            Current path:{" "}
             <span className="text-white font-semibold">
-              {deliveryMode === "delivery"
-                ? "With delivery"
-                : "Without delivery"}
+              {humanOfferType(offerType)}
             </span>
             {" · "}
             Mint contract:{" "}
@@ -2330,8 +2666,10 @@ export default function MintForm() {
               {humanSuggestedMarketType(suggestedMarketType)}
             </span>
             {" · "}
-            Item type:{" "}
-            <span className="text-white font-semibold">{itemType}</span>
+            Item:{" "}
+            <span className="text-white font-semibold">
+              {itemLabel.trim() || "Not set"}
+            </span>
             {brand.trim() ? (
               <>
                 {" · "}
