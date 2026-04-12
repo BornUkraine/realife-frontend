@@ -1,4 +1,6 @@
 import { Suspense } from "react";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import SuccessClient from "./SuccessClient";
 
 export const dynamic = "force-dynamic";
@@ -40,10 +42,19 @@ function PremiumFallback() {
   );
 }
 
-export default function Page() {
+export default async function Page() {
+  const session = await getServerSession(authOptions);
+
+  const viewerKey =
+    (session as any)?.user?.handle ||
+    (session as any)?.user?.publicId ||
+    (session as any)?.handle ||
+    (session as any)?.publicId ||
+    null;
+
   return (
     <Suspense fallback={<PremiumFallback />}>
-      <SuccessClient />
+      <SuccessClient viewerKey={viewerKey} />
     </Suspense>
   );
 }
