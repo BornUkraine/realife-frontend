@@ -82,25 +82,25 @@ export default function CreatePage() {
                 </Pill>
 
                 <Pill>
-                  <span className="text-amber-200 font-black">+10</span>
+                  <span className="font-black text-amber-200">+10</span>
                   points per mint
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">
+                  <span className="font-extrabold text-white/80">
                     ERC-1155 NFT
                   </span>
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">
-                    AI-assisted classification
+                  <span className="font-extrabold text-white/80">
+                    Standard + delivery mint contracts
                   </span>
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">
-                    Standard + delivery mint contracts
+                  <span className="font-extrabold text-white/80">
+                    AI image suggest
                   </span>
                 </Pill>
               </div>
@@ -120,10 +120,9 @@ export default function CreatePage() {
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
                 Create NFTs for{" "}
                 <span className="font-semibold text-white">
-                  products, services, online sessions, local services, portfolios,
-                  projects, websites,
+                  products, services, portfolios, projects, websites,
                 </span>{" "}
-                digital work and collectibles.
+                digital work, collectibles, and physical goods.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
@@ -131,34 +130,38 @@ export default function CreatePage() {
                 <span className="font-semibold text-white">
                   not choose a marketplace directly
                 </span>
-                . It creates the NFT and stores metadata / classification that
-                the platform can use later when you list the NFT.
+                . It creates the NFT and stores enough metadata so the platform
+                can later decide the correct listing flow.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                The form now uses a cleaner structure:
+                The new mint form uses a cleaner structure:
                 <span className="font-semibold text-white">
                   {" "}
-                  Offer path → Search category → Item label → Delivery option
+                  main category → item type → specific item / offer → subcategory
                 </span>
                 .
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                AI can help read the uploaded image and suggest the most likely{" "}
-                <span className="font-semibold text-white">
-                  offer path, category, item label and tags
-                </span>
-                , but you still keep manual control before minting.
+                You can also use{" "}
+                <span className="font-semibold text-white">AI Suggest</span> to
+                inspect the uploaded image and propose category, item type,
+                item label, subcategory, brand, and title.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
                 <span className="font-semibold text-white">
                   Standard mint contract
                 </span>{" "}
-                is used for collectibles and also service-style NFTs such as
-                consultation, training, website, portfolio, project and digital
-                service.
+                is used for normal collectible NFTs and also for service-style
+                NFTs such as{" "}
+                <span className="font-semibold text-white">
+                  consultation, training, website, portfolio, project, digital
+                  service
+                </span>
+                . Those NFTs can mint normally here, and later the site can
+                route them into the protected marketplace flow when listed.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
@@ -166,7 +169,7 @@ export default function CreatePage() {
                   Delivery mint contract
                 </span>{" "}
                 is only for approved seller wallets. It is the restricted mint
-                flow for delivery-enabled physical items.
+                flow for physical delivery-enabled items.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
@@ -194,42 +197,31 @@ export default function CreatePage() {
                 </div>
               </div>
 
-              <div className="mt-4 grid max-w-5xl grid-cols-1 gap-3 md:grid-cols-4">
+              <div className="mt-4 grid max-w-5xl grid-cols-1 gap-3 md:grid-cols-3">
                 <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
                   <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Collectible flow
+                    Standard collectible flow
                   </div>
                   <div className="mt-2 text-sm font-extrabold text-white">
                     Mint via standard contract
                   </div>
                   <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Art, collectible, media, public edition.
+                    Art, collectible, public NFT. Later usually lists on the
+                    standard marketplace.
                   </div>
                 </div>
 
                 <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
                   <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Service flow
+                    Service / trust flow
                   </div>
                   <div className="mt-2 text-sm font-extrabold text-white">
                     Mint via standard contract
                   </div>
                   <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Digital service, website, portfolio, online consultation,
-                    coaching, local service.
-                  </div>
-                </div>
-
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Physical product metadata
-                  </div>
-                  <div className="mt-2 text-sm font-extrabold text-white">
-                    Product-first classification
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Real goods, packaged products, fashion items, tech, decor,
-                    merch and tangible objects.
+                    Consultation, coaching, training, website, project,
+                    portfolio, digital service. Later the platform can route the
+                    listing into the protected marketplace.
                   </div>
                 </div>
 
@@ -285,14 +277,14 @@ export default function CreatePage() {
       </Reveal>
 
       <Reveal delayMs={200}>
-        <div className="flex flex-wrap items-center justify-between gap-4 pt-2 pb-6 text-xs text-white/45">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-6 pt-2 text-xs text-white/45">
           <div>© {year} Realife</div>
           <div className="flex items-center gap-4">
             <span className="opacity-60">ERC-1155</span>
             <span className="opacity-60">IPFS</span>
             <span className="opacity-60">Public mint</span>
-            <span className="opacity-60">AI assist</span>
             <span className="opacity-60">Standard + delivery</span>
+            <span className="opacity-60">AI suggest</span>
           </div>
         </div>
       </Reveal>

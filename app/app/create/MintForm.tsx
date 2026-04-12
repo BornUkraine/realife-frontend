@@ -29,63 +29,48 @@ const PROJECTS = [
   "Other",
 ] as const;
 
-const OFFER_TYPES = [
-  {
-    value: "collectible",
-    title: "Collectible / standard NFT",
-    subtitle:
-      "Art, collectible, flex NFT, creative media, public edition without service obligation.",
-  },
-  {
-    value: "physical_product",
-    title: "Physical product",
-    subtitle:
-      "A real item, product, merch, packaged goods, object, fashion item, gadget or tangible good.",
-  },
-  {
-    value: "digital_service",
-    title: "Digital service",
-    subtitle:
-      "Website, design, AI work, digital deliverable, portfolio, project, audit, remote professional work.",
-  },
-  {
-    value: "online_session",
-    title: "Online session",
-    subtitle:
-      "Consultation, coaching, training, lesson, call, remote session or online meeting.",
-  },
-  {
-    value: "local_service",
-    title: "Local service",
-    subtitle:
-      "Offline / in-person local work: repair, installation, interior help, trainer, engineer, builder, etc.",
-  },
-] as const;
-
-const SEARCH_CATEGORIES = [
-  "Products / goods",
-  "Professional services",
-  "Creative / design",
-  "AI / automation",
-  "Education / coaching",
-  "Wellness / fitness",
-  "Local trades / repair",
-  "Fashion / accessories",
-  "Food / beverage",
-  "Home / living",
-  "Tech / gadgets",
-  "Legal / consulting",
-  "Logistics / transport",
+const CATEGORIES = [
+  "Art / Collectible",
+  "Creative & Design",
+  "Marketing",
+  "AI & Automation",
+  "Development & Tech",
+  "Education & Coaching",
+  "Health & Wellness",
+  "Legal & Consulting",
+  "Home & Repair",
+  "Events & Local Service",
+  "Logistics",
+  "Fashion",
+  "Electronics",
+  "Home & Decor",
+  "Food & Beverage",
+  "Beauty",
+  "Sports & Outdoor",
+  "Collectible Product",
+  "Other Product",
   "Other",
 ] as const;
 
-type OfferType =
-  | "collectible"
-  | "physical_product"
-  | "digital_service"
-  | "online_session"
-  | "local_service";
+const ITEM_TYPE_SUGGESTIONS = [
+  "Product",
+  "T-shirt",
+  "Coffee",
+  "Chocolate",
+  "Artwork",
+  "Collectible",
+  "Website",
+  "Portfolio",
+  "Project",
+  "Digital Service",
+  "Consultation",
+  "Coaching",
+  "Training",
+  "Lesson",
+  "Local Service",
+] as const;
 
+type MintCategory = (typeof CATEGORIES)[number];
 type DeliveryMode = "none" | "delivery";
 type ActiveMintMode = "standard" | "delivery";
 type FulfillmentType =
@@ -95,41 +80,102 @@ type FulfillmentType =
   | "LOCAL_SERVICE"
   | null;
 type SuggestedMarketType = "standard" | "protected";
+type AiSuggestedPath = "collectible" | "service" | "physical_product" | null;
 
 type AiSuggestion = {
-  offerType: OfferType;
-  category: (typeof SEARCH_CATEGORIES)[number];
-  itemLabel: string;
-  tags: string[];
-  confidence: number;
-  summary: string;
-};
+  path: AiSuggestedPath;
+  category: string | null;
+  itemType: string | null;
+  itemLabel: string | null;
+  subcategory: string | null;
+  title: string | null;
+  brand: string | null;
+  fulfillmentType: FulfillmentType;
+  suggestedMarketType: SuggestedMarketType;
+  reasoning: string | null;
+  searchTags: string[];
+} | null;
 
 const ZERO_ADDRESS =
   "0x0000000000000000000000000000000000000000" as const;
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ||
-  "https://accurate-art-production.up.railway.app";
+const ONLINE_SESSION_HINTS = [
+  "consultation",
+  "coaching",
+  "training",
+  "lesson",
+  "session",
+  "call",
+  "meeting",
+  "mentoring",
+  "tutoring",
+  "fitness coaching",
+  "yoga coaching",
+];
 
-const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
+const DIGITAL_SERVICE_HINTS = [
+  "website",
+  "landing page",
+  "portfolio",
+  "project",
+  "design",
+  "branding",
+  "logo",
+  "development",
+  "developer",
+  "marketing",
+  "seo",
+  "smm",
+  "automation",
+  "ai agent",
+  "ai automation",
+  "digital service",
+  "digital product",
+  "presentation",
+  "resume",
+  "cv",
+];
 
-const CONTRACT_1155_STANDARD =
-  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT as
-    | `0x${string}`
-    | undefined;
+const LOCAL_SERVICE_HINTS = [
+  "local service",
+  "offline",
+  "in-person",
+  "in person",
+  "repair",
+  "plumber",
+  "electrician",
+  "construction",
+  "interior",
+  "cleaning",
+  "massage",
+  "barber",
+  "gym service",
+  "trainer in person",
+  "yoga in person",
+];
 
-const CONTRACT_1155_DELIVERY =
-  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT as
-    | `0x${string}`
-    | undefined;
-
-const IPFS_GATEWAYS = [
-  "https://nftstorage.link/ipfs/",
-  "https://gateway.pinata.cloud/ipfs/",
-  "https://cloudflare-ipfs.com/ipfs/",
-  "https://ipfs.io/ipfs/",
-] as const;
+const PHYSICAL_HINTS = [
+  "shirt",
+  "t-shirt",
+  "hoodie",
+  "jacket",
+  "coffee",
+  "chocolate",
+  "bag",
+  "toy",
+  "furniture",
+  "device",
+  "gadget",
+  "cosmetic",
+  "drink",
+  "food",
+  "bottle",
+  "accessory",
+  "product",
+  "merch",
+  "sneakers",
+  "watch",
+];
 
 function useMounted() {
   const [mounted, setMounted] = useState(false);
@@ -161,12 +207,366 @@ function prettyError(e: any) {
   );
 }
 
+function normText(v?: string | null) {
+  return String(v || "").trim().toLowerCase();
+}
+
+function cx(...a: Array<string | false | null | undefined>) {
+  return a.filter(Boolean).join(" ");
+}
+
+function humanFulfillmentType(v: FulfillmentType) {
+  if (v === "PHYSICAL_GOOD") return "Physical good";
+  if (v === "DIGITAL_SERVICE") return "Digital service";
+  if (v === "ONLINE_SESSION") return "Online session";
+  if (v === "LOCAL_SERVICE") return "Local service";
+  return "Collectible / standard NFT";
+}
+
+function humanSuggestedMarketType(v: SuggestedMarketType) {
+  return v === "protected" ? "Protected marketplace" : "Standard marketplace";
+}
+
+function humanAiPath(v: AiSuggestedPath) {
+  if (v === "physical_product") return "Physical product";
+  if (v === "service") return "Service";
+  if (v === "collectible") return "Collectible";
+  return "Unknown";
+}
+
+function normalizeFulfillmentType(v?: string | null): FulfillmentType {
+  const s = normText(v);
+
+  if (!s) return null;
+  if (
+    s === "physical_good" ||
+    s === "physical good" ||
+    s === "physical" ||
+    s === "product"
+  ) {
+    return "PHYSICAL_GOOD";
+  }
+  if (s === "digital_service" || s === "digital service") {
+    return "DIGITAL_SERVICE";
+  }
+  if (s === "online_session" || s === "online session") {
+    return "ONLINE_SESSION";
+  }
+  if (s === "local_service" || s === "local service") {
+    return "LOCAL_SERVICE";
+  }
+
+  return null;
+}
+
+function normalizeSuggestedMarketType(
+  v?: string | null
+): SuggestedMarketType | null {
+  const s = normText(v);
+  if (s === "protected") return "protected";
+  if (s === "standard") return "standard";
+  return null;
+}
+
+function normalizeAiPath(v?: string | null): AiSuggestedPath {
+  const s = normText(v);
+  if (s === "physical_product" || s === "physical product")
+    return "physical_product";
+  if (s === "service") return "service";
+  if (s === "collectible") return "collectible";
+  return null;
+}
+
+function isPhysicalCategory(category: string) {
+  const s = normText(category);
+  return [
+    "fashion",
+    "electronics",
+    "home & decor",
+    "food & beverage",
+    "beauty",
+    "sports & outdoor",
+    "collectible product",
+    "other product",
+  ].includes(s);
+}
+
+function normalizeCategoryValue(v?: string | null): MintCategory {
+  const s = normText(v);
+  if (!s) return "Other";
+
+  const direct = CATEGORIES.find((x) => normText(x) === s);
+  if (direct) return direct;
+
+  if (s === "art" || s === "painting" || s === "collectible") {
+    return "Art / Collectible";
+  }
+  if (
+    s === "creative & design" ||
+    s === "creative and design" ||
+    s === "design"
+  ) {
+    return "Creative & Design";
+  }
+  if (s === "marketing" || s === "promotion") return "Marketing";
+  if (s === "ai & automation" || s === "ai / automation" || s === "ai work") {
+    return "AI & Automation";
+  }
+  if (
+    s === "development & tech" ||
+    s === "development / tech" ||
+    s === "tech"
+  ) {
+    return "Development & Tech";
+  }
+  if (
+    s === "education & coaching" ||
+    s === "education / coaching" ||
+    s === "education"
+  ) {
+    return "Education & Coaching";
+  }
+  if (s === "health & wellness" || s === "health / wellness") {
+    return "Health & Wellness";
+  }
+  if (
+    s === "legal & consulting" ||
+    s === "legal / consulting" ||
+    s === "consulting"
+  ) {
+    return "Legal & Consulting";
+  }
+  if (s === "home & repair" || s === "home / repair" || s === "repair") {
+    return "Home & Repair";
+  }
+  if (
+    s === "events & local service" ||
+    s === "events / local service" ||
+    s === "local service" ||
+    s === "events"
+  ) {
+    return "Events & Local Service";
+  }
+  if (s === "logistics") return "Logistics";
+
+  if (s === "fashion" || s === "apparel") return "Fashion";
+  if (s === "electronics" || s === "tech product") return "Electronics";
+  if (s === "home decor" || s === "home & decor") return "Home & Decor";
+  if (s === "food" || s === "food & beverage" || s === "beverage") {
+    return "Food & Beverage";
+  }
+  if (s === "beauty" || s === "beauty product") return "Beauty";
+  if (s === "sports" || s === "sports & outdoor") return "Sports & Outdoor";
+  if (s === "collectible product") return "Collectible Product";
+  if (s === "other product" || s === "product") return "Other Product";
+
+  return "Other";
+}
+
+function inferFulfillmentType(params: {
+  deliveryMode: DeliveryMode;
+  category: string;
+  itemType: string;
+  itemLabel: string;
+  subcategory: string;
+}): FulfillmentType {
+  const { deliveryMode, category, itemType, itemLabel, subcategory } = params;
+
+  if (deliveryMode === "delivery") return "PHYSICAL_GOOD";
+
+  const categoryNorm = normText(category);
+  const merged = [
+    normText(category),
+    normText(itemType),
+    normText(itemLabel),
+    normText(subcategory),
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  if (
+    categoryNorm === "education & coaching" ||
+    ONLINE_SESSION_HINTS.some((x) => merged.includes(x))
+  ) {
+    return "ONLINE_SESSION";
+  }
+
+  if (
+    categoryNorm === "events & local service" ||
+    categoryNorm === "home & repair" ||
+    LOCAL_SERVICE_HINTS.some((x) => merged.includes(x))
+  ) {
+    return "LOCAL_SERVICE";
+  }
+
+  if (
+    [
+      "creative & design",
+      "marketing",
+      "ai & automation",
+      "development & tech",
+      "legal & consulting",
+      "logistics",
+    ].includes(categoryNorm) ||
+    DIGITAL_SERVICE_HINTS.some((x) => merged.includes(x))
+  ) {
+    return "DIGITAL_SERVICE";
+  }
+
+  if (isPhysicalCategory(category) || PHYSICAL_HINTS.some((x) => merged.includes(x))) {
+    return "PHYSICAL_GOOD";
+  }
+
+  return null;
+}
+
+function inferSuggestedMarketType(
+  fulfillmentType: FulfillmentType,
+  deliveryMode: DeliveryMode
+): SuggestedMarketType {
+  if (deliveryMode === "delivery") return "protected";
+  if (fulfillmentType) return "protected";
+  return "standard";
+}
+
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ||
+  "https://accurate-art-production.up.railway.app";
+
+const PREPARE_URL = `${API_BASE.replace(/\/$/, "")}/api/mint/prepare`;
+const AI_SUGGEST_URL = `${API_BASE.replace(/\/$/, "")}/api/ai-suggest`;
+
+const CONTRACT_1155_STANDARD =
+  process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT as
+    | `0x${string}`
+    | undefined;
+
+const CONTRACT_1155_DELIVERY =
+  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT as
+    | `0x${string}`
+    | undefined;
+
+/* ---------------- UI kit ---------------- */
+
+function Pill({ children }: { children: ReactNode }) {
+  return (
+    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
+      {children}
+    </div>
+  );
+}
+
+function Card({
+  className = "",
+  children,
+}: {
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={[
+        "relative overflow-hidden rounded-[28px] p-px",
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.26),rgba(212,175,55,0.12),rgba(184,135,10,0.08))]",
+        "shadow-[0_26px_100px_rgba(0,0,0,0.55)]",
+        className,
+      ].join(" ")}
+    >
+      <div
+        className={[
+          "relative overflow-hidden rounded-[28px]",
+          "border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl",
+          "ring-1 ring-black/10",
+          "before:pointer-events-none before:absolute before:inset-0",
+          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]",
+          "after:pointer-events-none after:absolute after:inset-0",
+          "after:bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]",
+        ].join(" ")}
+      >
+        <div className="relative z-10 p-6">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function GoldButton({
+  children,
+  disabled,
+  onClick,
+  className = "",
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  onClick?: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        "relative inline-flex w-full items-center justify-center overflow-hidden",
+        "rounded-2xl px-10 py-4",
+        "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
+        "text-black font-extrabold tracking-tight",
+        "shadow-[0_22px_70px_rgba(212,175,55,0.18)] ring-1 ring-black/15",
+        "transition duration-300 hover:-translate-y-px hover:brightness-110 active:translate-y-0",
+        "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:brightness-100",
+        "before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(255,255,255,0.35),transparent)] before:translate-x-[-140%] before:transition before:duration-700 hover:before:translate-x-[140%]",
+        className,
+      ].join(" ")}
+    >
+      <span className="relative z-10">{children}</span>
+    </button>
+  );
+}
+
+function GhostButton({
+  children,
+  disabled,
+  onClick,
+  className = "",
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  onClick?: () => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        "inline-flex w-full items-center justify-center rounded-2xl px-10 py-4",
+        "border border-white/15 bg-white/[0.06] text-white font-extrabold",
+        "backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]",
+        "transition duration-300 hover:-translate-y-px hover:bg-white/10 active:translate-y-0",
+        "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0",
+        className,
+      ].join(" ")}
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ---------------- helpers ---------------- */
+
 function persistableUrl(input?: string | null) {
   const s = (input || "").trim();
   if (!s) return null;
   if (s.startsWith("blob:")) return null;
   return s;
 }
+
+const IPFS_GATEWAYS = [
+  "https://nftstorage.link/ipfs/",
+  "https://gateway.pinata.cloud/ipfs/",
+  "https://cloudflare-ipfs.com/ipfs/",
+  "https://ipfs.io/ipfs/",
+] as const;
 
 function ipfsToHttp(u?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const s = (u || "").trim();
@@ -208,7 +608,6 @@ async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
       //
     }
   }
-
   return null;
 }
 
@@ -277,219 +676,6 @@ function extractMintTokenIdFromReceipt(
   return null;
 }
 
-function humanOfferType(v: OfferType) {
-  if (v === "physical_product") return "Physical product";
-  if (v === "digital_service") return "Digital service";
-  if (v === "online_session") return "Online session";
-  if (v === "local_service") return "Local service";
-  return "Collectible / standard NFT";
-}
-
-function humanFulfillmentType(v: FulfillmentType) {
-  if (v === "PHYSICAL_GOOD") return "Physical good";
-  if (v === "DIGITAL_SERVICE") return "Digital service";
-  if (v === "ONLINE_SESSION") return "Online session";
-  if (v === "LOCAL_SERVICE") return "Local service";
-  return "Standard NFT";
-}
-
-function humanSuggestedMarketType(v: SuggestedMarketType) {
-  return v === "protected" ? "Protected marketplace" : "Standard marketplace";
-}
-
-function inferFulfillmentType(params: {
-  deliveryMode: DeliveryMode;
-  offerType: OfferType;
-}): FulfillmentType {
-  const { deliveryMode, offerType } = params;
-
-  if (deliveryMode === "delivery") return "PHYSICAL_GOOD";
-  if (offerType === "digital_service") return "DIGITAL_SERVICE";
-  if (offerType === "online_session") return "ONLINE_SESSION";
-  if (offerType === "local_service") return "LOCAL_SERVICE";
-
-  return null;
-}
-
-function inferSuggestedMarketType(params: {
-  deliveryMode: DeliveryMode;
-  offerType: OfferType;
-  fulfillmentType: FulfillmentType;
-}): SuggestedMarketType {
-  const { deliveryMode, offerType, fulfillmentType } = params;
-
-  if (deliveryMode === "delivery") return "protected";
-  if (fulfillmentType) return "protected";
-
-  // Physical product without delivery stays standard in current Realife routing
-  // until seller explicitly uses delivery-enabled flow.
-  if (offerType === "physical_product") return "standard";
-
-  return "standard";
-}
-
-function cx(...a: Array<string | false | null | undefined>) {
-  return a.filter(Boolean).join(" ");
-}
-
-/* ---------------- UI ---------------- */
-
-function Pill({ children }: { children: ReactNode }) {
-  return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
-      {children}
-    </div>
-  );
-}
-
-function Card({
-  className = "",
-  children,
-}: {
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <div
-      className={[
-        "relative overflow-hidden rounded-[28px] p-px",
-        "bg-[linear-gradient(135deg,rgba(247,231,167,0.26),rgba(212,175,55,0.12),rgba(184,135,10,0.08))]",
-        "shadow-[0_26px_100px_rgba(0,0,0,0.55)]",
-        className,
-      ].join(" ")}
-    >
-      <div
-        className={[
-          "relative overflow-hidden rounded-[28px]",
-          "border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl",
-          "ring-1 ring-black/10",
-          "before:pointer-events-none before:absolute before:inset-0",
-          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]",
-          "after:pointer-events-none after:absolute after:inset-0",
-          "after:bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]",
-        ].join(" ")}
-      >
-        <div className="relative z-10 p-6">{children}</div>
-      </div>
-    </div>
-  );
-}
-
-function GoldButton({
-  children,
-  disabled,
-  onClick,
-  className = "",
-}: {
-  children: ReactNode;
-  disabled?: boolean;
-  onClick?: () => void;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={[
-        "relative w-full inline-flex items-center justify-center overflow-hidden",
-        "px-10 py-4 rounded-2xl",
-        "text-black font-extrabold tracking-tight",
-        "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
-        "shadow-[0_22px_70px_rgba(212,175,55,0.18)]",
-        "ring-1 ring-black/15",
-        "transition duration-300 hover:brightness-110 hover:-translate-y-px",
-        "active:translate-y-0",
-        "disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:brightness-100",
-        "before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(255,255,255,0.35),transparent)]",
-        "before:translate-x-[-140%] hover:before:translate-x-[140%] before:transition before:duration-700",
-        className,
-      ].join(" ")}
-    >
-      <span className="relative z-10">{children}</span>
-    </button>
-  );
-}
-
-function GhostButton({
-  children,
-  disabled,
-  onClick,
-  className = "",
-}: {
-  children: ReactNode;
-  disabled?: boolean;
-  onClick?: () => void;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={[
-        "w-full inline-flex items-center justify-center",
-        "px-10 py-4 rounded-2xl",
-        "border border-white/15 bg-white/[0.06] text-white font-extrabold",
-        "backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]",
-        "transition duration-300 hover:bg-white/10 hover:-translate-y-px",
-        "active:translate-y-0",
-        "disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:translate-y-0",
-        className,
-      ].join(" ")}
-    >
-      {children}
-    </button>
-  );
-}
-
-async function readFileAsDataUrl(file: File): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    const fr = new FileReader();
-    fr.onerror = () => reject(new Error("Failed to read file"));
-    fr.onload = () => resolve(String(fr.result || ""));
-    fr.readAsDataURL(file);
-  });
-}
-
-async function imageFileToOptimizedDataUrl(
-  file: File,
-  maxSide = 1280,
-  quality = 0.86
-): Promise<string> {
-  if (!file.type.startsWith("image/")) {
-    return readFileAsDataUrl(file);
-  }
-
-  const src = await readFileAsDataUrl(file);
-
-  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-    const el = new Image();
-    el.onload = () => resolve(el);
-    el.onerror = () => reject(new Error("Failed to decode image"));
-    el.src = src;
-  });
-
-  const w = img.naturalWidth || img.width;
-  const h = img.naturalHeight || img.height;
-  if (!w || !h) return src;
-
-  const scale = Math.min(1, maxSide / Math.max(w, h));
-  const tw = Math.max(1, Math.round(w * scale));
-  const th = Math.max(1, Math.round(h * scale));
-
-  const canvas = document.createElement("canvas");
-  canvas.width = tw;
-  canvas.height = th;
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return src;
-
-  ctx.drawImage(img, 0, 0, tw, th);
-
-  return canvas.toDataURL("image/jpeg", quality);
-}
-
 function Stepper({
   mounted,
   connected,
@@ -506,7 +692,6 @@ function Stepper({
   activeMintMode,
   deliveryOnchainApproved,
   deliveryAccessLoading,
-  offerType,
   fulfillmentType,
   suggestedMarketType,
 }: {
@@ -525,7 +710,6 @@ function Stepper({
   activeMintMode: ActiveMintMode;
   deliveryOnchainApproved: boolean;
   deliveryAccessLoading: boolean;
-  offerType: OfferType;
   fulfillmentType: FulfillmentType;
   suggestedMarketType: SuggestedMarketType;
 }) {
@@ -595,20 +779,6 @@ function Stepper({
             </Pill>
 
             <Pill>
-              <span className="text-white/70">Offer path:</span>
-              <span className="text-white font-extrabold">
-                {humanOfferType(offerType)}
-              </span>
-            </Pill>
-
-            <Pill>
-              <span className="text-white/70">NFT class:</span>
-              <span className="text-white font-extrabold">
-                {humanFulfillmentType(fulfillmentType)}
-              </span>
-            </Pill>
-
-            <Pill>
               <span className="text-white/70">Mode:</span>
               <span className="text-white font-extrabold">
                 {deliveryMode === "delivery"
@@ -628,6 +798,13 @@ function Stepper({
               <span className="text-white/70">Later listing:</span>
               <span className="text-amber-200 font-extrabold">
                 {humanSuggestedMarketType(suggestedMarketType)}
+              </span>
+            </Pill>
+
+            <Pill>
+              <span className="text-white/70">NFT class:</span>
+              <span className="text-white font-extrabold">
+                {humanFulfillmentType(fulfillmentType)}
               </span>
             </Pill>
 
@@ -675,7 +852,7 @@ function Stepper({
             </Pill>
           </div>
 
-          <div className="mt-3 text-sm md:text-base font-extrabold tracking-tight">
+          <div className="mt-3 text-sm font-extrabold tracking-tight md:text-base">
             {locked
               ? !mounted
                 ? "Connect wallet to start"
@@ -697,19 +874,16 @@ function Stepper({
               : "Prepare your NFT"}
           </div>
 
-          <div className="mt-2 text-[11px] text-white/60 leading-relaxed">
+          <div className="mt-2 text-[11px] leading-relaxed text-white/60">
             Mint rewards:{" "}
-            <span className="text-amber-200 font-extrabold">+10 points</span>{" "}
+            <span className="font-extrabold text-amber-200">+10 points</span>{" "}
             per mint.
-            <span className="text-white/45">
-              {" "}
-              Editions support supply 1..10000.
-            </span>
+            <span className="text-white/45"> Editions support supply 1..10000.</span>
           </div>
 
-          <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
+          <div className="mt-2 text-[11px] leading-relaxed text-white/55">
             This page chooses the{" "}
-            <span className="text-white/75 font-semibold">mint contract</span>{" "}
+            <span className="font-semibold text-white/75">mint contract</span>{" "}
             and writes NFT classification into metadata.
             <span className="text-white/45">
               {" "}
@@ -718,7 +892,7 @@ function Stepper({
             </span>
           </div>
 
-          <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
+          <div className="mt-2 text-[11px] leading-relaxed text-white/55">
             {deliveryMode === "delivery" ? (
               approvedPhysicalSeller ? (
                 deliveryAccessLoading ? (
@@ -727,7 +901,7 @@ function Stepper({
                   <>
                     Delivery mode is enabled for this wallet. The NFT will be
                     minted through the restricted delivery mint contract and
-                    later should use protected delivery / trust flow.
+                    later should use protected delivery/trust flow.
                   </>
                 ) : (
                   <>
@@ -738,27 +912,21 @@ function Stepper({
               ) : (
                 <>
                   Delivery mode is reserved for approved seller wallets. Switch
-                  to <span className="text-white/75 font-semibold">Without delivery</span>.
+                  to <span className="font-semibold text-white/75">Without delivery</span>.
                 </>
               )
             ) : suggestedMarketType === "protected" ? (
               <>
                 This NFT is classified as{" "}
-                <span className="text-white/75 font-semibold">
+                <span className="font-semibold text-white/75">
                   {humanFulfillmentType(fulfillmentType)}
                 </span>
                 . It still mints through the standard public mint contract, but
                 later the platform can route it to the{" "}
-                <span className="text-white/75 font-semibold">
+                <span className="font-semibold text-white/75">
                   Protected marketplace
                 </span>
                 .
-              </>
-            ) : offerType === "physical_product" ? (
-              <>
-                This looks like a physical product, but since delivery mode is
-                not enabled it will still mint through the standard public mint
-                flow. Turn on delivery later only if this wallet is approved.
               </>
             ) : (
               <>
@@ -769,12 +937,12 @@ function Stepper({
             )}
           </div>
 
-          <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
+          <div className="mt-2 text-[11px] leading-relaxed text-white/55">
             {locked ? (
               wrongNetwork ? (
                 <>
                   Wrong network — switch to{" "}
-                  <span className="text-white/75 font-semibold">
+                  <span className="font-semibold text-white/75">
                     Base Sepolia
                   </span>
                   .
@@ -785,17 +953,14 @@ function Stepper({
             ) : hasGas ? (
               <>
                 Gas is OK. If you already prepared metadata — press{" "}
-                <span className="text-white/75 font-semibold">
-                  Create Edition
-                </span>
-                .
+                <span className="font-semibold text-white/75">Create Edition</span>.
               </>
             ) : (
               <>
                 No gas on Base Sepolia.{" "}
                 <Link
                   href="/app/faucet"
-                  className="text-[#d4af37] font-semibold hover:brightness-110 transition"
+                  className="font-semibold text-[#d4af37] transition hover:brightness-110"
                 >
                   Faucet ↗
                 </Link>{" "}
@@ -805,10 +970,10 @@ function Stepper({
           </div>
         </div>
 
-        <div className="shrink-0 hidden md:flex flex-col items-end gap-2">
+        <div className="hidden shrink-0 flex-col items-end gap-2 md:flex">
           <div
             className={[
-              "px-3 py-1.5 rounded-full border text-[11px] font-semibold",
+              "rounded-full border px-3 py-1.5 text-[11px] font-semibold",
               locked
                 ? "border-white/10 bg-white/[0.06] text-white/60"
                 : hasGas
@@ -824,7 +989,7 @@ function Stepper({
               href={`https://sepolia.basescan.org/tx/${txHash}`}
               target="_blank"
               rel="noreferrer"
-              className="text-xs font-semibold text-[#d4af37] hover:brightness-110 transition"
+              className="text-xs font-semibold text-[#d4af37] transition hover:brightness-110"
             >
               View tx ↗
             </a>
@@ -832,7 +997,7 @@ function Stepper({
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-4 gap-3">
+      <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-4">
         {items.map((it, idx) => {
           const isActive = it.active;
           const isOk = it.ok;
@@ -842,7 +1007,7 @@ function Stepper({
             <div
               key={it.k}
               className={[
-                "relative rounded-3xl border overflow-hidden",
+                "relative overflow-hidden rounded-3xl border",
                 "bg-[linear-gradient(180deg,rgba(0,0,0,0.30),rgba(0,0,0,0.22))]",
                 isActive ? "border-white/20" : "border-white/10",
                 "shadow-[0_18px_70px_rgba(0,0,0,0.30)]",
@@ -850,22 +1015,22 @@ function Stepper({
             >
               <div className="relative p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex min-w-0 items-center gap-3">
                     <div
                       className={[
-                        "h-9 w-9 rounded-2xl flex items-center justify-center font-black text-xs shrink-0",
+                        "flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-xs font-black",
                         isOk
-                          ? "text-black bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]"
-                          : "text-white bg-white/[0.06] border border-white/10",
+                          ? "bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] text-black"
+                          : "border border-white/10 bg-white/[0.06] text-white",
                       ].join(" ")}
                     >
                       {isOk ? "✓" : it.n}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-extrabold tracking-tight truncate">
+                      <div className="truncate text-sm font-extrabold tracking-tight">
                         {it.t}
                       </div>
-                      <div className="text-[11px] text-white/55 truncate">
+                      <div className="truncate text-[11px] text-white/55">
                         {it.d}
                       </div>
                     </div>
@@ -873,7 +1038,7 @@ function Stepper({
 
                   <div
                     className={[
-                      "text-[11px] font-semibold px-2 py-1 rounded-full border",
+                      "rounded-full border px-2 py-1 text-[11px] font-semibold",
                       isDisabled
                         ? "border-white/10 bg-white/[0.06] text-white/45"
                         : isActive
@@ -997,12 +1162,10 @@ export default function MintForm() {
   const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null);
 
   const [project, setProject] = useState<(typeof PROJECTS)[number]>("Realife");
-
-  const [offerType, setOfferType] = useState<OfferType>("collectible");
-  const [searchCategory, setSearchCategory] = useState<string>("Other");
+  const [category, setCategory] = useState<MintCategory>("Other");
   const [subcategory, setSubcategory] = useState("");
+  const [itemType, setItemType] = useState("");
   const [itemLabel, setItemLabel] = useState("");
-  const [tagsText, setTagsText] = useState("");
   const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>("none");
 
   const [name, setName] = useState("");
@@ -1028,32 +1191,25 @@ export default function MintForm() {
     `0x${string}` | undefined
   >(undefined);
 
-  const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState("");
-
-  const selectedCategoryLabel = useMemo(
-    () => (searchCategory?.trim() ? searchCategory.trim() : "Other"),
-    [searchCategory]
-  );
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [aiSuggestError, setAiSuggestError] = useState("");
+  const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion>(null);
 
   const fulfillmentType = useMemo<FulfillmentType>(
     () =>
       inferFulfillmentType({
         deliveryMode,
-        offerType,
+        category,
+        itemType,
+        itemLabel,
+        subcategory,
       }),
-    [deliveryMode, offerType]
+    [deliveryMode, category, itemType, itemLabel, subcategory]
   );
 
   const suggestedMarketType = useMemo<SuggestedMarketType>(
-    () =>
-      inferSuggestedMarketType({
-        deliveryMode,
-        offerType,
-        fulfillmentType,
-      }),
-    [deliveryMode, offerType, fulfillmentType]
+    () => inferSuggestedMarketType(fulfillmentType, deliveryMode),
+    [fulfillmentType, deliveryMode]
   );
 
   const pickedKind = useMemo<"image" | "video">(
@@ -1125,6 +1281,11 @@ export default function MintForm() {
     if (step !== "idle") setStep("idle");
   }
 
+  function clearAiSuggestion() {
+    setAiSuggestion(null);
+    setAiSuggestError("");
+  }
+
   useEffect(() => {
     if (!approvedPhysicalSeller && deliveryMode === "delivery") {
       setDeliveryMode("none");
@@ -1135,8 +1296,7 @@ export default function MintForm() {
 
   function onPickFile(f: File | null) {
     setError("");
-    setAiError("");
-    setAiSuggestion(null);
+    clearAiSuggestion();
     resetPreparedState();
 
     if (filePreviewUrl) URL.revokeObjectURL(filePreviewUrl);
@@ -1157,8 +1317,7 @@ export default function MintForm() {
 
   function onPickPoster(f: File | null) {
     setError("");
-    setAiError("");
-    setAiSuggestion(null);
+    clearAiSuggestion();
     resetPreparedState();
 
     if (posterPreviewUrl) URL.revokeObjectURL(posterPreviewUrl);
@@ -1188,73 +1347,6 @@ export default function MintForm() {
     posterInputRef.current?.click();
   }
 
-  function applyAiSuggestion() {
-    if (!aiSuggestion) return;
-
-    setOfferType(aiSuggestion.offerType);
-    setSearchCategory(aiSuggestion.category);
-    if (!itemLabel.trim()) {
-      setItemLabel(aiSuggestion.itemLabel);
-    } else {
-      setItemLabel(aiSuggestion.itemLabel);
-    }
-    setTagsText(aiSuggestion.tags.join(", "));
-  }
-
-  async function handleAiSuggest() {
-    setAiError("");
-    setAiSuggestion(null);
-
-    const sourceFile =
-      file?.type?.startsWith("image/")
-        ? file
-        : posterFile?.type?.startsWith("image/")
-        ? posterFile
-        : null;
-
-    if (!sourceFile) {
-      setAiError(
-        file?.type?.startsWith("video/")
-          ? "For video, upload a poster image first so AI can analyze the NFT visually."
-          : "Upload an image first."
-      );
-      return;
-    }
-
-    setAiLoading(true);
-
-    try {
-      const imageDataUrl = await imageFileToOptimizedDataUrl(sourceFile, 1280, 0.86);
-
-      const res = await fetch("/api/ai-suggest", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          imageDataUrl,
-          name: name.trim(),
-          description: description.trim(),
-          brand: brand.trim(),
-          offerType,
-          category: selectedCategoryLabel,
-          subcategory: subcategory.trim(),
-          itemLabel: itemLabel.trim(),
-        }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok || !data?.ok || !data?.suggestion) {
-        throw new Error(data?.error || "AI suggestion failed");
-      }
-
-      setAiSuggestion(data.suggestion as AiSuggestion);
-    } catch (e: any) {
-      setAiError(prettyError(e));
-    } finally {
-      setAiLoading(false);
-    }
-  }
-
   const { data: txHash, writeContractAsync, isPending: isWalletPromptOpen } =
     useWriteContract();
 
@@ -1272,7 +1364,7 @@ export default function MintForm() {
 
     (async () => {
       const finalName = name.trim() || "Untitled NFT";
-      const finalCategory = previewCategory || selectedCategoryLabel;
+      const finalCategory = previewCategory || category;
       const targetMode = submittedMintMode;
       const targetContract = submittedMintContract;
 
@@ -1334,7 +1426,8 @@ export default function MintForm() {
       qp.set("category", finalCategory);
       qp.set("subcategory", subcategory.trim());
       qp.set("project", project);
-      qp.set("itemType", itemLabel.trim() || humanOfferType(offerType));
+      qp.set("itemType", itemType.trim());
+      qp.set("item", itemLabel.trim());
       qp.set("brand", brand.trim());
       qp.set("delivery", targetMode === "delivery" ? "1" : "0");
       qp.set("market", suggestedMarketType);
@@ -1356,6 +1449,116 @@ export default function MintForm() {
     }
     if (effectiveChainId !== baseSepolia.id) {
       await switchChainAsync({ chainId: baseSepolia.id });
+    }
+  }
+
+  async function handleAiSuggest() {
+    setAiSuggestError("");
+    setError("");
+
+    if (!file) {
+      setAiSuggestError("Upload image first.");
+      return;
+    }
+
+    if (file.type.startsWith("video/") && !posterFile) {
+      setAiSuggestError(
+        "For AI suggest with video, add poster image first."
+      );
+      return;
+    }
+
+    setAiSuggesting(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      if (posterFile) {
+        formData.append("poster", posterFile);
+      }
+
+      formData.append("name", name.trim());
+      formData.append("description", description.trim());
+      formData.append("project", project);
+      formData.append("brand", brand.trim());
+      formData.append("deliveryMode", deliveryMode);
+
+      const res = await fetch(AI_SUGGEST_URL, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.suggestion) {
+        throw new Error(data?.message || "AI suggest failed");
+      }
+
+      const suggestionRaw = data.suggestion || {};
+
+      const suggestion: AiSuggestion = {
+        path: normalizeAiPath(suggestionRaw.path),
+        category: suggestionRaw.category ? String(suggestionRaw.category) : null,
+        itemType: suggestionRaw.itemType ? String(suggestionRaw.itemType) : null,
+        itemLabel: suggestionRaw.itemLabel
+          ? String(suggestionRaw.itemLabel)
+          : null,
+        subcategory: suggestionRaw.subcategory
+          ? String(suggestionRaw.subcategory)
+          : null,
+        title: suggestionRaw.title ? String(suggestionRaw.title) : null,
+        brand: suggestionRaw.brand ? String(suggestionRaw.brand) : null,
+        fulfillmentType: normalizeFulfillmentType(suggestionRaw.fulfillmentType),
+        suggestedMarketType:
+          normalizeSuggestedMarketType(suggestionRaw.suggestedMarketType) ||
+          "standard",
+        reasoning: suggestionRaw.reasoning
+          ? String(suggestionRaw.reasoning)
+          : null,
+        searchTags: Array.isArray(suggestionRaw.searchTags)
+          ? suggestionRaw.searchTags
+              .map((x: unknown) => String(x || "").trim())
+              .filter(Boolean)
+          : [],
+      };
+
+      setAiSuggestion(suggestion);
+    } catch (e: any) {
+      setAiSuggestError(prettyError(e));
+      setAiSuggestion(null);
+    } finally {
+      setAiSuggesting(false);
+    }
+  }
+
+  function applyAiSuggestion() {
+    if (!aiSuggestion) return;
+
+    resetPreparedState();
+
+    if (aiSuggestion.category) {
+      setCategory(normalizeCategoryValue(aiSuggestion.category));
+    }
+
+    if (aiSuggestion.itemType) {
+      setItemType(aiSuggestion.itemType);
+    }
+
+    if (aiSuggestion.itemLabel) {
+      setItemLabel(aiSuggestion.itemLabel);
+    }
+
+    if (aiSuggestion.subcategory) {
+      setSubcategory(aiSuggestion.subcategory);
+    }
+
+    if (aiSuggestion.brand && !brand.trim()) {
+      setBrand(aiSuggestion.brand);
+    }
+
+    if (aiSuggestion.title && !name.trim()) {
+      setName(aiSuggestion.title);
     }
   }
 
@@ -1408,9 +1611,10 @@ export default function MintForm() {
       formData.append("name", name.trim());
       formData.append("description", description.trim());
       formData.append("project", project);
-      formData.append("category", selectedCategoryLabel);
+      formData.append("category", category);
       formData.append("subcategory", subcategory.trim());
-      formData.append("itemType", itemLabel.trim() || humanOfferType(offerType));
+      formData.append("itemType", itemType.trim());
+      formData.append("item", itemLabel.trim());
       formData.append("brand", brand.trim());
       formData.append("deliveryMode", deliveryMode);
       formData.append("deliveryEnabled", isDeliveryMode ? "true" : "false");
@@ -1418,8 +1622,6 @@ export default function MintForm() {
         "physicalItemIncluded",
         isDeliveryMode ? "true" : "false"
       );
-      formData.append("offerType", offerType);
-      formData.append("tags", tagsText.trim());
       formData.append("fulfillmentType", fulfillmentType || "");
       formData.append("suggestedMarketType", suggestedMarketType);
       formData.append("supply", String(clampSupply(supply)));
@@ -1476,7 +1678,7 @@ export default function MintForm() {
         setPreparedPoster(null);
       }
 
-      setPreviewCategory(data?.preview?.category || selectedCategoryLabel);
+      setPreviewCategory(data?.preview?.category || category);
       setStep("idle");
     } catch (e: any) {
       setError(prettyError(e));
@@ -1563,7 +1765,7 @@ export default function MintForm() {
     : "Refresh";
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+    <div className="grid grid-cols-1 gap-10 lg:grid-cols-2">
       <Stepper
         mounted={mounted}
         connected={connected}
@@ -1582,19 +1784,18 @@ export default function MintForm() {
         deliveryAccessLoading={
           isDeliveryAccessLoading || isDeliveryAccessFetching
         }
-        offerType={offerType}
         fulfillmentType={fulfillmentType}
         suggestedMarketType={suggestedMarketType}
       />
 
       <div className="space-y-8">
         <Card>
-          <div className="flex items-end justify-between mb-4">
+          <div className="mb-4 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
                 Select project
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
+              <div className="mt-1 text-[11px] text-white/55">
                 Choose the context for your mint.
               </div>
             </div>
@@ -1604,7 +1805,7 @@ export default function MintForm() {
             </Pill>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             {PROJECTS.map((p) => {
               const active = project === p;
               return (
@@ -1616,11 +1817,11 @@ export default function MintForm() {
                     setProject(p);
                   }}
                   className={[
-                    "px-4 py-2.5 rounded-2xl border text-sm font-extrabold transition",
+                    "rounded-2xl border px-4 py-2.5 text-sm font-extrabold transition",
                     "shadow-[0_16px_40px_rgba(0,0,0,0.35)]",
                     active
                       ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                      : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+                      : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
                   ].join(" ")}
                 >
                   {p}
@@ -1631,12 +1832,12 @@ export default function MintForm() {
         </Card>
 
         <Card>
-          <div className="flex items-end justify-between mb-4">
+          <div className="mb-4 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
                 Upload your file
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
+              <div className="mt-1 text-[11px] text-white/55">
                 Photo / video / design / product image.
               </div>
             </div>
@@ -1662,14 +1863,13 @@ export default function MintForm() {
               if (e.key === "Enter" || e.key === " ") openFilePicker();
             }}
             className={[
-              "relative overflow-hidden rounded-[26px] border-2 border-dashed",
-              "border-white/15 bg-white/[0.04]",
-              "p-6 cursor-pointer transition",
-              "hover:bg-white/[0.06] hover:border-white/25",
+              "relative cursor-pointer overflow-hidden rounded-[26px] border-2 border-dashed",
+              "border-white/15 bg-white/[0.04] p-6 transition",
+              "hover:border-white/25 hover:bg-white/[0.06]",
             ].join(" ")}
           >
-            <div className="relative flex gap-5 items-center">
-              <div className="w-28 h-28 rounded-2xl bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shrink-0 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
+            <div className="relative flex items-center gap-5">
+              <div className="h-28 w-28 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
                 {effectivePreviewSrc ? (
                   <NftMedia
                     src={effectivePreviewSrc}
@@ -1683,31 +1883,28 @@ export default function MintForm() {
                     roundedClass="rounded-2xl"
                   />
                 ) : (
-                  <div className="text-xs text-center text-white/60 px-3">
+                  <div className="flex h-full w-full items-center justify-center px-3 text-center text-xs text-white/60">
                     {file ? "Preview" : "Click to upload"}
                   </div>
                 )}
               </div>
 
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-extrabold mb-1">
-                  Premium media upload
-                </p>
-                <p className="text-xs text-white/60 leading-relaxed">
+              <div className="min-w-0 flex-1">
+                <p className="mb-1 text-sm font-extrabold">Premium media upload</p>
+                <p className="text-xs leading-relaxed text-white/60">
                   Click to upload. Video supported.
                 </p>
 
                 {file && (
-                  <p className="mt-3 text-xs font-semibold truncate">
-                    Selected:{" "}
-                    <span className="text-white/70">{file.name}</span>
+                  <p className="mt-3 truncate text-xs font-semibold">
+                    Selected: <span className="text-white/70">{file.name}</span>
                   </p>
                 )}
 
                 {tokenURI && (
                   <p className="mt-3 text-xs">
                     ✅ Prepared tokenURI:{" "}
-                    <span className="text-white/70 break-all">{tokenURI}</span>
+                    <span className="break-all text-white/70">{tokenURI}</span>
                   </p>
                 )}
               </div>
@@ -1720,7 +1917,8 @@ export default function MintForm() {
                 <div>
                   <div className="text-sm font-extrabold">Poster (thumbnail)</div>
                   <div className="mt-1 text-[11px] text-white/55">
-                    Optional for mint preview, but recommended for AI suggestion.
+                    Optional for mint prepare. For AI suggest on video, poster is
+                    recommended.
                   </div>
                 </div>
                 <Pill>
@@ -1738,7 +1936,7 @@ export default function MintForm() {
               />
 
               <div className="mt-4 flex items-center gap-4">
-                <div className="h-16 w-16 rounded-2xl border border-white/10 bg-black/30 overflow-hidden flex items-center justify-center">
+                <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
                   {posterPreviewUrl ? (
                     <img
                       src={posterPreviewUrl}
@@ -1750,10 +1948,10 @@ export default function MintForm() {
                   )}
                 </div>
 
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="text-xs text-white/60">
                     {posterFile ? (
-                      <span className="font-semibold text-white/80 truncate block">
+                      <span className="block truncate font-semibold text-white/80">
                         {posterFile.name}
                       </span>
                     ) : (
@@ -1764,7 +1962,7 @@ export default function MintForm() {
                     <button
                       type="button"
                       onClick={openPosterPicker}
-                      className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 transition text-xs font-extrabold"
+                      className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 text-xs font-extrabold transition hover:bg-white/10"
                     >
                       Choose poster
                     </button>
@@ -1772,7 +1970,7 @@ export default function MintForm() {
                       <button
                         type="button"
                         onClick={() => onPickPoster(null)}
-                        className="px-4 py-2 rounded-2xl border border-white/15 bg-white/[0.04] hover:bg-white/[0.06] transition text-xs font-extrabold text-white/70"
+                        className="rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-2 text-xs font-extrabold text-white/70 transition hover:bg-white/[0.06]"
                       >
                         Remove
                       </button>
@@ -1785,69 +1983,71 @@ export default function MintForm() {
         </Card>
 
         <Card>
-          <div className="flex items-start justify-between gap-4">
+          <div className="mb-4 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
                 AI assistant
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
-                Analyze the uploaded NFT image and suggest offer path, search
-                category, item label and tags.
+              <div className="mt-1 text-[11px] text-white/55">
+                Detect category and item from your uploaded image.
               </div>
             </div>
-
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
               Smart assist
             </Pill>
           </div>
 
-          <div className="mt-4 flex flex-col gap-3 md:flex-row">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <GhostButton
-              disabled={aiLoading || !file}
+              disabled={!file || aiSuggesting || busy}
               onClick={handleAiSuggest}
-              className="md:w-auto md:px-6"
             >
-              {aiLoading ? "Analyzing image…" : "Suggest with AI"}
+              {aiSuggesting ? "AI analyzing…" : "Analyze image with AI"}
             </GhostButton>
 
-            {aiSuggestion ? (
-              <GoldButton
-                onClick={applyAiSuggestion}
-                className="md:w-auto md:px-6"
-              >
-                Apply AI suggestion
-              </GoldButton>
-            ) : null}
+            <GoldButton
+              disabled={!aiSuggestion || aiSuggesting || busy}
+              onClick={applyAiSuggestion}
+            >
+              Apply AI suggestion
+            </GoldButton>
           </div>
 
-          {aiError ? (
+          <div className="mt-3 text-[11px] leading-relaxed text-white/55">
+            Best for product photos, service cards, portfolios, websites, merch,
+            packaging, and real-world items. For video, poster image is recommended.
+          </div>
+
+          {aiSuggestError ? (
             <div className="mt-4 rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
-              {aiError}
+              {aiSuggestError}
             </div>
           ) : null}
 
           {aiSuggestion ? (
             <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Pill>
-                  <span className="text-white/70">Offer:</span>
-                  <span className="text-white font-extrabold">
-                    {humanOfferType(aiSuggestion.offerType)}
+                  <span className="text-white/70">Path:</span>
+                  <span className="font-extrabold text-white">
+                    {humanAiPath(aiSuggestion.path)}
                   </span>
                 </Pill>
 
-                <Pill>
-                  <span className="text-white/70">Category:</span>
-                  <span className="text-white font-extrabold">
-                    {aiSuggestion.category}
-                  </span>
-                </Pill>
+                {aiSuggestion.fulfillmentType ? (
+                  <Pill>
+                    <span className="text-white/70">Class:</span>
+                    <span className="font-extrabold text-white">
+                      {humanFulfillmentType(aiSuggestion.fulfillmentType)}
+                    </span>
+                  </Pill>
+                ) : null}
 
                 <Pill>
-                  <span className="text-white/70">Confidence:</span>
-                  <span className="text-amber-200 font-extrabold">
-                    {Math.round(aiSuggestion.confidence * 100)}%
+                  <span className="text-white/70">Listing:</span>
+                  <span className="font-extrabold text-amber-200">
+                    {humanSuggestedMarketType(aiSuggestion.suggestedMarketType)}
                   </span>
                 </Pill>
               </div>
@@ -1855,41 +2055,57 @@ export default function MintForm() {
               <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
                   <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Suggested item
+                    Category
                   </div>
                   <div className="mt-2 text-sm font-extrabold text-white">
-                    {aiSuggestion.itemLabel}
+                    {aiSuggestion.category || "—"}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
                   <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Suggested tags
+                    Item Type
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {aiSuggestion.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-bold text-white/80"
-                      >
-                        {tag}
-                      </span>
-                    ))}
+                  <div className="mt-2 text-sm font-extrabold text-white">
+                    {aiSuggestion.itemType || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                    Item Label
+                  </div>
+                  <div className="mt-2 text-sm font-extrabold text-white">
+                    {aiSuggestion.itemLabel || "—"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                    Subcategory
+                  </div>
+                  <div className="mt-2 text-sm font-extrabold text-white">
+                    {aiSuggestion.subcategory || "—"}
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4 text-[12px] leading-relaxed text-white/60">
-                {aiSuggestion.summary}
-              </div>
+              {aiSuggestion.reasoning ? (
+                <div className="mt-4 text-[12px] leading-relaxed text-white/65">
+                  {aiSuggestion.reasoning}
+                </div>
+              ) : null}
 
-              {aiSuggestion.offerType === "physical_product" &&
-              approvedPhysicalSeller &&
-              deliveryMode !== "delivery" ? (
-                <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100">
-                  AI thinks this looks like a physical product. Since this wallet
-                  is approved, you can switch to <span className="font-black">With delivery</span>{" "}
-                  to mint it in the delivery-enabled physical flow.
+              {aiSuggestion.searchTags.length > 0 ? (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {aiSuggestion.searchTags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-bold text-white/75"
+                    >
+                      {tag}
+                    </span>
+                  ))}
                 </div>
               ) : null}
             </div>
@@ -1897,102 +2113,44 @@ export default function MintForm() {
         </Card>
 
         <Card>
-          <div className="flex items-end justify-between mb-4">
+          <div className="mb-4 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
-                Offer path
+                Main category
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
-                Main route that defines how the NFT should behave later.
+              <div className="mt-1 text-[11px] text-white/55">
+                Main marketplace category for filtering and search.
               </div>
             </div>
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
-              Required
+              Recommended
             </Pill>
           </div>
 
-          <div className="grid grid-cols-1 gap-3">
-            {OFFER_TYPES.map((entry) => {
-              const active = offerType === entry.value;
-
-              return (
-                <button
-                  key={entry.value}
-                  type="button"
-                  onClick={() => {
-                    resetPreparedState();
-                    setOfferType(entry.value);
-                  }}
-                  className={cx(
-                    "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
-                    active
-                      ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                      : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white"
-                  )}
-                >
-                  <div className="text-sm font-extrabold">{entry.title}</div>
-                  <div
-                    className={
-                      active
-                        ? "text-black/70 text-xs mt-1"
-                        : "text-white/55 text-xs mt-1"
-                    }
-                  >
-                    {entry.subtitle}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-3 text-xs text-white/60">
-            Selected offer path:{" "}
-            <span className="font-semibold text-white">
-              {humanOfferType(offerType)}
-            </span>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-end justify-between mb-4">
-            <div>
-              <div className="text-sm font-extrabold tracking-tight">
-                Search category
-              </div>
-              <div className="text-[11px] text-white/55 mt-1">
-                Broad marketplace search bucket for filtering later.
-              </div>
-            </div>
-            <Pill>
-              <span className="h-2 w-2 rounded-full bg-white/60" />
-              Optional
-            </Pill>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {SEARCH_CATEGORIES.map((c) => {
-              const active = searchCategory === c;
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {CATEGORIES.map((c) => {
+              const active = category === c;
               return (
                 <button
                   key={c}
                   type="button"
                   onClick={() => {
                     resetPreparedState();
-                    setSearchCategory(c);
+                    setCategory(c);
                   }}
                   className={[
-                    "flex items-center justify-between gap-3 px-4 py-2.5 rounded-2xl border text-sm transition",
+                    "flex items-center justify-between gap-3 rounded-2xl border px-4 py-2.5 text-sm transition",
                     "shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
                     active
                       ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                      : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+                      : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
                   ].join(" ")}
                 >
                   <span className="font-extrabold text-left">{c}</span>
                   <span
                     className={[
-                      "w-5 h-5 rounded-md border flex items-center justify-center text-xs shrink-0",
+                      "flex h-5 w-5 items-center justify-center rounded-md border text-xs shrink-0",
                       active ? "border-black/35 bg-black/10" : "border-white/25",
                     ].join(" ")}
                   >
@@ -2004,19 +2162,101 @@ export default function MintForm() {
           </div>
 
           <p className="mt-3 text-xs text-white/60">
-            Selected category:{" "}
-            <span className="font-semibold text-white">{selectedCategoryLabel}</span>
+            Selected: <span className="font-semibold text-white">{category}</span>
           </p>
         </Card>
 
         <Card>
-          <div className="flex items-end justify-between mb-3">
+          <div className="mb-3 flex items-end justify-between">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Specific item / offer
+              </div>
+              <div className="mt-1 text-[11px] text-white/55">
+                The exact thing being sold or represented.
+              </div>
+            </div>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+              Recommended
+            </Pill>
+          </div>
+
+          <input
+            type="text"
+            placeholder="Example: Graphic T-shirt / Fitness coaching / Coffee bag / Website audit"
+            value={itemLabel}
+            onChange={(e) => {
+              resetPreparedState();
+              setItemLabel(e.target.value);
+            }}
+            className={[
+              "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+              "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
+            ].join(" ")}
+          />
+        </Card>
+
+        <Card>
+          <div className="mb-3 flex items-end justify-between">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Item type
+              </div>
+              <div className="mt-1 text-[11px] text-white/55">
+                Short type name. AI can suggest it from the image.
+              </div>
+            </div>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-white/60" />
+              Flexible
+            </Pill>
+          </div>
+
+          <input
+            type="text"
+            placeholder="Example: T-shirt / Consultation / Website / Digital Service / Coffee"
+            value={itemType}
+            onChange={(e) => {
+              resetPreparedState();
+              setItemType(e.target.value);
+            }}
+            className={[
+              "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+              "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
+            ].join(" ")}
+          />
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {ITEM_TYPE_SUGGESTIONS.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  resetPreparedState();
+                  setItemType(t);
+                }}
+                className={cx(
+                  "rounded-full border px-3 py-1.5 text-[11px] font-bold transition",
+                  normText(itemType) === normText(t)
+                    ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
+                    : "border-white/10 bg-white/[0.06] text-white/75 hover:bg-white/[0.10]"
+                )}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card>
+          <div className="mb-3 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
                 Subcategory / niche
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
-                Optional precision for routing and buyer search later.
+              <div className="mt-1 text-[11px] text-white/55">
+                More precise niche for search and routing later.
               </div>
             </div>
             <Pill>
@@ -2027,82 +2267,26 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: Yoga coach, Toy figure, Luxury T-shirt, Plumbing help, Landing page"
+            placeholder="Example: Streetwear / Yoga coaching / Landing page / Handmade chocolate / Plumbing repair"
             value={subcategory}
             onChange={(e) => {
               resetPreparedState();
               setSubcategory(e.target.value);
             }}
             className={[
-              "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-white/[0.04] border border-white/10 text-white",
-              "placeholder:text-white/35",
-              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+              "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
             ].join(" ")}
           />
         </Card>
 
         <Card>
-          <div className="flex items-end justify-between mb-3">
-            <div>
-              <div className="text-sm font-extrabold tracking-tight">
-                Item label
-              </div>
-              <div className="text-[11px] text-white/55 mt-1">
-                Free text item name. AI can suggest it from the uploaded image.
-              </div>
-            </div>
-            <Pill>
-              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
-              Required
-            </Pill>
-          </div>
-
-          <input
-            type="text"
-            placeholder="Example: Toy, Coffee bag, Consultation, Yoga session, Website, T-shirt"
-            value={itemLabel}
-            onChange={(e) => {
-              resetPreparedState();
-              setItemLabel(e.target.value);
-            }}
-            className={[
-              "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-white/[0.04] border border-white/10 text-white",
-              "placeholder:text-white/35",
-              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
-            ].join(" ")}
-          />
-
-          <div className="mt-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
-              Tags
-            </div>
-            <input
-              type="text"
-              placeholder="comma separated tags, optional"
-              value={tagsText}
-              onChange={(e) => {
-                resetPreparedState();
-                setTagsText(e.target.value);
-              }}
-              className={[
-                "mt-2 w-full rounded-2xl px-4 py-3 text-sm",
-                "bg-white/[0.04] border border-white/10 text-white",
-                "placeholder:text-white/35",
-                "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
-              ].join(" ")}
-            />
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-end justify-between mb-4">
+          <div className="mb-4 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
                 Delivery option
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
+              <div className="mt-1 text-[11px] text-white/55">
                 Choose whether this edition is standard or delivery-enabled.
               </div>
             </div>
@@ -2112,7 +2296,7 @@ export default function MintForm() {
             </Pill>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <button
               type="button"
               onClick={() => {
@@ -2124,18 +2308,18 @@ export default function MintForm() {
                 "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
                 deliveryMode === "none"
                   ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                  : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+                  : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
               ].join(" ")}
             >
               <div className="text-sm font-extrabold">Without delivery</div>
               <div
                 className={
                   deliveryMode === "none"
-                    ? "text-black/70 text-xs mt-1"
-                    : "text-white/55 text-xs mt-1"
+                    ? "mt-1 text-xs text-black/70"
+                    : "mt-1 text-xs text-white/55"
                 }
               >
-                Standard public mint. Includes normal collectibles and also
+                Standard public mint. Good for collectible NFTs and also
                 service-style NFTs that can later route to Protected flow.
               </div>
             </button>
@@ -2152,20 +2336,20 @@ export default function MintForm() {
               className={[
                 "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
                 !approvedPhysicalSeller
-                  ? "bg-white/[0.03] border-white/10 text-white/45 cursor-not-allowed"
+                  ? "cursor-not-allowed border-white/10 bg-white/[0.03] text-white/45"
                   : deliveryMode === "delivery"
                   ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                  : "bg-white/[0.06] border-white/10 hover:bg-white/10 text-white",
+                  : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
               ].join(" ")}
             >
               <div className="text-sm font-extrabold">With delivery</div>
               <div
                 className={
                   !approvedPhysicalSeller
-                    ? "text-white/40 text-xs mt-1"
+                    ? "mt-1 text-xs text-white/40"
                     : deliveryMode === "delivery"
-                    ? "text-black/70 text-xs mt-1"
-                    : "text-white/55 text-xs mt-1"
+                    ? "mt-1 text-xs text-black/70"
+                    : "mt-1 text-xs text-white/55"
                 }
               >
                 Delivery-enabled physical item flow. Available only for approved
@@ -2182,8 +2366,8 @@ export default function MintForm() {
                   <span
                     className={
                       approvedPhysicalSeller
-                        ? "text-emerald-200 font-extrabold"
-                        : "text-white font-extrabold"
+                        ? "font-extrabold text-emerald-200"
+                        : "font-extrabold text-white"
                     }
                   >
                     {approvedPhysicalSeller ? "approved" : "standard wallet"}
@@ -2211,10 +2395,10 @@ export default function MintForm() {
                   <span
                     className={
                       isDeliveryAccessLoading || isDeliveryAccessFetching
-                        ? "text-white font-extrabold"
+                        ? "font-extrabold text-white"
                         : deliveryOnchainApproved
-                        ? "text-emerald-200 font-extrabold"
-                        : "text-rose-200 font-extrabold"
+                        ? "font-extrabold text-emerald-200"
+                        : "font-extrabold text-rose-200"
                     }
                   >
                     {isDeliveryAccessLoading || isDeliveryAccessFetching
@@ -2231,8 +2415,8 @@ export default function MintForm() {
                   </div>
                 ) : !deliveryOnchainApproved ? (
                   <div className="mt-2 text-rose-200">
-                    Your profile is approved, but the wallet still needs
-                    on-chain allowlist access for the delivery mint contract.
+                    Your profile is approved, but the wallet still needs on-chain
+                    allowlist access for the delivery mint contract.
                   </div>
                 ) : null}
               </>
@@ -2243,14 +2427,14 @@ export default function MintForm() {
         </Card>
 
         <Card>
-          <div className="flex items-end justify-between mb-3">
+          <div className="mb-3 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
                 Routing preview
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
-                This does not mint into a marketplace. It only classifies the
-                NFT so the platform can later choose the correct listing flow.
+              <div className="mt-1 text-[11px] text-white/55">
+                This does not mint into a marketplace directly. It only stores
+                enough metadata for later routing.
               </div>
             </div>
             <Pill>
@@ -2259,18 +2443,9 @@ export default function MintForm() {
             </Pill>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/50 uppercase tracking-[0.16em]">
-                Offer path
-              </div>
-              <div className="mt-2 text-sm font-extrabold text-white">
-                {humanOfferType(offerType)}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/50 uppercase tracking-[0.16em]">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/50">
                 Mint contract
               </div>
               <div className="mt-2 text-sm font-extrabold text-white">
@@ -2281,7 +2456,7 @@ export default function MintForm() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/50 uppercase tracking-[0.16em]">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/50">
                 NFT class
               </div>
               <div className="mt-2 text-sm font-extrabold text-white">
@@ -2290,7 +2465,7 @@ export default function MintForm() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/50 uppercase tracking-[0.16em]">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-white/50">
                 Suggested listing
               </div>
               <div className="mt-2 text-sm font-extrabold text-amber-200">
@@ -2299,26 +2474,31 @@ export default function MintForm() {
             </div>
           </div>
 
-          <div className="mt-3 text-[11px] text-white/55 leading-relaxed">
-            {deliveryMode === "delivery" ? (
+          <div className="mt-3 text-[11px] leading-relaxed text-white/55">
+            Category:{" "}
+            <span className="font-semibold text-white">{category}</span>
+            {itemType.trim() ? (
               <>
-                Delivery mode forces the NFT into the delivery-enabled physical
-                item flow and later it should use protected escrow / trust
-                mechanics.
+                {" · "}Item type:{" "}
+                <span className="font-semibold text-white">{itemType.trim()}</span>
               </>
-            ) : suggestedMarketType === "protected" ? (
+            ) : null}
+            {itemLabel.trim() ? (
+              <>
+                {" · "}Item:{" "}
+                <span className="font-semibold text-white">{itemLabel.trim()}</span>
+              </>
+            ) : null}
+          </div>
+
+          <div className="mt-2 text-[11px] leading-relaxed text-white/55">
+            {suggestedMarketType === "protected" ? (
               <>
                 Because this NFT is classified as{" "}
-                <span className="text-white font-semibold">
+                <span className="font-semibold text-white">
                   {humanFulfillmentType(fulfillmentType)}
                 </span>
                 , later listing should go through protected escrow / trust flow.
-              </>
-            ) : offerType === "physical_product" ? (
-              <>
-                Physical product path is selected, but delivery is still off.
-                So mint stays standard for now until seller uses delivery-enabled
-                flow.
               </>
             ) : (
               <>
@@ -2337,13 +2517,12 @@ export default function MintForm() {
               <Pill>
                 <span
                   className={[
-                    "h-2 w-2 rounded-full",
+                    "h-2 w-2 rounded-full shadow-[0_0_0_6px_rgba(255,255,255,0.06)]",
                     !mounted || !connected
                       ? "bg-white/30"
                       : wrongNetwork
                       ? "bg-rose-400"
                       : "bg-emerald-400",
-                    "shadow-[0_0_0_6px_rgba(255,255,255,0.06)]",
                   ].join(" ")}
                 />
                 {mounted
@@ -2366,20 +2545,16 @@ export default function MintForm() {
               </div>
 
               <div className="mt-2 text-xs text-white/65">
-                Balance:{" "}
-                <span className="font-semibold text-white">{balanceLabel}</span>
+                Balance: <span className="font-semibold text-white">{balanceLabel}</span>
               </div>
 
-              <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
+              <div className="mt-2 text-[11px] leading-relaxed text-white/55">
                 Create edition and earn{" "}
-                <span className="text-amber-200 font-extrabold">+10 points</span>.
-                <span className="text-white/45">
-                  {" "}
-                  Your editions will show in your gallery.
-                </span>
+                <span className="font-extrabold text-amber-200">+10 points</span>.
+                <span className="text-white/45"> Your editions will show in your gallery.</span>
               </div>
 
-              <div className="mt-2 text-[11px] text-white/55 leading-relaxed">
+              <div className="mt-2 text-[11px] leading-relaxed text-white/55">
                 {mounted && connected ? (
                   <>
                     {wrongNetwork
@@ -2389,7 +2564,7 @@ export default function MintForm() {
                       : "Open faucet, claim test ETH, then refresh."}{" "}
                     <Link
                       href="/app/faucet"
-                      className="text-[#d4af37] font-semibold hover:brightness-110 transition"
+                      className="font-semibold text-[#d4af37] transition hover:brightness-110"
                     >
                       Faucet ↗
                     </Link>
@@ -2403,7 +2578,7 @@ export default function MintForm() {
               </div>
             </div>
 
-            <div className="shrink-0 flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
@@ -2411,7 +2586,7 @@ export default function MintForm() {
                   void refetchDeliveryOnchainAccess();
                 }}
                 disabled={!mounted || !connected || isBalanceFetching}
-                className="h-10 px-4 rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition text-xs font-extrabold disabled:opacity-40 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                className="h-10 rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-xs font-extrabold transition hover:bg-white/10 disabled:opacity-40 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
                 {refreshLabel}
               </button>
@@ -2420,7 +2595,7 @@ export default function MintForm() {
                 <button
                   type="button"
                   onClick={() => openConnectModal?.()}
-                  className="h-10 px-4 rounded-2xl bg-white text-black hover:bg-gray-100 transition text-xs font-extrabold shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                  className="h-10 rounded-2xl bg-white px-4 text-xs font-extrabold text-black transition hover:bg-gray-100 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                 >
                   Connect
                 </button>
@@ -2431,7 +2606,7 @@ export default function MintForm() {
                   onClick={() =>
                     switchChainAsync({ chainId: baseSepolia.id }).catch(() => {})
                   }
-                  className="h-10 px-4 rounded-2xl bg-white text-black hover:bg-gray-100 transition text-xs font-extrabold disabled:opacity-60 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                  className="h-10 rounded-2xl bg-white px-4 text-xs font-extrabold text-black transition hover:bg-gray-100 disabled:opacity-60 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                 >
                   {isSwitching ? "Switching…" : "Switch"}
                 </button>
@@ -2447,12 +2622,12 @@ export default function MintForm() {
         </Card>
 
         <Card>
-          <div className="flex items-end justify-between mb-3">
+          <div className="mb-3 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
-                NFT name / Title
+                NFT name / title
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
+              <div className="mt-1 text-[11px] text-white/55">
                 Public title on-chain.
               </div>
             </div>
@@ -2471,21 +2646,19 @@ export default function MintForm() {
               setName(e.target.value);
             }}
             className={[
-              "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-white/[0.04] border border-white/10 text-white",
-              "placeholder:text-white/35",
-              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+              "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
             ].join(" ")}
           />
         </Card>
 
         <Card>
-          <div className="flex items-end justify-between mb-3">
+          <div className="mb-3 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
-                Brand / Maker
+                Brand / maker
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
+              <div className="mt-1 text-[11px] text-white/55">
                 Brand, studio, creator mark or collection name.
               </div>
             </div>
@@ -2497,28 +2670,26 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: Atelier Realife / Custom Studio / Crypto Cafe / Fashion Brand"
+            placeholder="Example: Atelier Realife / Vintage House / Custom Studio"
             value={brand}
             onChange={(e) => {
               resetPreparedState();
               setBrand(e.target.value);
             }}
             className={[
-              "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-white/[0.04] border border-white/10 text-white",
-              "placeholder:text-white/35",
-              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+              "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
             ].join(" ")}
           />
         </Card>
 
         <Card>
-          <div className="flex items-end justify-between mb-3">
+          <div className="mb-3 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
-                Amount / Supply
+                Amount / supply
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
+              <div className="mt-1 text-[11px] text-white/55">
                 ERC-1155 editions: set supply.
               </div>
             </div>
@@ -2538,20 +2709,19 @@ export default function MintForm() {
               setSupply(clampSupply(Number(e.target.value)));
             }}
             className={[
-              "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-white/[0.04] border border-white/10 text-white",
-              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+              "focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
             ].join(" ")}
           />
         </Card>
 
         <Card>
-          <div className="flex items-end justify-between mb-3">
+          <div className="mb-3 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
                 Description
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
+              <div className="mt-1 text-[11px] text-white/55">
                 Story builds credibility.
               </div>
             </div>
@@ -2562,29 +2732,26 @@ export default function MintForm() {
           </div>
 
           <textarea
-            placeholder="Tell the story of your work, product or service..."
+            placeholder="Tell the story of your work..."
             value={description}
             onChange={(e) => {
               resetPreparedState();
               setDescription(e.target.value);
             }}
             className={[
-              "w-full rounded-2xl px-4 py-3 text-sm min-h-[160px]",
-              "bg-white/[0.04] border border-white/10 text-white",
-              "placeholder:text-white/35",
-              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
-              "resize-none",
+              "min-h-[160px] w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+              "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
             ].join(" ")}
           />
         </Card>
 
         <Card>
-          <div className="flex items-end justify-between mb-3">
+          <div className="mb-3 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
                 Proof / X link
               </div>
-              <div className="text-[11px] text-white/55 mt-1">
+              <div className="mt-1 text-[11px] text-white/55">
                 Optional proof URL.
               </div>
             </div>
@@ -2603,10 +2770,8 @@ export default function MintForm() {
               setProofUrl(e.target.value);
             }}
             className={[
-              "w-full rounded-2xl px-4 py-3 text-sm",
-              "bg-white/[0.04] border border-white/10 text-white",
-              "placeholder:text-white/35",
-              "focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40 focus:border-white/20",
+              "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+              "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
             ].join(" ")}
           />
         </Card>
@@ -2639,42 +2804,52 @@ export default function MintForm() {
           {mintFeeWei > 0n ? (
             <div className="mt-4 text-[11px] text-white/55">
               This contract requires fee:{" "}
-              <span className="text-amber-200 font-extrabold">
+              <span className="font-extrabold text-amber-200">
                 {fmtEth(formatUnits(mintFeeWei, 18))} ETH
               </span>
             </div>
           ) : null}
 
-          <div className="mt-3 text-[11px] text-white/55 leading-relaxed">
-            Current path:{" "}
-            <span className="text-white font-semibold">
-              {humanOfferType(offerType)}
+          <div className="mt-3 text-[11px] leading-relaxed text-white/55">
+            Current mode:{" "}
+            <span className="font-semibold text-white">
+              {deliveryMode === "delivery"
+                ? "With delivery"
+                : "Without delivery"}
             </span>
             {" · "}
             Mint contract:{" "}
-            <span className="text-white font-semibold">
+            <span className="font-semibold text-white">
               {activeMintMode === "delivery" ? "Delivery" : "Standard"}
             </span>
             {" · "}
             NFT class:{" "}
-            <span className="text-white font-semibold">
+            <span className="font-semibold text-white">
               {humanFulfillmentType(fulfillmentType)}
             </span>
             {" · "}
             Later listing:{" "}
-            <span className="text-amber-200 font-semibold">
+            <span className="font-semibold text-amber-200">
               {humanSuggestedMarketType(suggestedMarketType)}
             </span>
             {" · "}
-            Item:{" "}
-            <span className="text-white font-semibold">
-              {itemLabel.trim() || "Not set"}
-            </span>
+            Category: <span className="font-semibold text-white">{category}</span>
+            {itemType.trim() ? (
+              <>
+                {" · "}Item type:{" "}
+                <span className="font-semibold text-white">{itemType.trim()}</span>
+              </>
+            ) : null}
+            {itemLabel.trim() ? (
+              <>
+                {" · "}Item:{" "}
+                <span className="font-semibold text-white">{itemLabel.trim()}</span>
+              </>
+            ) : null}
             {brand.trim() ? (
               <>
-                {" · "}
-                Brand:{" "}
-                <span className="text-white font-semibold">{brand.trim()}</span>
+                {" · "}Brand:{" "}
+                <span className="font-semibold text-white">{brand.trim()}</span>
               </>
             ) : null}
           </div>
