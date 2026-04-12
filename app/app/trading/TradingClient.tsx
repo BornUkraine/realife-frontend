@@ -10,6 +10,12 @@ import NftMedia from "@/components/NftMedia";
 
 type MarketType = "STANDARD" | "PROTECTED";
 
+type FulfillmentType =
+  | "PHYSICAL_GOOD"
+  | "DIGITAL_SERVICE"
+  | "ONLINE_SESSION"
+  | "LOCAL_SERVICE";
+
 type MarketView =
   | "all"
   | "cafe"
@@ -88,6 +94,8 @@ type EnrichedMarketListing = MarketListing & {
   mediaSrc?: string | null;
   mediaPoster?: string | null;
   resolvedMarketType: MarketType;
+  protectedSubtype?: FulfillmentType | null;
+  protectedSubtypeLabel?: string | null;
 };
 
 type PreviewState = {
@@ -134,7 +142,9 @@ function marketLabel(mt?: MarketType | null) {
   return mt === "PROTECTED" ? "PROTECTED" : "STANDARD";
 }
 
-function normalizeMarketView(view?: MarketView): Exclude<MarketView, "publicDelivery"> {
+function normalizeMarketView(
+  view?: MarketView
+): Exclude<MarketView, "publicDelivery"> {
   if (view === "publicDelivery") return "publicProtected";
   if (
     view === "all" ||
@@ -257,6 +267,135 @@ function getAttr(meta: ProductMeta | null, trait: string) {
   return found?.value != null ? String(found.value) : null;
 }
 
+function isProtectedFulfillment(v?: string | null) {
+  const x = String(v || "").trim().toUpperCase();
+  return (
+    x === "PHYSICAL_GOOD" ||
+    x === "DIGITAL_SERVICE" ||
+    x === "ONLINE_SESSION" ||
+    x === "LOCAL_SERVICE"
+  );
+}
+
+function textLooksProtected(...values: Array<string | null | undefined>) {
+  const s = values.map(normText).filter(Boolean).join(" ");
+  if (!s) return false;
+
+  const needles = [
+    "service",
+    "services",
+    "digital service",
+    "online session",
+    "local service",
+    "consultation",
+    "consulting",
+    "lesson",
+    "lessons",
+    "training",
+    "coaching",
+    "mentoring",
+    "tutoring",
+    "website",
+    "website development",
+    "website design",
+    "web design",
+    "web development",
+    "landing page",
+    "development",
+    "design",
+    "graphic design",
+    "logo design",
+    "ui ux",
+    "seo",
+    "smm",
+    "marketing work",
+    "promo work",
+    "ai work",
+    "audit",
+    "call",
+    "meeting",
+    "session",
+  ];
+
+  return needles.some((x) => s.includes(x));
+}
+
+function inferProtectedSubtype(input: {
+  contract?: string | null;
+  fulfillmentType?: string | null;
+  deliveryEnabled?: boolean | null;
+  physicalItemIncluded?: boolean | null;
+  category?: string | null;
+  subcategory?: string | null;
+}): FulfillmentType | null {
+  const ft = String(input.fulfillmentType || "").trim().toUpperCase();
+
+  if (
+    ft === "PHYSICAL_GOOD" ||
+    ft === "DIGITAL_SERVICE" ||
+    ft === "ONLINE_SESSION" ||
+    ft === "LOCAL_SERVICE"
+  ) {
+    return ft as FulfillmentType;
+  }
+
+  const contract = normAddr(input.contract);
+
+  if (PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT) {
+    return "PHYSICAL_GOOD";
+  }
+
+  if (input.deliveryEnabled || input.physicalItemIncluded) {
+    return "PHYSICAL_GOOD";
+  }
+
+  const category = normText(input.category);
+  const subcategory = normText(input.subcategory);
+  const merged = [category, subcategory].filter(Boolean).join(" ");
+
+  if (merged.includes("online session") || merged.includes("session")) {
+    return "ONLINE_SESSION";
+  }
+
+  if (merged.includes("local service")) {
+    return "LOCAL_SERVICE";
+  }
+
+  if (textLooksProtected(input.category, input.subcategory)) {
+    return "DIGITAL_SERVICE";
+  }
+
+  return null;
+}
+
+function fulfillmentTypeLabel(v?: string | null) {
+  const s = String(v || "").trim().toUpperCase();
+  if (!s) return null;
+  return s.replaceAll("_", " ");
+}
+
+function fulfillmentToneClass(v?: string | null) {
+  const s = String(v || "").trim().toUpperCase();
+
+  if (s === "PHYSICAL_GOOD") {
+    return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
+  }
+
+  if (s === "ONLINE_SESSION") {
+    return "border-amber-500/20 bg-amber-500/10 text-amber-100";
+  }
+
+  if (s === "LOCAL_SERVICE") {
+    return "border-sky-500/20 bg-sky-500/10 text-sky-100";
+  }
+
+  if (s === "DIGITAL_SERVICE") {
+    return "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-100";
+  }
+
+  return "border-violet-500/20 bg-violet-500/10 text-violet-100";
+}
+
 function resolveRowMarketType(item: MarketListing): MarketType {
   const contract = normAddr(item.contract);
 
@@ -310,7 +449,7 @@ function getMarketViewConfig(view: Exclude<MarketView, "publicDelivery">) {
         label: "Public Mint • Protected",
         title: "Public Protected NFT Trading",
         subtitle:
-          "Protected public NFTs across delivery-contract items and protected listings from the standard public contract.",
+          "Protected public NFTs across delivery-contract items and protected service/session assets from the standard public contract.",
         contract: null,
         marketType: "PROTECTED" as MarketType,
       };
@@ -348,7 +487,7 @@ function getMarketViewNote(view: Exclude<MarketView, "publicDelivery">) {
       return {
         tone: "border-violet-500/20 bg-violet-500/10 text-violet-100",
         text:
-          "This view shows PROTECTED public NFTs. It includes delivery-contract NFTs and protected assets from the public standard contract when the asset itself requires protected flow.",
+          "This view shows PROTECTED public NFTs. It includes delivery-contract NFTs and protected assets from the public standard contract, with subtype badges like PHYSICAL GOOD, DIGITAL SERVICE or ONLINE SESSION.",
       };
 
     case "publicStandard":
@@ -487,6 +626,7 @@ export default function TradingClient({
         const fulfillmentType = String(x.fulfillmentType || "").toLowerCase();
         const category = String(x.category || "").toLowerCase();
         const subcategory = String(x.subcategory || "").toLowerCase();
+        const protectedSubtype = String(x.protectedSubtypeLabel || "").toLowerCase();
 
         return (
           name.includes(qq) ||
@@ -501,7 +641,8 @@ export default function TradingClient({
           contract.includes(qq) ||
           fulfillmentType.includes(qq) ||
           category.includes(qq) ||
-          subcategory.includes(qq)
+          subcategory.includes(qq) ||
+          protectedSubtype.includes(qq)
         );
       });
     }
@@ -539,7 +680,10 @@ export default function TradingClient({
     try {
       const cfg = getMarketViewConfig(view);
 
-      if ((view === "cafe" || view === "store" || view === "publicStandard") && !cfg.contract) {
+      if (
+        (view === "cafe" || view === "store" || view === "publicStandard") &&
+        !cfg.contract
+      ) {
         setRows([]);
         setTotal(0);
         setSkip(0);
@@ -593,6 +737,27 @@ export default function TradingClient({
 
           const mediaPoster = mediaKind === "video" ? imgHttp || null : null;
 
+          const resolvedMarketType = resolveRowMarketType(item);
+
+          const protectedSubtype =
+            resolvedMarketType === "PROTECTED"
+              ? inferProtectedSubtype({
+                  contract: item.contract,
+                  fulfillmentType:
+                    item.fulfillmentType || item.mint?.fulfillmentType || null,
+                  deliveryEnabled:
+                    item.deliveryEnabled ?? item.mint?.deliveryEnabled ?? null,
+                  physicalItemIncluded:
+                    item.physicalItemIncluded ??
+                    item.mint?.physicalItemIncluded ??
+                    null,
+                  category: item.category || item.mint?.category || null,
+                  subcategory: item.subcategory || item.mint?.subcategory || null,
+                })
+              : null;
+
+          const protectedSubtypeLabel = fulfillmentTypeLabel(protectedSubtype);
+
           return {
             ...item,
             metaImage: imgHttp,
@@ -609,7 +774,9 @@ export default function TradingClient({
             mediaKind,
             mediaSrc: mediaKind === "video" ? mediaSrc : imgHttp || null,
             mediaPoster,
-            resolvedMarketType: resolveRowMarketType(item),
+            resolvedMarketType,
+            protectedSubtype,
+            protectedSubtypeLabel,
           } satisfies EnrichedMarketListing;
         })
       );
@@ -967,7 +1134,7 @@ export default function TradingClient({
                     <input
                       value={q}
                       onChange={(e) => setQ(e.target.value)}
-                      placeholder="name / token id / seller / rarity / item / brand / project / collection / category…"
+                      placeholder="name / token id / seller / rarity / item / brand / project / collection / category / subtype…"
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                     />
                   </div>
@@ -1074,15 +1241,15 @@ export default function TradingClient({
                   const showNoRedemptionBadge = isCafe;
                   const showProtectedBadge = isProtected;
                   const showDeliveryContractBadge = isPublicDeliveryContract;
-                  const showProtectedServiceBadge =
-                    isProtected &&
-                    isPublicStandardContract &&
-                    !isPublicDeliveryContract;
+                  const showProtectedSubtypeBadge =
+                    isProtected && Boolean(x.protectedSubtypeLabel);
 
                   const topLabel = isCafe
                     ? x.collection || "CAFE"
                     : isStore
                     ? x.collection || "STORE"
+                    : isPublicDeliveryContract
+                    ? "PUBLIC DELIVERY"
                     : isProtected
                     ? "PUBLIC PROTECTED"
                     : isPublicStandardContract
@@ -1093,6 +1260,8 @@ export default function TradingClient({
                     ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
                     : isStore
                     ? "border-sky-500/20 bg-sky-500/10 text-sky-100"
+                    : isPublicDeliveryContract
+                    ? "border-violet-500/20 bg-violet-500/10 text-violet-100"
                     : isProtected
                     ? "border-violet-500/20 bg-violet-500/10 text-violet-100"
                     : isPublicStandardContract
@@ -1138,28 +1307,39 @@ export default function TradingClient({
                           mediaBgClass="bg-black"
                         />
 
-                        <div className="absolute left-3 top-3 z-20 flex flex-col gap-2">
+                        <div className="absolute left-3 top-3 z-20 flex max-w-[78%] flex-col gap-2">
                           {x.mediaKind === "video" ? (
-                            <div className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-bold text-amber-100 backdrop-blur-md">
+                            <div className="w-fit rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-bold text-amber-100 backdrop-blur-md">
                               VIDEO
                             </div>
                           ) : null}
 
                           <div
                             className={cx(
-                              "rounded-full border px-2 py-1 text-[10px] font-bold backdrop-blur-md",
+                              "w-fit rounded-full border px-2 py-1 text-[10px] font-bold backdrop-blur-md",
                               topLabelClass
                             )}
                           >
                             {topLabel}
                           </div>
 
-                          <div className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-bold text-white/75 backdrop-blur-md">
+                          <div className="w-fit rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-bold text-white/75 backdrop-blur-md">
                             {marketLabel(rowMarketType)}
                           </div>
 
+                          {showProtectedSubtypeBadge ? (
+                            <div
+                              className={cx(
+                                "w-fit rounded-full border px-2 py-1 text-[10px] font-bold backdrop-blur-md",
+                                fulfillmentToneClass(x.protectedSubtype)
+                              )}
+                            >
+                              {x.protectedSubtypeLabel}
+                            </div>
+                          ) : null}
+
                           {isMine ? (
-                            <div className="rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-bold text-amber-100 backdrop-blur-md">
+                            <div className="w-fit rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-bold text-amber-100 backdrop-blur-md">
                               YOUR LISTING
                             </div>
                           ) : null}
@@ -1217,9 +1397,14 @@ export default function TradingClient({
                             </span>
                           ) : null}
 
-                          {showProtectedServiceBadge ? (
-                            <span className="inline-flex items-center rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-2.5 py-1 text-[10px] font-bold text-fuchsia-100">
-                              PROTECTED ASSET
+                          {showProtectedSubtypeBadge ? (
+                            <span
+                              className={cx(
+                                "inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-bold",
+                                fulfillmentToneClass(x.protectedSubtype)
+                              )}
+                            >
+                              {x.protectedSubtypeLabel}
                             </span>
                           ) : null}
 
@@ -1256,12 +1441,6 @@ export default function TradingClient({
                           {x.rarity ? (
                             <span className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-100">
                               {x.rarity}
-                            </span>
-                          ) : null}
-
-                          {x.fulfillmentType ? (
-                            <span className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-bold text-white/80">
-                              {String(x.fulfillmentType).replaceAll("_", " ")}
                             </span>
                           ) : null}
                         </div>
