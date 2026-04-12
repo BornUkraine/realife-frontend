@@ -230,6 +230,64 @@ function resolveAssetMarketType(params: {
   return "STANDARD";
 }
 
+function resolveProtectedFulfillmentType(params: {
+  contractView: ContractView;
+  deliveryEnabled?: boolean;
+  physicalItemIncluded?: boolean;
+  fulfillmentType?: FulfillmentType | string | null;
+  category?: string | null;
+  subcategory?: string | null;
+}): FulfillmentType {
+  const {
+    contractView,
+    deliveryEnabled,
+    physicalItemIncluded,
+    fulfillmentType,
+    category,
+    subcategory,
+  } = params;
+
+  if (isProtectedFulfillment(fulfillmentType)) {
+    return String(fulfillmentType).trim().toUpperCase() as FulfillmentType;
+  }
+
+  if (contractView === "publicDelivery") return "PHYSICAL_GOOD";
+  if (deliveryEnabled || physicalItemIncluded) return "PHYSICAL_GOOD";
+
+  if (textLooksProtected(category, subcategory)) {
+    if (
+      normText(category).includes("session") ||
+      normText(subcategory).includes("session")
+    ) {
+      return "ONLINE_SESSION";
+    }
+
+    if (
+      normText(category).includes("local service") ||
+      normText(subcategory).includes("local service")
+    ) {
+      return "LOCAL_SERVICE";
+    }
+
+    return "DIGITAL_SERVICE";
+  }
+
+  return "DIGITAL_SERVICE";
+}
+
+function fulfillmentTypeToUint8(v: FulfillmentType): number {
+  if (v === "PHYSICAL_GOOD") return 0;
+  if (v === "DIGITAL_SERVICE") return 1;
+  if (v === "ONLINE_SESSION") return 2;
+  if (v === "LOCAL_SERVICE") return 3;
+  return 1;
+}
+
+function fulfillmentTypeLabel(v?: FulfillmentType | null) {
+  if (!v) return "DIGITAL SERVICE";
+  return String(v).replaceAll("_", " ");
+}
+
 export default function QuickList1155({
   chainId,
   contract,
@@ -326,6 +384,28 @@ export default function QuickList1155({
       marketTypeHint,
     });
   }, [contractView, assetIsProtected, preferredMarketType, marketTypeHint]);
+
+  const protectedFulfillmentType = useMemo(() => {
+    return resolveProtectedFulfillmentType({
+      contractView,
+      deliveryEnabled,
+      physicalItemIncluded,
+      fulfillmentType,
+      category,
+      subcategory,
+    });
+  }, [
+    contractView,
+    deliveryEnabled,
+    physicalItemIncluded,
+    fulfillmentType,
+    category,
+    subcategory,
+  ]);
+
+  const protectedFulfillmentTypeUint8 = useMemo(() => {
+    return fulfillmentTypeToUint8(protectedFulfillmentType);
+  }, [protectedFulfillmentType]);
 
   const marketplaceAddress = useMemo(() => {
     return inferredMarketType === "PROTECTED"
@@ -515,11 +595,22 @@ export default function QuickList1155({
 
       const amt = BigInt(clampInt(amount, 1, Math.max(1, maxAmount)));
 
+      const args =
+        inferredMarketType === "PROTECTED"
+          ? [
+              nftAddr as `0x${string}`,
+              tokenIdBI,
+              amt,
+              priceWei,
+              protectedFulfillmentTypeUint8,
+            ]
+          : [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei];
+
       const hash = await writeContractAsync({
         abi: marketplaceAbi as any,
         address: marketplaceAddress as `0x${string}`,
         functionName: "list1155",
-        args: [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei],
+        args: args as any,
       });
 
       await publicClient?.waitForTransactionReceipt({ hash });
@@ -527,7 +618,13 @@ export default function QuickList1155({
       await revalidateAfterList();
       router.refresh();
 
-      setOk(`Listed on ${marketLabel(inferredMarketType)} ✅`);
+      setOk(
+        inferredMarketType === "PROTECTED"
+          ? `Listed on ${marketLabel(inferredMarketType)} (${fulfillmentTypeLabel(
+              protectedFulfillmentType
+            )}) ✅`
+          : `Listed on ${marketLabel(inferredMarketType)} ✅`
+      );
 
       setTimeout(() => {
         closeModal();
@@ -719,6 +816,15 @@ export default function QuickList1155({
                     )}
                   >
                     {compactNote.text}
+                  </div>
+                ) : null}
+
+                {inferredMarketType === "PROTECTED" ? (
+                  <div className="mt-3 rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 px-3 py-2 text-center text-[11px] text-fuchsia-100">
+                    Protected type:{" "}
+                    <span className="font-black">
+                      {fulfillmentTypeLabel(protectedFulfillmentType)}
+                    </span>
                   </div>
                 ) : null}
 
