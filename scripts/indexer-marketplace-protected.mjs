@@ -75,11 +75,11 @@ const ABI = [
 
 const iface = new Interface(ABI);
 
-function sleep(ms: number) {
+function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function norm(v: unknown) {
+function norm(v) {
   return String(v || "").trim().toLowerCase();
 }
 
@@ -96,7 +96,7 @@ function minScanBlock() {
   return START_BLOCK > 0n ? START_BLOCK : 0n;
 }
 
-function listingWhereUnique(listingId: bigint) {
+function listingWhereUnique(listingId) {
   return {
     chainId_marketType_marketplaceListingId: {
       chainId: CHAIN_ID,
@@ -106,7 +106,7 @@ function listingWhereUnique(listingId: bigint) {
   };
 }
 
-function orderWhereUnique(purchaseId: bigint) {
+function orderWhereUnique(purchaseId) {
   return {
     chainId_marketType_marketplaceContract_marketplacePurchaseId: {
       chainId: CHAIN_ID,
@@ -133,7 +133,7 @@ async function getLastBlock() {
   return BigInt(row.lastBlock);
 }
 
-async function setLastBlock(bn: bigint) {
+async function setLastBlock(bn) {
   const key = stateKey();
 
   await prisma.indexerState.update({
@@ -142,11 +142,11 @@ async function setLastBlock(bn: bigint) {
   });
 }
 
-const blockTsCache = new Map<number, Date>();
+const blockTsCache = new Map();
 
-async function getBlockTime(blockNumber: number) {
+async function getBlockTime(blockNumber) {
   if (blockTsCache.has(blockNumber)) {
-    return blockTsCache.get(blockNumber)!;
+    return blockTsCache.get(blockNumber);
   }
 
   const b = await provider.getBlock(blockNumber);
@@ -159,11 +159,11 @@ async function getBlockTime(blockNumber: number) {
   return dt;
 }
 
-function isPrismaUnique(e: any) {
+function isPrismaUnique(e) {
   return e && typeof e === "object" && e.code === "P2002";
 }
 
-async function ensureUserByWallet(wallet: unknown) {
+async function ensureUserByWallet(wallet) {
   const w = norm(wallet);
   if (!w) return null;
 
@@ -180,7 +180,7 @@ async function ensureUserByWallet(wallet: unknown) {
   return user.id;
 }
 
-function fulfillmentTypeFromRaw(raw: unknown) {
+function fulfillmentTypeFromRaw(raw) {
   const n = Number(raw);
 
   if (n === 0) return "PHYSICAL_GOOD";
@@ -191,11 +191,11 @@ function fulfillmentTypeFromRaw(raw: unknown) {
   return null;
 }
 
-function isPhysicalFulfillment(v: string | null | undefined) {
+function isPhysicalFulfillment(v) {
   return v === "PHYSICAL_GOOD";
 }
 
-function isServiceFulfillment(v: string | null | undefined) {
+function isServiceFulfillment(v) {
   return (
     v === "DIGITAL_SERVICE" ||
     v === "ONLINE_SESSION" ||
@@ -203,10 +203,7 @@ function isServiceFulfillment(v: string | null | undefined) {
   );
 }
 
-function nextDeliveryStatusForRefund(
-  deliveryRequired: boolean,
-  current: string | null | undefined
-) {
+function nextDeliveryStatusForRefund(deliveryRequired, current) {
   if (!deliveryRequired) return "NOT_REQUIRED";
 
   const returnedStatuses = [
@@ -227,10 +224,7 @@ function nextDeliveryStatusForRefund(
   return "CANCELLED";
 }
 
-function nextServiceStatusForRefund(
-  fulfillmentType: string | null | undefined,
-  current: string | null | undefined
-) {
+function nextServiceStatusForRefund(fulfillmentType, current) {
   if (!fulfillmentType || !isServiceFulfillment(fulfillmentType)) {
     return "NOT_REQUIRED";
   }
@@ -242,12 +236,18 @@ function nextServiceStatusForRefund(
   return "CANCELLED";
 }
 
-function sortLogs(logs: any[]) {
+function sortLogs(logs) {
   return [...logs].sort((a, b) => {
-    if (a.blockNumber !== b.blockNumber) {
-      return Number(a.blockNumber) - Number(b.blockNumber);
+    const aBlock = Number(a.blockNumber);
+    const bBlock = Number(b.blockNumber);
+
+    if (aBlock !== bBlock) {
+      return aBlock - bBlock;
     }
-    return Number(a.index) - Number(b.index);
+
+    const aIndex = Number(a.index ?? a.logIndex ?? 0);
+    const bIndex = Number(b.index ?? b.logIndex ?? 0);
+    return aIndex - bIndex;
   });
 }
 
@@ -256,7 +256,7 @@ function sortLogs(logs: any[]) {
  * NFT moves into protected marketplace custody.
  * Seller holding decreases on first seen listing.
  * ========================================================================== */
-async function handleListed(parsed: any, log: any) {
+async function handleListed(parsed, log) {
   const listingId = BigInt(parsed.args.listingId);
   const seller = norm(parsed.args.seller);
   const nft = norm(parsed.args.nft);
@@ -423,7 +423,7 @@ async function handleListed(parsed: any, log: any) {
  * CANCELLED
  * Remaining escrowed NFT amount returns back to seller custody.
  * ========================================================================== */
-async function handleCancelled(parsed: any, blockTime: Date) {
+async function handleCancelled(parsed, blockTime) {
   const listingId = BigInt(parsed.args.listingId);
   const amountReturned = BigInt(parsed.args.amountReturned);
 
@@ -490,7 +490,7 @@ async function handleCancelled(parsed: any, blockTime: Date) {
  * PURCHASE FUNDED
  * Buyer receives NFT immediately. Funds stay in escrow.
  * ========================================================================== */
-async function handlePurchaseFunded(parsed: any, log: any, blockTime: Date) {
+async function handlePurchaseFunded(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const listingId = BigInt(parsed.args.listingId);
   const seller = norm(parsed.args.seller);
@@ -502,7 +502,7 @@ async function handlePurchaseFunded(parsed: any, log: any, blockTime: Date) {
   const totalPriceWei = BigInt(parsed.args.totalPriceWei);
   const fulfillmentType = fulfillmentTypeFromRaw(parsed.args.fulfillmentType);
   const txHash = log.transactionHash;
-  const logIndex = Number(log.index);
+  const logIndex = Number(log.index ?? log.logIndex ?? 0);
 
   if (!fulfillmentType) {
     console.warn("[PROTECTED_SKIP_BAD_FULFILLMENT_TYPE]", {
@@ -575,7 +575,7 @@ async function handlePurchaseFunded(parsed: any, log: any, blockTime: Date) {
   }
 
   let createdTrade = false;
-  let tradeRow: { id: string } | null = null;
+  let tradeRow = null;
 
   try {
     tradeRow = await prisma.trade.create({
@@ -771,7 +771,7 @@ async function handlePurchaseFunded(parsed: any, log: any, blockTime: Date) {
 /* ============================================================================
  * BUYER CONFIRMED
  * ========================================================================== */
-async function handleBuyerConfirmed(parsed: any, blockTime: Date) {
+async function handleBuyerConfirmed(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
 
   const row = await prisma.storeOrder.findUnique({
@@ -816,7 +816,7 @@ async function handleBuyerConfirmed(parsed: any, blockTime: Date) {
 /* ============================================================================
  * REFUND REQUESTED
  * ========================================================================== */
-async function handleRefundRequested(parsed: any, blockTime: Date) {
+async function handleRefundRequested(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
 
   const row = await prisma.storeOrder.findUnique({
@@ -851,7 +851,7 @@ async function handleRefundRequested(parsed: any, blockTime: Date) {
  * Buyer returned NFT back to escrow contract.
  * Buyer holding decreases here.
  * ========================================================================== */
-async function handlePurchaseNftReturned(parsed: any, blockTime: Date) {
+async function handlePurchaseNftReturned(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const buyer = norm(parsed.args.buyer);
 
@@ -924,7 +924,7 @@ async function handlePurchaseNftReturned(parsed: any, blockTime: Date) {
 /* ============================================================================
  * REFUND REQUEST REJECTED
  * ========================================================================== */
-async function handleRefundRequestRejected(parsed: any, blockTime: Date) {
+async function handleRefundRequestRejected(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
 
   const row = await prisma.storeOrder.findUnique({
@@ -957,7 +957,7 @@ async function handleRefundRequestRejected(parsed: any, blockTime: Date) {
  * PURCHASE RELEASED
  * Buyer already received NFT on PurchaseFunded.
  * ========================================================================== */
-async function handleReleased(parsed: any, log: any, blockTime: Date) {
+async function handleReleased(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const txHash = log.transactionHash;
 
@@ -1014,7 +1014,7 @@ async function handleReleased(parsed: any, log: any, blockTime: Date) {
  * Buyer holding was already decreased on PurchaseNftReturned.
  * Restore seller holding here.
  * ========================================================================== */
-async function handleRefunded(parsed: any, log: any, blockTime: Date) {
+async function handleRefunded(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const txHash = log.transactionHash;
 
@@ -1101,7 +1101,7 @@ async function handleRefunded(parsed: any, log: any, blockTime: Date) {
  * REFUND REJECTED AND NFT RESTORED TO BUYER
  * NFT goes back to buyer after earlier return.
  * ========================================================================== */
-async function handleRefundRejectedAndRestored(parsed: any, blockTime: Date) {
+async function handleRefundRejectedAndRestored(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const buyer = norm(parsed.args.buyer);
 
@@ -1221,9 +1221,7 @@ async function mainLoop() {
 
       const logs = sortLogs(rawLogs);
 
-      console.log(
-        `[PROTECTED_SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`
-      );
+      console.log(`[PROTECTED_SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`);
 
       for (const log of logs) {
         let parsed = null;
