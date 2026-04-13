@@ -373,11 +373,11 @@ model Listing {
    */
   marketplaceContract String?
 
-  sellerWallet          String
-  marketplaceListingId  BigInt
-  pricePerUnitWei       BigInt
-  amountTotal           BigInt @default(1)
-  amountRemaining       BigInt @default(1)
+  sellerWallet         String
+  marketplaceListingId BigInt
+  pricePerUnitWei      BigInt
+  amountTotal          BigInt @default(1)
+  amountRemaining      BigInt @default(1)
 
   /**
    * ---------------- Snapshot of delivery / physical state at listing time ---
@@ -596,10 +596,10 @@ model StoreOrder {
   /**
    * Optional links to marketplace entities
    */
-  listingId              String?
-  tradeId                String?
-  marketplaceListingId   BigInt?
-  marketplacePurchaseId  BigInt?
+  listingId             String?
+  tradeId               String? @unique
+  marketplaceListingId  BigInt?
+  marketplacePurchaseId BigInt?
 
   amount     BigInt @default(1)
   unitPrice  BigInt
@@ -673,6 +673,8 @@ model StoreOrder {
 
   deliveryMessages DeliveryMessage[]
 
+  @@unique([chainId, marketType, marketplaceContract, marketplacePurchaseId])
+
   @@index([buyerWallet])
   @@index([sellerWallet])
   @@index([buyerId])
@@ -696,6 +698,9 @@ model StoreOrder {
   @@index([marketplaceContract, marketplacePurchaseId])
   @@index([fulfillmentType])
   @@index([category, subcategory])
+  @@index([buyTxHash])
+  @@index([escrowReleaseTxHash])
+  @@index([escrowRefundTxHash])
   @@map("store_orders")
 }
 
