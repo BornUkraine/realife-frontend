@@ -70,11 +70,11 @@ const ABI = [
 
 const iface = new Interface(ABI);
 
-function sleep(ms) {
+function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-function norm(v) {
+function norm(v: unknown) {
   return String(v || "").trim().toLowerCase();
 }
 
@@ -91,8 +91,19 @@ function minScanBlock() {
   return START_BLOCK > 0n ? START_BLOCK : 0n;
 }
 
+function listingWhereUnique(listingId: bigint) {
+  return {
+    chainId_marketType_marketplaceListingId: {
+      chainId: CHAIN_ID,
+      marketType: MARKET_TYPE,
+      marketplaceListingId: listingId,
+    },
+  };
+}
+
 async function getLastBlock() {
   const key = stateKey();
+
   const row = await prisma.indexerState.upsert({
     where: { chainId_key: { chainId: CHAIN_ID, key } },
     update: {},
@@ -102,32 +113,41 @@ async function getLastBlock() {
       lastBlock: initialLastBlockValue(),
     },
   });
+
   return BigInt(row.lastBlock);
 }
 
-async function setLastBlock(bn) {
+async function setLastBlock(bn: bigint) {
   const key = stateKey();
+
   await prisma.indexerState.update({
     where: { chainId_key: { chainId: CHAIN_ID, key } },
     data: { lastBlock: bn },
   });
 }
 
-const blockTsCache = new Map();
+const blockTsCache = new Map<number, Date>();
 
-async function getBlockTime(blockNumber) {
-  if (blockTsCache.has(blockNumber)) return blockTsCache.get(blockNumber);
+async function getBlockTime(blockNumber: number) {
+  if (blockTsCache.has(blockNumber)) {
+    return blockTsCache.get(blockNumber)!;
+  }
+
   const b = await provider.getBlock(blockNumber);
+  if (!b) {
+    throw new Error(`Block ${blockNumber} not found`);
+  }
+
   const dt = new Date(Number(b.timestamp) * 1000);
   blockTsCache.set(blockNumber, dt);
   return dt;
 }
 
-function isPrismaUnique(e) {
+function isPrismaUnique(e: any) {
   return e && typeof e === "object" && e.code === "P2002";
 }
 
-async function ensureUserByWallet(wallet) {
+async function ensureUserByWallet(wallet: unknown) {
   const w = norm(wallet);
   if (!w) return null;
 
@@ -144,7 +164,7 @@ async function ensureUserByWallet(wallet) {
   return user.id;
 }
 
-function sortLogs(logs) {
+function sortLogs(logs: any[]) {
   return [...logs].sort((a, b) => {
     if (a.blockNumber !== b.blockNumber) {
       return Number(a.blockNumber) - Number(b.blockNumber);
@@ -153,10 +173,350 @@ function sortLogs(logs) {
   });
 }
 
+async function handleListed(parsed: any, log: any) {
+  const listingId = BigInt(parsed.args.listingId);
+  const seller = norm(parsed.args.seller);
+  const nft = norm(parsed.args.nft);
+  const tokenId = BigInt(parsed.args.tokenId).toString();
+  const amount = BigInt(parsed.args.amount);
+  const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
+  const txHash = log.transactionHash;
+
+  const [product, mint, sellerId] = await Promise.all([
+    prisma.realMarketingProduct.findUnique({
+      where: {
+        chainId_contract_tokenId: {
+          chainId: CHAIN_ID,
+          contract: nft,
+          tokenId,
+        },
+      },
+      select: {
+        deliveryEnabled: true,
+        physicalItemIncluded: true,
+        officialItem: true,
+      },
+    }),
+
+    prisma.mint.findUnique({
+      where: {
+        chainId_contract_tokenId: {
+          chainId: CHAIN_ID,
+          contract: nft,
+          tokenId,
+        },
+      },
+      select: {
+        verified: true,
+        deliveryEnabled: true,
+        physicalItemIncluded: true,
+        officialItem: true,
+        fulfillmentType: true,
+        category: true,
+        subcategory: true,
+      },
+    }),
+
+    ensureUserByWallet(seller),
+  ]);
+
+  if (!mint?.verified) {
+    console.log("[STANDARD_SKIP] mint missing/not verified", { nft, tokenId });
+    return;
+  }
+
+  const deliveryEnabled =
+    product?.deliveryEnabled ?? Boolean(mint.deliveryEnabled);
+
+  const physicalItemIncluded =
+    product?.physicalItemIncluded ?? Boolean(mint.physicalItemIncluded);
+
+  const officialItem = product?.officialItem ?? Boolean(mint.officialItem);
+
+  const fulfillmentType = mint.fulfillmentType || null;
+  const category = mint.category || null;
+  const subcategory = mint.subcategory || null;
+
+  await prisma.listing.upsert({
+    where: listingWhereUnique(listingId),
+    update: {
+      marketType: MARKET_TYPE,
+      marketplaceContract: MARKETPLACE,
+
+      status: "ACTIVE",
+      sellerId,
+      sellerWallet: seller,
+      pricePerUnitWei,
+      amountTotal: amount,
+      amountRemaining: amount,
+      standard: "ERC1155",
+      createdTxHash: txHash,
+      cancelledAt: null,
+      soldOutAt: null,
+
+      deliveryEnabled: Boolean(deliveryEnabled),
+      physicalItemIncluded: Boolean(physicalItemIncluded),
+      officialItem: Boolean(officialItem),
+
+      fulfillmentType,
+      category,
+      subcategory,
+    },
+    create: {
+      chainId: CHAIN_ID,
+      contract: nft,
+      tokenId,
+      standard: "ERC1155",
+
+      marketType: MARKET_TYPE,
+      marketplaceContract: MARKETPLACE,
+
+      sellerId,
+      sellerWallet: seller,
+      marketplaceListingId: listingId,
+      pricePerUnitWei,
+      amountTotal: amount,
+      amountRemaining: amount,
+      status: "ACTIVE",
+      createdTxHash: txHash,
+
+      deliveryEnabled: Boolean(deliveryEnabled),
+      physicalItemIncluded: Boolean(physicalItemIncluded),
+      officialItem: Boolean(officialItem),
+
+      fulfillmentType,
+      category,
+      subcategory,
+    },
+  });
+
+  console.log("[STANDARD_LISTED]", {
+    listingId: listingId.toString(),
+    seller,
+    nft,
+    tokenId,
+    amount: amount.toString(),
+    pricePerUnitWei: pricePerUnitWei.toString(),
+    fulfillmentType,
+  });
+}
+
+async function handleCancelled(parsed: any, blockTime: Date) {
+  const listingId = BigInt(parsed.args.listingId);
+
+  await prisma.listing.updateMany({
+    where: {
+      chainId: CHAIN_ID,
+      marketType: MARKET_TYPE,
+      marketplaceContract: MARKETPLACE,
+      marketplaceListingId: listingId,
+      status: "ACTIVE",
+    },
+    data: {
+      status: "CANCELLED",
+      cancelledAt: blockTime,
+    },
+  });
+
+  console.log("[STANDARD_CANCELLED]", {
+    listingId: listingId.toString(),
+  });
+}
+
+async function handleBought(parsed: any, log: any, blockTime: Date) {
+  const listingId = BigInt(parsed.args.listingId);
+  const seller = norm(parsed.args.seller);
+  const buyer = norm(parsed.args.buyer);
+  const nft = norm(parsed.args.nft);
+  const tokenId = BigInt(parsed.args.tokenId).toString();
+  const amount = BigInt(parsed.args.amount);
+  const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
+  const totalPriceWei = BigInt(parsed.args.totalPriceWei);
+
+  const txHash = log.transactionHash;
+  const logIndex = Number(log.index);
+
+  const [mint, sellerId, buyerId, currentListing] = await Promise.all([
+    prisma.mint.findUnique({
+      where: {
+        chainId_contract_tokenId: {
+          chainId: CHAIN_ID,
+          contract: nft,
+          tokenId,
+        },
+      },
+      select: {
+        verified: true,
+        deliveryEnabled: true,
+        physicalItemIncluded: true,
+        officialItem: true,
+        fulfillmentType: true,
+        category: true,
+        subcategory: true,
+      },
+    }),
+
+    ensureUserByWallet(seller),
+    ensureUserByWallet(buyer),
+
+    prisma.listing.findUnique({
+      where: listingWhereUnique(listingId),
+      select: {
+        id: true,
+        status: true,
+        amountRemaining: true,
+        deliveryEnabled: true,
+        physicalItemIncluded: true,
+        officialItem: true,
+        fulfillmentType: true,
+        category: true,
+        subcategory: true,
+      },
+    }),
+  ]);
+
+  if (!mint?.verified) {
+    console.log("[STANDARD_SKIP] trade mint missing/not verified", {
+      nft,
+      tokenId,
+    });
+    return;
+  }
+
+  let createdTrade = false;
+
+  try {
+    await prisma.trade.create({
+      data: {
+        chainId: CHAIN_ID,
+        contract: nft,
+        tokenId,
+        standard: "ERC1155",
+
+        marketType: MARKET_TYPE,
+        marketplaceContract: MARKETPLACE,
+        marketplaceListingId: listingId,
+        marketplacePurchaseId: null,
+
+        txHash,
+        logIndex,
+        blockNum: BigInt(log.blockNumber),
+        blockTime,
+
+        fulfillmentType:
+          currentListing?.fulfillmentType ?? mint.fulfillmentType ?? null,
+        category: currentListing?.category ?? mint.category ?? null,
+        subcategory: currentListing?.subcategory ?? mint.subcategory ?? null,
+
+        sellerWallet: seller,
+        buyerWallet: buyer,
+        sellerId,
+        buyerId,
+
+        amount,
+        pricePerUnitWei,
+        totalPriceWei,
+      },
+    });
+
+    createdTrade = true;
+  } catch (e) {
+    if (isPrismaUnique(e)) {
+      createdTrade = false;
+    } else {
+      console.error("[STANDARD_TRADE_CREATE_ERROR]", e);
+      createdTrade = false;
+    }
+  }
+
+  if (!createdTrade) {
+    console.log("[STANDARD_BOUGHT_DUPLICATE_SKIP]", {
+      listingId: listingId.toString(),
+      txHash,
+      logIndex,
+    });
+    return;
+  }
+
+  if (currentListing && currentListing.status === "ACTIVE") {
+    const newRemaining = BigInt(currentListing.amountRemaining) - amount;
+    const soldOut = newRemaining <= 0n;
+
+    await prisma.listing.update({
+      where: listingWhereUnique(listingId),
+      data: {
+        amountRemaining: soldOut ? 0n : newRemaining,
+        status: soldOut ? "SOLD_OUT" : "ACTIVE",
+        soldOutAt: soldOut ? blockTime : null,
+      },
+    });
+  }
+
+  if (sellerId) {
+    const res = await prisma.holding.updateMany({
+      where: {
+        userId: sellerId,
+        chainId: CHAIN_ID,
+        contract: nft,
+        tokenId,
+        amount: { gte: amount },
+      },
+      data: {
+        amount: { decrement: amount },
+      },
+    });
+
+    if (res.count === 0) {
+      console.warn("[STANDARD_SELLER_HOLDING_DECREMENT_MISS]", {
+        sellerId,
+        seller,
+        nft,
+        tokenId,
+        amount: amount.toString(),
+      });
+    }
+  }
+
+  if (buyerId) {
+    await prisma.holding.upsert({
+      where: {
+        userId_chainId_contract_tokenId: {
+          userId: buyerId,
+          chainId: CHAIN_ID,
+          contract: nft,
+          tokenId,
+        },
+      },
+      create: {
+        userId: buyerId,
+        chainId: CHAIN_ID,
+        contract: nft,
+        tokenId,
+        standard: "ERC1155",
+        amount,
+      },
+      update: {
+        amount: { increment: amount },
+        standard: "ERC1155",
+      },
+    });
+  }
+
+  console.log("[STANDARD_BOUGHT]", {
+    listingId: listingId.toString(),
+    seller,
+    buyer,
+    nft,
+    tokenId,
+    amount: amount.toString(),
+    totalPriceWei: totalPriceWei.toString(),
+  });
+}
+
 async function mainLoop() {
   let last = await getLastBlock();
 
-  console.log("[INDEXER] start", {
+  console.log("[STANDARD_INDEXER] start", {
     chainId: CHAIN_ID,
     marketType: MARKET_TYPE,
     marketplace: MARKETPLACE,
@@ -173,6 +533,7 @@ async function mainLoop() {
       const safe = latest > CONFIRMATIONS ? latest - CONFIRMATIONS : 0n;
 
       const nextFrom = last + 1n;
+
       const overlapFrom =
         LOOKBACK_BLOCKS > 0n
           ? nextFrom > LOOKBACK_BLOCKS
@@ -199,7 +560,7 @@ async function mainLoop() {
 
       const logs = sortLogs(rawLogs);
 
-      console.log(`[SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`);
+      console.log(`[STANDARD_SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`);
 
       for (const log of logs) {
         let parsed = null;
@@ -212,376 +573,25 @@ async function mainLoop() {
 
         if (!parsed) continue;
 
-        const blockTime = await getBlockTime(log.blockNumber);
-        const txHash = log.transactionHash;
-        const logIndex = Number(log.index);
+        const blockTime = await getBlockTime(Number(log.blockNumber));
 
         if (parsed.name === "Listed") {
-          const listingId = BigInt(parsed.args.listingId);
-          const seller = norm(parsed.args.seller);
-          const nft = norm(parsed.args.nft);
-          const tokenId = BigInt(parsed.args.tokenId).toString();
-          const amount = BigInt(parsed.args.amount);
-          const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
-
-          const [product, mint, sellerId] = await Promise.all([
-            prisma.realMarketingProduct.findUnique({
-              where: {
-                chainId_contract_tokenId: {
-                  chainId: CHAIN_ID,
-                  contract: nft,
-                  tokenId,
-                },
-              },
-              select: {
-                deliveryEnabled: true,
-                physicalItemIncluded: true,
-                officialItem: true,
-              },
-            }),
-            prisma.mint.findUnique({
-              where: {
-                chainId_contract_tokenId: {
-                  chainId: CHAIN_ID,
-                  contract: nft,
-                  tokenId,
-                },
-              },
-              select: {
-                verified: true,
-                deliveryEnabled: true,
-                physicalItemIncluded: true,
-                officialItem: true,
-                fulfillmentType: true,
-                category: true,
-                subcategory: true,
-              },
-            }),
-            ensureUserByWallet(seller),
-          ]);
-
-          if (!mint?.verified) {
-            console.log("[SKIP] mint missing/not verified", { nft, tokenId });
-            continue;
-          }
-
-          const deliveryEnabled =
-            product?.deliveryEnabled ?? Boolean(mint.deliveryEnabled);
-
-          const physicalItemIncluded =
-            product?.physicalItemIncluded ?? Boolean(mint.physicalItemIncluded);
-
-          const officialItem =
-            product?.officialItem ?? Boolean(mint.officialItem);
-
-          const fulfillmentType = mint.fulfillmentType || null;
-          const category = mint.category || null;
-          const subcategory = mint.subcategory || null;
-
-          await prisma.listing.upsert({
-            where: {
-              chainId_marketType_marketplaceListingId: {
-                chainId: CHAIN_ID,
-                marketType: MARKET_TYPE,
-                marketplaceListingId: listingId,
-              },
-            },
-            update: {
-              marketType: MARKET_TYPE,
-              marketplaceContract: MARKETPLACE,
-
-              status: "ACTIVE",
-              sellerId,
-              sellerWallet: seller,
-              pricePerUnitWei,
-              amountTotal: amount,
-              amountRemaining: amount,
-              standard: "ERC1155",
-              createdTxHash: txHash,
-              cancelledAt: null,
-              soldOutAt: null,
-
-              deliveryEnabled: Boolean(deliveryEnabled),
-              physicalItemIncluded: Boolean(physicalItemIncluded),
-              officialItem: Boolean(officialItem),
-
-              fulfillmentType,
-              category,
-              subcategory,
-            },
-            create: {
-              chainId: CHAIN_ID,
-              contract: nft,
-              tokenId,
-              standard: "ERC1155",
-
-              marketType: MARKET_TYPE,
-              marketplaceContract: MARKETPLACE,
-
-              sellerId,
-              sellerWallet: seller,
-              marketplaceListingId: listingId,
-              pricePerUnitWei,
-              amountTotal: amount,
-              amountRemaining: amount,
-              status: "ACTIVE",
-              createdTxHash: txHash,
-
-              deliveryEnabled: Boolean(deliveryEnabled),
-              physicalItemIncluded: Boolean(physicalItemIncluded),
-              officialItem: Boolean(officialItem),
-
-              fulfillmentType,
-              category,
-              subcategory,
-            },
-          });
-
-          console.log("[LISTED]", {
-            marketType: MARKET_TYPE,
-            listingId: listingId.toString(),
-            seller,
-            nft,
-            tokenId,
-            amount: amount.toString(),
-            pricePerUnitWei: pricePerUnitWei.toString(),
-            deliveryEnabled: Boolean(deliveryEnabled),
-            physicalItemIncluded: Boolean(physicalItemIncluded),
-            officialItem: Boolean(officialItem),
-            fulfillmentType,
-          });
+          await handleListed(parsed, log);
         }
 
         if (parsed.name === "Cancelled") {
-          const listingId = BigInt(parsed.args.listingId);
-
-          await prisma.listing.updateMany({
-            where: {
-              chainId: CHAIN_ID,
-              marketType: MARKET_TYPE,
-              marketplaceContract: MARKETPLACE,
-              marketplaceListingId: listingId,
-              status: "ACTIVE",
-            },
-            data: {
-              status: "CANCELLED",
-              cancelledAt: blockTime,
-            },
-          });
-
-          console.log("[CANCELLED]", {
-            marketType: MARKET_TYPE,
-            listingId: listingId.toString(),
-          });
+          await handleCancelled(parsed, blockTime);
         }
 
         if (parsed.name === "Bought") {
-          const listingId = BigInt(parsed.args.listingId);
-          const seller = norm(parsed.args.seller);
-          const buyer = norm(parsed.args.buyer);
-          const nft = norm(parsed.args.nft);
-          const tokenId = BigInt(parsed.args.tokenId).toString();
-          const amount = BigInt(parsed.args.amount);
-          const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
-          const totalPriceWei = BigInt(parsed.args.totalPriceWei);
-
-          const [mint, sellerId, buyerId, currentListing] = await Promise.all([
-            prisma.mint.findUnique({
-              where: {
-                chainId_contract_tokenId: {
-                  chainId: CHAIN_ID,
-                  contract: nft,
-                  tokenId,
-                },
-              },
-              select: {
-                verified: true,
-                deliveryEnabled: true,
-                physicalItemIncluded: true,
-                officialItem: true,
-                fulfillmentType: true,
-                category: true,
-                subcategory: true,
-              },
-            }),
-            ensureUserByWallet(seller),
-            ensureUserByWallet(buyer),
-            prisma.listing.findUnique({
-              where: {
-                chainId_marketType_marketplaceListingId: {
-                  chainId: CHAIN_ID,
-                  marketType: MARKET_TYPE,
-                  marketplaceListingId: listingId,
-                },
-              },
-              select: {
-                id: true,
-                status: true,
-                amountRemaining: true,
-                deliveryEnabled: true,
-                physicalItemIncluded: true,
-                officialItem: true,
-                fulfillmentType: true,
-                category: true,
-                subcategory: true,
-              },
-            }),
-          ]);
-
-          if (!mint?.verified) {
-            console.log("[SKIP] trade mint missing/not verified", {
-              nft,
-              tokenId,
-            });
-            continue;
-          }
-
-          let createdTrade = false;
-          let tradeRow = null;
-
-          try {
-            tradeRow = await prisma.trade.create({
-              data: {
-                chainId: CHAIN_ID,
-                contract: nft,
-                tokenId,
-                standard: "ERC1155",
-
-                marketType: MARKET_TYPE,
-                marketplaceContract: MARKETPLACE,
-                marketplaceListingId: listingId,
-                marketplacePurchaseId: null,
-
-                txHash,
-                logIndex,
-                blockNum: BigInt(log.blockNumber),
-                blockTime,
-
-                fulfillmentType:
-                  currentListing?.fulfillmentType ?? mint.fulfillmentType ?? null,
-                category: currentListing?.category ?? mint.category ?? null,
-                subcategory:
-                  currentListing?.subcategory ?? mint.subcategory ?? null,
-
-                sellerWallet: seller,
-                buyerWallet: buyer,
-                sellerId,
-                buyerId,
-                amount,
-                pricePerUnitWei,
-                totalPriceWei,
-              },
-              select: { id: true },
-            });
-            createdTrade = true;
-          } catch (e) {
-            if (isPrismaUnique(e)) {
-              createdTrade = false;
-              tradeRow = await prisma.trade.findUnique({
-                where: {
-                  chainId_txHash_logIndex: {
-                    chainId: CHAIN_ID,
-                    txHash,
-                    logIndex,
-                  },
-                },
-                select: { id: true },
-              });
-            } else {
-              console.error("[TRADE_CREATE_ERROR]", e);
-              createdTrade = false;
-            }
-          }
-
-          if (createdTrade) {
-            if (currentListing && currentListing.status === "ACTIVE") {
-              const newRemaining = BigInt(currentListing.amountRemaining) - amount;
-              const soldOut = newRemaining <= 0n;
-
-              await prisma.listing.update({
-                where: {
-                  chainId_marketType_marketplaceListingId: {
-                    chainId: CHAIN_ID,
-                    marketType: MARKET_TYPE,
-                    marketplaceListingId: listingId,
-                  },
-                },
-                data: {
-                  amountRemaining: soldOut ? 0n : newRemaining,
-                  status: soldOut ? "SOLD_OUT" : "ACTIVE",
-                  soldOutAt: soldOut ? blockTime : null,
-                },
-              });
-            }
-
-            if (sellerId) {
-              const res = await prisma.holding.updateMany({
-                where: {
-                  userId: sellerId,
-                  chainId: CHAIN_ID,
-                  contract: nft,
-                  tokenId,
-                  amount: { gte: amount },
-                },
-                data: { amount: { decrement: amount } },
-              });
-
-              if (res.count === 0) {
-                console.warn("[STANDARD_BOUGHT_HOLDING_DECREMENT_MISS]", {
-                  sellerId,
-                  seller,
-                  nft,
-                  tokenId,
-                  amount: amount.toString(),
-                });
-              }
-            }
-
-            if (buyerId) {
-              await prisma.holding.upsert({
-                where: {
-                  userId_chainId_contract_tokenId: {
-                    userId: buyerId,
-                    chainId: CHAIN_ID,
-                    contract: nft,
-                    tokenId,
-                  },
-                },
-                create: {
-                  userId: buyerId,
-                  chainId: CHAIN_ID,
-                  contract: nft,
-                  tokenId,
-                  standard: "ERC1155",
-                  amount,
-                },
-                update: {
-                  amount: { increment: amount },
-                  standard: "ERC1155",
-                },
-              });
-            }
-          }
-
-          console.log("[BOUGHT]", {
-            marketType: MARKET_TYPE,
-            listingId: listingId.toString(),
-            seller,
-            buyer,
-            nft,
-            tokenId,
-            amount: amount.toString(),
-            totalPriceWei: totalPriceWei.toString(),
-            createdTrade,
-            tradeId: tradeRow?.id || null,
-          });
+          await handleBought(parsed, log, blockTime);
         }
       }
 
       await setLastBlock(toBlock);
       last = toBlock;
     } catch (e) {
-      console.error("[INDEXER_ERROR]", e);
+      console.error("[STANDARD_INDEXER_ERROR]", e);
       await sleep(SLEEP_MS);
     }
   }
