@@ -101,44 +101,49 @@ export default async function OrderRoomPage({
               <div className="flex flex-wrap items-center gap-2">
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                  Realife Delivery Room
+                  Realife Order Room
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">
+                  <span className="font-extrabold text-white/80">
                     Buyer + Seller + Support
                   </span>
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">
-                    Shipping + Communication
+                  <span className="font-extrabold text-white/80">
+                    Physical + Service flow
                   </span>
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">
+                  <span className="font-extrabold text-white/80">
                     Order #{id}
                   </span>
                 </Pill>
               </div>
 
-              <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
+              <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
                 Order{" "}
-                <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
+                <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
                   Room
                 </span>
               </h1>
 
-              <p className="mt-4 max-w-3xl text-sm md:text-base text-white/70 leading-relaxed">
-                Dedicated buyer, seller and support room for a single delivery
-                order inside the Realife ecosystem.
+              <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
+                Dedicated room for shipping coordination, service completion,
+                buyer confirmation, refund path and support communication inside
+                the Realife ecosystem.
               </p>
 
-              <div className="mt-3 max-w-3xl text-sm md:text-base text-white/60 leading-relaxed">
-                Use this space for order communication, shipping updates,
-                tracking context and delivery-related coordination without
-                leaving the platform.
+              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
+                Protected marketplace orders can require on-chain confirmation
+                and on-chain refund path. For one-step protected refund flow,
+                buyer can use the wallet path such as{" "}
+                <span className="font-extrabold text-white/80">
+                  requestRefundAndReturnNft(purchaseId)
+                </span>{" "}
+                after NFT approval.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -163,8 +168,8 @@ export default async function OrderRoomPage({
           <div className="flex items-center gap-4">
             <span className="opacity-60">Order Room</span>
             <span className="opacity-60">Delivery</span>
+            <span className="opacity-60">Services</span>
             <span className="opacity-60">Support</span>
-            <span className="opacity-60">Tracking</span>
           </div>
         </div>
       </Reveal>
