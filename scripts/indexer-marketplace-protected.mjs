@@ -52,6 +52,12 @@ const SLEEP_MS = Number(
     "8000"
 );
 
+const LOOKBACK_BLOCKS = BigInt(
+  process.env.PROTECTED_MARKETPLACE_LOOKBACK_BLOCKS ||
+    process.env.LOOKBACK_BLOCKS ||
+    "250"
+);
+
 const provider = new JsonRpcProvider(RPC_URL);
 
 const ABI = [
@@ -81,12 +87,25 @@ function stateKey() {
   return `marketplace:${MARKET_TYPE}:${MARKETPLACE}`;
 }
 
+function initialLastBlockValue() {
+  if (START_BLOCK <= 0n) return 0n;
+  return START_BLOCK - 1n;
+}
+
+function minScanBlock() {
+  return START_BLOCK > 0n ? START_BLOCK : 0n;
+}
+
 async function getLastBlock() {
   const key = stateKey();
   const row = await prisma.indexerState.upsert({
     where: { chainId_key: { chainId: CHAIN_ID, key } },
     update: {},
-    create: { chainId: CHAIN_ID, key, lastBlock: START_BLOCK },
+    create: {
+      chainId: CHAIN_ID,
+      key,
+      lastBlock: initialLastBlockValue(),
+    },
   });
   return BigInt(row.lastBlock);
 }
@@ -138,7 +157,7 @@ function fulfillmentTypeFromRaw(raw) {
   if (n === 2) return "ONLINE_SESSION";
   if (n === 3) return "LOCAL_SERVICE";
 
-  return "DIGITAL_SERVICE";
+  return null;
 }
 
 function isPhysicalFulfillment(v) {
@@ -186,6 +205,15 @@ function nextServiceStatusForRefund(fulfillmentType, current) {
   return "CANCELLED";
 }
 
+function sortLogs(logs) {
+  return [...logs].sort((a, b) => {
+    if (a.blockNumber !== b.blockNumber) {
+      return Number(a.blockNumber) - Number(b.blockNumber);
+    }
+    return Number(a.index) - Number(b.index);
+  });
+}
+
 /* ============================================================================
  * LISTED
  * NFT moves into protected marketplace custody.
@@ -200,6 +228,14 @@ async function handleListed(parsed, log) {
   const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
   const fulfillmentType = fulfillmentTypeFromRaw(parsed.args.fulfillmentType);
   const txHash = log.transactionHash;
+
+  if (!fulfillmentType) {
+    console.warn("[PROTECTED_SKIP_BAD_FULFILLMENT_TYPE]", {
+      listingId: listingId.toString(),
+      raw: String(parsed.args.fulfillmentType),
+    });
+    return;
+  }
 
   const [product, mint, sellerId, existingListing] = await Promise.all([
     prisma.realMarketingProduct.findUnique({
@@ -320,17 +356,28 @@ async function handleListed(parsed, log) {
   });
 
   if (!existingListing && sellerId) {
-    await prisma.holding.updateMany({
+    const res = await prisma.holding.updateMany({
       where: {
         userId: sellerId,
         chainId: CHAIN_ID,
         contract: nft,
         tokenId,
+        amount: { gte: amount },
       },
       data: {
         amount: { decrement: amount },
       },
     });
+
+    if (res.count === 0) {
+      console.warn("[PROTECTED_LISTED_HOLDING_DECREMENT_MISS]", {
+        sellerId,
+        seller,
+        nft,
+        tokenId,
+        amount: amount.toString(),
+      });
+    }
   }
 
   console.log("[PROTECTED_LISTED]", {
@@ -440,6 +487,14 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
   const fulfillmentType = fulfillmentTypeFromRaw(parsed.args.fulfillmentType);
   const txHash = log.transactionHash;
   const logIndex = Number(log.index);
+
+  if (!fulfillmentType) {
+    console.warn("[PROTECTED_SKIP_BAD_FULFILLMENT_TYPE]", {
+      purchaseId: purchaseId.toString(),
+      raw: String(parsed.args.fulfillmentType),
+    });
+    return;
+  }
 
   const [product, mint, sellerId, buyerId, currentListing] = await Promise.all([
     prisma.realMarketingProduct.findUnique({
@@ -627,6 +682,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
   if (tradeRow?.id) {
     const existingOrder = await prisma.storeOrder.findFirst({
       where: {
+        chainId: CHAIN_ID,
         marketType: MARKET_TYPE,
         marketplaceContract: MARKETPLACE,
         marketplacePurchaseId: purchaseId,
@@ -830,17 +886,28 @@ async function handlePurchaseNftReturned(parsed, blockTime) {
       row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
 
     if (buyerId) {
-      await prisma.holding.updateMany({
+      const res = await prisma.holding.updateMany({
         where: {
           userId: buyerId,
           chainId: CHAIN_ID,
           contract: row.contract,
           tokenId: row.tokenId,
+          amount: { gte: row.amount },
         },
         data: {
           amount: { decrement: row.amount },
         },
       });
+
+      if (res.count === 0) {
+        console.warn("[PROTECTED_RETURN_HOLDING_DECREMENT_MISS]", {
+          buyerId,
+          purchaseId: purchaseId.toString(),
+          contract: row.contract,
+          tokenId: row.tokenId,
+          amount: row.amount.toString(),
+        });
+      }
     }
   }
 
@@ -1106,9 +1173,11 @@ async function mainLoop() {
     chainId: CHAIN_ID,
     marketType: MARKET_TYPE,
     marketplace: MARKETPLACE,
+    startBlock: START_BLOCK.toString(),
     startFrom: last.toString(),
     confirmations: CONFIRMATIONS.toString(),
     batch: BATCH.toString(),
+    lookback: LOOKBACK_BLOCKS.toString(),
   });
 
   while (true) {
@@ -1116,7 +1185,17 @@ async function mainLoop() {
       const latest = BigInt(await provider.getBlockNumber());
       const safe = latest > CONFIRMATIONS ? latest - CONFIRMATIONS : 0n;
 
-      const fromBlock = last + 1n;
+      const nextFrom = last + 1n;
+      const overlapFrom =
+        LOOKBACK_BLOCKS > 0n
+          ? nextFrom > LOOKBACK_BLOCKS
+            ? nextFrom - LOOKBACK_BLOCKS
+            : 0n
+          : nextFrom;
+
+      const fromBlock =
+        overlapFrom < minScanBlock() ? minScanBlock() : overlapFrom;
+
       if (fromBlock > safe) {
         await sleep(SLEEP_MS);
         continue;
@@ -1125,11 +1204,13 @@ async function mainLoop() {
       const toBlock =
         fromBlock + BATCH - 1n > safe ? safe : fromBlock + BATCH - 1n;
 
-      const logs = await provider.getLogs({
+      const rawLogs = await provider.getLogs({
         address: MARKETPLACE,
         fromBlock: Number(fromBlock),
         toBlock: Number(toBlock),
       });
+
+      const logs = sortLogs(rawLogs);
 
       console.log(
         `[PROTECTED_SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`
