@@ -14,6 +14,9 @@ const CHAIN_ID = Number(process.env.CHAIN_ID || "84532");
 const MARKETPLACE = (
   process.env.REALIFE_MARKETPLACE_STANDARD_ADDRESS ||
   process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_STANDARD_ADDRESS ||
+  process.env.REALIFE_MARKETPLACE_ADDRESS ||
+  process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_ADDRESS ||
+  process.env.MARKETPLACE_STANDARD_ADDRESS ||
   process.env.MARKETPLACE_ADDRESS ||
   ""
 )
@@ -26,10 +29,36 @@ if (!MARKETPLACE) {
 
 const MARKET_TYPE = "STANDARD";
 
-const START_BLOCK = BigInt(process.env.START_BLOCK || "0");
-const CONFIRMATIONS = BigInt(process.env.CONFIRMATIONS || "5");
-const BATCH = BigInt(process.env.BATCH_BLOCKS || "2000");
-const SLEEP_MS = Number(process.env.SLEEP_MS || "8000");
+const START_BLOCK = BigInt(
+  process.env.STANDARD_MARKETPLACE_START_BLOCK ||
+    process.env.MARKETPLACE_STANDARD_START_BLOCK ||
+    process.env.START_BLOCK ||
+    "0"
+);
+
+const CONFIRMATIONS = BigInt(
+  process.env.STANDARD_MARKETPLACE_CONFIRMATIONS ||
+    process.env.CONFIRMATIONS ||
+    "5"
+);
+
+const BATCH = BigInt(
+  process.env.STANDARD_MARKETPLACE_BATCH_BLOCKS ||
+    process.env.BATCH_BLOCKS ||
+    "2000"
+);
+
+const SLEEP_MS = Number(
+  process.env.STANDARD_MARKETPLACE_SLEEP_MS ||
+    process.env.SLEEP_MS ||
+    "8000"
+);
+
+const LOOKBACK_BLOCKS = BigInt(
+  process.env.STANDARD_MARKETPLACE_LOOKBACK_BLOCKS ||
+    process.env.LOOKBACK_BLOCKS ||
+    "250"
+);
 
 const provider = new JsonRpcProvider(RPC_URL);
 
@@ -53,12 +82,25 @@ function stateKey() {
   return `marketplace:${MARKET_TYPE}:${MARKETPLACE}`;
 }
 
+function initialLastBlockValue() {
+  if (START_BLOCK <= 0n) return 0n;
+  return START_BLOCK - 1n;
+}
+
+function minScanBlock() {
+  return START_BLOCK > 0n ? START_BLOCK : 0n;
+}
+
 async function getLastBlock() {
   const key = stateKey();
   const row = await prisma.indexerState.upsert({
     where: { chainId_key: { chainId: CHAIN_ID, key } },
     update: {},
-    create: { chainId: CHAIN_ID, key, lastBlock: START_BLOCK },
+    create: {
+      chainId: CHAIN_ID,
+      key,
+      lastBlock: initialLastBlockValue(),
+    },
   });
   return BigInt(row.lastBlock);
 }
@@ -85,6 +127,32 @@ function isPrismaUnique(e) {
   return e && typeof e === "object" && e.code === "P2002";
 }
 
+async function ensureUserByWallet(wallet) {
+  const w = norm(wallet);
+  if (!w) return null;
+
+  const user = await prisma.user.upsert({
+    where: { walletAddress: w },
+    update: {},
+    create: {
+      walletAddress: w,
+      walletChainId: CHAIN_ID,
+    },
+    select: { id: true },
+  });
+
+  return user.id;
+}
+
+function sortLogs(logs) {
+  return [...logs].sort((a, b) => {
+    if (a.blockNumber !== b.blockNumber) {
+      return Number(a.blockNumber) - Number(b.blockNumber);
+    }
+    return Number(a.index) - Number(b.index);
+  });
+}
+
 async function mainLoop() {
   let last = await getLastBlock();
 
@@ -92,9 +160,11 @@ async function mainLoop() {
     chainId: CHAIN_ID,
     marketType: MARKET_TYPE,
     marketplace: MARKETPLACE,
+    startBlock: START_BLOCK.toString(),
     startFrom: last.toString(),
     confirmations: CONFIRMATIONS.toString(),
     batch: BATCH.toString(),
+    lookback: LOOKBACK_BLOCKS.toString(),
   });
 
   while (true) {
@@ -102,7 +172,17 @@ async function mainLoop() {
       const latest = BigInt(await provider.getBlockNumber());
       const safe = latest > CONFIRMATIONS ? latest - CONFIRMATIONS : 0n;
 
-      const fromBlock = last + 1n;
+      const nextFrom = last + 1n;
+      const overlapFrom =
+        LOOKBACK_BLOCKS > 0n
+          ? nextFrom > LOOKBACK_BLOCKS
+            ? nextFrom - LOOKBACK_BLOCKS
+            : 0n
+          : nextFrom;
+
+      const fromBlock =
+        overlapFrom < minScanBlock() ? minScanBlock() : overlapFrom;
+
       if (fromBlock > safe) {
         await sleep(SLEEP_MS);
         continue;
@@ -111,11 +191,13 @@ async function mainLoop() {
       const toBlock =
         fromBlock + BATCH - 1n > safe ? safe : fromBlock + BATCH - 1n;
 
-      const logs = await provider.getLogs({
+      const rawLogs = await provider.getLogs({
         address: MARKETPLACE,
         fromBlock: Number(fromBlock),
         toBlock: Number(toBlock),
       });
+
+      const logs = sortLogs(rawLogs);
 
       console.log(`[SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`);
 
@@ -142,7 +224,7 @@ async function mainLoop() {
           const amount = BigInt(parsed.args.amount);
           const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
 
-          const [product, mint, sellerUser] = await Promise.all([
+          const [product, mint, sellerId] = await Promise.all([
             prisma.realMarketingProduct.findUnique({
               where: {
                 chainId_contract_tokenId: {
@@ -175,10 +257,7 @@ async function mainLoop() {
                 subcategory: true,
               },
             }),
-            prisma.user.findUnique({
-              where: { walletAddress: seller },
-              select: { id: true },
-            }),
+            ensureUserByWallet(seller),
           ]);
 
           if (!mint?.verified) {
@@ -198,12 +277,6 @@ async function mainLoop() {
           const fulfillmentType = mint.fulfillmentType || null;
           const category = mint.category || null;
           const subcategory = mint.subcategory || null;
-
-          const sellerId = sellerUser?.id ?? null;
-
-          if (!sellerId) {
-            console.log("[WARN] seller not in db -> sellerId=null", { seller });
-          }
 
           await prisma.listing.upsert({
             where: {
@@ -312,55 +385,48 @@ async function mainLoop() {
           const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
           const totalPriceWei = BigInt(parsed.args.totalPriceWei);
 
-          const [mint, sellerUser, buyerUser, currentListing] =
-            await Promise.all([
-              prisma.mint.findUnique({
-                where: {
-                  chainId_contract_tokenId: {
-                    chainId: CHAIN_ID,
-                    contract: nft,
-                    tokenId,
-                  },
+          const [mint, sellerId, buyerId, currentListing] = await Promise.all([
+            prisma.mint.findUnique({
+              where: {
+                chainId_contract_tokenId: {
+                  chainId: CHAIN_ID,
+                  contract: nft,
+                  tokenId,
                 },
-                select: {
-                  verified: true,
-                  deliveryEnabled: true,
-                  physicalItemIncluded: true,
-                  officialItem: true,
-                  fulfillmentType: true,
-                  category: true,
-                  subcategory: true,
+              },
+              select: {
+                verified: true,
+                deliveryEnabled: true,
+                physicalItemIncluded: true,
+                officialItem: true,
+                fulfillmentType: true,
+                category: true,
+                subcategory: true,
+              },
+            }),
+            ensureUserByWallet(seller),
+            ensureUserByWallet(buyer),
+            prisma.listing.findUnique({
+              where: {
+                chainId_marketType_marketplaceListingId: {
+                  chainId: CHAIN_ID,
+                  marketType: MARKET_TYPE,
+                  marketplaceListingId: listingId,
                 },
-              }),
-              prisma.user.findUnique({
-                where: { walletAddress: seller },
-                select: { id: true },
-              }),
-              prisma.user.findUnique({
-                where: { walletAddress: buyer },
-                select: { id: true },
-              }),
-              prisma.listing.findUnique({
-                where: {
-                  chainId_marketType_marketplaceListingId: {
-                    chainId: CHAIN_ID,
-                    marketType: MARKET_TYPE,
-                    marketplaceListingId: listingId,
-                  },
-                },
-                select: {
-                  id: true,
-                  status: true,
-                  amountRemaining: true,
-                  deliveryEnabled: true,
-                  physicalItemIncluded: true,
-                  officialItem: true,
-                  fulfillmentType: true,
-                  category: true,
-                  subcategory: true,
-                },
-              }),
-            ]);
+              },
+              select: {
+                id: true,
+                status: true,
+                amountRemaining: true,
+                deliveryEnabled: true,
+                physicalItemIncluded: true,
+                officialItem: true,
+                fulfillmentType: true,
+                category: true,
+                subcategory: true,
+              },
+            }),
+          ]);
 
           if (!mint?.verified) {
             console.log("[SKIP] trade mint missing/not verified", {
@@ -399,8 +465,8 @@ async function mainLoop() {
 
                 sellerWallet: seller,
                 buyerWallet: buyer,
-                sellerId: sellerUser?.id ?? null,
-                buyerId: buyerUser?.id ?? null,
+                sellerId,
+                buyerId,
                 amount,
                 pricePerUnitWei,
                 totalPriceWei,
@@ -448,30 +514,41 @@ async function mainLoop() {
               });
             }
 
-            if (sellerUser?.id) {
-              await prisma.holding.updateMany({
+            if (sellerId) {
+              const res = await prisma.holding.updateMany({
                 where: {
-                  userId: sellerUser.id,
+                  userId: sellerId,
                   chainId: CHAIN_ID,
                   contract: nft,
                   tokenId,
+                  amount: { gte: amount },
                 },
                 data: { amount: { decrement: amount } },
               });
+
+              if (res.count === 0) {
+                console.warn("[STANDARD_BOUGHT_HOLDING_DECREMENT_MISS]", {
+                  sellerId,
+                  seller,
+                  nft,
+                  tokenId,
+                  amount: amount.toString(),
+                });
+              }
             }
 
-            if (buyerUser?.id) {
+            if (buyerId) {
               await prisma.holding.upsert({
                 where: {
                   userId_chainId_contract_tokenId: {
-                    userId: buyerUser.id,
+                    userId: buyerId,
                     chainId: CHAIN_ID,
                     contract: nft,
                     tokenId,
                   },
                 },
                 create: {
-                  userId: buyerUser.id,
+                  userId: buyerId,
                   chainId: CHAIN_ID,
                   contract: nft,
                   tokenId,
@@ -496,6 +573,7 @@ async function mainLoop() {
             amount: amount.toString(),
             totalPriceWei: totalPriceWei.toString(),
             createdTrade,
+            tradeId: tradeRow?.id || null,
           });
         }
       }
