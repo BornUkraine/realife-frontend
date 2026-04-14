@@ -78,7 +78,6 @@ export async function POST(
         sellerWallet: true,
 
         deliveryRequired: true,
-        fulfillmentType: true,
 
         deliveryStatus: true,
         escrowStatus: true,
@@ -88,6 +87,10 @@ export async function POST(
         shippingCountry: true,
         shippingCity: true,
         shippingAddress: true,
+
+        trackingCode: true,
+        trackingUrl: true,
+        carrier: true,
       },
     });
 
@@ -136,7 +139,8 @@ export async function POST(
     if (
       order.deliveryStatus === "CONFIRMED" ||
       order.deliveryStatus === "CANCELLED" ||
-      order.deliveryStatus === "RETURNED"
+      order.deliveryStatus === "RETURNED" ||
+      order.deliveryStatus === "DELIVERED"
     ) {
       return NextResponse.json(
         { ok: false, error: "ORDER_NOT_SHIPPABLE" },
@@ -146,7 +150,9 @@ export async function POST(
 
     if (
       order.escrowStatus === "REFUNDED" ||
-      order.escrowStatus === "CANCELLED"
+      order.escrowStatus === "CANCELLED" ||
+      order.escrowStatus === "DISPUTED" ||
+      order.escrowStatus === "RELEASED"
     ) {
       return NextResponse.json(
         { ok: false, error: "ORDER_NOT_SHIPPABLE" },
@@ -156,9 +162,34 @@ export async function POST(
 
     const body = await req.json().catch(() => null);
 
-    const trackingCode = clean(body?.trackingCode, 120) || null;
-    const carrier = clean(body?.carrier, 80) || null;
-    const trackingUrl = normalizeUrl(body?.trackingUrl) || null;
+    const incomingTrackingCode = clean(body?.trackingCode, 120) || null;
+    const incomingCarrier = clean(body?.carrier, 80) || null;
+    const incomingTrackingUrl = normalizeUrl(body?.trackingUrl) || null;
+
+    const wasAlreadyShipped = order.deliveryStatus === "SHIPPED";
+    const hasFreshTrackingData = Boolean(
+      incomingTrackingCode || incomingCarrier || incomingTrackingUrl
+    );
+
+    if (wasAlreadyShipped && !hasFreshTrackingData) {
+      return NextResponse.json({
+        ok: true,
+        alreadyShipped: true,
+        order: {
+          id: order.id,
+          deliveryStatus: order.deliveryStatus,
+          escrowStatus: order.escrowStatus,
+          shippedAt: order.shippedAt ? order.shippedAt.toISOString() : null,
+          trackingCode: order.trackingCode || null,
+          trackingUrl: order.trackingUrl || null,
+          carrier: order.carrier || null,
+        },
+      });
+    }
+
+    const trackingCode = incomingTrackingCode ?? order.trackingCode ?? null;
+    const trackingUrl = incomingTrackingUrl ?? order.trackingUrl ?? null;
+    const carrier = incomingCarrier ?? order.carrier ?? null;
 
     const now = new Date();
 
@@ -190,14 +221,21 @@ export async function POST(
           senderUserId: viewer.id || undefined,
           senderWallet: viewer.wallet || undefined,
           senderRole: "SELLER",
-          body:
-            carrier || trackingCode || trackingUrl
-              ? `Seller marked the order as shipped.${
+          body: wasAlreadyShipped
+            ? carrier || trackingCode || trackingUrl
+              ? `Seller updated shipping details.${
                   carrier ? ` Carrier: ${carrier}.` : ""
                 }${trackingCode ? ` Tracking: ${trackingCode}.` : ""}${
                   trackingUrl ? ` Tracking URL: ${trackingUrl}` : ""
                 }`
-              : "Seller marked the order as shipped.",
+              : "Seller updated shipping details."
+            : carrier || trackingCode || trackingUrl
+            ? `Seller marked the order as shipped.${
+                carrier ? ` Carrier: ${carrier}.` : ""
+              }${trackingCode ? ` Tracking: ${trackingCode}.` : ""}${
+                trackingUrl ? ` Tracking URL: ${trackingUrl}` : ""
+              }`
+            : "Seller marked the order as shipped.",
           isInternal: false,
         },
       });

@@ -171,30 +171,65 @@ export async function POST(
     }
 
     if (order.escrowStatus === EscrowStatus.DISPUTED) {
-      return NextResponse.json({ ok: true, alreadyDisputed: true });
+      return NextResponse.json({
+        ok: true,
+        alreadyDisputed: true,
+        order: {
+          id: order.id,
+          escrowStatus: order.escrowStatus,
+          deliveryStatus: order.deliveryStatus,
+        },
+      });
     }
 
     const now = new Date();
+    const nextDeliveryStatus = nextDeliveryStatusForDispute(
+      order.deliveryRequired,
+      order.deliveryStatus
+    );
+    const systemText = `Dispute opened by ${viewerRole}. Support review is required before any final action.`;
 
-    const updated = await prisma.storeOrder.update({
-      where: { id: order.id },
-      data: {
-        escrowStatus: EscrowStatus.DISPUTED,
-        disputedAt: now,
-        deliveryStatus: nextDeliveryStatusForDispute(
-          order.deliveryRequired,
-          order.deliveryStatus
-        ),
-        ...(viewerRole === "buyer" ? { noteBuyer: note } : { noteSeller: note }),
-      },
-      select: {
-        id: true,
-        escrowStatus: true,
-        deliveryStatus: true,
-        disputedAt: true,
-        noteBuyer: true,
-        noteSeller: true,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.storeOrder.update({
+        where: { id: order.id },
+        data: {
+          escrowStatus: EscrowStatus.DISPUTED,
+          disputedAt: now,
+          deliveryStatus: nextDeliveryStatus,
+          ...(viewerRole === "buyer" ? { noteBuyer: note } : { noteSeller: note }),
+        },
+        select: {
+          id: true,
+          escrowStatus: true,
+          deliveryStatus: true,
+          disputedAt: true,
+          noteBuyer: true,
+          noteSeller: true,
+        },
+      });
+
+      await tx.deliveryMessage.createMany({
+        data: [
+          {
+            orderId: order.id,
+            senderUserId: actor.userId || undefined,
+            senderWallet: actor.walletAddress || undefined,
+            senderRole: viewerRole === "buyer" ? "BUYER" : "SELLER",
+            body: note,
+            isInternal: false,
+          },
+          {
+            orderId: order.id,
+            senderUserId: null,
+            senderWallet: null,
+            senderRole: "SYSTEM",
+            body: systemText,
+            isInternal: false,
+          },
+        ],
+      });
+
+      return next;
     });
 
     return NextResponse.json({

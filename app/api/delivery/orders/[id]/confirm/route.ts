@@ -147,35 +147,13 @@ export async function POST(
 
     const isPhysical = order.deliveryRequired;
     const isService = !isPhysical && isServiceFulfillment(order.fulfillmentType);
+    const serviceStatus = String(order.serviceStatus || "").trim().toUpperCase();
 
     if (!isPhysical && !isService) {
       return NextResponse.json(
         { ok: false, error: "ORDER_NOT_CONFIRMABLE" },
         { status: 400 }
       );
-    }
-
-    if (isPhysical) {
-      if (
-        order.deliveryStatus !== "SHIPPED" &&
-        order.deliveryStatus !== "DELIVERED" &&
-        order.deliveryStatus !== "CONFIRMED"
-      ) {
-        return NextResponse.json(
-          { ok: false, error: "ORDER_NOT_SHIPPED_YET" },
-          { status: 400 }
-        );
-      }
-    }
-
-    if (isService) {
-      const badServiceStatuses = ["CANCELLED", "CONFIRMED"];
-      if (badServiceStatuses.includes(String(order.serviceStatus || ""))) {
-        return NextResponse.json(
-          { ok: false, error: "ORDER_NOT_CONFIRMABLE" },
-          { status: 400 }
-        );
-      }
     }
 
     if (
@@ -189,9 +167,72 @@ export async function POST(
       );
     }
 
+    if (isPhysical && order.deliveryStatus === "CONFIRMED") {
+      return NextResponse.json({
+        ok: true,
+        alreadyConfirmed: true,
+        order: {
+          id: order.id,
+          deliveryStatus: order.deliveryStatus,
+          serviceStatus: order.serviceStatus,
+          escrowStatus: order.escrowStatus,
+          deliveredAt: order.deliveredAt ? order.deliveredAt.toISOString() : null,
+          confirmedAt: order.confirmedAt ? order.confirmedAt.toISOString() : null,
+          buyerConfirmedAt: order.buyerConfirmedAt
+            ? order.buyerConfirmedAt.toISOString()
+            : null,
+          completedAt: order.completedAt ? order.completedAt.toISOString() : null,
+          releasedAt: order.releasedAt ? order.releasedAt.toISOString() : null,
+        },
+      });
+    }
+
+    if (isService && serviceStatus === "CONFIRMED") {
+      return NextResponse.json({
+        ok: true,
+        alreadyConfirmed: true,
+        order: {
+          id: order.id,
+          deliveryStatus: order.deliveryStatus,
+          serviceStatus: order.serviceStatus,
+          escrowStatus: order.escrowStatus,
+          deliveredAt: order.deliveredAt ? order.deliveredAt.toISOString() : null,
+          confirmedAt: order.confirmedAt ? order.confirmedAt.toISOString() : null,
+          buyerConfirmedAt: order.buyerConfirmedAt
+            ? order.buyerConfirmedAt.toISOString()
+            : null,
+          completedAt: order.completedAt ? order.completedAt.toISOString() : null,
+          releasedAt: order.releasedAt ? order.releasedAt.toISOString() : null,
+        },
+      });
+    }
+
+    if (isPhysical) {
+      if (
+        order.deliveryStatus !== "SHIPPED" &&
+        order.deliveryStatus !== "DELIVERED"
+      ) {
+        return NextResponse.json(
+          { ok: false, error: "ORDER_NOT_SHIPPED_YET" },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (isService) {
+      const confirmableServiceStatuses = ["SUBMITTED", "COMPLETED"];
+
+      if (!confirmableServiceStatuses.includes(serviceStatus)) {
+        return NextResponse.json(
+          { ok: false, error: "ORDER_NOT_CONFIRMABLE" },
+          { status: 400 }
+        );
+      }
+    }
+
     const now = new Date();
     const shouldReleaseEscrow =
-      order.escrowStatus !== "NOT_REQUIRED" && order.escrowStatus !== "RELEASED";
+      order.escrowStatus === "PENDING" || order.escrowStatus === "FUNDED";
 
     const updated = await prisma.$transaction(async (tx) => {
       const next = await tx.storeOrder.update({
@@ -208,7 +249,9 @@ export async function POST(
             isService && !order.completedAt ? now : order.completedAt,
 
           escrowStatus: shouldReleaseEscrow ? "RELEASED" : order.escrowStatus,
-          releasedAt: shouldReleaseEscrow ? order.releasedAt || now : order.releasedAt,
+          releasedAt: shouldReleaseEscrow
+            ? order.releasedAt || now
+            : order.releasedAt,
         },
         select: {
           id: true,

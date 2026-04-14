@@ -86,6 +86,7 @@ export async function POST(
 
         escrowStatus: true,
         deliveryStatus: true,
+        disputedAt: true,
 
         sourceType: true,
         marketType: true,
