@@ -7,6 +7,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const SERVICE_FULFILLMENTS = [
+  "DIGITAL_SERVICE",
+  "ONLINE_SESSION",
+  "LOCAL_SERVICE",
+] as const;
+
 function normAddr(v?: string | null) {
   return String(v || "").trim().toLowerCase();
 }
@@ -18,24 +24,47 @@ function clamp(n: number, min: number, max: number) {
 
 function pickViewer(session: any) {
   const id = String(session?.user?.id || session?.userId || "").trim() || null;
-  const wallet = normAddr(session?.user?.walletAddress || session?.walletAddress || "");
+  const wallet = normAddr(
+    session?.user?.walletAddress || session?.walletAddress || ""
+  );
+
   return {
     id,
     wallet: wallet || null,
   };
 }
 
-function isBuyer(viewer: { id: string | null; wallet: string | null }, row: any) {
+function isBuyer(
+  viewer: { id: string | null; wallet: string | null },
+  row: any
+) {
   return Boolean(
     (viewer.id && row.buyerId && viewer.id === row.buyerId) ||
       (viewer.wallet && normAddr(row.buyerWallet) === viewer.wallet)
   );
 }
 
-function isSeller(viewer: { id: string | null; wallet: string | null }, row: any) {
+function isSeller(
+  viewer: { id: string | null; wallet: string | null },
+  row: any
+) {
   return Boolean(
     (viewer.id && row.sellerId && viewer.id === row.sellerId) ||
       (viewer.wallet && normAddr(row.sellerWallet) === viewer.wallet)
+  );
+}
+
+function isFulfillmentOrderRow(row: {
+  deliveryRequired: boolean;
+  fulfillmentType?: string | null;
+}) {
+  if (row.deliveryRequired) return true;
+
+  return SERVICE_FULFILLMENTS.includes(
+    String(row.fulfillmentType || "").trim().toUpperCase() as
+      | "DIGITAL_SERVICE"
+      | "ONLINE_SESSION"
+      | "LOCAL_SERVICE"
   );
 }
 
@@ -45,7 +74,10 @@ export async function GET(req: Request) {
     const viewer = pickViewer(session);
 
     if (!viewer.id && !viewer.wallet) {
-      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, error: "UNAUTHORIZED" },
+        { status: 401 }
+      );
     }
 
     const url = new URL(req.url);
@@ -53,19 +85,49 @@ export async function GET(req: Request) {
     const roleRaw = String(url.searchParams.get("role") || "all").toLowerCase();
     const role = roleRaw === "buyer" || roleRaw === "seller" ? roleRaw : "all";
 
-    const vertical = String(url.searchParams.get("vertical") || "").trim().toLowerCase() || null;
+    const vertical =
+      String(url.searchParams.get("vertical") || "").trim().toLowerCase() ||
+      null;
 
-    const sourceTypeRaw = String(url.searchParams.get("sourceType") || "").trim().toUpperCase();
+    const sourceTypeRaw = String(url.searchParams.get("sourceType") || "")
+      .trim()
+      .toUpperCase();
     const sourceType =
-      sourceTypeRaw === "STORE" || sourceTypeRaw === "MARKETPLACE" ? sourceTypeRaw : null;
+      sourceTypeRaw === "STORE" || sourceTypeRaw === "MARKETPLACE"
+        ? sourceTypeRaw
+        : null;
 
-    const orderKindRaw = String(url.searchParams.get("orderKind") || "").trim().toUpperCase();
+    const orderKindRaw = String(url.searchParams.get("orderKind") || "")
+      .trim()
+      .toUpperCase();
     const orderKind =
-      orderKindRaw === "PRIMARY" || orderKindRaw === "SECONDARY" ? orderKindRaw : null;
+      orderKindRaw === "PRIMARY" || orderKindRaw === "SECONDARY"
+        ? orderKindRaw
+        : null;
 
-    const marketTypeRaw = String(url.searchParams.get("marketType") || "").trim().toUpperCase();
+    const marketTypeRaw = String(url.searchParams.get("marketType") || "")
+      .trim()
+      .toUpperCase();
     const marketType =
-      marketTypeRaw === "STANDARD" || marketTypeRaw === "DELIVERY" ? marketTypeRaw : null;
+      marketTypeRaw === "STANDARD" ||
+      marketTypeRaw === "DELIVERY" ||
+      marketTypeRaw === "PROTECTED"
+        ? marketTypeRaw
+        : null;
+
+    const fulfillmentTypeRaw = String(
+      url.searchParams.get("fulfillmentType") || ""
+    )
+      .trim()
+      .toUpperCase();
+
+    const fulfillmentType =
+      fulfillmentTypeRaw === "PHYSICAL_GOOD" ||
+      fulfillmentTypeRaw === "DIGITAL_SERVICE" ||
+      fulfillmentTypeRaw === "ONLINE_SESSION" ||
+      fulfillmentTypeRaw === "LOCAL_SERVICE"
+        ? fulfillmentTypeRaw
+        : null;
 
     const take = clamp(Number(url.searchParams.get("take") || "50"), 1, 100);
 
@@ -82,22 +144,30 @@ export async function GET(req: Request) {
       sellerClauses.push({ sellerWallet: viewer.wallet });
     }
 
-    const where: any = {
-      deliveryRequired: true,
-    };
+    const filters: any[] = [
+      {
+        OR: [
+          { deliveryRequired: true },
+          { fulfillmentType: { in: [...SERVICE_FULFILLMENTS] } },
+        ],
+      },
+    ];
 
-    if (vertical) where.vertical = vertical;
-    if (sourceType) where.sourceType = sourceType;
-    if (orderKind) where.orderKind = orderKind;
-    if (marketType) where.marketType = marketType;
+    if (vertical) filters.push({ vertical });
+    if (sourceType) filters.push({ sourceType });
+    if (orderKind) filters.push({ orderKind });
+    if (marketType) filters.push({ marketType });
+    if (fulfillmentType) filters.push({ fulfillmentType });
 
     if (role === "buyer") {
-      where.OR = buyerClauses;
+      filters.push({ OR: buyerClauses });
     } else if (role === "seller") {
-      where.OR = sellerClauses;
+      filters.push({ OR: sellerClauses });
     } else {
-      where.OR = [...buyerClauses, ...sellerClauses];
+      filters.push({ OR: [...buyerClauses, ...sellerClauses] });
     }
+
+    const where = { AND: filters };
 
     const rows = await prisma.storeOrder.findMany({
       where,
@@ -138,6 +208,11 @@ export async function GET(req: Request) {
         physicalItem: true,
         officialItem: true,
 
+        fulfillmentType: true,
+        serviceStatus: true,
+        category: true,
+        subcategory: true,
+
         escrowStatus: true,
         deliveryStatus: true,
 
@@ -149,6 +224,17 @@ export async function GET(req: Request) {
         refundedAt: true,
         disputedAt: true,
         cancelledAt: true,
+
+        buyerConfirmedAt: true,
+        refundRequestedAt: true,
+        nftReturnedAt: true,
+        refundRejectedAt: true,
+
+        scheduledFor: true,
+        workStartedAt: true,
+        submittedAt: true,
+        revisionRequestedAt: true,
+        completedAt: true,
 
         shippingName: true,
         shippingPhone: true,
@@ -172,146 +258,201 @@ export async function GET(req: Request) {
     });
 
     const items = await Promise.all(
-      rows.map(async (row) => {
-        const product = await prisma.realMarketingProduct.findUnique({
-          where: {
-            chainId_contract_tokenId: {
-              chainId: row.chainId,
-              contract: row.contract,
-              tokenId: row.tokenId,
+      rows
+        .filter((row) =>
+          isFulfillmentOrderRow({
+            deliveryRequired: row.deliveryRequired,
+            fulfillmentType: row.fulfillmentType,
+          })
+        )
+        .map(async (row) => {
+          const product = await prisma.realMarketingProduct.findUnique({
+            where: {
+              chainId_contract_tokenId: {
+                chainId: row.chainId,
+                contract: row.contract,
+                tokenId: row.tokenId,
+              },
             },
-          },
-          select: {
-            name: true,
-            image: true,
-            tokenUri: true,
-            vertical: true,
-            deliveryEnabled: true,
-            physicalItemIncluded: true,
-            officialItem: true,
-            primarySellerWallet: true,
-          },
-        });
+            select: {
+              name: true,
+              image: true,
+              tokenUri: true,
+              vertical: true,
+              deliveryEnabled: true,
+              physicalItemIncluded: true,
+              officialItem: true,
+              primarySellerWallet: true,
+            },
+          });
 
-        const mint = !product
-          ? await prisma.mint.findUnique({
-              where: {
-                chainId_contract_tokenId: {
-                  chainId: row.chainId,
-                  contract: row.contract,
-                  tokenId: row.tokenId,
+          const mint = !product
+            ? await prisma.mint.findUnique({
+                where: {
+                  chainId_contract_tokenId: {
+                    chainId: row.chainId,
+                    contract: row.contract,
+                    tokenId: row.tokenId,
+                  },
                 },
-              },
-              select: {
-                name: true,
-                image: true,
-                tokenUri: true,
-                deliveryEnabled: true,
-                physicalItemIncluded: true,
-                officialItem: true,
-              },
-            })
-          : null;
+                select: {
+                  name: true,
+                  image: true,
+                  tokenUri: true,
+                  deliveryEnabled: true,
+                  physicalItemIncluded: true,
+                  officialItem: true,
+                  fulfillmentType: true,
+                  category: true,
+                  subcategory: true,
+                },
+              })
+            : null;
 
-        const viewerRole = isBuyer(viewer, row)
-          ? "buyer"
-          : isSeller(viewer, row)
-          ? "seller"
-          : "unknown";
+          const viewerRole = isBuyer(viewer, row)
+            ? "buyer"
+            : isSeller(viewer, row)
+            ? "seller"
+            : "unknown";
 
-        return {
-          id: row.id,
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
+          return {
+            id: row.id,
+            createdAt: row.createdAt.toISOString(),
+            updatedAt: row.updatedAt.toISOString(),
 
-          chainId: row.chainId,
-          contract: row.contract,
-          tokenId: row.tokenId,
+            chainId: row.chainId,
+            contract: row.contract,
+            tokenId: row.tokenId,
 
-          sourceType: row.sourceType,
-          orderKind: row.orderKind,
-          vertical: row.vertical,
+            sourceType: row.sourceType,
+            orderKind: row.orderKind,
+            vertical: row.vertical,
 
-          marketType: row.marketType || null,
-          marketplaceContract: row.marketplaceContract || null,
-          marketplaceListingId:
-            row.marketplaceListingId != null ? row.marketplaceListingId.toString() : null,
-          marketplacePurchaseId:
-            row.marketplacePurchaseId != null ? row.marketplacePurchaseId.toString() : null,
+            marketType: row.marketType || null,
+            marketplaceContract: row.marketplaceContract || null,
+            marketplaceListingId:
+              row.marketplaceListingId != null
+                ? row.marketplaceListingId.toString()
+                : null,
+            marketplacePurchaseId:
+              row.marketplacePurchaseId != null
+                ? row.marketplacePurchaseId.toString()
+                : null,
 
-          buyerWallet: row.buyerWallet,
-          sellerWallet: row.sellerWallet,
+            buyerWallet: row.buyerWallet,
+            sellerWallet: row.sellerWallet,
 
-          listingId: row.listingId || null,
-          tradeId: row.tradeId || null,
+            listingId: row.listingId || null,
+            tradeId: row.tradeId || null,
 
-          amount: row.amount.toString(),
-          unitPrice: row.unitPrice.toString(),
-          totalPrice: row.totalPrice.toString(),
-          paymentToken: row.paymentToken || null,
+            amount: row.amount.toString(),
+            unitPrice: row.unitPrice.toString(),
+            totalPrice: row.totalPrice.toString(),
+            paymentToken: row.paymentToken || null,
 
-          deliveryRequired: row.deliveryRequired,
-          physicalItem: row.physicalItem,
-          officialItem: row.officialItem,
+            deliveryRequired: row.deliveryRequired,
+            physicalItem: row.physicalItem,
+            officialItem: row.officialItem,
 
-          escrowStatus: row.escrowStatus,
-          deliveryStatus: row.deliveryStatus,
+            fulfillmentType:
+              row.fulfillmentType ||
+              mint?.fulfillmentType ||
+              (row.deliveryRequired ? "PHYSICAL_GOOD" : null),
+            serviceStatus: row.serviceStatus,
+            category: row.category || mint?.category || null,
+            subcategory: row.subcategory || mint?.subcategory || null,
 
-          escrowFundedAt: row.escrowFundedAt ? row.escrowFundedAt.toISOString() : null,
-          shippedAt: row.shippedAt ? row.shippedAt.toISOString() : null,
-          deliveredAt: row.deliveredAt ? row.deliveredAt.toISOString() : null,
-          confirmedAt: row.confirmedAt ? row.confirmedAt.toISOString() : null,
-          releasedAt: row.releasedAt ? row.releasedAt.toISOString() : null,
-          refundedAt: row.refundedAt ? row.refundedAt.toISOString() : null,
-          disputedAt: row.disputedAt ? row.disputedAt.toISOString() : null,
-          cancelledAt: row.cancelledAt ? row.cancelledAt.toISOString() : null,
+            escrowStatus: row.escrowStatus,
+            deliveryStatus: row.deliveryStatus,
 
-          shippingName: row.shippingName || null,
-          shippingPhone: row.shippingPhone || null,
-          shippingCountry: row.shippingCountry || null,
-          shippingCity: row.shippingCity || null,
-          shippingAddress: row.shippingAddress || null,
-          shippingZip: row.shippingZip || null,
+            escrowFundedAt: row.escrowFundedAt
+              ? row.escrowFundedAt.toISOString()
+              : null,
+            shippedAt: row.shippedAt ? row.shippedAt.toISOString() : null,
+            deliveredAt: row.deliveredAt
+              ? row.deliveredAt.toISOString()
+              : null,
+            confirmedAt: row.confirmedAt ? row.confirmedAt.toISOString() : null,
+            releasedAt: row.releasedAt ? row.releasedAt.toISOString() : null,
+            refundedAt: row.refundedAt ? row.refundedAt.toISOString() : null,
+            disputedAt: row.disputedAt ? row.disputedAt.toISOString() : null,
+            cancelledAt: row.cancelledAt ? row.cancelledAt.toISOString() : null,
 
-          trackingCode: row.trackingCode || null,
-          trackingUrl: row.trackingUrl || null,
-          carrier: row.carrier || null,
+            buyerConfirmedAt: row.buyerConfirmedAt
+              ? row.buyerConfirmedAt.toISOString()
+              : null,
+            refundRequestedAt: row.refundRequestedAt
+              ? row.refundRequestedAt.toISOString()
+              : null,
+            nftReturnedAt: row.nftReturnedAt
+              ? row.nftReturnedAt.toISOString()
+              : null,
+            refundRejectedAt: row.refundRejectedAt
+              ? row.refundRejectedAt.toISOString()
+              : null,
 
-          buyTxHash: row.buyTxHash || null,
-          escrowReleaseTxHash: row.escrowReleaseTxHash || null,
-          escrowRefundTxHash: row.escrowRefundTxHash || null,
+            scheduledFor: row.scheduledFor
+              ? row.scheduledFor.toISOString()
+              : null,
+            workStartedAt: row.workStartedAt
+              ? row.workStartedAt.toISOString()
+              : null,
+            submittedAt: row.submittedAt
+              ? row.submittedAt.toISOString()
+              : null,
+            revisionRequestedAt: row.revisionRequestedAt
+              ? row.revisionRequestedAt.toISOString()
+              : null,
+            completedAt: row.completedAt
+              ? row.completedAt.toISOString()
+              : null,
 
-          noteBuyer: row.noteBuyer || null,
-          noteSeller: row.noteSeller || null,
-          adminNote: row.adminNote || null,
+            shippingName: row.shippingName || null,
+            shippingPhone: row.shippingPhone || null,
+            shippingCountry: row.shippingCountry || null,
+            shippingCity: row.shippingCity || null,
+            shippingAddress: row.shippingAddress || null,
+            shippingZip: row.shippingZip || null,
 
-          viewerRole,
+            trackingCode: row.trackingCode || null,
+            trackingUrl: row.trackingUrl || null,
+            carrier: row.carrier || null,
 
-          product: product
-            ? {
-                name: product.name || null,
-                image: product.image || null,
-                tokenUri: product.tokenUri || null,
-                vertical: product.vertical || null,
-                deliveryEnabled: product.deliveryEnabled,
-                physicalItemIncluded: product.physicalItemIncluded,
-                officialItem: product.officialItem,
-                primarySellerWallet: product.primarySellerWallet || null,
-              }
-            : mint
-            ? {
-                name: mint.name || null,
-                image: mint.image || null,
-                tokenUri: mint.tokenUri || null,
-                vertical: row.vertical || null,
-                deliveryEnabled: mint.deliveryEnabled,
-                physicalItemIncluded: mint.physicalItemIncluded,
-                officialItem: mint.officialItem,
-                primarySellerWallet: null,
-              }
-            : null,
-        };
-      })
+            buyTxHash: row.buyTxHash || null,
+            escrowReleaseTxHash: row.escrowReleaseTxHash || null,
+            escrowRefundTxHash: row.escrowRefundTxHash || null,
+
+            noteBuyer: row.noteBuyer || null,
+            noteSeller: row.noteSeller || null,
+            adminNote: row.adminNote || null,
+
+            viewerRole,
+
+            product: product
+              ? {
+                  name: product.name || null,
+                  image: product.image || null,
+                  tokenUri: product.tokenUri || null,
+                  vertical: product.vertical || null,
+                  deliveryEnabled: product.deliveryEnabled,
+                  physicalItemIncluded: product.physicalItemIncluded,
+                  officialItem: product.officialItem,
+                  primarySellerWallet: product.primarySellerWallet || null,
+                }
+              : mint
+              ? {
+                  name: mint.name || null,
+                  image: mint.image || null,
+                  tokenUri: mint.tokenUri || null,
+                  vertical: row.vertical || null,
+                  deliveryEnabled: mint.deliveryEnabled,
+                  physicalItemIncluded: mint.physicalItemIncluded,
+                  officialItem: mint.officialItem,
+                  primarySellerWallet: null,
+                }
+              : null,
+          };
+        })
     );
 
     return NextResponse.json({
@@ -321,6 +462,9 @@ export async function GET(req: Request) {
     });
   } catch (e) {
     console.error("[API_DELIVERY_ORDERS_GET_ERROR]", e);
-    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "INTERNAL" },
+      { status: 500 }
+    );
   }
 }
