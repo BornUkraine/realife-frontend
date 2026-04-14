@@ -88,7 +88,10 @@ function isOrderKind(v?: string | null) {
 
 function pickViewer(session: any) {
   const id = String(session?.user?.id || session?.userId || "").trim() || null;
-  const wallet = normAddr(session?.user?.walletAddress || session?.walletAddress || "");
+  const wallet = normAddr(
+    session?.user?.walletAddress || session?.walletAddress || ""
+  );
+
   return {
     id,
     wallet: wallet || null,
@@ -124,6 +127,7 @@ function serializeOrder(order: {
   unitPrice: bigint;
   escrowStatus: string;
   deliveryStatus: string;
+  fulfillmentType: string | null;
   createdAt: Date;
 }) {
   return {
@@ -131,6 +135,7 @@ function serializeOrder(order: {
     amount: order.amount.toString(),
     totalPrice: order.totalPrice.toString(),
     unitPrice: order.unitPrice.toString(),
+    fulfillmentType: order.fulfillmentType || null,
     createdAt: order.createdAt.toISOString(),
   };
 }
@@ -151,8 +156,10 @@ function findMatchedBoughtEvent(args: {
   });
 
   const storeEvent = parsedStore.find((log) => {
-    const eventTokenId = typeof log.args?.tokenId === "bigint" ? log.args.tokenId : null;
-    const eventAmount = typeof log.args?.amount === "bigint" ? log.args.amount : null;
+    const eventTokenId =
+      typeof log.args?.tokenId === "bigint" ? log.args.tokenId : null;
+    const eventAmount =
+      typeof log.args?.amount === "bigint" ? log.args.amount : null;
 
     return (
       normAddr(log.address) === contract &&
@@ -163,13 +170,24 @@ function findMatchedBoughtEvent(args: {
 
   if (storeEvent) {
     return {
-      buyer: normAddr(typeof storeEvent.args?.buyer === "string" ? storeEvent.args.buyer : ""),
-      seller: normAddr(typeof storeEvent.args?.seller === "string" ? storeEvent.args.seller : ""),
+      buyer: normAddr(
+        typeof storeEvent.args?.buyer === "string" ? storeEvent.args.buyer : ""
+      ),
+      seller: normAddr(
+        typeof storeEvent.args?.seller === "string" ? storeEvent.args.seller : ""
+      ),
       tokenId:
-        typeof storeEvent.args?.tokenId === "bigint" ? storeEvent.args.tokenId : wantedTokenId,
-      amount: typeof storeEvent.args?.amount === "bigint" ? storeEvent.args.amount : wantedAmount,
+        typeof storeEvent.args?.tokenId === "bigint"
+          ? storeEvent.args.tokenId
+          : wantedTokenId,
+      amount:
+        typeof storeEvent.args?.amount === "bigint"
+          ? storeEvent.args.amount
+          : wantedAmount,
       totalPrice:
-        typeof storeEvent.args?.totalPrice === "bigint" ? storeEvent.args.totalPrice : 0n,
+        typeof storeEvent.args?.totalPrice === "bigint"
+          ? storeEvent.args.totalPrice
+          : 0n,
       variant: "store" as const,
     };
   }
@@ -182,8 +200,10 @@ function findMatchedBoughtEvent(args: {
   });
 
   const cafeEvent = parsedCafe.find((log) => {
-    const eventTokenId = typeof log.args?.tokenId === "bigint" ? log.args.tokenId : null;
-    const eventAmount = typeof log.args?.amount === "bigint" ? log.args.amount : null;
+    const eventTokenId =
+      typeof log.args?.tokenId === "bigint" ? log.args.tokenId : null;
+    const eventAmount =
+      typeof log.args?.amount === "bigint" ? log.args.amount : null;
 
     return (
       normAddr(log.address) === contract &&
@@ -194,13 +214,22 @@ function findMatchedBoughtEvent(args: {
 
   if (cafeEvent) {
     return {
-      buyer: normAddr(typeof cafeEvent.args?.buyer === "string" ? cafeEvent.args.buyer : ""),
+      buyer: normAddr(
+        typeof cafeEvent.args?.buyer === "string" ? cafeEvent.args.buyer : ""
+      ),
       seller: "",
       tokenId:
-        typeof cafeEvent.args?.tokenId === "bigint" ? cafeEvent.args.tokenId : wantedTokenId,
-      amount: typeof cafeEvent.args?.amount === "bigint" ? cafeEvent.args.amount : wantedAmount,
+        typeof cafeEvent.args?.tokenId === "bigint"
+          ? cafeEvent.args.tokenId
+          : wantedTokenId,
+      amount:
+        typeof cafeEvent.args?.amount === "bigint"
+          ? cafeEvent.args.amount
+          : wantedAmount,
       totalPrice:
-        typeof cafeEvent.args?.totalPrice === "bigint" ? cafeEvent.args.totalPrice : 0n,
+        typeof cafeEvent.args?.totalPrice === "bigint"
+          ? cafeEvent.args.totalPrice
+          : 0n,
       variant: "cafe" as const,
     };
   }
@@ -214,7 +243,10 @@ export async function POST(req: Request) {
     const viewer = pickViewer(session);
 
     if (!viewer.id && !viewer.wallet) {
-      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, error: "UNAUTHORIZED" },
+        { status: 401 }
+      );
     }
 
     const body = await req.json().catch(() => null);
@@ -237,31 +269,52 @@ export async function POST(req: Request) {
     const shippingZip = clean(body?.shippingZip, 40);
 
     if (chainId !== CHAIN_ID) {
-      return NextResponse.json({ ok: false, error: "CHAIN_ID_MISMATCH" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "CHAIN_ID_MISMATCH" },
+        { status: 400 }
+      );
     }
 
     if (!contract || !contract.startsWith("0x")) {
-      return NextResponse.json({ ok: false, error: "CONTRACT_INVALID" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "CONTRACT_INVALID" },
+        { status: 400 }
+      );
     }
 
     if (!isTokenId(tokenId)) {
-      return NextResponse.json({ ok: false, error: "TOKEN_ID_INVALID" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "TOKEN_ID_INVALID" },
+        { status: 400 }
+      );
     }
 
     if (!isPositiveIntString(amountRaw)) {
-      return NextResponse.json({ ok: false, error: "AMOUNT_INVALID" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "AMOUNT_INVALID" },
+        { status: 400 }
+      );
     }
 
     if (!isTxHash(buyTxHash)) {
-      return NextResponse.json({ ok: false, error: "BUY_TX_HASH_INVALID" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "BUY_TX_HASH_INVALID" },
+        { status: 400 }
+      );
     }
 
     if (!isSourceType(sourceType)) {
-      return NextResponse.json({ ok: false, error: "SOURCE_TYPE_INVALID" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "SOURCE_TYPE_INVALID" },
+        { status: 400 }
+      );
     }
 
     if (!isOrderKind(orderKind)) {
-      return NextResponse.json({ ok: false, error: "ORDER_KIND_INVALID" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "ORDER_KIND_INVALID" },
+        { status: 400 }
+      );
     }
 
     if (sourceType === "MARKETPLACE" || orderKind === "SECONDARY") {
@@ -294,16 +347,46 @@ export async function POST(req: Request) {
     });
 
     if (!product) {
-      return NextResponse.json({ ok: false, error: "PRODUCT_NOT_FOUND" }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: "PRODUCT_NOT_FOUND" },
+        { status: 404 }
+      );
     }
 
-    const deliveryRequired = Boolean(product.deliveryEnabled || product.physicalItemIncluded);
+    if (!product.isActive) {
+      return NextResponse.json(
+        { ok: false, error: "PRODUCT_NOT_ACTIVE" },
+        { status: 400 }
+      );
+    }
+
+    const deliveryRequired = Boolean(
+      product.deliveryEnabled || product.physicalItemIncluded
+    );
+
     if (!deliveryRequired) {
-      return NextResponse.json({ ok: false, error: "DELIVERY_NOT_REQUIRED" }, { status: 400 });
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "FULFILLMENT_IS_NOT_PHYSICAL",
+          message:
+            "This create route is only for primary PHYSICAL_GOOD orders with shipping.",
+        },
+        { status: 400 }
+      );
     }
 
-    if (!shippingName || !shippingPhone || !shippingCountry || !shippingCity || !shippingAddress) {
-      return NextResponse.json({ ok: false, error: "SHIPPING_FIELDS_REQUIRED" }, { status: 400 });
+    if (
+      !shippingName ||
+      !shippingPhone ||
+      !shippingCountry ||
+      !shippingCity ||
+      !shippingAddress
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "SHIPPING_FIELDS_REQUIRED" },
+        { status: 400 }
+      );
     }
 
     const existing = await prisma.storeOrder.findFirst({
@@ -319,12 +402,22 @@ export async function POST(req: Request) {
     });
 
     if (existing) {
-      return NextResponse.json({ ok: true, alreadyExists: true, orderId: existing.id });
+      return NextResponse.json({
+        ok: true,
+        alreadyExists: true,
+        orderId: existing.id,
+      });
     }
 
-    const receipt = await client.getTransactionReceipt({ hash: buyTxHash as `0x${string}` });
+    const receipt = await client.getTransactionReceipt({
+      hash: buyTxHash as `0x${string}`,
+    });
+
     if (!receipt || receipt.status !== "success") {
-      return NextResponse.json({ ok: false, error: "BUY_TX_NOT_CONFIRMED" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "BUY_TX_NOT_CONFIRMED" },
+        { status: 400 }
+      );
     }
 
     const wantedTokenId = BigInt(tokenId);
@@ -338,20 +431,32 @@ export async function POST(req: Request) {
     });
 
     if (!matchedEvent) {
-      return NextResponse.json({ ok: false, error: "PRODUCT_BOUGHT_EVENT_NOT_FOUND" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "PRODUCT_BOUGHT_EVENT_NOT_FOUND" },
+        { status: 400 }
+      );
     }
 
     const buyerWallet = normAddr(matchedEvent.buyer);
     const sellerWallet = normAddr(
-      matchedEvent.seller || product.primarySellerWallet || product.creatorWallet || ""
+      matchedEvent.seller ||
+        product.primarySellerWallet ||
+        product.creatorWallet ||
+        ""
     );
 
     if (!buyerWallet) {
-      return NextResponse.json({ ok: false, error: "BUYER_WALLET_NOT_FOUND" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "BUYER_WALLET_NOT_FOUND" },
+        { status: 400 }
+      );
     }
 
     if (!sellerWallet) {
-      return NextResponse.json({ ok: false, error: "SELLER_WALLET_NOT_FOUND" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "SELLER_WALLET_NOT_FOUND" },
+        { status: 400 }
+      );
     }
 
     const buyerId = await ensureUserByWallet(buyerWallet);
@@ -362,19 +467,25 @@ export async function POST(req: Request) {
       (viewer.wallet && viewer.wallet === buyerWallet);
 
     if (!viewerMatchesBuyer) {
-      return NextResponse.json({ ok: false, error: "FORBIDDEN_BUYER_ONLY" }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, error: "FORBIDDEN_BUYER_ONLY" },
+        { status: 403 }
+      );
     }
 
     const eventAmount = matchedEvent.amount;
     const eventTotalPrice = matchedEvent.totalPrice;
     const fallbackUnitPrice = BigInt(product.price || 0);
+
     const unitPrice =
       eventAmount > 0n && eventTotalPrice > 0n
         ? eventTotalPrice / eventAmount
         : fallbackUnitPrice;
 
-    const totalPrice = eventTotalPrice > 0n ? eventTotalPrice : unitPrice * eventAmount;
-    const now = new Date();
+    const totalPrice =
+      eventTotalPrice > 0n ? eventTotalPrice : unitPrice * eventAmount;
+
+    const vertical = product.vertical || verticalRaw || "store";
 
     const order = await prisma.$transaction(async (tx) => {
       const created = await tx.storeOrder.create({
@@ -382,29 +493,42 @@ export async function POST(req: Request) {
           chainId: CHAIN_ID,
           contract,
           tokenId,
+
           sourceType: "STORE",
           orderKind: "PRIMARY",
-          vertical: product.vertical || verticalRaw || "store",
+          vertical,
+
+          marketType: "STANDARD",
+          marketplaceContract: null,
+
           buyerWallet,
           sellerWallet,
           buyerId,
           sellerId,
+
           amount: eventAmount,
           unitPrice,
           totalPrice,
-          paymentToken: normAddr(product.paymentToken) || PAYMENT_TOKEN_FALLBACK || null,
+          paymentToken:
+            normAddr(product.paymentToken) || PAYMENT_TOKEN_FALLBACK || null,
+
           deliveryRequired: true,
           physicalItem: Boolean(product.physicalItemIncluded),
           officialItem: Boolean(product.officialItem),
+
+          fulfillmentType: "PHYSICAL_GOOD",
+          serviceStatus: "NOT_REQUIRED",
+
           escrowStatus: "NOT_REQUIRED",
           deliveryStatus: "PENDING",
-          escrowFundedAt: null,
+
           shippingName,
           shippingPhone,
           shippingCountry,
           shippingCity,
           shippingAddress,
           shippingZip: shippingZip || null,
+
           buyTxHash,
         },
         select: {
@@ -419,23 +543,39 @@ export async function POST(req: Request) {
           unitPrice: true,
           escrowStatus: true,
           deliveryStatus: true,
+          fulfillmentType: true,
           createdAt: true,
         },
       });
 
-      await tx.deliveryMessage.create({
-        data: {
-          orderId: created.id,
-          senderRole: "SYSTEM",
-          body: "Order room created. Buyer and seller can use this room for shipping, tracking and support.",
-          isInternal: false,
-        },
+      await tx.deliveryMessage.createMany({
+        data: [
+          {
+            orderId: created.id,
+            senderRole: "SYSTEM",
+            body:
+              "Order room created. Buyer and seller can use this room for shipping, tracking and support.",
+            isInternal: false,
+          },
+          {
+            orderId: created.id,
+            senderUserId: buyerId || undefined,
+            senderWallet: buyerWallet || undefined,
+            senderRole: "BUYER",
+            body:
+              "Buyer created the delivery order and submitted shipping details.",
+            isInternal: false,
+          },
+        ],
       });
 
       return created;
     });
 
-    return NextResponse.json({ ok: true, order: serializeOrder(order) });
+    return NextResponse.json({
+      ok: true,
+      order: serializeOrder(order),
+    });
   } catch (e: any) {
     console.error("[API_DELIVERY_ORDER_CREATE_ERROR]", {
       name: e?.name,
