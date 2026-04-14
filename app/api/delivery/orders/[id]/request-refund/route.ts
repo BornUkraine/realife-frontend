@@ -21,6 +21,7 @@ async function getActor() {
   const walletAddress = normAddr(
     (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
   );
+
   return { userId, walletAddress };
 }
 
@@ -30,17 +31,19 @@ function isBuyer(
 ) {
   return Boolean(
     (actor.userId && order.buyerId && actor.userId === order.buyerId) ||
-      (actor.walletAddress && actor.walletAddress === normAddr(order.buyerWallet))
+      (actor.walletAddress &&
+        actor.walletAddress === normAddr(order.buyerWallet))
   );
 }
 
-function isOnchainDeliveryOrder(row: {
+function isOnchainEscrowOrder(row: {
   marketType?: string | null;
   sourceType?: string | null;
   marketplacePurchaseId?: bigint | null;
 }) {
   return (
     row.marketType === "DELIVERY" ||
+    row.marketType === "PROTECTED" ||
     (row.sourceType === "MARKETPLACE" && row.marketplacePurchaseId != null)
   );
 }
@@ -54,13 +57,20 @@ export async function POST(
     const actor = await getActor();
 
     if (!actor.userId && !actor.walletAddress) {
-      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, error: "UNAUTHORIZED" },
+        { status: 401 }
+      );
     }
 
     const body = await req.json().catch(() => null);
     const note = clean(body?.note, 1000);
+
     if (!note) {
-      return NextResponse.json({ ok: false, error: "REFUND_NOTE_REQUIRED" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "REFUND_NOTE_REQUIRED" },
+        { status: 400 }
+      );
     }
 
     const order = await prisma.storeOrder.findUnique({
@@ -69,20 +79,33 @@ export async function POST(
         id: true,
         buyerId: true,
         buyerWallet: true,
+
+        deliveryRequired: true,
+        fulfillmentType: true,
+        serviceStatus: true,
+
         escrowStatus: true,
         deliveryStatus: true,
+
         sourceType: true,
         marketType: true,
+        marketplaceContract: true,
         marketplacePurchaseId: true,
       },
     });
 
     if (!order) {
-      return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: "ORDER_NOT_FOUND" },
+        { status: 404 }
+      );
     }
 
     if (!isBuyer(actor, order)) {
-      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, error: "FORBIDDEN" },
+        { status: 403 }
+      );
     }
 
     if (
@@ -90,33 +113,109 @@ export async function POST(
       order.escrowStatus === "REFUNDED" ||
       order.escrowStatus === "CANCELLED"
     ) {
-      return NextResponse.json({ ok: false, error: "ORDER_ALREADY_FINALIZED" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "ORDER_ALREADY_FINALIZED" },
+        { status: 400 }
+      );
     }
 
-    const onchain = isOnchainDeliveryOrder(order);
+    const onchain = isOnchainEscrowOrder(order);
+    const now = new Date();
+
+    if (onchain) {
+      const updated = await prisma.$transaction(async (tx) => {
+        const next = await tx.storeOrder.update({
+          where: { id: order.id },
+          data: {
+            noteBuyer: note,
+          },
+          select: {
+            id: true,
+            escrowStatus: true,
+            deliveryStatus: true,
+            serviceStatus: true,
+            noteBuyer: true,
+            updatedAt: true,
+          },
+        });
+
+        await tx.deliveryMessage.createMany({
+          data: [
+            {
+              orderId: order.id,
+              senderUserId: actor.userId || undefined,
+              senderWallet: actor.walletAddress || undefined,
+              senderRole: "BUYER",
+              body: note,
+              isInternal: false,
+            },
+            {
+              orderId: order.id,
+              senderUserId: null,
+              senderWallet: null,
+              senderRole: "SYSTEM",
+              body:
+                "Buyer requested refund in the room. Final refund flow for this order must be executed on-chain through the marketplace contract. Buyer must return NFT back to escrow contract first.",
+              isInternal: false,
+            },
+          ],
+        });
+
+        return next;
+      });
+
+      return NextResponse.json({
+        ok: true,
+        onchainActionRequired: true,
+        marketType: order.marketType || null,
+        marketplaceContract: order.marketplaceContract || null,
+        marketplacePurchaseId:
+          order.marketplacePurchaseId != null
+            ? order.marketplacePurchaseId.toString()
+            : null,
+        order: {
+          id: updated.id,
+          escrowStatus: updated.escrowStatus,
+          deliveryStatus: updated.deliveryStatus,
+          serviceStatus: updated.serviceStatus,
+          noteBuyer: updated.noteBuyer,
+          updatedAt: updated.updatedAt.toISOString(),
+        },
+      });
+    }
+
+    const nextDeliveryStatus =
+      order.deliveryRequired &&
+      order.deliveryStatus !== "CONFIRMED" &&
+      order.deliveryStatus !== "RETURNED"
+        ? "RETURN_REQUESTED"
+        : order.deliveryStatus;
 
     const updated = await prisma.$transaction(async (tx) => {
       const next = await tx.storeOrder.update({
         where: { id: order.id },
         data: {
-          deliveryStatus:
-            order.deliveryStatus === "CONFIRMED" || order.deliveryStatus === "RETURNED"
-              ? order.deliveryStatus
-              : "RETURN_REQUESTED",
+          deliveryStatus: nextDeliveryStatus as any,
           escrowStatus:
             order.escrowStatus === "NOT_REQUIRED"
               ? "NOT_REQUIRED"
               : order.escrowStatus === "PENDING" || order.escrowStatus === "FUNDED"
               ? "DISPUTED"
               : order.escrowStatus,
-          disputedAt: new Date(),
+          disputedAt:
+            order.escrowStatus === "NOT_REQUIRED" ? order.disputedAt : now,
+          refundRequestedAt: now,
           noteBuyer: note,
         },
         select: {
           id: true,
           escrowStatus: true,
           deliveryStatus: true,
+          serviceStatus: true,
           disputedAt: true,
+          refundRequestedAt: true,
+          noteBuyer: true,
+          updatedAt: true,
         },
       });
 
@@ -135,9 +234,8 @@ export async function POST(
             senderUserId: null,
             senderWallet: null,
             senderRole: "SYSTEM",
-            body: onchain
-              ? "Buyer requested a refund. Support review is required. Final action must be executed through the on-chain delivery marketplace flow."
-              : "Buyer requested a refund. Support review is required before any final refund action.",
+            body:
+              "Buyer requested a refund. Support review is required before any final refund action.",
             isInternal: false,
           },
         ],
@@ -149,12 +247,25 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       order: {
-        ...updated,
-        disputedAt: updated.disputedAt ? updated.disputedAt.toISOString() : null,
+        id: updated.id,
+        escrowStatus: updated.escrowStatus,
+        deliveryStatus: updated.deliveryStatus,
+        serviceStatus: updated.serviceStatus,
+        disputedAt: updated.disputedAt
+          ? updated.disputedAt.toISOString()
+          : null,
+        refundRequestedAt: updated.refundRequestedAt
+          ? updated.refundRequestedAt.toISOString()
+          : null,
+        noteBuyer: updated.noteBuyer,
+        updatedAt: updated.updatedAt.toISOString(),
       },
     });
   } catch (e) {
     console.error("[API_DELIVERY_ORDER_REQUEST_REFUND_ERROR]", e);
-    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "INTERNAL" },
+      { status: 500 }
+    );
   }
 }
