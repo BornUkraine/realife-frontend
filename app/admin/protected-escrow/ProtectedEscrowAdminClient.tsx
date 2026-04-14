@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import type { FormEvent } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits } from "viem";
 
