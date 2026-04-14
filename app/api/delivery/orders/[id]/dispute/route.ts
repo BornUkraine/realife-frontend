@@ -20,7 +20,6 @@ async function getActor() {
   const session = await getServerSession(authOptions);
 
   const userId = (session as any)?.user?.id || (session as any)?.userId || null;
-
   const walletAddress = normAddr(
     (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
   );
@@ -71,13 +70,14 @@ function nextDeliveryStatusForDispute(
   return current;
 }
 
-function isOnchainDeliveryOrder(order: {
+function isOnchainEscrowOrder(order: {
   marketType?: string | null;
   sourceType?: string | null;
   marketplacePurchaseId?: bigint | null;
 }) {
   return (
     order.marketType === "DELIVERY" ||
+    order.marketType === "PROTECTED" ||
     (order.sourceType === "MARKETPLACE" && order.marketplacePurchaseId != null)
   );
 }
@@ -92,12 +92,18 @@ export async function POST(
     const actor = await getActor();
 
     if (!actor.userId && !actor.walletAddress) {
-      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, error: "UNAUTHORIZED" },
+        { status: 401 }
+      );
     }
 
     const note = clean(body?.note, 500);
     if (!note) {
-      return NextResponse.json({ ok: false, error: "DISPUTE_NOTE_REQUIRED" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "DISPUTE_NOTE_REQUIRED" },
+        { status: 400 }
+      );
     }
 
     const order = await prisma.storeOrder.findUnique({
@@ -120,16 +126,22 @@ export async function POST(
     });
 
     if (!order) {
-      return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: "ORDER_NOT_FOUND" },
+        { status: 404 }
+      );
     }
 
     const viewerRole = getViewerRole(actor, order);
 
     if (!viewerRole) {
-      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, error: "FORBIDDEN" },
+        { status: 403 }
+      );
     }
 
-    if (isOnchainDeliveryOrder(order)) {
+    if (isOnchainEscrowOrder(order)) {
       return NextResponse.json(
         {
           ok: false,
@@ -152,7 +164,10 @@ export async function POST(
     ];
 
     if (finalizedEscrowStatuses.includes(order.escrowStatus)) {
-      return NextResponse.json({ ok: false, error: "ORDER_ALREADY_FINALIZED" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "ORDER_ALREADY_FINALIZED" },
+        { status: 400 }
+      );
     }
 
     if (order.escrowStatus === EscrowStatus.DISPUTED) {
@@ -191,6 +206,9 @@ export async function POST(
     });
   } catch (e) {
     console.error("[API_DELIVERY_ORDER_DISPUTE_ERROR]", e);
-    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "INTERNAL" },
+      { status: 500 }
+    );
   }
 }
