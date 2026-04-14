@@ -36,19 +36,44 @@ async function requireSupport() {
   const wallet = normAddr(
     (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
   );
-  const isAdminSession = Boolean((session as any)?.user?.isAdmin || (session as any)?.isAdmin);
+  const isAdminSession = Boolean(
+    (session as any)?.user?.isAdmin || (session as any)?.isAdmin
+  );
   const isAllowlistedWallet = !!wallet && ADMIN_WALLETS.includes(wallet);
-  return isAdminSession || isAllowlistedWallet;
+
+  if (isAdminSession || isAllowlistedWallet) return true;
+
+  const userId = (session as any)?.user?.id || (session as any)?.userId || null;
+  if (!userId) return false;
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { supportRole: true },
+  });
+
+  return (
+    dbUser?.supportRole === "MODERATOR" || dbUser?.supportRole === "ADMIN"
+  );
 }
 
-function isOnchainDeliveryOrder(order: {
+function isOnchainEscrowOrder(order: {
   marketType?: string | null;
   sourceType?: string | null;
   marketplacePurchaseId?: bigint | null;
 }) {
   return (
     order.marketType === "DELIVERY" ||
+    order.marketType === "PROTECTED" ||
     (order.sourceType === "MARKETPLACE" && order.marketplacePurchaseId != null)
+  );
+}
+
+function isServiceFulfillment(v?: string | null) {
+  const s = String(v || "").trim().toUpperCase();
+  return (
+    s === "DIGITAL_SERVICE" ||
+    s === "ONLINE_SESSION" ||
+    s === "LOCAL_SERVICE"
   );
 }
 
@@ -61,7 +86,10 @@ export async function POST(
     const isSupport = await requireSupport();
 
     if (!isSupport) {
-      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, error: "FORBIDDEN" },
+        { status: 403 }
+      );
     }
 
     const body = await req.json().catch(() => null);
@@ -81,6 +109,8 @@ export async function POST(
         id: true,
         deliveryRequired: true,
         deliveryStatus: true,
+        fulfillmentType: true,
+        serviceStatus: true,
         escrowStatus: true,
         sourceType: true,
         marketType: true,
@@ -90,10 +120,13 @@ export async function POST(
     });
 
     if (!order) {
-      return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: "ORDER_NOT_FOUND" },
+        { status: 404 }
+      );
     }
 
-    if (isOnchainDeliveryOrder(order)) {
+    if (isOnchainEscrowOrder(order)) {
       return NextResponse.json(
         {
           ok: false,
@@ -110,7 +143,10 @@ export async function POST(
     }
 
     if (order.escrowStatus === "NOT_REQUIRED") {
-      return NextResponse.json({ ok: false, error: "ESCROW_NOT_REQUIRED" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "ESCROW_NOT_REQUIRED" },
+        { status: 400 }
+      );
     }
 
     if (order.escrowStatus === "RELEASED") {
@@ -118,11 +154,27 @@ export async function POST(
     }
 
     if (order.escrowStatus === "REFUNDED" || order.escrowStatus === "CANCELLED") {
-      return NextResponse.json({ ok: false, error: "ESCROW_ALREADY_FINALIZED" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "ESCROW_ALREADY_FINALIZED" },
+        { status: 400 }
+      );
     }
 
-    if (order.deliveryRequired && !["CONFIRMED", "DELIVERED"].includes(order.deliveryStatus)) {
-      return NextResponse.json({ ok: false, error: "DELIVERY_NOT_CONFIRMED" }, { status: 400 });
+    const isPhysical = order.deliveryRequired;
+    const isService = !isPhysical && isServiceFulfillment(order.fulfillmentType);
+
+    if (isPhysical && !["CONFIRMED", "DELIVERED"].includes(order.deliveryStatus)) {
+      return NextResponse.json(
+        { ok: false, error: "DELIVERY_NOT_CONFIRMED" },
+        { status: 400 }
+      );
+    }
+
+    if (isService && !["COMPLETED", "CONFIRMED"].includes(String(order.serviceStatus || ""))) {
+      return NextResponse.json(
+        { ok: false, error: "SERVICE_NOT_COMPLETED" },
+        { status: 400 }
+      );
     }
 
     const now = new Date();
@@ -135,19 +187,24 @@ export async function POST(
           releasedAt: now,
           escrowReleaseTxHash: escrowReleaseTxHash || undefined,
           deliveryStatus:
-            order.deliveryRequired && order.deliveryStatus === "DELIVERED"
+            isPhysical && order.deliveryStatus === "DELIVERED"
               ? "CONFIRMED"
               : order.deliveryStatus,
           confirmedAt:
-            order.deliveryRequired && order.deliveryStatus === "DELIVERED"
+            isPhysical && order.deliveryStatus === "DELIVERED"
               ? now
               : undefined,
+          serviceStatus:
+            isService && String(order.serviceStatus || "") === "COMPLETED"
+              ? "CONFIRMED"
+              : order.serviceStatus,
           ...(note ? { adminNote: note } : {}),
         },
         select: {
           id: true,
           escrowStatus: true,
           deliveryStatus: true,
+          serviceStatus: true,
           releasedAt: true,
           confirmedAt: true,
           escrowReleaseTxHash: true,
@@ -176,6 +233,9 @@ export async function POST(
     });
   } catch (e) {
     console.error("[API_DELIVERY_ORDER_RELEASE_ERROR]", e);
-    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "INTERNAL" },
+      { status: 500 }
+    );
   }
 }
