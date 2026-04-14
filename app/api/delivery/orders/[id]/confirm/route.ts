@@ -7,13 +7,22 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+const SERVICE_FULFILLMENTS = [
+  "DIGITAL_SERVICE",
+  "ONLINE_SESSION",
+  "LOCAL_SERVICE",
+] as const;
+
 function normAddr(v?: string | null) {
   return String(v || "").trim().toLowerCase();
 }
 
 function pickViewer(session: any) {
   const id = String(session?.user?.id || session?.userId || "").trim() || null;
-  const wallet = normAddr(session?.user?.walletAddress || session?.walletAddress || "");
+  const wallet = normAddr(
+    session?.user?.walletAddress || session?.walletAddress || ""
+  );
+
   return {
     id,
     wallet: wallet || null,
@@ -30,13 +39,23 @@ function isBuyer(
   );
 }
 
-function isOnchainDeliveryOrder(row: {
+function isServiceFulfillment(v?: string | null) {
+  return SERVICE_FULFILLMENTS.includes(
+    String(v || "").trim().toUpperCase() as
+      | "DIGITAL_SERVICE"
+      | "ONLINE_SESSION"
+      | "LOCAL_SERVICE"
+  );
+}
+
+function isOnchainEscrowOrder(row: {
   marketType?: string | null;
   sourceType?: string | null;
   marketplacePurchaseId?: bigint | null;
 }) {
   return (
     row.marketType === "DELIVERY" ||
+    row.marketType === "PROTECTED" ||
     (row.sourceType === "MARKETPLACE" && row.marketplacePurchaseId != null)
   );
 }
@@ -50,28 +69,43 @@ export async function POST(
     const viewer = pickViewer(session);
 
     if (!viewer.id && !viewer.wallet) {
-      return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, error: "UNAUTHORIZED" },
+        { status: 401 }
+      );
     }
 
     const { id } = await params;
     const orderId = String(id || "").trim();
 
     if (!orderId) {
-      return NextResponse.json({ ok: false, error: "ORDER_ID_REQUIRED" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "ORDER_ID_REQUIRED" },
+        { status: 400 }
+      );
     }
 
     const order = await prisma.storeOrder.findUnique({
       where: { id: orderId },
       select: {
         id: true,
+
         buyerId: true,
         buyerWallet: true,
+
         deliveryRequired: true,
+        fulfillmentType: true,
+        serviceStatus: true,
+
         deliveryStatus: true,
         escrowStatus: true,
+
         deliveredAt: true,
         confirmedAt: true,
         releasedAt: true,
+        completedAt: true,
+        buyerConfirmedAt: true,
+
         sourceType: true,
         marketType: true,
         marketplaceContract: true,
@@ -79,15 +113,23 @@ export async function POST(
       },
     });
 
-    if (!order || !order.deliveryRequired) {
-      return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
+    if (!order) {
+      return NextResponse.json(
+        { ok: false, error: "ORDER_NOT_FOUND" },
+        { status: 404 }
+      );
     }
 
     if (!isBuyer(viewer, order)) {
-      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, error: "FORBIDDEN" },
+        { status: 403 }
+      );
     }
 
-    if (isOnchainDeliveryOrder(order)) {
+    const onchain = isOnchainEscrowOrder(order);
+
+    if (onchain) {
       return NextResponse.json(
         {
           ok: false,
@@ -103,12 +145,37 @@ export async function POST(
       );
     }
 
-    if (
-      order.deliveryStatus !== "SHIPPED" &&
-      order.deliveryStatus !== "DELIVERED" &&
-      order.deliveryStatus !== "CONFIRMED"
-    ) {
-      return NextResponse.json({ ok: false, error: "ORDER_NOT_SHIPPED_YET" }, { status: 400 });
+    const isPhysical = order.deliveryRequired;
+    const isService = !isPhysical && isServiceFulfillment(order.fulfillmentType);
+
+    if (!isPhysical && !isService) {
+      return NextResponse.json(
+        { ok: false, error: "ORDER_NOT_CONFIRMABLE" },
+        { status: 400 }
+      );
+    }
+
+    if (isPhysical) {
+      if (
+        order.deliveryStatus !== "SHIPPED" &&
+        order.deliveryStatus !== "DELIVERED" &&
+        order.deliveryStatus !== "CONFIRMED"
+      ) {
+        return NextResponse.json(
+          { ok: false, error: "ORDER_NOT_SHIPPED_YET" },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (isService) {
+      const badServiceStatuses = ["CANCELLED", "CONFIRMED"];
+      if (badServiceStatuses.includes(String(order.serviceStatus || ""))) {
+        return NextResponse.json(
+          { ok: false, error: "ORDER_NOT_CONFIRMABLE" },
+          { status: 400 }
+        );
+      }
     }
 
     if (
@@ -116,31 +183,65 @@ export async function POST(
       order.escrowStatus === "CANCELLED" ||
       order.escrowStatus === "DISPUTED"
     ) {
-      return NextResponse.json({ ok: false, error: "ORDER_NOT_CONFIRMABLE" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "ORDER_NOT_CONFIRMABLE" },
+        { status: 400 }
+      );
     }
 
     const now = new Date();
     const shouldReleaseEscrow =
       order.escrowStatus !== "NOT_REQUIRED" && order.escrowStatus !== "RELEASED";
 
-    const updated = await prisma.storeOrder.update({
-      where: { id: order.id },
-      data: {
-        deliveryStatus: "CONFIRMED",
-        deliveredAt: order.deliveredAt || now,
-        confirmedAt: order.confirmedAt || now,
-        escrowStatus: shouldReleaseEscrow ? "RELEASED" : order.escrowStatus,
-        releasedAt: shouldReleaseEscrow ? order.releasedAt || now : order.releasedAt,
-      },
-      select: {
-        id: true,
-        deliveryStatus: true,
-        escrowStatus: true,
-        deliveredAt: true,
-        confirmedAt: true,
-        releasedAt: true,
-        updatedAt: true,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.storeOrder.update({
+        where: { id: order.id },
+        data: {
+          deliveryStatus: isPhysical ? "CONFIRMED" : order.deliveryStatus,
+          deliveredAt:
+            isPhysical && !order.deliveredAt ? now : order.deliveredAt,
+          confirmedAt: order.confirmedAt || now,
+          buyerConfirmedAt: order.buyerConfirmedAt || now,
+
+          serviceStatus: isService ? "CONFIRMED" : order.serviceStatus,
+          completedAt:
+            isService && !order.completedAt ? now : order.completedAt,
+
+          escrowStatus: shouldReleaseEscrow ? "RELEASED" : order.escrowStatus,
+          releasedAt: shouldReleaseEscrow ? order.releasedAt || now : order.releasedAt,
+        },
+        select: {
+          id: true,
+          deliveryStatus: true,
+          serviceStatus: true,
+          escrowStatus: true,
+          deliveredAt: true,
+          confirmedAt: true,
+          buyerConfirmedAt: true,
+          completedAt: true,
+          releasedAt: true,
+          updatedAt: true,
+        },
+      });
+
+      await tx.deliveryMessage.create({
+        data: {
+          orderId: order.id,
+          senderUserId: viewer.id || undefined,
+          senderWallet: viewer.wallet || undefined,
+          senderRole: "BUYER",
+          body: isPhysical
+            ? shouldReleaseEscrow
+              ? "Buyer confirmed successful delivery. Escrow was released."
+              : "Buyer confirmed successful delivery."
+            : shouldReleaseEscrow
+            ? "Buyer confirmed successful service completion. Escrow was released."
+            : "Buyer confirmed successful service completion.",
+          isInternal: false,
+        },
+      });
+
+      return next;
     });
 
     return NextResponse.json({
@@ -148,15 +249,31 @@ export async function POST(
       order: {
         id: updated.id,
         deliveryStatus: updated.deliveryStatus,
+        serviceStatus: updated.serviceStatus,
         escrowStatus: updated.escrowStatus,
-        deliveredAt: updated.deliveredAt ? updated.deliveredAt.toISOString() : null,
-        confirmedAt: updated.confirmedAt ? updated.confirmedAt.toISOString() : null,
-        releasedAt: updated.releasedAt ? updated.releasedAt.toISOString() : null,
+        deliveredAt: updated.deliveredAt
+          ? updated.deliveredAt.toISOString()
+          : null,
+        confirmedAt: updated.confirmedAt
+          ? updated.confirmedAt.toISOString()
+          : null,
+        buyerConfirmedAt: updated.buyerConfirmedAt
+          ? updated.buyerConfirmedAt.toISOString()
+          : null,
+        completedAt: updated.completedAt
+          ? updated.completedAt.toISOString()
+          : null,
+        releasedAt: updated.releasedAt
+          ? updated.releasedAt.toISOString()
+          : null,
         updatedAt: updated.updatedAt.toISOString(),
       },
     });
   } catch (e) {
     console.error("[API_DELIVERY_ORDER_CONFIRM_ERROR]", e);
-    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "INTERNAL" },
+      { status: 500 }
+    );
   }
 }

@@ -4,6 +4,23 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits } from "viem";
 
+type MarketType = "STANDARD" | "DELIVERY" | "PROTECTED";
+type FulfillmentType =
+  | "PHYSICAL_GOOD"
+  | "DIGITAL_SERVICE"
+  | "ONLINE_SESSION"
+  | "LOCAL_SERVICE";
+
+type ServiceStatus =
+  | "NOT_REQUIRED"
+  | "PENDING"
+  | "IN_PROGRESS"
+  | "SUBMITTED"
+  | "REVISION_REQUESTED"
+  | "COMPLETED"
+  | "CONFIRMED"
+  | "CANCELLED";
+
 type OrderRow = {
   id: string;
   createdAt: string;
@@ -17,7 +34,7 @@ type OrderRow = {
   sourceType?: "STORE" | "MARKETPLACE" | null;
   orderKind?: "PRIMARY" | "SECONDARY" | null;
 
-  marketType?: "STANDARD" | "DELIVERY" | null;
+  marketType?: MarketType | null;
   marketplaceContract?: string | null;
   marketplaceListingId?: string | null;
   marketplacePurchaseId?: string | null;
@@ -36,6 +53,11 @@ type OrderRow = {
   deliveryRequired: boolean;
   physicalItem: boolean;
   officialItem: boolean;
+
+  fulfillmentType?: FulfillmentType | null;
+  serviceStatus?: ServiceStatus | null;
+  category?: string | null;
+  subcategory?: string | null;
 
   escrowStatus:
     | "NOT_REQUIRED"
@@ -61,6 +83,19 @@ type OrderRow = {
   deliveredAt: string | null;
   confirmedAt: string | null;
   releasedAt: string | null;
+  refundedAt?: string | null;
+  disputedAt?: string | null;
+
+  buyerConfirmedAt?: string | null;
+  refundRequestedAt?: string | null;
+  nftReturnedAt?: string | null;
+  refundRejectedAt?: string | null;
+
+  scheduledFor?: string | null;
+  workStartedAt?: string | null;
+  submittedAt?: string | null;
+  revisionRequestedAt?: string | null;
+  completedAt?: string | null;
 
   shippingName: string | null;
   shippingPhone: string | null;
@@ -220,16 +255,65 @@ function kindTone(v?: string | null) {
 }
 
 function marketTone(v?: string | null) {
+  if (v === "PROTECTED") {
+    return "border-violet-500/20 bg-violet-500/10 text-violet-100";
+  }
   if (v === "DELIVERY") {
     return "border-sky-500/20 bg-sky-500/10 text-sky-100";
   }
   return "border-white/10 bg-white/[0.06] text-white/80";
 }
 
-function isOnchainDeliveryOrder(x: OrderRow) {
+function fulfillmentTone(v?: string | null) {
+  switch (String(v || "")) {
+    case "PHYSICAL_GOOD":
+      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
+    case "DIGITAL_SERVICE":
+      return "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-100";
+    case "ONLINE_SESSION":
+      return "border-amber-500/20 bg-amber-500/10 text-amber-100";
+    case "LOCAL_SERVICE":
+      return "border-sky-500/20 bg-sky-500/10 text-sky-100";
+    default:
+      return "border-white/10 bg-white/[0.06] text-white/80";
+  }
+}
+
+function serviceStatusTone(v?: string | null) {
+  switch (String(v || "")) {
+    case "CONFIRMED":
+      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
+    case "COMPLETED":
+    case "SUBMITTED":
+      return "border-sky-500/20 bg-sky-500/10 text-sky-100";
+    case "REVISION_REQUESTED":
+      return "border-amber-500/20 bg-amber-500/10 text-amber-100";
+    case "CANCELLED":
+      return "border-rose-500/20 bg-rose-500/10 text-rose-100";
+    case "IN_PROGRESS":
+      return "border-violet-500/20 bg-violet-500/10 text-violet-100";
+    default:
+      return "border-white/10 bg-white/[0.06] text-white/80";
+  }
+}
+
+function isOnchainEscrowOrder(x: OrderRow) {
   return (
     x.marketType === "DELIVERY" ||
+    x.marketType === "PROTECTED" ||
     (x.sourceType === "MARKETPLACE" && Boolean(x.marketplacePurchaseId))
+  );
+}
+
+function isPhysicalOrder(x: OrderRow) {
+  return x.deliveryRequired || x.fulfillmentType === "PHYSICAL_GOOD";
+}
+
+function isServiceOrder(x: OrderRow) {
+  return (
+    x.fulfillmentType === "DIGITAL_SERVICE" ||
+    x.fulfillmentType === "ONLINE_SESSION" ||
+    x.fulfillmentType === "LOCAL_SERVICE"
   );
 }
 
@@ -320,14 +404,14 @@ export default function OrdersClient() {
       setRows(items);
       hydrateShippingForms(items);
     } catch (e: any) {
-      setErr(e?.message || "Failed to load delivery orders");
+      setErr(e?.message || "Failed to load orders");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load();
+    void load();
   }, [role]);
 
   const buyerCount = useMemo(
@@ -414,16 +498,19 @@ export default function OrdersClient() {
     <div className="space-y-6">
       <div className={wrap}>
         <div className={cx(card, "p-6 md:p-7")}>
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
-                Delivery Center
+              <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/45">
+                Orders Center
               </div>
-              <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90">
-                My Delivery Orders
+              <div className="mt-2 text-xl font-black tracking-tight text-white/90 md:text-2xl">
+                My Orders
               </div>
-              <div className="mt-2 text-[12px] text-white/55 max-w-2xl">
-                Buyer fills shipping details here. Seller then adds tracking and ships the order.
+              <div className="mt-2 max-w-2xl text-[12px] text-white/55">
+                Physical goods use shipping flow. Service orders use completion
+                flow. Protected orders keep payout in escrow until buyer
+                confirms. Refund path can require NFT return through the
+                protected contract.
               </div>
             </div>
 
@@ -431,9 +518,9 @@ export default function OrdersClient() {
               <button
                 onClick={() => setRole("all")}
                 className={cx(
-                  "px-4 py-2 rounded-2xl border text-[12px] font-black transition",
+                  "rounded-2xl border px-4 py-2 text-[12px] font-black transition",
                   role === "all"
-                    ? "border-black/10 text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                    ? "border-black/10 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black ring-1 ring-black/15"
                     : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
                 )}
               >
@@ -443,7 +530,7 @@ export default function OrdersClient() {
               <button
                 onClick={() => setRole("buyer")}
                 className={cx(
-                  "px-4 py-2 rounded-2xl border text-[12px] font-black transition",
+                  "rounded-2xl border px-4 py-2 text-[12px] font-black transition",
                   role === "buyer"
                     ? "border-white/15 bg-white/[0.10] text-white"
                     : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
@@ -455,7 +542,7 @@ export default function OrdersClient() {
               <button
                 onClick={() => setRole("seller")}
                 className={cx(
-                  "px-4 py-2 rounded-2xl border text-[12px] font-black transition",
+                  "rounded-2xl border px-4 py-2 text-[12px] font-black transition",
                   role === "seller"
                     ? "border-white/15 bg-white/[0.10] text-white"
                     : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
@@ -468,24 +555,30 @@ export default function OrdersClient() {
 
           <div className="mt-5 grid grid-cols-3 gap-3">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                 Total
               </div>
-              <div className="mt-1 text-lg font-black text-white/90">{rows.length}</div>
+              <div className="mt-1 text-lg font-black text-white/90">
+                {rows.length}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                 As buyer
               </div>
-              <div className="mt-1 text-lg font-black text-emerald-200">{buyerCount}</div>
+              <div className="mt-1 text-lg font-black text-emerald-200">
+                {buyerCount}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                 As seller
               </div>
-              <div className="mt-1 text-lg font-black text-amber-100">{sellerCount}</div>
+              <div className="mt-1 text-lg font-black text-amber-100">
+                {sellerCount}
+              </div>
             </div>
           </div>
 
@@ -500,18 +593,23 @@ export default function OrdersClient() {
       <div className="space-y-4">
         {loading ? (
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 text-white/60">
-            Loading delivery orders...
+            Loading orders...
           </div>
         ) : rows.length === 0 ? (
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 text-white/60">
-            No delivery orders yet.
+            No orders yet.
           </div>
         ) : (
           rows.map((x) => {
             const img = ipfsToHttp(x.product?.image || null);
-            const nftHref = `/nft/${x.chainId}/${x.contract}/${encodeURIComponent(String(x.tokenId))}`;
+            const nftHref = `/nft/${x.chainId}/${x.contract}/${encodeURIComponent(
+              String(x.tokenId)
+            )}`;
             const roomHref = `/app/orders/${x.id}`;
-            const onchainDelivery = isOnchainDeliveryOrder(x);
+
+            const onchainEscrow = isOnchainEscrowOrder(x);
+            const isPhysical = isPhysicalOrder(x);
+            const isService = isServiceOrder(x);
 
             const shippingDraftMinimum = Boolean(
               String(shippingName[x.id] || "").trim() &&
@@ -523,44 +621,44 @@ export default function OrdersClient() {
             const shippingSavedMinimum = hasShippingMinimumFromRow(x);
 
             const canEditShipping =
-              x.viewerRole === "buyer" &&
-              x.deliveryRequired &&
-              !isShippingLocked(x.deliveryStatus);
+              x.viewerRole === "buyer" && isPhysical && !isShippingLocked(x.deliveryStatus);
 
             const canShip =
               x.viewerRole === "seller" &&
-              x.deliveryRequired &&
+              isPhysical &&
               shippingSavedMinimum &&
               x.deliveryStatus !== "SHIPPED" &&
-              x.deliveryStatus !== "CONFIRMED" &&
               x.deliveryStatus !== "DELIVERED" &&
-              x.deliveryStatus !== "CANCELLED";
+              x.deliveryStatus !== "CONFIRMED" &&
+              x.deliveryStatus !== "CANCELLED" &&
+              x.deliveryStatus !== "RETURNED";
 
             const showWaitingForBuyerShipping =
               x.viewerRole === "seller" &&
-              x.deliveryRequired &&
+              isPhysical &&
               !shippingSavedMinimum &&
               x.deliveryStatus !== "CANCELLED" &&
               x.deliveryStatus !== "SHIPPED" &&
               x.deliveryStatus !== "DELIVERED" &&
-              x.deliveryStatus !== "CONFIRMED";
+              x.deliveryStatus !== "CONFIRMED" &&
+              x.deliveryStatus !== "RETURNED";
 
-            const canConfirm =
+            const canConfirmOffchain =
               x.viewerRole === "buyer" &&
-              x.deliveryRequired &&
-              x.deliveryStatus === "SHIPPED" &&
+              !onchainEscrow &&
               x.escrowStatus !== "REFUNDED" &&
               x.escrowStatus !== "CANCELLED" &&
               x.escrowStatus !== "DISPUTED" &&
-              !onchainDelivery;
+              ((isPhysical &&
+                (x.deliveryStatus === "SHIPPED" ||
+                  x.deliveryStatus === "DELIVERED")) ||
+                (isService &&
+                  (x.serviceStatus === "SUBMITTED" ||
+                    x.serviceStatus === "COMPLETED")));
 
             const showOnchainConfirmNotice =
               x.viewerRole === "buyer" &&
-              x.deliveryRequired &&
-              (x.deliveryStatus === "SHIPPED" ||
-                x.deliveryStatus === "DELIVERED" ||
-                x.deliveryStatus === "CONFIRMED") &&
-              onchainDelivery &&
+              onchainEscrow &&
               x.escrowStatus !== "RELEASED" &&
               x.escrowStatus !== "REFUNDED" &&
               x.escrowStatus !== "CANCELLED";
@@ -568,12 +666,12 @@ export default function OrdersClient() {
             return (
               <div
                 key={x.id}
-                className="rounded-[28px] overflow-hidden border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]"
+                className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]"
               >
                 <div className="p-5 md:p-6">
-                  <div className="flex flex-col lg:flex-row gap-5">
-                    <div className="w-full lg:w-[140px] shrink-0">
-                      <div className="aspect-square rounded-2xl overflow-hidden bg-black/30 border border-white/10">
+                  <div className="flex flex-col gap-5 lg:flex-row">
+                    <div className="w-full shrink-0 lg:w-[140px]">
+                      <div className="aspect-square overflow-hidden rounded-2xl border border-white/10 bg-black/30">
                         {img ? (
                           <img
                             src={img}
@@ -581,7 +679,7 @@ export default function OrdersClient() {
                             className="h-full w-full object-cover"
                           />
                         ) : (
-                          <div className="h-full w-full flex items-center justify-center text-white/25 font-black">
+                          <div className="flex h-full w-full items-center justify-center font-black text-white/25">
                             No image
                           </div>
                         )}
@@ -591,19 +689,19 @@ export default function OrdersClient() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="text-[18px] font-black text-white/90 truncate">
-                            {x.product?.name || `Delivery NFT #${x.tokenId}`}
+                          <div className="truncate text-[18px] font-black text-white/90">
+                            {x.product?.name || `Order NFT #${x.tokenId}`}
                           </div>
 
                           <div className="mt-2 flex flex-wrap gap-2">
-                            <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                            <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
                               {x.viewerRole.toUpperCase()}
                             </span>
 
                             {x.sourceType ? (
                               <span
                                 className={cx(
-                                  "px-2 py-1 rounded-full border text-[10px] font-black",
+                                  "rounded-full border px-2 py-1 text-[10px] font-black",
                                   sourceTone(x.sourceType)
                                 )}
                               >
@@ -614,7 +712,7 @@ export default function OrdersClient() {
                             {x.orderKind ? (
                               <span
                                 className={cx(
-                                  "px-2 py-1 rounded-full border text-[10px] font-black",
+                                  "rounded-full border px-2 py-1 text-[10px] font-black",
                                   kindTone(x.orderKind)
                                 )}
                               >
@@ -625,7 +723,7 @@ export default function OrdersClient() {
                             {x.marketType ? (
                               <span
                                 className={cx(
-                                  "px-2 py-1 rounded-full border text-[10px] font-black",
+                                  "rounded-full border px-2 py-1 text-[10px] font-black",
                                   marketTone(x.marketType)
                                 )}
                               >
@@ -633,27 +731,45 @@ export default function OrdersClient() {
                               </span>
                             ) : null}
 
-                            <span className="px-2 py-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-[10px] font-black text-emerald-100">
+                            {x.fulfillmentType ? (
+                              <span
+                                className={cx(
+                                  "rounded-full border px-2 py-1 text-[10px] font-black",
+                                  fulfillmentTone(x.fulfillmentType)
+                                )}
+                              >
+                                {titleCase(x.fulfillmentType)}
+                              </span>
+                            ) : null}
+
+                            <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-black text-emerald-100">
                               {x.escrowStatus}
                             </span>
 
-                            <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 text-[10px] font-black text-sky-100">
-                              {x.deliveryStatus}
-                            </span>
+                            {isPhysical ? (
+                              <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[10px] font-black text-sky-100">
+                                {x.deliveryStatus}
+                              </span>
+                            ) : null}
 
-                            <span className="px-2 py-1 rounded-full border border-white/10 bg-white/[0.06] text-[10px] font-black text-white/80">
+                            {isService && x.serviceStatus ? (
+                              <span
+                                className={cx(
+                                  "rounded-full border px-2 py-1 text-[10px] font-black",
+                                  serviceStatusTone(x.serviceStatus)
+                                )}
+                              >
+                                SERVICE {x.serviceStatus}
+                              </span>
+                            ) : null}
+
+                            <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
                               {titleCase(x.vertical)}
                             </span>
 
                             {x.officialItem ? (
-                              <span className="px-2 py-1 rounded-full border border-amber-500/20 bg-amber-500/10 text-[10px] font-black text-amber-100">
+                              <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-black text-amber-100">
                                 OFFICIAL
-                              </span>
-                            ) : null}
-
-                            {x.deliveryRequired ? (
-                              <span className="px-2 py-1 rounded-full border border-violet-500/20 bg-violet-500/10 text-[10px] font-black text-violet-100">
-                                DELIVERY
                               </span>
                             ) : null}
                           </div>
@@ -667,7 +783,7 @@ export default function OrdersClient() {
                         </div>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
                         <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
                           <div className="text-[11px] text-white/45">Amount</div>
                           <div className="mt-1 text-[13px] font-black text-white/80">
@@ -676,7 +792,9 @@ export default function OrdersClient() {
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
-                          <div className="text-[11px] text-white/45">Unit price</div>
+                          <div className="text-[11px] text-white/45">
+                            Unit price
+                          </div>
                           <div className="mt-1 text-[13px] font-black text-white/80">
                             {formatPaymentAmount(x.unitPrice, x.paymentToken)}
                           </div>
@@ -697,7 +815,7 @@ export default function OrdersClient() {
                         </div>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
                         <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
                           <div className="text-[11px] text-white/45">Created</div>
                           <div className="mt-1 text-[12px] font-black text-white/80">
@@ -706,16 +824,18 @@ export default function OrdersClient() {
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
-                          <div className="text-[11px] text-white/45">Shipped</div>
+                          <div className="text-[11px] text-white/45">
+                            {isPhysical ? "Shipped" : "Submitted"}
+                          </div>
                           <div className="mt-1 text-[12px] font-black text-white/80">
-                            {fmtDate(x.shippedAt)}
+                            {fmtDate(isPhysical ? x.shippedAt : x.submittedAt)}
                           </div>
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
                           <div className="text-[11px] text-white/45">Confirmed</div>
                           <div className="mt-1 text-[12px] font-black text-white/80">
-                            {fmtDate(x.confirmedAt)}
+                            {fmtDate(x.confirmedAt || x.buyerConfirmedAt)}
                           </div>
                         </div>
 
@@ -727,20 +847,30 @@ export default function OrdersClient() {
                         </div>
                       </div>
 
+                      {(x.category || x.subcategory) && (
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4 text-[12px] text-white/65">
+                          {[x.category, x.subcategory].filter(Boolean).join(" • ")}
+                        </div>
+                      )}
+
                       {canEditShipping ? (
                         <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
                           <div className="text-[12px] font-black text-amber-100">
                             Delivery details
                           </div>
-                          <div className="mt-2 text-[12px] text-amber-50/85 leading-relaxed">
-                            Fill your shipping info here. Seller will see it in this order and can ship the item after that.
+                          <div className="mt-2 text-[12px] leading-relaxed text-amber-50/85">
+                            Fill your shipping info here. Seller will see it in
+                            this order and can ship after that.
                           </div>
 
-                          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                             <input
                               value={shippingName[x.id] || ""}
                               onChange={(e) =>
-                                setShippingName((s) => ({ ...s, [x.id]: e.target.value }))
+                                setShippingName((s) => ({
+                                  ...s,
+                                  [x.id]: e.target.value,
+                                }))
                               }
                               placeholder="Full name *"
                               className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
@@ -749,7 +879,10 @@ export default function OrdersClient() {
                             <input
                               value={shippingPhone[x.id] || ""}
                               onChange={(e) =>
-                                setShippingPhone((s) => ({ ...s, [x.id]: e.target.value }))
+                                setShippingPhone((s) => ({
+                                  ...s,
+                                  [x.id]: e.target.value,
+                                }))
                               }
                               placeholder="Phone"
                               className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
@@ -758,7 +891,10 @@ export default function OrdersClient() {
                             <input
                               value={shippingCountry[x.id] || ""}
                               onChange={(e) =>
-                                setShippingCountry((s) => ({ ...s, [x.id]: e.target.value }))
+                                setShippingCountry((s) => ({
+                                  ...s,
+                                  [x.id]: e.target.value,
+                                }))
                               }
                               placeholder="Country *"
                               className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
@@ -767,7 +903,10 @@ export default function OrdersClient() {
                             <input
                               value={shippingCity[x.id] || ""}
                               onChange={(e) =>
-                                setShippingCity((s) => ({ ...s, [x.id]: e.target.value }))
+                                setShippingCity((s) => ({
+                                  ...s,
+                                  [x.id]: e.target.value,
+                                }))
                               }
                               placeholder="City *"
                               className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
@@ -776,7 +915,10 @@ export default function OrdersClient() {
                             <input
                               value={shippingZip[x.id] || ""}
                               onChange={(e) =>
-                                setShippingZip((s) => ({ ...s, [x.id]: e.target.value }))
+                                setShippingZip((s) => ({
+                                  ...s,
+                                  [x.id]: e.target.value,
+                                }))
                               }
                               placeholder="ZIP / Postal code"
                               className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
@@ -787,11 +929,14 @@ export default function OrdersClient() {
                             <textarea
                               value={shippingAddress[x.id] || ""}
                               onChange={(e) =>
-                                setShippingAddress((s) => ({ ...s, [x.id]: e.target.value }))
+                                setShippingAddress((s) => ({
+                                  ...s,
+                                  [x.id]: e.target.value,
+                                }))
                               }
                               placeholder="Address *"
                               rows={4}
-                              className="md:col-span-2 rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20 resize-none"
+                              className="resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20 md:col-span-2"
                             />
                           </div>
 
@@ -803,19 +948,21 @@ export default function OrdersClient() {
                             onClick={() => saveShipping(x.id)}
                             disabled={busyId === x.id || !shippingDraftMinimum}
                             className={cx(
-                              "mt-4 inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold transition",
+                              "mt-4 inline-flex items-center justify-center rounded-2xl px-5 py-3 font-extrabold text-black transition",
                               "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)]",
                               busyId === x.id || !shippingDraftMinimum
-                                ? "opacity-60 cursor-not-allowed"
+                                ? "cursor-not-allowed opacity-60"
                                 : "hover:brightness-110"
                             )}
                           >
-                            {busyId === x.id ? "Saving..." : "Save delivery details"}
+                            {busyId === x.id
+                              ? "Saving..."
+                              : "Save delivery details"}
                           </button>
                         </div>
                       ) : null}
 
-                      {x.deliveryRequired ? (
+                      {isPhysical ? (
                         <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
                           <div className="text-[12px] font-black text-white/80">
                             Shipping info
@@ -834,7 +981,8 @@ export default function OrdersClient() {
 
                           {x.trackingCode || x.carrier || x.trackingUrl ? (
                             <div className="mt-3 text-[12px] text-white/70">
-                              Tracking: {x.carrier || "—"} / {x.trackingCode || "—"}
+                              Tracking: {x.carrier || "—"} /{" "}
+                              {x.trackingCode || "—"}
                               {x.trackingUrl ? (
                                 <>
                                   {" "}
@@ -854,46 +1002,82 @@ export default function OrdersClient() {
                         </div>
                       ) : null}
 
+                      {isService ? (
+                        <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
+                          <div className="text-[12px] font-black text-white/80">
+                            Service flow
+                          </div>
+                          <div className="mt-2 text-[12px] text-white/60">
+                            Fulfillment: {titleCase(x.fulfillmentType)}
+                          </div>
+                          <div className="mt-1 text-[12px] text-white/60">
+                            Status: {x.serviceStatus || "—"}
+                          </div>
+                          <div className="mt-1 text-[12px] text-white/60">
+                            Scheduled: {fmtDate(x.scheduledFor)}
+                          </div>
+                          <div className="mt-1 text-[12px] text-white/60">
+                            Started: {fmtDate(x.workStartedAt)}
+                          </div>
+                          <div className="mt-1 text-[12px] text-white/60">
+                            Submitted: {fmtDate(x.submittedAt)}
+                          </div>
+                          <div className="mt-1 text-[12px] text-white/60">
+                            Completed: {fmtDate(x.completedAt)}
+                          </div>
+                        </div>
+                      ) : null}
+
                       {showWaitingForBuyerShipping ? (
                         <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
                           <div className="text-[12px] font-black text-amber-100">
                             Waiting for buyer shipping details
                           </div>
-                          <div className="mt-2 text-[12px] text-amber-50/85 leading-relaxed">
-                            Buyer has not saved delivery address yet. Seller shipping block will unlock after buyer fills it in.
+                          <div className="mt-2 text-[12px] leading-relaxed text-amber-50/85">
+                            Buyer has not saved delivery address yet. Seller
+                            shipping block will unlock after buyer fills it in.
                           </div>
                         </div>
                       ) : null}
 
-                      {x.escrowStatus === "NOT_REQUIRED" && !onchainDelivery ? (
+                      {x.escrowStatus === "NOT_REQUIRED" && !onchainEscrow ? (
                         <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-50/85">
-                          <div className="font-black text-amber-100">Official store delivery</div>
+                          <div className="font-black text-amber-100">
+                            Official store flow
+                          </div>
                           <div className="mt-2 leading-relaxed">
-                            This order does not use escrow. Use the order room for shipping, support and refund communication.
+                            This order does not use on-chain escrow. Use the
+                            room for shipping, support and coordination.
                           </div>
                         </div>
                       ) : null}
 
-                      {onchainDelivery ? (
+                      {onchainEscrow ? (
                         <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-50/85">
                           <div className="font-black text-sky-100">
-                            On-chain delivery escrow
+                            On-chain escrow flow
                           </div>
                           <div className="mt-2 leading-relaxed">
-                            This order uses the delivery marketplace contract. Confirm / release / refund
-                            must be executed through the on-chain delivery flow, and the database is updated
-                            later by the indexer.
+                            This order is controlled by a marketplace contract.
+                            Buyer confirmation and refund path are on-chain.
+                            Protected refund can require NFT return to the
+                            marketplace contract first. For protected one-step
+                            refund flow, buyer can use the contract path like{" "}
+                            <span className="font-black">
+                              requestRefundAndReturnNft(purchaseId)
+                            </span>{" "}
+                            after approval.
                           </div>
 
                           <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
                             {x.marketplacePurchaseId ? (
-                              <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 font-black text-sky-100">
+                              <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 font-black text-sky-100">
                                 Purchase #{x.marketplacePurchaseId}
                               </span>
                             ) : null}
 
                             {x.marketplaceContract ? (
-                              <span className="px-2 py-1 rounded-full border border-sky-500/20 bg-sky-500/10 font-black text-sky-100">
+                              <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 font-black text-sky-100">
                                 {shortAddr(x.marketplaceContract)}
                               </span>
                             ) : null}
@@ -907,11 +1091,14 @@ export default function OrdersClient() {
                             Ship order
                           </div>
 
-                          <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
                             <input
                               value={trackingCode[x.id] || ""}
                               onChange={(e) =>
-                                setTrackingCode((s) => ({ ...s, [x.id]: e.target.value }))
+                                setTrackingCode((s) => ({
+                                  ...s,
+                                  [x.id]: e.target.value,
+                                }))
                               }
                               placeholder="Tracking code"
                               className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
@@ -920,7 +1107,10 @@ export default function OrdersClient() {
                             <input
                               value={carrier[x.id] || ""}
                               onChange={(e) =>
-                                setCarrier((s) => ({ ...s, [x.id]: e.target.value }))
+                                setCarrier((s) => ({
+                                  ...s,
+                                  [x.id]: e.target.value,
+                                }))
                               }
                               placeholder="Carrier"
                               className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
@@ -929,7 +1119,10 @@ export default function OrdersClient() {
                             <input
                               value={trackingUrl[x.id] || ""}
                               onChange={(e) =>
-                                setTrackingUrl((s) => ({ ...s, [x.id]: e.target.value }))
+                                setTrackingUrl((s) => ({
+                                  ...s,
+                                  [x.id]: e.target.value,
+                                }))
                               }
                               placeholder="Tracking URL"
                               className="h-11 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
@@ -940,9 +1133,11 @@ export default function OrdersClient() {
                             onClick={() => shipOrder(x.id)}
                             disabled={busyId === x.id}
                             className={cx(
-                              "mt-3 inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold transition",
+                              "mt-3 inline-flex items-center justify-center rounded-2xl px-5 py-3 font-extrabold text-black transition",
                               "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)]",
-                              busyId === x.id ? "opacity-60 cursor-not-allowed" : "hover:brightness-110"
+                              busyId === x.id
+                                ? "cursor-not-allowed opacity-60"
+                                : "hover:brightness-110"
                             )}
                           >
                             {busyId === x.id ? "Shipping..." : "Mark as shipped"}
@@ -950,48 +1145,60 @@ export default function OrdersClient() {
                         </div>
                       ) : null}
 
-                      {canConfirm ? (
+                      {canConfirmOffchain ? (
                         <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-                          <div className="text-[12px] text-emerald-100 font-black">
-                            {x.escrowStatus === "NOT_REQUIRED"
-                              ? "Order shipped. Confirm receipt to complete the delivery status."
-                              : "Order shipped. Confirm receipt to release escrow."}
+                          <div className="text-[12px] font-black text-emerald-100">
+                            {isPhysical
+                              ? x.escrowStatus === "NOT_REQUIRED"
+                                ? "Order shipped. Confirm receipt to finalize delivery status."
+                                : "Order shipped. Confirm receipt to release escrow."
+                              : x.escrowStatus === "NOT_REQUIRED"
+                              ? "Service looks ready. Confirm successful completion."
+                              : "Service looks ready. Confirm successful completion to release escrow."}
                           </div>
 
                           <button
                             onClick={() => confirmOrder(x.id)}
                             disabled={busyId === x.id}
                             className={cx(
-                              "mt-3 inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold transition",
+                              "mt-3 inline-flex items-center justify-center rounded-2xl px-5 py-3 font-extrabold text-black transition",
                               "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)]",
-                              busyId === x.id ? "opacity-60 cursor-not-allowed" : "hover:brightness-110"
+                              busyId === x.id
+                                ? "cursor-not-allowed opacity-60"
+                                : "hover:brightness-110"
                             )}
                           >
-                            {busyId === x.id ? "Confirming..." : "Confirm delivery"}
+                            {busyId === x.id
+                              ? "Confirming..."
+                              : isPhysical
+                              ? "Confirm delivery"
+                              : "Confirm service"}
                           </button>
                         </div>
                       ) : null}
 
                       {showOnchainConfirmNotice ? (
                         <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
-                          <div className="text-[12px] text-sky-100 font-black">
+                          <div className="text-[12px] font-black text-sky-100">
                             Buyer confirmation is on-chain for this order
                           </div>
-                          <div className="mt-2 text-[12px] text-sky-50/85 leading-relaxed">
-                            This delivery purchase is controlled by the delivery marketplace contract.
-                            Do not use the old off-chain confirm route for it.
+                          <div className="mt-2 text-[12px] leading-relaxed text-sky-50/85">
+                            Final payout should come from the marketplace
+                            contract after buyer wallet action. Do not use old
+                            off-chain confirm for protected / delivery
+                            marketplace orders.
                           </div>
                         </div>
                       ) : null}
 
-                      {(x.noteBuyer || x.noteSeller || x.adminNote) ? (
-                        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {(x.noteBuyer || x.noteSeller || x.adminNote) && (
+                        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
                           {x.noteBuyer ? (
                             <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
-                              <div className="text-[11px] text-white/45 uppercase tracking-wider font-semibold">
+                              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
                                 Buyer note
                               </div>
-                              <div className="mt-2 text-[12px] text-white/75 whitespace-pre-wrap">
+                              <div className="mt-2 whitespace-pre-wrap text-[12px] text-white/75">
                                 {x.noteBuyer}
                               </div>
                             </div>
@@ -999,10 +1206,10 @@ export default function OrdersClient() {
 
                           {x.noteSeller ? (
                             <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
-                              <div className="text-[11px] text-white/45 uppercase tracking-wider font-semibold">
+                              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
                                 Seller note
                               </div>
-                              <div className="mt-2 text-[12px] text-white/75 whitespace-pre-wrap">
+                              <div className="mt-2 whitespace-pre-wrap text-[12px] text-white/75">
                                 {x.noteSeller}
                               </div>
                             </div>
@@ -1010,28 +1217,28 @@ export default function OrdersClient() {
 
                           {x.adminNote ? (
                             <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
-                              <div className="text-[11px] text-white/45 uppercase tracking-wider font-semibold">
+                              <div className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
                                 Admin note
                               </div>
-                              <div className="mt-2 text-[12px] text-white/75 whitespace-pre-wrap">
+                              <div className="mt-2 whitespace-pre-wrap text-[12px] text-white/75">
                                 {x.adminNote}
                               </div>
                             </div>
                           ) : null}
                         </div>
-                      ) : null}
+                      )}
 
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Link
                           href={roomHref}
-                          className="inline-flex items-center justify-center px-4 py-2 rounded-2xl text-black font-extrabold transition bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] hover:brightness-110 text-[12px]"
+                          className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 text-[12px] font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
                         >
                           Open room
                         </Link>
 
                         <Link
                           href={nftHref}
-                          className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
+                          className="inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-white/85 transition hover:bg-white/[0.10]"
                         >
                           Open NFT
                         </Link>

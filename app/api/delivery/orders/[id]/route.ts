@@ -9,6 +9,12 @@ export const revalidate = 0;
 
 type SupportRoleValue = "USER" | "MODERATOR" | "ADMIN";
 
+const SERVICE_FULFILLMENTS = [
+  "DIGITAL_SERVICE",
+  "ONLINE_SESSION",
+  "LOCAL_SERVICE",
+] as const;
+
 const ADMIN_WALLETS = (
   process.env.ADMIN_CREATE_WALLETS ||
   process.env.ADMIN_WALLETS ||
@@ -24,25 +30,31 @@ function normAddr(v?: string | null) {
   return String(v || "").trim().toLowerCase();
 }
 
+function isFulfillmentOrder(order: {
+  deliveryRequired: boolean;
+  fulfillmentType?: string | null;
+}) {
+  if (order.deliveryRequired) return true;
+
+  return SERVICE_FULFILLMENTS.includes(
+    String(order.fulfillmentType || "").trim().toUpperCase() as
+      | "DIGITAL_SERVICE"
+      | "ONLINE_SESSION"
+      | "LOCAL_SERVICE"
+  );
+}
+
 async function getActor() {
   const session = await getServerSession(authOptions);
 
-  const userId =
-    (session as any)?.user?.id ||
-    (session as any)?.userId ||
-    null;
-
+  const userId = (session as any)?.user?.id || (session as any)?.userId || null;
   const walletAddress = normAddr(
-    (session as any)?.user?.walletAddress ||
-      (session as any)?.walletAddress ||
-      ""
+    (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
   );
 
   const isAdminSession = Boolean(
-    (session as any)?.user?.isAdmin ||
-      (session as any)?.isAdmin
+    (session as any)?.user?.isAdmin || (session as any)?.isAdmin
   );
-
   const isAllowlistedWallet =
     !!walletAddress && ADMIN_WALLETS.includes(walletAddress);
 
@@ -53,19 +65,12 @@ async function getActor() {
       where: { id: userId },
       select: { supportRole: true },
     });
-
     dbSupportRole = (dbUser?.supportRole as SupportRoleValue | null) || null;
   } else if (walletAddress) {
     const dbUser = await prisma.user.findFirst({
-      where: {
-        walletAddress: {
-          equals: walletAddress,
-          mode: "insensitive",
-        },
-      },
+      where: { walletAddress },
       select: { supportRole: true },
     });
-
     dbSupportRole = (dbUser?.supportRole as SupportRoleValue | null) || null;
   }
 
@@ -77,8 +82,6 @@ async function getActor() {
     walletAddress,
     isSupport: isAdminSession || isAllowlistedWallet || isDbSupport,
     dbSupportRole,
-    isAdminSession,
-    isAllowlistedWallet,
   };
 }
 
@@ -160,6 +163,11 @@ export async function GET(
         physicalItem: true,
         officialItem: true,
 
+        fulfillmentType: true,
+        serviceStatus: true,
+        category: true,
+        subcategory: true,
+
         escrowStatus: true,
         deliveryStatus: true,
 
@@ -171,6 +179,17 @@ export async function GET(
         refundedAt: true,
         disputedAt: true,
         cancelledAt: true,
+
+        buyerConfirmedAt: true,
+        refundRequestedAt: true,
+        nftReturnedAt: true,
+        refundRejectedAt: true,
+
+        scheduledFor: true,
+        workStartedAt: true,
+        submittedAt: true,
+        revisionRequestedAt: true,
+        completedAt: true,
 
         shippingName: true,
         shippingPhone: true,
@@ -193,7 +212,7 @@ export async function GET(
       },
     });
 
-    if (!order || !order.deliveryRequired) {
+    if (!order || !isFulfillmentOrder(order)) {
       return NextResponse.json(
         { ok: false, error: "ORDER_NOT_FOUND" },
         { status: 404 }
@@ -245,6 +264,9 @@ export async function GET(
             deliveryEnabled: true,
             physicalItemIncluded: true,
             officialItem: true,
+            fulfillmentType: true,
+            category: true,
+            subcategory: true,
           },
         })
       : null;
@@ -293,6 +315,14 @@ export async function GET(
         physicalItem: order.physicalItem,
         officialItem: order.officialItem,
 
+        fulfillmentType:
+          order.fulfillmentType ||
+          mint?.fulfillmentType ||
+          (order.deliveryRequired ? "PHYSICAL_GOOD" : null),
+        serviceStatus: order.serviceStatus,
+        category: order.category || mint?.category || null,
+        subcategory: order.subcategory || mint?.subcategory || null,
+
         escrowStatus: order.escrowStatus,
         deliveryStatus: order.deliveryStatus,
 
@@ -306,6 +336,35 @@ export async function GET(
         refundedAt: order.refundedAt ? order.refundedAt.toISOString() : null,
         disputedAt: order.disputedAt ? order.disputedAt.toISOString() : null,
         cancelledAt: order.cancelledAt ? order.cancelledAt.toISOString() : null,
+
+        buyerConfirmedAt: order.buyerConfirmedAt
+          ? order.buyerConfirmedAt.toISOString()
+          : null,
+        refundRequestedAt: order.refundRequestedAt
+          ? order.refundRequestedAt.toISOString()
+          : null,
+        nftReturnedAt: order.nftReturnedAt
+          ? order.nftReturnedAt.toISOString()
+          : null,
+        refundRejectedAt: order.refundRejectedAt
+          ? order.refundRejectedAt.toISOString()
+          : null,
+
+        scheduledFor: order.scheduledFor
+          ? order.scheduledFor.toISOString()
+          : null,
+        workStartedAt: order.workStartedAt
+          ? order.workStartedAt.toISOString()
+          : null,
+        submittedAt: order.submittedAt
+          ? order.submittedAt.toISOString()
+          : null,
+        revisionRequestedAt: order.revisionRequestedAt
+          ? order.revisionRequestedAt.toISOString()
+          : null,
+        completedAt: order.completedAt
+          ? order.completedAt.toISOString()
+          : null,
 
         shippingName: order.shippingName || null,
         shippingPhone: order.shippingPhone || null,

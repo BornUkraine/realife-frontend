@@ -65,53 +65,54 @@ export default function OrdersPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                  Realife Delivery Center
+                  Realife Orders Center
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">
+                  <span className="font-extrabold text-white/80">
+                    Physical + Service flow
+                  </span>
+                </Pill>
+
+                <Pill>
+                  <span className="font-extrabold text-white/80">
                     Store + Marketplace
                   </span>
                 </Pill>
 
                 <Pill>
-                  <span className="text-white/80 font-extrabold">
-                    Buyer + Seller flow
-                  </span>
-                </Pill>
-
-                <Pill>
-                  <span className="text-white/80 font-extrabold">
-                    Shipping + Escrow
+                  <span className="font-extrabold text-white/80">
+                    STANDARD + DELIVERY + PROTECTED
                   </span>
                 </Pill>
               </div>
 
-              <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
+              <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
                 Orders{" "}
-                <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
-                  & Delivery
+                <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
+                  & Fulfillment
                 </span>
               </h1>
 
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
-                A unified delivery center for all shippable NFTs: store
-                purchases, future public mint delivery, and secondary trading
-                delivery.
+                Unified center for physical delivery orders, digital services,
+                online sessions and local services across Realife store and
+                marketplace flows.
               </p>
 
-              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                Buyers and sellers manage shipping flow, tracking, confirmation,
-                and escrow statuses in one shared system, without splitting
-                delivery into store-only logic.
+              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
+                Physical orders use shipping flow. Service orders use room
+                coordination and completion flow. Protected marketplace orders
+                keep payout in escrow until buyer confirms completion, while
+                refund path can require NFT return through the protected
+                contract.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   href="/app/profile"
                   className={cx(
-                    "px-6 py-3 rounded-2xl border border-white/15 bg-white/[0.06]",
-                    "font-semibold hover:bg-white/10 transition backdrop-blur-2xl",
+                    "rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold transition backdrop-blur-2xl hover:bg-white/10",
                     "shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                   )}
                 >
@@ -121,8 +122,7 @@ export default function OrdersPage() {
                 <Link
                   href="/app/real-marketing/realife-store"
                   className={cx(
-                    "px-6 py-3 rounded-2xl border border-white/15 bg-white/[0.06]",
-                    "font-semibold hover:bg-white/10 transition backdrop-blur-2xl",
+                    "rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold transition backdrop-blur-2xl hover:bg-white/10",
                     "shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                   )}
                 >
@@ -131,7 +131,7 @@ export default function OrdersPage() {
 
                 <Link
                   href="/app/trading"
-                  className="px-6 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                  className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
                 >
                   Open Trading →
                 </Link>
@@ -151,7 +151,7 @@ export default function OrdersPage() {
           <div className="flex items-center gap-4">
             <span className="opacity-60">Orders</span>
             <span className="opacity-60">Delivery</span>
-            <span className="opacity-60">Shipping</span>
+            <span className="opacity-60">Services</span>
             <span className="opacity-60">Escrow</span>
           </div>
         </div>

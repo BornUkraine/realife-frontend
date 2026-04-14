@@ -19,15 +19,9 @@ function clean(v: unknown, max = 300) {
 async function getActor() {
   const session = await getServerSession(authOptions);
 
-  const userId =
-    (session as any)?.user?.id ||
-    (session as any)?.userId ||
-    null;
-
+  const userId = (session as any)?.user?.id || (session as any)?.userId || null;
   let walletAddress = normAddr(
-    (session as any)?.user?.walletAddress ||
-      (session as any)?.walletAddress ||
-      ""
+    (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
   );
 
   if (!walletAddress && userId) {
@@ -35,7 +29,6 @@ async function getActor() {
       where: { id: userId },
       select: { walletAddress: true },
     });
-
     walletAddress = normAddr(dbUser?.walletAddress || "");
   }
 
@@ -57,6 +50,7 @@ export async function POST(
   }
 
   const actor = await getActor();
+
   if (!actor.userId && !actor.walletAddress) {
     return NextResponse.json(
       { ok: false, error: "UNAUTHORIZED" },
@@ -65,6 +59,7 @@ export async function POST(
   }
 
   const body = await req.json().catch(() => null);
+
   if (!body || typeof body !== "object") {
     return NextResponse.json(
       { ok: false, error: "BAD_JSON" },
@@ -99,13 +94,8 @@ export async function POST(
         buyerId: true,
         buyerWallet: true,
         deliveryRequired: true,
+        fulfillmentType: true,
         deliveryStatus: true,
-        shippingName: true,
-        shippingPhone: true,
-        shippingCountry: true,
-        shippingCity: true,
-        shippingAddress: true,
-        shippingZip: true,
       },
     });
 
@@ -117,9 +107,7 @@ export async function POST(
     }
 
     const buyerById =
-      !!actor.userId &&
-      !!order.buyerId &&
-      actor.userId === order.buyerId;
+      !!actor.userId && !!order.buyerId && actor.userId === order.buyerId;
 
     const buyerByWallet =
       !!actor.walletAddress &&
@@ -137,7 +125,8 @@ export async function POST(
       return NextResponse.json(
         {
           ok: false,
-          error: "DELIVERY_NOT_REQUIRED",
+          error: "FULFILLMENT_IS_NOT_PHYSICAL",
+          message: "Shipping form is only for PHYSICAL_GOOD orders.",
         },
         { status: 400 }
       );
@@ -205,7 +194,6 @@ export async function POST(
     });
   } catch (e) {
     console.error("[DELIVERY_ORDER_SAVE_SHIPPING_ERROR]", e);
-
     return NextResponse.json(
       { ok: false, error: "INTERNAL" },
       { status: 500 }

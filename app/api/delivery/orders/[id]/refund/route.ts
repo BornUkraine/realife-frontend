@@ -36,9 +36,24 @@ async function requireSupport() {
   const wallet = normAddr(
     (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
   );
-  const isAdminSession = Boolean((session as any)?.user?.isAdmin || (session as any)?.isAdmin);
+  const isAdminSession = Boolean(
+    (session as any)?.user?.isAdmin || (session as any)?.isAdmin
+  );
   const isAllowlistedWallet = !!wallet && ADMIN_WALLETS.includes(wallet);
-  return isAdminSession || isAllowlistedWallet;
+
+  if (isAdminSession || isAllowlistedWallet) return true;
+
+  const userId = (session as any)?.user?.id || (session as any)?.userId || null;
+  if (!userId) return false;
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { supportRole: true },
+  });
+
+  return (
+    dbUser?.supportRole === "MODERATOR" || dbUser?.supportRole === "ADMIN"
+  );
 }
 
 function nextDeliveryStatusForRefund(
@@ -55,13 +70,30 @@ function nextDeliveryStatusForRefund(
   return "CANCELLED";
 }
 
-function isOnchainDeliveryOrder(order: {
+function nextServiceStatusForRefund(
+  fulfillmentType?: string | null,
+  current?: string | null
+): string {
+  const ft = String(fulfillmentType || "").trim().toUpperCase();
+
+  const isService =
+    ft === "DIGITAL_SERVICE" ||
+    ft === "ONLINE_SESSION" ||
+    ft === "LOCAL_SERVICE";
+
+  if (!isService) return "NOT_REQUIRED";
+  if (String(current || "") === "NOT_REQUIRED") return "NOT_REQUIRED";
+  return "CANCELLED";
+}
+
+function isOnchainEscrowOrder(order: {
   marketType?: string | null;
   sourceType?: string | null;
   marketplacePurchaseId?: bigint | null;
 }) {
   return (
     order.marketType === "DELIVERY" ||
+    order.marketType === "PROTECTED" ||
     (order.sourceType === "MARKETPLACE" && order.marketplacePurchaseId != null)
   );
 }
@@ -75,7 +107,10 @@ export async function POST(
     const isSupport = await requireSupport();
 
     if (!isSupport) {
-      return NextResponse.json({ ok: false, error: "FORBIDDEN" }, { status: 403 });
+      return NextResponse.json(
+        { ok: false, error: "FORBIDDEN" },
+        { status: 403 }
+      );
     }
 
     const body = await req.json().catch(() => null);
@@ -95,6 +130,8 @@ export async function POST(
         id: true,
         deliveryRequired: true,
         deliveryStatus: true,
+        fulfillmentType: true,
+        serviceStatus: true,
         escrowStatus: true,
         sourceType: true,
         marketType: true,
@@ -104,10 +141,13 @@ export async function POST(
     });
 
     if (!order) {
-      return NextResponse.json({ ok: false, error: "ORDER_NOT_FOUND" }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: "ORDER_NOT_FOUND" },
+        { status: 404 }
+      );
     }
 
-    if (isOnchainDeliveryOrder(order)) {
+    if (isOnchainEscrowOrder(order)) {
       return NextResponse.json(
         {
           ok: false,
@@ -128,11 +168,17 @@ export async function POST(
     }
 
     if (order.escrowStatus === "RELEASED") {
-      return NextResponse.json({ ok: false, error: "ESCROW_ALREADY_RELEASED" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "ESCROW_ALREADY_RELEASED" },
+        { status: 400 }
+      );
     }
 
     if (order.escrowStatus === "CANCELLED") {
-      return NextResponse.json({ ok: false, error: "ESCROW_ALREADY_CANCELLED" }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: "ESCROW_ALREADY_CANCELLED" },
+        { status: 400 }
+      );
     }
 
     const now = new Date();
@@ -146,13 +192,21 @@ export async function POST(
           escrowStatus: nextEscrowStatus as any,
           refundedAt: now,
           escrowRefundTxHash: escrowRefundTxHash || undefined,
-          deliveryStatus: nextDeliveryStatusForRefund(order.deliveryRequired, order.deliveryStatus) as any,
+          deliveryStatus: nextDeliveryStatusForRefund(
+            order.deliveryRequired,
+            order.deliveryStatus
+          ) as any,
+          serviceStatus: nextServiceStatusForRefund(
+            order.fulfillmentType,
+            order.serviceStatus
+          ) as any,
           ...(note ? { adminNote: note } : {}),
         },
         select: {
           id: true,
           escrowStatus: true,
           deliveryStatus: true,
+          serviceStatus: true,
           refundedAt: true,
           escrowRefundTxHash: true,
         },
@@ -182,6 +236,9 @@ export async function POST(
     });
   } catch (e) {
     console.error("[API_DELIVERY_ORDER_REFUND_ERROR]", e);
-    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "INTERNAL" },
+      { status: 500 }
+    );
   }
 }

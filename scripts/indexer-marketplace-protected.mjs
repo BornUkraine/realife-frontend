@@ -52,6 +52,12 @@ const SLEEP_MS = Number(
     "8000"
 );
 
+const LOOKBACK_BLOCKS = BigInt(
+  process.env.PROTECTED_MARKETPLACE_LOOKBACK_BLOCKS ||
+    process.env.LOOKBACK_BLOCKS ||
+    "250"
+);
+
 const provider = new JsonRpcProvider(RPC_URL);
 
 const ABI = [
@@ -81,18 +87,55 @@ function stateKey() {
   return `marketplace:${MARKET_TYPE}:${MARKETPLACE}`;
 }
 
+function initialLastBlockValue() {
+  if (START_BLOCK <= 0n) return 0n;
+  return START_BLOCK - 1n;
+}
+
+function minScanBlock() {
+  return START_BLOCK > 0n ? START_BLOCK : 0n;
+}
+
+function listingWhereUnique(listingId) {
+  return {
+    chainId_marketType_marketplaceListingId: {
+      chainId: CHAIN_ID,
+      marketType: MARKET_TYPE,
+      marketplaceListingId: listingId,
+    },
+  };
+}
+
+function orderWhereUnique(purchaseId) {
+  return {
+    chainId_marketType_marketplaceContract_marketplacePurchaseId: {
+      chainId: CHAIN_ID,
+      marketType: MARKET_TYPE,
+      marketplaceContract: MARKETPLACE,
+      marketplacePurchaseId: purchaseId,
+    },
+  };
+}
+
 async function getLastBlock() {
   const key = stateKey();
+
   const row = await prisma.indexerState.upsert({
     where: { chainId_key: { chainId: CHAIN_ID, key } },
     update: {},
-    create: { chainId: CHAIN_ID, key, lastBlock: START_BLOCK },
+    create: {
+      chainId: CHAIN_ID,
+      key,
+      lastBlock: initialLastBlockValue(),
+    },
   });
+
   return BigInt(row.lastBlock);
 }
 
 async function setLastBlock(bn) {
   const key = stateKey();
+
   await prisma.indexerState.update({
     where: { chainId_key: { chainId: CHAIN_ID, key } },
     data: { lastBlock: bn },
@@ -102,8 +145,15 @@ async function setLastBlock(bn) {
 const blockTsCache = new Map();
 
 async function getBlockTime(blockNumber) {
-  if (blockTsCache.has(blockNumber)) return blockTsCache.get(blockNumber);
+  if (blockTsCache.has(blockNumber)) {
+    return blockTsCache.get(blockNumber);
+  }
+
   const b = await provider.getBlock(blockNumber);
+  if (!b) {
+    throw new Error(`Block ${blockNumber} not found`);
+  }
+
   const dt = new Date(Number(b.timestamp) * 1000);
   blockTsCache.set(blockNumber, dt);
   return dt;
@@ -138,7 +188,7 @@ function fulfillmentTypeFromRaw(raw) {
   if (n === 2) return "ONLINE_SESSION";
   if (n === 3) return "LOCAL_SERVICE";
 
-  return "DIGITAL_SERVICE";
+  return null;
 }
 
 function isPhysicalFulfillment(v) {
@@ -186,6 +236,21 @@ function nextServiceStatusForRefund(fulfillmentType, current) {
   return "CANCELLED";
 }
 
+function sortLogs(logs) {
+  return [...logs].sort((a, b) => {
+    const aBlock = Number(a.blockNumber);
+    const bBlock = Number(b.blockNumber);
+
+    if (aBlock !== bBlock) {
+      return aBlock - bBlock;
+    }
+
+    const aIndex = Number(a.index ?? a.logIndex ?? 0);
+    const bIndex = Number(b.index ?? b.logIndex ?? 0);
+    return aIndex - bIndex;
+  });
+}
+
 /* ============================================================================
  * LISTED
  * NFT moves into protected marketplace custody.
@@ -200,6 +265,14 @@ async function handleListed(parsed, log) {
   const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
   const fulfillmentType = fulfillmentTypeFromRaw(parsed.args.fulfillmentType);
   const txHash = log.transactionHash;
+
+  if (!fulfillmentType) {
+    console.warn("[PROTECTED_SKIP_BAD_FULFILLMENT_TYPE]", {
+      listingId: listingId.toString(),
+      raw: String(parsed.args.fulfillmentType),
+    });
+    return;
+  }
 
   const [product, mint, sellerId, existingListing] = await Promise.all([
     prisma.realMarketingProduct.findUnique({
@@ -217,6 +290,7 @@ async function handleListed(parsed, log) {
         officialItem: true,
       },
     }),
+
     prisma.mint.findUnique({
       where: {
         chainId_contract_tokenId: {
@@ -235,15 +309,11 @@ async function handleListed(parsed, log) {
         subcategory: true,
       },
     }),
+
     ensureUserByWallet(seller),
+
     prisma.listing.findUnique({
-      where: {
-        chainId_marketType_marketplaceListingId: {
-          chainId: CHAIN_ID,
-          marketType: MARKET_TYPE,
-          marketplaceListingId: listingId,
-        },
-      },
+      where: listingWhereUnique(listingId),
       select: { id: true },
     }),
   ]);
@@ -255,12 +325,12 @@ async function handleListed(parsed, log) {
 
   const deliveryEnabled =
     isPhysicalFulfillment(fulfillmentType) ||
-    product?.deliveryEnabled ||
+    Boolean(product?.deliveryEnabled) ||
     Boolean(mint.deliveryEnabled);
 
   const physicalItemIncluded =
     isPhysicalFulfillment(fulfillmentType) ||
-    product?.physicalItemIncluded ||
+    Boolean(product?.physicalItemIncluded) ||
     Boolean(mint.physicalItemIncluded);
 
   const officialItem = product?.officialItem ?? Boolean(mint.officialItem);
@@ -268,13 +338,7 @@ async function handleListed(parsed, log) {
   const subcategory = mint.subcategory || null;
 
   await prisma.listing.upsert({
-    where: {
-      chainId_marketType_marketplaceListingId: {
-        chainId: CHAIN_ID,
-        marketType: MARKET_TYPE,
-        marketplaceListingId: listingId,
-      },
-    },
+    where: listingWhereUnique(listingId),
     update: {
       marketplaceContract: MARKETPLACE,
       marketType: MARKET_TYPE,
@@ -288,8 +352,8 @@ async function handleListed(parsed, log) {
       createdTxHash: txHash,
       cancelledAt: null,
       soldOutAt: null,
-      deliveryEnabled: Boolean(deliveryEnabled),
-      physicalItemIncluded: Boolean(physicalItemIncluded),
+      deliveryEnabled,
+      physicalItemIncluded,
       officialItem: Boolean(officialItem),
       fulfillmentType,
       category,
@@ -310,8 +374,8 @@ async function handleListed(parsed, log) {
       amountRemaining: amount,
       status: "ACTIVE",
       createdTxHash: txHash,
-      deliveryEnabled: Boolean(deliveryEnabled),
-      physicalItemIncluded: Boolean(physicalItemIncluded),
+      deliveryEnabled,
+      physicalItemIncluded,
       officialItem: Boolean(officialItem),
       fulfillmentType,
       category,
@@ -320,17 +384,28 @@ async function handleListed(parsed, log) {
   });
 
   if (!existingListing && sellerId) {
-    await prisma.holding.updateMany({
+    const res = await prisma.holding.updateMany({
       where: {
         userId: sellerId,
         chainId: CHAIN_ID,
         contract: nft,
         tokenId,
+        amount: { gte: amount },
       },
       data: {
         amount: { decrement: amount },
       },
     });
+
+    if (res.count === 0) {
+      console.warn("[PROTECTED_LISTED_HOLDING_DECREMENT_MISS]", {
+        sellerId,
+        seller,
+        nft,
+        tokenId,
+        amount: amount.toString(),
+      });
+    }
   }
 
   console.log("[PROTECTED_LISTED]", {
@@ -353,13 +428,7 @@ async function handleCancelled(parsed, blockTime) {
   const amountReturned = BigInt(parsed.args.amountReturned);
 
   const row = await prisma.listing.findUnique({
-    where: {
-      chainId_marketType_marketplaceListingId: {
-        chainId: CHAIN_ID,
-        marketType: MARKET_TYPE,
-        marketplaceListingId: listingId,
-      },
-    },
+    where: listingWhereUnique(listingId),
     select: {
       id: true,
       status: true,
@@ -378,13 +447,7 @@ async function handleCancelled(parsed, blockTime) {
   }
 
   await prisma.listing.update({
-    where: {
-      chainId_marketType_marketplaceListingId: {
-        chainId: CHAIN_ID,
-        marketType: MARKET_TYPE,
-        marketplaceListingId: listingId,
-      },
-    },
+    where: listingWhereUnique(listingId),
     data: {
       status: "CANCELLED",
       cancelledAt: blockTime,
@@ -439,7 +502,15 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
   const totalPriceWei = BigInt(parsed.args.totalPriceWei);
   const fulfillmentType = fulfillmentTypeFromRaw(parsed.args.fulfillmentType);
   const txHash = log.transactionHash;
-  const logIndex = Number(log.index);
+  const logIndex = Number(log.index ?? log.logIndex ?? 0);
+
+  if (!fulfillmentType) {
+    console.warn("[PROTECTED_SKIP_BAD_FULFILLMENT_TYPE]", {
+      purchaseId: purchaseId.toString(),
+      raw: String(parsed.args.fulfillmentType),
+    });
+    return;
+  }
 
   const [product, mint, sellerId, buyerId, currentListing] = await Promise.all([
     prisma.realMarketingProduct.findUnique({
@@ -457,6 +528,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
         officialItem: true,
       },
     }),
+
     prisma.mint.findUnique({
       where: {
         chainId_contract_tokenId: {
@@ -474,16 +546,12 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
         subcategory: true,
       },
     }),
+
     ensureUserByWallet(seller),
     ensureUserByWallet(buyer),
+
     prisma.listing.findUnique({
-      where: {
-        chainId_marketType_marketplaceListingId: {
-          chainId: CHAIN_ID,
-          marketType: MARKET_TYPE,
-          marketplaceListingId: listingId,
-        },
-      },
+      where: listingWhereUnique(listingId),
       select: {
         id: true,
         status: true,
@@ -542,6 +610,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
       },
       select: { id: true },
     });
+
     createdTrade = true;
   } catch (e) {
     if (isPrismaUnique(e)) {
@@ -567,13 +636,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
     const soldOut = newRemaining <= 0n;
 
     await prisma.listing.update({
-      where: {
-        chainId_marketType_marketplaceListingId: {
-          chainId: CHAIN_ID,
-          marketType: MARKET_TYPE,
-          marketplaceListingId: listingId,
-        },
-      },
+      where: listingWhereUnique(listingId),
       data: {
         amountRemaining: soldOut ? 0n : newRemaining,
         status: soldOut ? "SOLD_OUT" : "ACTIVE",
@@ -612,8 +675,8 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
 
   const physicalItem =
     isPhysicalFulfillment(fulfillmentType) ||
-    currentListing?.physicalItemIncluded ||
-    product?.physicalItemIncluded ||
+    Boolean(currentListing?.physicalItemIncluded) ||
+    Boolean(product?.physicalItemIncluded) ||
     Boolean(mint.physicalItemIncluded);
 
   const officialItem =
@@ -625,12 +688,8 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
   const subcategory = currentListing?.subcategory ?? mint.subcategory ?? null;
 
   if (tradeRow?.id) {
-    const existingOrder = await prisma.storeOrder.findFirst({
-      where: {
-        marketType: MARKET_TYPE,
-        marketplaceContract: MARKETPLACE,
-        marketplacePurchaseId: purchaseId,
-      },
+    const existingOrder = await prisma.storeOrder.findUnique({
+      where: orderWhereUnique(purchaseId),
       select: { id: true },
     });
 
@@ -715,13 +774,8 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
 async function handleBuyerConfirmed(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
 
-  const rows = await prisma.storeOrder.findMany({
-    where: {
-      chainId: CHAIN_ID,
-      marketType: MARKET_TYPE,
-      marketplaceContract: MARKETPLACE,
-      marketplacePurchaseId: purchaseId,
-    },
+  const row = await prisma.storeOrder.findUnique({
+    where: orderWhereUnique(purchaseId),
     select: {
       id: true,
       deliveryStatus: true,
@@ -732,25 +786,30 @@ async function handleBuyerConfirmed(parsed, blockTime) {
     },
   });
 
-  for (const row of rows) {
-    const isPhysical = row.fulfillmentType === "PHYSICAL_GOOD";
-    const isService =
-      !!row.fulfillmentType && isServiceFulfillment(row.fulfillmentType);
-
-    await prisma.storeOrder.update({
-      where: { id: row.id },
-      data: {
-        buyerConfirmedAt: row.buyerConfirmedAt || blockTime,
-        confirmedAt: row.confirmedAt || blockTime,
-        deliveryStatus: isPhysical ? "CONFIRMED" : row.deliveryStatus,
-        serviceStatus: isService ? "CONFIRMED" : row.serviceStatus,
-      },
+  if (!row) {
+    console.log("[PROTECTED_BUYER_CONFIRMED_SKIP]", {
+      purchaseId: purchaseId.toString(),
+      reason: "order_not_found",
     });
+    return;
   }
+
+  const isPhysical = row.fulfillmentType === "PHYSICAL_GOOD";
+  const isService =
+    !!row.fulfillmentType && isServiceFulfillment(row.fulfillmentType);
+
+  await prisma.storeOrder.update({
+    where: { id: row.id },
+    data: {
+      buyerConfirmedAt: row.buyerConfirmedAt || blockTime,
+      confirmedAt: row.confirmedAt || blockTime,
+      deliveryStatus: isPhysical ? "CONFIRMED" : row.deliveryStatus,
+      serviceStatus: isService ? "CONFIRMED" : row.serviceStatus,
+    },
+  });
 
   console.log("[PROTECTED_BUYER_CONFIRMED]", {
     purchaseId: purchaseId.toString(),
-    updated: rows.length,
   });
 }
 
@@ -760,30 +819,30 @@ async function handleBuyerConfirmed(parsed, blockTime) {
 async function handleRefundRequested(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
 
-  const rows = await prisma.storeOrder.findMany({
-    where: {
-      chainId: CHAIN_ID,
-      marketType: MARKET_TYPE,
-      marketplaceContract: MARKETPLACE,
-      marketplacePurchaseId: purchaseId,
-    },
+  const row = await prisma.storeOrder.findUnique({
+    where: orderWhereUnique(purchaseId),
     select: { id: true },
   });
 
-  for (const row of rows) {
-    await prisma.storeOrder.update({
-      where: { id: row.id },
-      data: {
-        escrowStatus: "DISPUTED",
-        disputedAt: blockTime,
-        refundRequestedAt: blockTime,
-      },
+  if (!row) {
+    console.log("[PROTECTED_REFUND_REQUESTED_SKIP]", {
+      purchaseId: purchaseId.toString(),
+      reason: "order_not_found",
     });
+    return;
   }
+
+  await prisma.storeOrder.update({
+    where: { id: row.id },
+    data: {
+      escrowStatus: "DISPUTED",
+      disputedAt: blockTime,
+      refundRequestedAt: blockTime,
+    },
+  });
 
   console.log("[PROTECTED_REFUND_REQUESTED]", {
     purchaseId: purchaseId.toString(),
-    updated: rows.length,
   });
 }
 
@@ -796,13 +855,8 @@ async function handlePurchaseNftReturned(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const buyer = norm(parsed.args.buyer);
 
-  const rows = await prisma.storeOrder.findMany({
-    where: {
-      chainId: CHAIN_ID,
-      marketType: MARKET_TYPE,
-      marketplaceContract: MARKETPLACE,
-      marketplacePurchaseId: purchaseId,
-    },
+  const row = await prisma.storeOrder.findUnique({
+    where: orderWhereUnique(purchaseId),
     select: {
       id: true,
       nftReturnedAt: true,
@@ -814,39 +868,56 @@ async function handlePurchaseNftReturned(parsed, blockTime) {
     },
   });
 
-  for (const row of rows) {
-    if (row.nftReturnedAt) continue;
+  if (!row) {
+    console.log("[PROTECTED_NFT_RETURNED_SKIP]", {
+      purchaseId: purchaseId.toString(),
+      reason: "order_not_found",
+    });
+    return;
+  }
 
-    await prisma.storeOrder.update({
-      where: { id: row.id },
+  if (row.nftReturnedAt) {
+    return;
+  }
+
+  await prisma.storeOrder.update({
+    where: { id: row.id },
+    data: {
+      escrowStatus: "DISPUTED",
+      disputedAt: blockTime,
+      nftReturnedAt: blockTime,
+    },
+  });
+
+  const buyerId = row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
+
+  if (buyerId) {
+    const res = await prisma.holding.updateMany({
+      where: {
+        userId: buyerId,
+        chainId: CHAIN_ID,
+        contract: row.contract,
+        tokenId: row.tokenId,
+        amount: { gte: row.amount },
+      },
       data: {
-        escrowStatus: "DISPUTED",
-        disputedAt: blockTime,
-        nftReturnedAt: blockTime,
+        amount: { decrement: row.amount },
       },
     });
 
-    const buyerId =
-      row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
-
-    if (buyerId) {
-      await prisma.holding.updateMany({
-        where: {
-          userId: buyerId,
-          chainId: CHAIN_ID,
-          contract: row.contract,
-          tokenId: row.tokenId,
-        },
-        data: {
-          amount: { decrement: row.amount },
-        },
+    if (res.count === 0) {
+      console.warn("[PROTECTED_RETURN_HOLDING_DECREMENT_MISS]", {
+        buyerId,
+        purchaseId: purchaseId.toString(),
+        contract: row.contract,
+        tokenId: row.tokenId,
+        amount: row.amount.toString(),
       });
     }
   }
 
   console.log("[PROTECTED_NFT_RETURNED]", {
     purchaseId: purchaseId.toString(),
-    updated: rows.length,
   });
 }
 
@@ -856,29 +927,29 @@ async function handlePurchaseNftReturned(parsed, blockTime) {
 async function handleRefundRequestRejected(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
 
-  const rows = await prisma.storeOrder.findMany({
-    where: {
-      chainId: CHAIN_ID,
-      marketType: MARKET_TYPE,
-      marketplaceContract: MARKETPLACE,
-      marketplacePurchaseId: purchaseId,
-    },
+  const row = await prisma.storeOrder.findUnique({
+    where: orderWhereUnique(purchaseId),
     select: { id: true },
   });
 
-  for (const row of rows) {
-    await prisma.storeOrder.update({
-      where: { id: row.id },
-      data: {
-        escrowStatus: "FUNDED",
-        refundRejectedAt: blockTime,
-      },
+  if (!row) {
+    console.log("[PROTECTED_REFUND_REQUEST_REJECTED_SKIP]", {
+      purchaseId: purchaseId.toString(),
+      reason: "order_not_found",
     });
+    return;
   }
+
+  await prisma.storeOrder.update({
+    where: { id: row.id },
+    data: {
+      escrowStatus: "FUNDED",
+      refundRejectedAt: blockTime,
+    },
+  });
 
   console.log("[PROTECTED_REFUND_REQUEST_REJECTED]", {
     purchaseId: purchaseId.toString(),
-    updated: rows.length,
   });
 }
 
@@ -890,13 +961,8 @@ async function handleReleased(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const txHash = log.transactionHash;
 
-  const rows = await prisma.storeOrder.findMany({
-    where: {
-      chainId: CHAIN_ID,
-      marketType: MARKET_TYPE,
-      marketplaceContract: MARKETPLACE,
-      marketplacePurchaseId: purchaseId,
-    },
+  const row = await prisma.storeOrder.findUnique({
+    where: orderWhereUnique(purchaseId),
     select: {
       id: true,
       escrowStatus: true,
@@ -908,31 +974,38 @@ async function handleReleased(parsed, log, blockTime) {
     },
   });
 
-  for (const row of rows) {
-    if (row.escrowStatus === "RELEASED") continue;
-
-    const isPhysical = row.fulfillmentType === "PHYSICAL_GOOD";
-    const isService =
-      !!row.fulfillmentType && isServiceFulfillment(row.fulfillmentType);
-
-    await prisma.storeOrder.update({
-      where: { id: row.id },
-      data: {
-        escrowStatus: "RELEASED",
-        releasedAt: blockTime,
-        escrowReleaseTxHash: txHash,
-        confirmedAt: row.confirmedAt || blockTime,
-        deliveryStatus: isPhysical ? "CONFIRMED" : row.deliveryStatus,
-        serviceStatus: isService ? "CONFIRMED" : row.serviceStatus,
-        completedAt: isService ? row.completedAt || blockTime : row.completedAt,
-      },
+  if (!row) {
+    console.log("[PROTECTED_RELEASED_SKIP]", {
+      purchaseId: purchaseId.toString(),
+      reason: "order_not_found",
     });
+    return;
   }
+
+  if (row.escrowStatus === "RELEASED") {
+    return;
+  }
+
+  const isPhysical = row.fulfillmentType === "PHYSICAL_GOOD";
+  const isService =
+    !!row.fulfillmentType && isServiceFulfillment(row.fulfillmentType);
+
+  await prisma.storeOrder.update({
+    where: { id: row.id },
+    data: {
+      escrowStatus: "RELEASED",
+      releasedAt: blockTime,
+      escrowReleaseTxHash: txHash,
+      confirmedAt: row.confirmedAt || blockTime,
+      deliveryStatus: isPhysical ? "CONFIRMED" : row.deliveryStatus,
+      serviceStatus: isService ? "CONFIRMED" : row.serviceStatus,
+      completedAt: isService ? row.completedAt || blockTime : row.completedAt,
+    },
+  });
 
   console.log("[PROTECTED_RELEASED]", {
     purchaseId: purchaseId.toString(),
     txHash,
-    updated: rows.length,
   });
 }
 
@@ -945,13 +1018,8 @@ async function handleRefunded(parsed, log, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const txHash = log.transactionHash;
 
-  const rows = await prisma.storeOrder.findMany({
-    where: {
-      chainId: CHAIN_ID,
-      marketType: MARKET_TYPE,
-      marketplaceContract: MARKETPLACE,
-      marketplacePurchaseId: purchaseId,
-    },
+  const row = await prisma.storeOrder.findUnique({
+    where: orderWhereUnique(purchaseId),
     select: {
       id: true,
       escrowStatus: true,
@@ -967,59 +1035,65 @@ async function handleRefunded(parsed, log, blockTime) {
     },
   });
 
-  for (const row of rows) {
-    if (row.escrowStatus === "REFUNDED") continue;
-
-    await prisma.storeOrder.update({
-      where: { id: row.id },
-      data: {
-        escrowStatus: "REFUNDED",
-        refundedAt: blockTime,
-        escrowRefundTxHash: txHash,
-        deliveryStatus: nextDeliveryStatusForRefund(
-          row.deliveryRequired,
-          row.deliveryStatus
-        ),
-        serviceStatus: nextServiceStatusForRefund(
-          row.fulfillmentType,
-          row.serviceStatus
-        ),
-      },
+  if (!row) {
+    console.log("[PROTECTED_REFUNDED_SKIP]", {
+      purchaseId: purchaseId.toString(),
+      reason: "order_not_found",
     });
+    return;
+  }
 
-    const sellerId =
-      row.sellerId || (await ensureUserByWallet(row.sellerWallet));
+  if (row.escrowStatus === "REFUNDED") {
+    return;
+  }
 
-    if (sellerId) {
-      await prisma.holding.upsert({
-        where: {
-          userId_chainId_contract_tokenId: {
-            userId: sellerId,
-            chainId: CHAIN_ID,
-            contract: row.contract,
-            tokenId: row.tokenId,
-          },
-        },
-        create: {
+  await prisma.storeOrder.update({
+    where: { id: row.id },
+    data: {
+      escrowStatus: "REFUNDED",
+      refundedAt: blockTime,
+      escrowRefundTxHash: txHash,
+      deliveryStatus: nextDeliveryStatusForRefund(
+        row.deliveryRequired,
+        row.deliveryStatus
+      ),
+      serviceStatus: nextServiceStatusForRefund(
+        row.fulfillmentType,
+        row.serviceStatus
+      ),
+    },
+  });
+
+  const sellerId = row.sellerId || (await ensureUserByWallet(row.sellerWallet));
+
+  if (sellerId) {
+    await prisma.holding.upsert({
+      where: {
+        userId_chainId_contract_tokenId: {
           userId: sellerId,
           chainId: CHAIN_ID,
           contract: row.contract,
           tokenId: row.tokenId,
-          standard: "ERC1155",
-          amount: row.amount,
         },
-        update: {
-          standard: "ERC1155",
-          amount: { increment: row.amount },
-        },
-      });
-    }
+      },
+      create: {
+        userId: sellerId,
+        chainId: CHAIN_ID,
+        contract: row.contract,
+        tokenId: row.tokenId,
+        standard: "ERC1155",
+        amount: row.amount,
+      },
+      update: {
+        standard: "ERC1155",
+        amount: { increment: row.amount },
+      },
+    });
   }
 
   console.log("[PROTECTED_REFUNDED]", {
     purchaseId: purchaseId.toString(),
     txHash,
-    updated: rows.length,
   });
 }
 
@@ -1031,13 +1105,8 @@ async function handleRefundRejectedAndRestored(parsed, blockTime) {
   const purchaseId = BigInt(parsed.args.purchaseId);
   const buyer = norm(parsed.args.buyer);
 
-  const rows = await prisma.storeOrder.findMany({
-    where: {
-      chainId: CHAIN_ID,
-      marketType: MARKET_TYPE,
-      marketplaceContract: MARKETPLACE,
-      marketplacePurchaseId: purchaseId,
-    },
+  const row = await prisma.storeOrder.findUnique({
+    where: orderWhereUnique(purchaseId),
     select: {
       id: true,
       nftReturnedAt: true,
@@ -1049,50 +1118,56 @@ async function handleRefundRejectedAndRestored(parsed, blockTime) {
     },
   });
 
-  for (const row of rows) {
-    if (!row.nftReturnedAt) continue;
-
-    await prisma.storeOrder.update({
-      where: { id: row.id },
-      data: {
-        escrowStatus: "FUNDED",
-        refundRejectedAt: blockTime,
-        nftReturnedAt: null,
-      },
+  if (!row) {
+    console.log("[PROTECTED_REFUND_RESTORED_SKIP]", {
+      purchaseId: purchaseId.toString(),
+      reason: "order_not_found",
     });
+    return;
+  }
 
-    const buyerId =
-      row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
+  if (!row.nftReturnedAt) {
+    return;
+  }
 
-    if (buyerId) {
-      await prisma.holding.upsert({
-        where: {
-          userId_chainId_contract_tokenId: {
-            userId: buyerId,
-            chainId: CHAIN_ID,
-            contract: row.contract,
-            tokenId: row.tokenId,
-          },
-        },
-        create: {
+  await prisma.storeOrder.update({
+    where: { id: row.id },
+    data: {
+      escrowStatus: "FUNDED",
+      refundRejectedAt: blockTime,
+      nftReturnedAt: null,
+    },
+  });
+
+  const buyerId = row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
+
+  if (buyerId) {
+    await prisma.holding.upsert({
+      where: {
+        userId_chainId_contract_tokenId: {
           userId: buyerId,
           chainId: CHAIN_ID,
           contract: row.contract,
           tokenId: row.tokenId,
-          standard: "ERC1155",
-          amount: row.amount,
         },
-        update: {
-          standard: "ERC1155",
-          amount: { increment: row.amount },
-        },
-      });
-    }
+      },
+      create: {
+        userId: buyerId,
+        chainId: CHAIN_ID,
+        contract: row.contract,
+        tokenId: row.tokenId,
+        standard: "ERC1155",
+        amount: row.amount,
+      },
+      update: {
+        standard: "ERC1155",
+        amount: { increment: row.amount },
+      },
+    });
   }
 
   console.log("[PROTECTED_REFUND_RESTORED_TO_BUYER]", {
     purchaseId: purchaseId.toString(),
-    updated: rows.length,
   });
 }
 
@@ -1106,9 +1181,11 @@ async function mainLoop() {
     chainId: CHAIN_ID,
     marketType: MARKET_TYPE,
     marketplace: MARKETPLACE,
+    startBlock: START_BLOCK.toString(),
     startFrom: last.toString(),
     confirmations: CONFIRMATIONS.toString(),
     batch: BATCH.toString(),
+    lookback: LOOKBACK_BLOCKS.toString(),
   });
 
   while (true) {
@@ -1116,7 +1193,18 @@ async function mainLoop() {
       const latest = BigInt(await provider.getBlockNumber());
       const safe = latest > CONFIRMATIONS ? latest - CONFIRMATIONS : 0n;
 
-      const fromBlock = last + 1n;
+      const nextFrom = last + 1n;
+
+      const overlapFrom =
+        LOOKBACK_BLOCKS > 0n
+          ? nextFrom > LOOKBACK_BLOCKS
+            ? nextFrom - LOOKBACK_BLOCKS
+            : 0n
+          : nextFrom;
+
+      const fromBlock =
+        overlapFrom < minScanBlock() ? minScanBlock() : overlapFrom;
+
       if (fromBlock > safe) {
         await sleep(SLEEP_MS);
         continue;
@@ -1125,15 +1213,15 @@ async function mainLoop() {
       const toBlock =
         fromBlock + BATCH - 1n > safe ? safe : fromBlock + BATCH - 1n;
 
-      const logs = await provider.getLogs({
+      const rawLogs = await provider.getLogs({
         address: MARKETPLACE,
         fromBlock: Number(fromBlock),
         toBlock: Number(toBlock),
       });
 
-      console.log(
-        `[PROTECTED_SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`
-      );
+      const logs = sortLogs(rawLogs);
+
+      console.log(`[PROTECTED_SCAN] ${fromBlock}..${toBlock} logs=${logs.length}`);
 
       for (const log of logs) {
         let parsed = null;
@@ -1146,7 +1234,7 @@ async function mainLoop() {
 
         if (!parsed) continue;
 
-        const blockTime = await getBlockTime(log.blockNumber);
+        const blockTime = await getBlockTime(Number(log.blockNumber));
 
         if (parsed.name === "Listed") {
           await handleListed(parsed, log);
