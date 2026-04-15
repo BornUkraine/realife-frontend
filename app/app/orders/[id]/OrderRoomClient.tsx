@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits } from "viem";
+import { useAccount, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 
 type ViewerRole = "buyer" | "seller" | "unknown";
 type MessageRole = "BUYER" | "SELLER" | "SUPPORT" | "SYSTEM";
@@ -145,8 +146,29 @@ type MessagesResponse = {
   items: DeliveryMessage[];
 };
 
+const PROTECTED_ESCROW_BUYER_ABI = [
+  {
+    type: "function",
+    name: "buyerConfirmAndRelease",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "purchaseId", type: "uint256" }],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "requestRefundAndReturnNft",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "purchaseId", type: "uint256" }],
+    outputs: [],
+  },
+] as const;
+
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
+}
+
+function normAddr(v?: string | null) {
+  return String(v || "").trim().toLowerCase();
 }
 
 function shortAddr(addr?: string | null) {
@@ -227,7 +249,7 @@ async function fetchJSON<T = any>(url: string, init?: RequestInit): Promise<T> {
   });
 
   const j = await r.json().catch(() => null);
-  if (!r.ok || !j) throw new Error(j?.error || "request_failed");
+  if (!r.ok || !j) throw new Error(j?.error || j?.message || "request_failed");
   return j as T;
 }
 
@@ -250,98 +272,19 @@ function formatPaymentAmount(raw?: string | null, paymentToken?: string | null) 
   }
 }
 
-function escrowTone(v?: string | null) {
-  switch (String(v || "")) {
-    case "RELEASED":
-      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
-    case "FUNDED":
-      return "border-sky-500/20 bg-sky-500/10 text-sky-100";
-    case "REFUNDED":
-    case "DISPUTED":
-    case "CANCELLED":
-      return "border-rose-500/20 bg-rose-500/10 text-rose-100";
-    default:
-      return "border-white/10 bg-white/[0.06] text-white/80";
-  }
-}
-
-function deliveryTone(v?: string | null) {
-  switch (String(v || "")) {
-    case "CONFIRMED":
-      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
-    case "READY_TO_SHIP":
-    case "SHIPPED":
-    case "DELIVERED":
-      return "border-sky-500/20 bg-sky-500/10 text-sky-100";
-    case "RETURN_REQUESTED":
-    case "RETURNED":
-    case "CANCELLED":
-      return "border-rose-500/20 bg-rose-500/10 text-rose-100";
-    default:
-      return "border-amber-500/20 bg-amber-500/10 text-amber-100";
-  }
-}
-
-function serviceTone(v?: string | null) {
-  switch (String(v || "")) {
-    case "CONFIRMED":
-      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
-    case "COMPLETED":
-    case "SUBMITTED":
-      return "border-sky-500/20 bg-sky-500/10 text-sky-100";
-    case "REVISION_REQUESTED":
-      return "border-amber-500/20 bg-amber-500/10 text-amber-100";
-    case "IN_PROGRESS":
-      return "border-violet-500/20 bg-violet-500/10 text-violet-100";
-    case "CANCELLED":
-      return "border-rose-500/20 bg-rose-500/10 text-rose-100";
-    default:
-      return "border-white/10 bg-white/[0.06] text-white/80";
-  }
-}
-
-function fulfillmentTone(v?: string | null) {
-  switch (String(v || "")) {
-    case "PHYSICAL_GOOD":
-      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
-    case "DIGITAL_SERVICE":
-      return "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-100";
-    case "ONLINE_SESSION":
-      return "border-amber-500/20 bg-amber-500/10 text-amber-100";
-    case "LOCAL_SERVICE":
-      return "border-sky-500/20 bg-sky-500/10 text-sky-100";
-    default:
-      return "border-white/10 bg-white/[0.06] text-white/80";
-  }
-}
-
 function messageTone(role: MessageRole, internal: boolean) {
-  if (internal) {
-    return "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-50";
-  }
-  switch (role) {
-    case "BUYER":
-      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-50";
-    case "SELLER":
-      return "border-sky-500/20 bg-sky-500/10 text-sky-50";
-    case "SUPPORT":
-      return "border-amber-500/20 bg-amber-500/10 text-amber-50";
-    default:
-      return "border-white/10 bg-white/[0.06] text-white/80";
-  }
+  if (internal) return "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-50";
+  if (role === "BUYER") return "border-emerald-500/20 bg-emerald-500/10 text-emerald-50";
+  if (role === "SELLER") return "border-sky-500/20 bg-sky-500/10 text-sky-50";
+  if (role === "SUPPORT") return "border-amber-500/20 bg-amber-500/10 text-amber-50";
+  return "border-white/10 bg-white/[0.06] text-white/80";
 }
 
 function senderLabel(role: MessageRole) {
-  switch (role) {
-    case "BUYER":
-      return "Buyer";
-    case "SELLER":
-      return "Seller";
-    case "SUPPORT":
-      return "Support";
-    default:
-      return "System";
-  }
+  if (role === "BUYER") return "Buyer";
+  if (role === "SELLER") return "Seller";
+  if (role === "SUPPORT") return "Support";
+  return "System";
 }
 
 function isOnchainEscrowOrder(x: OrderRow) {
@@ -377,6 +320,22 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
   const [supportDraft, setSupportDraft] = useState("");
   const [refundDraft, setRefundDraft] = useState("");
 
+  const [serviceSchedule, setServiceSchedule] = useState("");
+  const [serviceNote, setServiceNote] = useState("");
+  const [revisionDraft, setRevisionDraft] = useState("");
+
+  const { address } = useAccount();
+  const { writeContractAsync } = useWriteContract();
+  const [chainTxHash, setChainTxHash] = useState<`0x${string}` | undefined>(undefined);
+  const [chainActionKind, setChainActionKind] = useState<"confirm_release" | "refund_return" | null>(null);
+
+  const txReceipt = useWaitForTransactionReceipt({
+    hash: chainTxHash,
+    query: {
+      enabled: Boolean(chainTxHash),
+    },
+  });
+
   async function loadInitial() {
     setLoading(true);
     setErr(null);
@@ -390,6 +349,11 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
       setOrder(orderRes.order);
       setViewerRole(orderRes.viewerRole);
       setMessages(Array.isArray(messagesRes.items) ? messagesRes.items : []);
+      setServiceSchedule(
+        orderRes.order.scheduledFor
+          ? new Date(orderRes.order.scheduledFor).toISOString().slice(0, 16)
+          : ""
+      );
     } catch (e: any) {
       setErr(e?.message || "Failed to load order room");
     } finally {
@@ -407,50 +371,32 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
       setOrder(orderRes.order);
       setViewerRole(orderRes.viewerRole);
       setMessages(Array.isArray(messagesRes.items) ? messagesRes.items : []);
-    } catch (e) {
-      console.error("refreshRoom failed", e);
+      setServiceSchedule(
+        orderRes.order.scheduledFor
+          ? new Date(orderRes.order.scheduledFor).toISOString().slice(0, 16)
+          : ""
+      );
+    } catch (e: any) {
+      setErr(e?.message || "Failed to refresh room");
     }
   }
 
   useEffect(() => {
     void loadInitial();
-
-    const t = setInterval(() => {
-      void refreshRoom();
-    }, 4000);
-
-    return () => clearInterval(t);
   }, [orderId]);
 
-  const img = useMemo(
-    () => ipfsToHttp(order?.product?.image || null),
-    [order?.product?.image]
-  );
-
-  const nftHref = order
-    ? `/nft/${order.chainId}/${order.contract}/${encodeURIComponent(
-        String(order.tokenId)
-      )}`
-    : "#";
-
-  const onchainEscrow = order ? isOnchainEscrowOrder(order) : false;
-  const isPhysical = order ? isPhysicalOrder(order) : false;
-  const isService = order ? isServiceOrder(order) : false;
-
-  const canConfirmOffchain = Boolean(
-    order &&
-      viewerRole === "buyer" &&
-      !onchainEscrow &&
-      order.escrowStatus !== "REFUNDED" &&
-      order.escrowStatus !== "CANCELLED" &&
-      order.escrowStatus !== "DISPUTED" &&
-      ((isPhysical &&
-        (order.deliveryStatus === "SHIPPED" ||
-          order.deliveryStatus === "DELIVERED")) ||
-        (isService &&
-          (order.serviceStatus === "SUBMITTED" ||
-            order.serviceStatus === "COMPLETED")))
-  );
+  useEffect(() => {
+    if (txReceipt.isSuccess && chainTxHash) {
+      const label =
+        chainActionKind === "confirm_release"
+          ? "Buyer on-chain confirm + release completed."
+          : "Buyer refund-return transaction submitted.";
+      window.alert(`${label}\n\nTx: ${chainTxHash}`);
+      setChainTxHash(undefined);
+      setChainActionKind(null);
+      void refreshRoom();
+    }
+  }, [txReceipt.isSuccess, chainTxHash, chainActionKind]);
 
   async function sendMessage() {
     if (!draft.trim()) return;
@@ -460,14 +406,33 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
     try {
       await fetchJSON(`/api/delivery/orders/${orderId}/messages`, {
         method: "POST",
-        body: JSON.stringify({ body: draft }),
+        body: JSON.stringify({ body: draft.trim() }),
       });
       setDraft("");
       await refreshRoom();
     } catch (e: any) {
-      setErr(e?.message || "Message send failed");
+      setErr(e?.message || "Send message failed");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function callSupport() {
+    if (!supportDraft.trim()) return;
+    setActing(true);
+    setErr(null);
+
+    try {
+      await fetchJSON(`/api/delivery/orders/${orderId}/support`, {
+        method: "POST",
+        body: JSON.stringify({ note: supportDraft.trim() }),
+      });
+      setSupportDraft("");
+      await refreshRoom();
+    } catch (e: any) {
+      setErr(e?.message || "Support request failed");
+    } finally {
+      setActing(false);
     }
   }
 
@@ -479,7 +444,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
     try {
       await fetchJSON(`/api/delivery/orders/${orderId}/request-refund`, {
         method: "POST",
-        body: JSON.stringify({ note: refundDraft }),
+        body: JSON.stringify({ note: refundDraft.trim() }),
       });
       setRefundDraft("");
       await refreshRoom();
@@ -490,27 +455,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
     }
   }
 
-  async function callSupport() {
-    if (!supportDraft.trim()) return;
-    setActing(true);
-    setErr(null);
-
-    try {
-      await fetchJSON(`/api/delivery/orders/${orderId}/call-support`, {
-        method: "POST",
-        body: JSON.stringify({ note: supportDraft }),
-      });
-      setSupportDraft("");
-      await refreshRoom();
-    } catch (e: any) {
-      setErr(e?.message || "Support request failed");
-    } finally {
-      setActing(false);
-    }
-  }
-
   async function confirmOrder() {
-    if (!order) return;
     setConfirming(true);
     setErr(null);
 
@@ -527,9 +472,87 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
     }
   }
 
+  async function updateService(action: string, extra?: Record<string, unknown>) {
+    setActing(true);
+    setErr(null);
+
+    try {
+      await fetchJSON(`/api/delivery/orders/${orderId}/service`, {
+        method: "POST",
+        body: JSON.stringify({
+          action,
+          note: serviceNote.trim(),
+          ...extra,
+        }),
+      });
+      setServiceNote("");
+      setRevisionDraft("");
+      await refreshRoom();
+    } catch (e: any) {
+      setErr(e?.message || "Service update failed");
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function requestRevision() {
+    if (!revisionDraft.trim()) return;
+    setActing(true);
+    setErr(null);
+
+    try {
+      await fetchJSON(`/api/delivery/orders/${orderId}/service`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "request_revision",
+          note: revisionDraft.trim(),
+        }),
+      });
+      setRevisionDraft("");
+      await refreshRoom();
+    } catch (e: any) {
+      setErr(e?.message || "Revision request failed");
+    } finally {
+      setActing(false);
+    }
+  }
+
+  async function runBuyerOnchainAction(
+    action: "confirm_release" | "refund_return"
+  ) {
+    try {
+      if (!order) throw new Error("Order not loaded.");
+      if (viewerRole !== "buyer") throw new Error("Only buyer can use this action.");
+      if (!order.marketplaceContract || !order.marketplacePurchaseId) {
+        throw new Error("Marketplace contract or purchaseId is missing.");
+      }
+      if (!address) throw new Error("Connect buyer wallet first.");
+      if (normAddr(address) !== normAddr(order.buyerWallet)) {
+        throw new Error("Connected wallet must match buyer wallet.");
+      }
+
+      const hash = await writeContractAsync({
+        address: order.marketplaceContract as `0x${string}`,
+        abi: PROTECTED_ESCROW_BUYER_ABI,
+        functionName:
+          action === "confirm_release"
+            ? "buyerConfirmAndRelease"
+            : "requestRefundAndReturnNft",
+        args: [BigInt(order.marketplacePurchaseId)],
+      });
+
+      setChainActionKind(action);
+      setChainTxHash(hash);
+    } catch (e: any) {
+      setErr(e?.shortMessage || e?.message || "Wallet action failed");
+    }
+  }
+
+  const visibleMessages = useMemo(() => messages, [messages]);
+
   if (loading) {
     return (
-      <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 text-white/60">
+      <div className="rounded-[30px] border border-white/10 bg-white/[0.04] p-6 text-white/60">
         Loading order room...
       </div>
     );
@@ -537,414 +560,486 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
 
   if (!order) {
     return (
-      <div className="rounded-3xl border border-rose-500/20 bg-rose-500/10 p-6 text-rose-100">
+      <div className="rounded-[30px] border border-rose-500/20 bg-rose-500/10 p-6 text-rose-100">
         Order not found.
       </div>
     );
   }
 
+  const onchainEscrow = isOnchainEscrowOrder(order);
+  const isPhysical = isPhysicalOrder(order);
+  const isService = isServiceOrder(order);
+
+  const nftHref = `/nft/${order.chainId}/${order.contract}/${encodeURIComponent(
+    String(order.tokenId)
+  )}`;
+
+  const canConfirmOffchain =
+    viewerRole === "buyer" &&
+    !onchainEscrow &&
+    order.escrowStatus !== "REFUNDED" &&
+    order.escrowStatus !== "CANCELLED" &&
+    order.escrowStatus !== "DISPUTED" &&
+    ((isPhysical &&
+      (order.deliveryStatus === "SHIPPED" ||
+        order.deliveryStatus === "DELIVERED")) ||
+      (isService &&
+        (order.serviceStatus === "SUBMITTED" ||
+          order.serviceStatus === "COMPLETED")));
+
+  const canConfirmOnchainRelease =
+    viewerRole === "buyer" &&
+    onchainEscrow &&
+    order.escrowStatus === "FUNDED" &&
+    ((isPhysical &&
+      (order.deliveryStatus === "SHIPPED" || order.deliveryStatus === "DELIVERED")) ||
+      (isService &&
+        (order.serviceStatus === "SUBMITTED" || order.serviceStatus === "COMPLETED")));
+
+  const canStartOnchainRefundReturn =
+    viewerRole === "buyer" &&
+    onchainEscrow &&
+    order.escrowStatus !== "RELEASED" &&
+    order.escrowStatus !== "REFUNDED" &&
+    order.escrowStatus !== "CANCELLED" &&
+    order.escrowStatus !== "DISPUTED" &&
+    Boolean(order.marketplaceContract) &&
+    Boolean(order.marketplacePurchaseId);
+
+  const sellerCanSetSchedule =
+    viewerRole === "seller" && isService && order.serviceStatus !== "CONFIRMED";
+
+  const sellerCanStartWork =
+    viewerRole === "seller" &&
+    isService &&
+    order.serviceStatus !== "CONFIRMED" &&
+    order.serviceStatus !== "COMPLETED" &&
+    order.serviceStatus !== "CANCELLED";
+
+  const sellerCanSubmit =
+    viewerRole === "seller" &&
+    isService &&
+    order.serviceStatus !== "CONFIRMED" &&
+    order.serviceStatus !== "CANCELLED";
+
+  const sellerCanComplete =
+    viewerRole === "seller" &&
+    isService &&
+    order.serviceStatus !== "CONFIRMED" &&
+    order.serviceStatus !== "CANCELLED";
+
+  const buyerCanRequestRevision =
+    viewerRole === "buyer" &&
+    isService &&
+    (order.serviceStatus === "SUBMITTED" || order.serviceStatus === "COMPLETED");
+
   return (
-    <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-      <div className="space-y-6">
-        <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
-          <div className="p-5 md:p-6">
-            <div className="flex flex-col gap-5 lg:flex-row">
-              <div className="w-full shrink-0 lg:w-[160px]">
-                <div className="aspect-square overflow-hidden rounded-2xl border border-white/10 bg-black/30">
-                  {img ? (
-                    <img
-                      src={img}
-                      alt={order.product?.name || `Token #${order.tokenId}`}
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center font-black text-white/25">
-                      No image
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="truncate text-[18px] font-black text-white/90">
-                      {order.product?.name || `Order NFT #${order.tokenId}`}
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
-                        {viewerRole.toUpperCase()}
-                      </span>
-
-                      {order.fulfillmentType ? (
-                        <span
-                          className={cx(
-                            "rounded-full border px-2 py-1 text-[10px] font-black",
-                            fulfillmentTone(order.fulfillmentType)
-                          )}
-                        >
-                          {titleCase(order.fulfillmentType)}
-                        </span>
-                      ) : null}
-
-                      <span
-                        className={cx(
-                          "rounded-full border px-2 py-1 text-[10px] font-black",
-                          escrowTone(order.escrowStatus)
-                        )}
-                      >
-                        {order.escrowStatus}
-                      </span>
-
-                      {isPhysical ? (
-                        <span
-                          className={cx(
-                            "rounded-full border px-2 py-1 text-[10px] font-black",
-                            deliveryTone(order.deliveryStatus)
-                          )}
-                        >
-                          {order.deliveryStatus}
-                        </span>
-                      ) : null}
-
-                      {isService && order.serviceStatus ? (
-                        <span
-                          className={cx(
-                            "rounded-full border px-2 py-1 text-[10px] font-black",
-                            serviceTone(order.serviceStatus)
-                          )}
-                        >
-                          SERVICE {order.serviceStatus}
-                        </span>
-                      ) : null}
-
-                      <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
-                        {titleCase(order.vertical)}
-                      </span>
-
-                      {order.officialItem ? (
-                        <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-black text-amber-100">
-                          OFFICIAL
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="text-[12px] text-white/45">Total</div>
-                    <div className="text-[16px] font-black text-amber-100">
-                      {formatPaymentAmount(order.totalPrice, order.paymentToken)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
-                    <div className="text-[11px] text-white/45">Buyer</div>
-                    <div className="mt-1 text-[13px] font-black text-white/80">
-                      {shortAddr(order.buyerWallet)}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
-                    <div className="text-[11px] text-white/45">Seller</div>
-                    <div className="mt-1 text-[13px] font-black text-white/80">
-                      {shortAddr(order.sellerWallet)}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
-                    <div className="text-[11px] text-white/45">Created</div>
-                    <div className="mt-1 text-[12px] font-black text-white/80">
-                      {fmtDate(order.createdAt)}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-black/10 p-3">
-                    <div className="text-[11px] text-white/45">Tx</div>
-                    <div className="mt-1 text-[12px] font-black text-white/80">
-                      {shortHash(order.buyTxHash)}
-                    </div>
-                  </div>
-                </div>
-
-                {(order.category || order.subcategory) && (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4 text-[12px] text-white/65">
-                    {[order.category, order.subcategory]
-                      .filter(Boolean)
-                      .join(" • ")}
+    <div className="space-y-6">
+      <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
+        <div className="p-5 md:p-6">
+          <div className="flex flex-col gap-5 lg:flex-row">
+            <div className="w-full shrink-0 lg:w-[180px]">
+              <div className="aspect-square overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+                {ipfsToHttp(order.product?.image || null) ? (
+                  <img
+                    src={ipfsToHttp(order.product?.image || null) || ""}
+                    alt={order.product?.name || `Token #${order.tokenId}`}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center font-black text-white/25">
+                    No image
                   </div>
                 )}
-
-                {isPhysical ? (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
-                    <div className="text-[12px] font-black text-white/80">
-                      Shipping
-                    </div>
-                    <div className="mt-2 text-[12px] text-white/60">
-                      {order.shippingName || "—"} • {order.shippingPhone || "—"}
-                    </div>
-                    <div className="mt-1 text-[12px] text-white/60">
-                      {order.shippingCountry || "—"}, {order.shippingCity || "—"},{" "}
-                      {order.shippingZip || "—"}
-                    </div>
-                    <div className="mt-1 text-[12px] text-white/60">
-                      {order.shippingAddress || "—"}
-                    </div>
-
-                    {order.trackingCode || order.carrier || order.trackingUrl ? (
-                      <div className="mt-3 text-[12px] text-white/70">
-                        Tracking: {order.carrier || "—"} /{" "}
-                        {order.trackingCode || "—"}
-                        {order.trackingUrl ? (
-                          <>
-                            {" "}
-                            •{" "}
-                            <a
-                              href={order.trackingUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-amber-100 underline"
-                            >
-                              open
-                            </a>
-                          </>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                ) : null}
-
-                {isService ? (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
-                    <div className="text-[12px] font-black text-white/80">
-                      Service flow
-                    </div>
-                    <div className="mt-2 text-[12px] text-white/60">
-                      Status: {order.serviceStatus || "—"}
-                    </div>
-                    <div className="mt-1 text-[12px] text-white/60">
-                      Scheduled: {fmtDate(order.scheduledFor)}
-                    </div>
-                    <div className="mt-1 text-[12px] text-white/60">
-                      Started: {fmtDate(order.workStartedAt)}
-                    </div>
-                    <div className="mt-1 text-[12px] text-white/60">
-                      Submitted: {fmtDate(order.submittedAt)}
-                    </div>
-                    <div className="mt-1 text-[12px] text-white/60">
-                      Revision requested: {fmtDate(order.revisionRequestedAt)}
-                    </div>
-                    <div className="mt-1 text-[12px] text-white/60">
-                      Completed: {fmtDate(order.completedAt)}
-                    </div>
-                  </div>
-                ) : null}
-
-                {onchainEscrow ? (
-                  <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-50/85">
-                    <div className="font-black text-sky-100">
-                      On-chain escrow flow
-                    </div>
-                    <div className="mt-2 leading-relaxed">
-                      This room is used for communication and support, but final
-                      payout / refund path is controlled by marketplace contract
-                      logic. Protected refund can require NFT return back to the
-                      contract first. For the one-step protected path, buyer can
-                      use{" "}
-                      <span className="font-black">
-                        requestRefundAndReturnNft(purchaseId)
-                      </span>{" "}
-                      after approval.
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
-                      {order.marketplacePurchaseId ? (
-                        <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 font-black text-sky-100">
-                          Purchase #{order.marketplacePurchaseId}
-                        </span>
-                      ) : null}
-                      {order.marketplaceContract ? (
-                        <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 font-black text-sky-100">
-                          {shortAddr(order.marketplaceContract)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : order.escrowStatus === "NOT_REQUIRED" ? (
-                  <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-50/85">
-                    <div className="font-black text-amber-100">
-                      Official store flow
-                    </div>
-                    <div className="mt-2 leading-relaxed">
-                      This order does not use on-chain escrow. The room is used
-                      for shipping, service coordination, support and refund
-                      workflow.
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Link
-                    href={nftHref}
-                    className="inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-white/85 transition hover:bg-white/[0.10]"
-                  >
-                    Open NFT
-                  </Link>
-                </div>
               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
-          <div className="p-5 md:p-6">
-            <div className="text-[12px] font-black uppercase tracking-wider text-white/85">
-              Chat
-            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[18px] font-black text-white/90">
+                {order.product?.name || `Order NFT #${order.tokenId}`}
+              </div>
 
-            <div className="mt-4 max-h-[560px] space-y-3 overflow-y-auto pr-1">
-              {messages.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-black/10 p-4 text-[12px] text-white/55">
-                  No messages yet.
-                </div>
-              ) : (
-                messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={cx(
-                      "rounded-2xl border p-4",
-                      messageTone(m.senderRole, m.isInternal)
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-[11px] font-black uppercase tracking-wider">
-                        {senderLabel(m.senderRole)}
-                        {m.isInternal ? " • internal" : ""}
-                      </div>
-                      <div className="text-[11px] opacity-70">
-                        {fmtDate(m.createdAt)}
-                      </div>
-                    </div>
-                    <div className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed">
-                      {m.body}
-                    </div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
+                  {viewerRole.toUpperCase()}
+                </span>
+                {order.marketType ? (
+                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
+                    {order.marketType}
+                  </span>
+                ) : null}
+                {order.fulfillmentType ? (
+                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
+                    {titleCase(order.fulfillmentType)}
+                  </span>
+                ) : null}
+                <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
+                  ESCROW {order.escrowStatus}
+                </span>
+                {isPhysical ? (
+                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
+                    DELIVERY {order.deliveryStatus}
+                  </span>
+                ) : null}
+                {isService ? (
+                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-1 text-[10px] font-black text-white/80">
+                    SERVICE {order.serviceStatus || "—"}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-3 text-[12px] text-white/55">
+                <span>Buyer: {shortAddr(order.buyerWallet)}</span>
+                <span>Seller: {shortAddr(order.sellerWallet)}</span>
+                <span>Amount: {formatPaymentAmount(order.totalPrice, order.paymentToken)}</span>
+                <span>Created: {fmtDate(order.createdAt)}</span>
+              </div>
+
+              {isService ? (
+                <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
+                  <div className="text-[12px] font-black text-white/80">
+                    Service flow
                   </div>
-                ))
-              )}
-            </div>
+                  <div className="mt-2 text-[12px] text-white/60">
+                    Status: {order.serviceStatus || "—"}
+                  </div>
+                  <div className="mt-1 text-[12px] text-white/60">
+                    Scheduled: {fmtDate(order.scheduledFor)}
+                  </div>
+                  <div className="mt-1 text-[12px] text-white/60">
+                    Started: {fmtDate(order.workStartedAt)}
+                  </div>
+                  <div className="mt-1 text-[12px] text-white/60">
+                    Submitted: {fmtDate(order.submittedAt)}
+                  </div>
+                  <div className="mt-1 text-[12px] text-white/60">
+                    Revision requested: {fmtDate(order.revisionRequestedAt)}
+                  </div>
+                  <div className="mt-1 text-[12px] text-white/60">
+                    Completed: {fmtDate(order.completedAt)}
+                  </div>
+                </div>
+              ) : null}
 
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                rows={4}
-                placeholder="Write a message to the other side..."
-                className="w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
-              />
-              <div className="mt-3 flex justify-end">
-                <button
-                  onClick={sendMessage}
-                  disabled={sending || !draft.trim()}
-                  className={cx(
-                    "inline-flex items-center justify-center rounded-2xl px-5 py-3 font-extrabold text-black transition",
-                    "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)]",
-                    sending || !draft.trim()
-                      ? "cursor-not-allowed opacity-60"
-                      : "hover:brightness-110"
-                  )}
+              {onchainEscrow ? (
+                <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-50/85">
+                  <div className="font-black text-sky-100">
+                    On-chain escrow flow
+                  </div>
+                  <div className="mt-2 leading-relaxed">
+                    This room is used for communication and support, but final payout / refund path
+                    is controlled by marketplace contract logic. Buyer wallet can use
+                    <span className="mx-1 font-black">buyerConfirmAndRelease(purchaseId)</span>
+                    and
+                    <span className="mx-1 font-black">requestRefundAndReturnNft(purchaseId)</span>.
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                    {order.marketplacePurchaseId ? (
+                      <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 font-black text-sky-100">
+                        Purchase #{order.marketplacePurchaseId}
+                      </span>
+                    ) : null}
+                    {order.marketplaceContract ? (
+                      <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 font-black text-sky-100">
+                        {shortAddr(order.marketplaceContract)}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Link
+                  href={nftHref}
+                  className="inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-white/85 transition hover:bg-white/[0.10]"
                 >
-                  {sending ? "Sending..." : "Send message"}
-                </button>
+                  Open NFT
+                </Link>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="space-y-6">
+      {isService && viewerRole === "seller" ? (
         <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
           <div className="p-5 md:p-6">
             <div className="text-[12px] font-black uppercase tracking-wider text-white/85">
-              Support & actions
+              Service provider actions
             </div>
 
-            {err ? (
-              <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100">
-                {err}
-              </div>
-            ) : null}
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                <div className="text-[12px] font-black text-white/80">
+                  Schedule / note
+                </div>
+                <input
+                  type="datetime-local"
+                  value={serviceSchedule}
+                  onChange={(e) => setServiceSchedule(e.target.value)}
+                  className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none focus:border-white/20"
+                />
+                <textarea
+                  value={serviceNote}
+                  onChange={(e) => setServiceNote(e.target.value)}
+                  rows={3}
+                  placeholder="Optional service note..."
+                  className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none focus:border-white/20"
+                />
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {sellerCanSetSchedule ? (
+                    <button
+                      onClick={() =>
+                        updateService("set_schedule", { scheduledFor: serviceSchedule })
+                      }
+                      disabled={acting || !serviceSchedule}
+                      className={cx(
+                        "inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-[12px] font-extrabold transition",
+                        acting || !serviceSchedule
+                          ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
+                          : "border-sky-500/20 bg-sky-500/10 text-sky-100 hover:bg-sky-500/15"
+                      )}
+                    >
+                      Save schedule
+                    </button>
+                  ) : null}
 
-            {viewerRole === "buyer" && canConfirmOffchain ? (
-              <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-                <div className="text-[12px] font-black text-emerald-100">
-                  {isPhysical
-                    ? "Confirm successful delivery"
-                    : "Confirm successful service completion"}
+                  {sellerCanStartWork ? (
+                    <button
+                      onClick={() => updateService("start_work")}
+                      disabled={acting}
+                      className={cx(
+                        "inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-[12px] font-extrabold transition",
+                        acting
+                          ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
+                          : "border-violet-500/20 bg-violet-500/10 text-violet-100 hover:bg-violet-500/15"
+                      )}
+                    >
+                      Start work
+                    </button>
+                  ) : null}
                 </div>
-                <div className="mt-2 text-[12px] leading-relaxed text-emerald-50/85">
-                  {order.escrowStatus === "NOT_REQUIRED"
-                    ? "This updates buyer confirmation and final status in the room."
-                    : "This confirms successful completion and releases escrow for this off-chain order."}
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-black/10 p-4">
+                <div className="text-[12px] font-black text-white/80">
+                  Submit / complete
                 </div>
-                <button
-                  onClick={confirmOrder}
-                  disabled={confirming}
+                <div className="mt-2 text-[12px] text-white/60">
+                  Seller should mark the service submitted first, then completed when ready.
+                </div>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  {sellerCanSubmit ? (
+                    <button
+                      onClick={() => updateService("mark_submitted")}
+                      disabled={acting}
+                      className={cx(
+                        "inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-[12px] font-extrabold transition",
+                        acting
+                          ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
+                          : "border-sky-500/20 bg-sky-500/10 text-sky-100 hover:bg-sky-500/15"
+                      )}
+                    >
+                      Mark submitted
+                    </button>
+                  ) : null}
+
+                  {sellerCanComplete ? (
+                    <button
+                      onClick={() => updateService("mark_completed")}
+                      disabled={acting}
+                      className={cx(
+                        "inline-flex items-center justify-center rounded-2xl border px-4 py-3 text-[12px] font-extrabold transition",
+                        acting
+                          ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
+                          : "border-emerald-500/20 bg-emerald-500/10 text-emerald-100 hover:bg-emerald-500/15"
+                      )}
+                    >
+                      Mark completed
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isService && viewerRole === "buyer" && buyerCanRequestRevision ? (
+        <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
+          <div className="p-5 md:p-6">
+            <div className="text-[12px] font-black uppercase tracking-wider text-white/85">
+              Buyer revision request
+            </div>
+            <textarea
+              value={revisionDraft}
+              onChange={(e) => setRevisionDraft(e.target.value)}
+              rows={4}
+              placeholder="Describe what needs to be fixed or changed..."
+              className="mt-4 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none focus:border-white/20"
+            />
+            <button
+              onClick={requestRevision}
+              disabled={acting || !revisionDraft.trim()}
+              className={cx(
+                "mt-3 inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-[12px] font-extrabold transition",
+                acting || !revisionDraft.trim()
+                  ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
+                  : "border-amber-500/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
+              )}
+            >
+              {acting ? "Submitting..." : "Request revision"}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
+        <div className="p-5 md:p-6">
+          <div className="text-[12px] font-black uppercase tracking-wider text-white/85">
+            Chat
+          </div>
+
+          <div className="mt-4 max-h-[560px] space-y-3 overflow-y-auto pr-1">
+            {visibleMessages.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-black/10 p-4 text-[12px] text-white/55">
+                No messages yet.
+              </div>
+            ) : (
+              visibleMessages.map((m) => (
+                <div
+                  key={m.id}
                   className={cx(
-                    "mt-3 inline-flex items-center justify-center rounded-2xl px-5 py-3 font-extrabold text-black transition",
-                    "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)]",
-                    confirming ? "cursor-not-allowed opacity-60" : "hover:brightness-110"
+                    "rounded-2xl border p-4",
+                    messageTone(m.senderRole, m.isInternal)
                   )}
                 >
-                  {confirming
-                    ? "Confirming..."
-                    : isPhysical
-                    ? "Confirm delivery"
-                    : "Confirm service"}
-                </button>
-              </div>
-            ) : null}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-[11px] font-black uppercase tracking-wider">
+                      {senderLabel(m.senderRole)}
+                      {m.isInternal ? " • internal" : ""}
+                    </div>
+                    <div className="text-[11px] opacity-70">{fmtDate(m.createdAt)}</div>
+                  </div>
+                  <div className="mt-2 whitespace-pre-wrap text-[13px] leading-relaxed">
+                    {m.body}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
 
-            {viewerRole === "buyer" && onchainEscrow ? (
-              <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
-                <div className="text-[12px] font-black text-sky-100">
-                  Buyer confirmation is on-chain
-                </div>
-                <div className="mt-2 text-[12px] leading-relaxed text-sky-50/85">
-                  This order is controlled by marketplace contract logic.
-                  Seller payout should come from the contract after buyer wallet
-                  action. For protected refund path, buyer can first return NFT
-                  to contract through one-step flow like{" "}
-                  <span className="font-black">
-                    requestRefundAndReturnNft(purchaseId)
-                  </span>{" "}
-                  after approval.
-                </div>
-              </div>
-            ) : null}
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={4}
+              placeholder="Write a message to the other side..."
+              className="w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+            />
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={sendMessage}
+                disabled={sending || !draft.trim()}
+                className={cx(
+                  "inline-flex items-center justify-center rounded-2xl px-5 py-3 font-extrabold text-black transition",
+                  "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)]",
+                  sending || !draft.trim()
+                    ? "cursor-not-allowed opacity-60"
+                    : "hover:brightness-110"
+                )}
+              >
+                {sending ? "Sending..." : "Send message"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
-            {viewerRole === "buyer" ? (
-              <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4">
-                <div className="text-[12px] font-black text-rose-100">
-                  Request refund
-                </div>
-                <div className="mt-2 text-[12px] leading-relaxed text-rose-50/85">
-                  {onchainEscrow
-                    ? "This sends refund context into the room and support flow. The real protected / delivery refund action should be executed through the marketplace contract path in wallet."
-                    : "This creates a refund request and alerts support. It does not execute the final refund by itself."}
-                </div>
-                <textarea
-                  value={refundDraft}
-                  onChange={(e) => setRefundDraft(e.target.value)}
-                  rows={4}
-                  placeholder="Explain why you need a refund..."
-                  className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
-                />
+      <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
+        <div className="p-5 md:p-6">
+          <div className="text-[12px] font-black uppercase tracking-wider text-white/85">
+            Support & actions
+          </div>
+
+          {err ? (
+            <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100">
+              {err}
+            </div>
+          ) : null}
+
+          {txReceipt.isLoading ? (
+            <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100">
+              Waiting for on-chain transaction receipt...
+              {chainTxHash ? ` ${shortHash(chainTxHash)}` : ""}
+            </div>
+          ) : null}
+
+          {viewerRole === "buyer" && canConfirmOffchain ? (
+            <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+              <div className="text-[12px] font-black text-emerald-100">
+                {isPhysical
+                  ? "Confirm successful delivery"
+                  : "Confirm successful service completion"}
+              </div>
+              <button
+                onClick={confirmOrder}
+                disabled={confirming}
+                className={cx(
+                  "mt-3 inline-flex items-center justify-center rounded-2xl px-5 py-3 font-extrabold text-black transition",
+                  "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)]",
+                  confirming ? "cursor-not-allowed opacity-60" : "hover:brightness-110"
+                )}
+              >
+                {confirming ? "Confirming..." : isPhysical ? "Confirm delivery" : "Confirm service"}
+              </button>
+            </div>
+          ) : null}
+
+          {viewerRole === "buyer" && canConfirmOnchainRelease ? (
+            <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
+              <div className="text-[12px] font-black text-sky-100">
+                Buyer wallet can release seller payout on-chain
+              </div>
+              <div className="mt-2 text-[12px] leading-relaxed text-sky-50/85">
+                This uses buyerConfirmAndRelease(purchaseId). Funds go from the protected escrow contract directly to seller.
+              </div>
+              <button
+                onClick={() => runBuyerOnchainAction("confirm_release")}
+                disabled={txReceipt.isLoading}
+                className={cx(
+                  "mt-3 inline-flex items-center justify-center rounded-2xl px-5 py-3 font-extrabold text-black transition",
+                  "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)]",
+                  txReceipt.isLoading ? "cursor-not-allowed opacity-60" : "hover:brightness-110"
+                )}
+              >
+                {txReceipt.isLoading && chainActionKind === "confirm_release"
+                  ? "Waiting for chain..."
+                  : isPhysical
+                  ? "Confirm delivery on-chain"
+                  : "Confirm service on-chain"}
+              </button>
+            </div>
+          ) : null}
+
+          {viewerRole === "buyer" ? (
+            <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4">
+              <div className="text-[12px] font-black text-rose-100">
+                Request refund
+              </div>
+              <textarea
+                value={refundDraft}
+                onChange={(e) => setRefundDraft(e.target.value)}
+                rows={4}
+                placeholder="Explain why you need a refund..."
+                className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+              />
+              <div className="mt-3 flex flex-wrap gap-3">
                 <button
                   onClick={requestRefund}
                   disabled={acting || !refundDraft.trim()}
                   className={cx(
-                    "mt-3 inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-[12px] font-extrabold transition",
+                    "inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-[12px] font-extrabold transition",
                     acting || !refundDraft.trim()
                       ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
                       : "border-rose-500/20 bg-rose-500/10 text-rose-100 hover:bg-rose-500/15"
@@ -952,57 +1047,50 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
                 >
                   {acting ? "Submitting..." : "Request refund"}
                 </button>
-              </div>
-            ) : null}
 
-            <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
-              <div className="text-[12px] font-black text-amber-100">
-                Call support
-              </div>
-              <div className="mt-2 text-[12px] leading-relaxed text-amber-50/85">
-                Use this when you need platform intervention, manual review or
-                escalation.
-              </div>
-              <textarea
-                value={supportDraft}
-                onChange={(e) => setSupportDraft(e.target.value)}
-                rows={4}
-                placeholder="Describe the issue for support..."
-                className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
-              />
-              <button
-                onClick={callSupport}
-                disabled={acting || !supportDraft.trim()}
-                className={cx(
-                  "mt-3 inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-[12px] font-extrabold transition",
-                  acting || !supportDraft.trim()
-                    ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
-                    : "border-amber-500/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
-                )}
-              >
-                {acting ? "Submitting..." : "Call support"}
-              </button>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
-              <div className="text-[12px] font-black text-white/85">
-                Quick summary
-              </div>
-              <div className="mt-3 space-y-2 text-[12px] text-white/65">
-                <div>Order: {order.id}</div>
-                <div>Escrow: {order.escrowStatus}</div>
-                {isPhysical ? <div>Delivery: {order.deliveryStatus}</div> : null}
-                {isService ? <div>Service: {order.serviceStatus || "—"}</div> : null}
-                <div>Fulfillment: {order.fulfillmentType || "—"}</div>
-                <div>Source: {order.sourceType || "—"}</div>
-                <div>Kind: {order.orderKind || "—"}</div>
-                <div>Market: {order.marketType || "—"}</div>
-                <div>Buyer confirmed: {fmtDate(order.buyerConfirmedAt)}</div>
-                <div>Refund requested: {fmtDate(order.refundRequestedAt)}</div>
-                <div>NFT returned: {fmtDate(order.nftReturnedAt)}</div>
-                <div>Released: {fmtDate(order.releasedAt)}</div>
+                {canStartOnchainRefundReturn ? (
+                  <button
+                    onClick={() => runBuyerOnchainAction("refund_return")}
+                    disabled={txReceipt.isLoading}
+                    className={cx(
+                      "inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-[12px] font-extrabold transition",
+                      txReceipt.isLoading
+                        ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
+                        : "border-sky-500/20 bg-sky-500/10 text-sky-100 hover:bg-sky-500/15"
+                    )}
+                  >
+                    {txReceipt.isLoading && chainActionKind === "refund_return"
+                      ? "Waiting for chain..."
+                      : "Return NFT on-chain"}
+                  </button>
+                ) : null}
               </div>
             </div>
+          ) : null}
+
+          <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+            <div className="text-[12px] font-black text-amber-100">
+              Call support
+            </div>
+            <textarea
+              value={supportDraft}
+              onChange={(e) => setSupportDraft(e.target.value)}
+              rows={3}
+              placeholder="Write a support note..."
+              className="mt-3 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+            />
+            <button
+              onClick={callSupport}
+              disabled={acting || !supportDraft.trim()}
+              className={cx(
+                "mt-3 inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-[12px] font-extrabold transition",
+                acting || !supportDraft.trim()
+                  ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
+                  : "border-amber-500/20 bg-amber-500/10 text-amber-100 hover:bg-amber-500/15"
+              )}
+            >
+              {acting ? "Submitting..." : "Send to support"}
+            </button>
           </div>
         </div>
       </div>
