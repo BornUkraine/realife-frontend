@@ -1,21 +1,13 @@
 import Link from "next/link";
-import nextDynamic from "next/dynamic";
 import type { ReactNode } from "react";
-import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import Reveal from "@/components/Reveal";
 import { authOptions } from "@/lib/auth";
+import TradingClient from "./TradingClient";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-// Split the heavy ~57KB TradingClient (+ wagmi/viem) out of the initial
-// HTML payload. It only renders on the client anyway.
-const TradingClient = nextDynamic(() => import("./TradingClient"), {
-  ssr: false,
-  loading: () => <TradingSkeleton />,
-});
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
@@ -119,23 +111,6 @@ function StatCard({
       </div>
       <div className={cx("mt-3 text-lg font-black tracking-tight", toneClass)}>
         {value}
-      </div>
-    </div>
-  );
-}
-
-// Lightweight skeleton shown while TradingClient chunk is downloading
-function TradingSkeleton() {
-  return (
-    <div className="rounded-[34px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl">
-      <div className="h-10 w-56 rounded-xl bg-white/[0.06] animate-pulse" />
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div
-            key={i}
-            className="aspect-[4/5] rounded-[26px] border border-white/10 bg-white/[0.04] animate-pulse"
-          />
-        ))}
       </div>
     </div>
   );
@@ -248,14 +223,12 @@ export default async function TradingPage() {
       </Reveal>
 
       <Reveal delayMs={120}>
-        <Suspense fallback={<TradingSkeleton />}>
-          <TradingClient
-            viewerKey={viewerKey}
-            viewerWallet={viewerWallet}
-            initialMarketView="all"
-            lockMarketView={false}
-          />
-        </Suspense>
+        <TradingClient
+          viewerKey={viewerKey}
+          viewerWallet={viewerWallet}
+          initialMarketView="all"
+          lockMarketView={false}
+        />
       </Reveal>
 
       <Reveal delayMs={180}>
