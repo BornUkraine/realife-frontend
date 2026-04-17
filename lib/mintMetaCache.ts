@@ -6,6 +6,9 @@
  *  - DB-backed cache (persistent across requests)
  *  - Fire-and-forget writes (never block response)
  *  - Graceful fallback to existing Mint.image / Mint.name fields
+ *  - Auto-heal: every cached URL flows through ipfsToHttp on read, so any
+ *    legacy broken gateway URLs (e.g. "https://nftstorage.link/Qm..." without
+ *    /ipfs/) are normalized on-the-fly.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -42,7 +45,6 @@ export function mintMetaKey(
   return `${chainId}:${String(contract).toLowerCase()}:${tokenId}`;
 }
 
-// alias kept internal for readability
 const cacheKey = mintMetaKey;
 
 // ---------- DB read: mint row with cached fields ----------
@@ -55,7 +57,6 @@ type MintLike = {
   image: string | null;
   name: string | null;
 
-  // optional cache fields (added by migration; may be null on legacy rows)
   metadataCachedAt?: Date | null;
   metaImage?: string | null;
   metaAnimation?: string | null;
@@ -69,6 +70,38 @@ type MintLike = {
 };
 
 /**
+ * Turn a cached DB row into the consumer-facing shape.
+ * Runs every URL through ipfsToHttp so legacy broken URLs get fixed.
+ */
+function fromCachedRow(mint: MintLike): MintMetaCache {
+  return {
+    image: ipfsToHttp(mint.metaImage || mint.image) || null,
+    animation: mint.metaAnimation ? ipfsToHttp(mint.metaAnimation) : null,
+    mediaKind: mint.metaMediaKind === "video" ? "video" : "image",
+    description: mint.metaDescription || null,
+    collection: mint.metaCollection || null,
+    item: mint.metaItem || null,
+    rarity: mint.metaRarity || null,
+    brand: mint.metaBrand || null,
+    project: mint.metaProject || null,
+  };
+}
+
+function emptyMetaFromMint(mint: MintLike): MintMetaCache {
+  return {
+    image: ipfsToHttp(mint.image) || null,
+    animation: null,
+    mediaKind: "image",
+    description: null,
+    collection: null,
+    item: null,
+    rarity: null,
+    brand: null,
+    project: null,
+  };
+}
+
+/**
  * Returns meta for a mint — from cache if present, else resolves from IPFS
  * and writes back to DB (fire-and-forget).
  *
@@ -79,17 +112,7 @@ export async function getMintMeta(mint: MintLike): Promise<MintMetaCache> {
 
   // 1) If DB already has cache, return it immediately.
   if (mint.metadataCachedAt && mint.metaImage !== undefined) {
-    return {
-      image: mint.metaImage || ipfsToHttp(mint.image) || null,
-      animation: mint.metaAnimation || null,
-      mediaKind: mint.metaMediaKind === "video" ? "video" : "image",
-      description: mint.metaDescription || null,
-      collection: mint.metaCollection || null,
-      item: mint.metaItem || null,
-      rarity: mint.metaRarity || null,
-      brand: mint.metaBrand || null,
-      project: mint.metaProject || null,
-    };
+    return fromCachedRow(mint);
   }
 
   // 2) Dedupe concurrent resolves for the same mint
@@ -111,25 +134,10 @@ export async function getMintMeta(mint: MintLike): Promise<MintMetaCache> {
   }
 }
 
-function emptyMetaFromMint(mint: MintLike): MintMetaCache {
-  return {
-    image: ipfsToHttp(mint.image) || null,
-    animation: null,
-    mediaKind: "image",
-    description: null,
-    collection: null,
-    item: null,
-    rarity: null,
-    brand: null,
-    project: null,
-  };
-}
-
 async function resolveAndCache(mint: MintLike): Promise<MintMetaCache | null> {
   const tokenUri = mint.tokenUri;
 
   if (!tokenUri) {
-    // Nothing to resolve — store an empty cache marker so we don't retry every request
     const empty = emptyMetaFromMint(mint);
     writeBack(mint, empty).catch(() => {});
     return empty;
@@ -138,7 +146,6 @@ async function resolveAndCache(mint: MintLike): Promise<MintMetaCache | null> {
   const raw = await fetchIpfsJson(tokenUri, { timeoutMs: 4500 });
 
   if (!raw) {
-    // IPFS fetch failed — return fallback but DON'T write to DB so we can retry later
     return emptyMetaFromMint(mint);
   }
 
@@ -159,7 +166,6 @@ async function resolveAndCache(mint: MintLike): Promise<MintMetaCache | null> {
     project: norm.project,
   };
 
-  // Fire-and-forget DB write
   writeBack(mint, out).catch((e) => {
     console.warn("[mint-meta-cache] writeBack failed", e?.message);
   });
@@ -187,7 +193,7 @@ async function writeBack(mint: MintLike, meta: MintMetaCache) {
       metaRarity: meta.rarity,
       metaBrand: meta.brand,
       metaProject: meta.project,
-    } as any, // until prisma client is regenerated
+    } as any,
   });
 }
 
@@ -207,23 +213,13 @@ export async function getMintMetaMap(
 
   const result = new Map<string, MintMetaCache>();
 
-  // Split into cached (instant) vs uncached (needs IPFS)
   const toResolve: MintLike[] = [];
 
   for (const m of mints) {
     const key = cacheKey(m.chainId, m.contract, m.tokenId);
     if (m.metadataCachedAt && m.metaImage !== undefined) {
-      result.set(key, {
-        image: m.metaImage || ipfsToHttp(m.image) || null,
-        animation: m.metaAnimation || null,
-        mediaKind: m.metaMediaKind === "video" ? "video" : "image",
-        description: m.metaDescription || null,
-        collection: m.metaCollection || null,
-        item: m.metaItem || null,
-        rarity: m.metaRarity || null,
-        brand: m.metaBrand || null,
-        project: m.metaProject || null,
-      });
+      // Use fromCachedRow — it normalizes broken URLs via ipfsToHttp
+      result.set(key, fromCachedRow(m));
     } else {
       toResolve.push(m);
     }
@@ -231,7 +227,6 @@ export async function getMintMetaMap(
 
   if (toResolve.length === 0) return result;
 
-  // Bounded parallelism with an overall budget
   const deadline = Date.now() + budget;
 
   let idx = 0;
@@ -244,7 +239,6 @@ export async function getMintMetaMap(
       const key = cacheKey(m.chainId, m.contract, m.tokenId);
 
       try {
-        // Use a shortened timeout if we're running out of budget
         const meta = await Promise.race([
           getMintMeta(m),
           new Promise<MintMetaCache>((resolve) =>
