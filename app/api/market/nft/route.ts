@@ -210,7 +210,7 @@ export async function GET(req: NextRequest) {
         subcategory: true,
         createdAt: true,
 
-        // cache fields
+        // cache fields (now part of the Prisma client)
         metadataCachedAt: true,
         metaImage: true,
         metaAnimation: true,
@@ -221,7 +221,7 @@ export async function GET(req: NextRequest) {
         metaRarity: true,
         metaBrand: true,
         metaProject: true,
-      } as any,
+      },
     });
 
     if (!mint || !mint.verified) {

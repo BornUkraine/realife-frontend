@@ -6,8 +6,6 @@ import { getMintMetaMap, mintMetaKey } from "@/lib/mintMetaCache";
 import { ipfsToHttp } from "@/lib/ipfs";
 
 export const runtime = "nodejs";
-// This endpoint is user-scoped (session-based) — don't ISR it,
-// but we still skip force-dynamic so Next can optimize rendering.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -186,7 +184,6 @@ export async function GET(req: Request) {
             category: true,
             subcategory: true,
 
-            // cache fields
             metadataCachedAt: true,
             metaImage: true,
             metaAnimation: true,
@@ -197,7 +194,7 @@ export async function GET(req: Request) {
             metaRarity: true,
             metaBrand: true,
             metaProject: true,
-          } as any,
+          },
         },
       },
     });
@@ -206,7 +203,6 @@ export async function GET(req: Request) {
     const data = hasMore ? items.slice(0, take) : items;
     const nextCursor = hasMore ? data[data.length - 1]?.id ?? null : null;
 
-    // Resolve metadata in one parallel pass
     const mintInputs = data.map((x) => x.mint as any).filter(Boolean);
     const metaMap = await getMintMetaMap(mintInputs, {
       concurrency: 6,
@@ -273,7 +269,6 @@ export async function GET(req: Request) {
           PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT
         ),
 
-        // NEW: pre-resolved media + meta
         media: {
           kind: mediaKind,
           src: mediaKind === "video" ? mediaAnimation : mediaImage,

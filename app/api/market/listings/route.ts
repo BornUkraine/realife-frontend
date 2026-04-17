@@ -12,9 +12,6 @@ export const runtime = "nodejs";
  *  - Metadata resolved server-side once, then persisted in DB (Mint.meta*).
  *  - After first hit per (contract,view), subsequent requests are effectively
  *    a single indexed DB query + a map over rows.
- *
- *  - For authenticated / highly dynamic views, callers can append an
- *    `?_=<timestamp>` cache buster to force a fresh render.
  */
 export const revalidate = 30;
 export const dynamic = "auto";
@@ -281,9 +278,6 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // ----------------------------------------------------------------
-    // DB fetch — include cached metadata fields
-    // ----------------------------------------------------------------
     const [rows, total] = await Promise.all([
       prisma.listing.findMany({
         where,
@@ -307,7 +301,6 @@ export async function GET(req: NextRequest) {
               category: true,
               subcategory: true,
 
-              // NEW: cache fields (nullable on legacy rows)
               metadataCachedAt: true,
               metaImage: true,
               metaAnimation: true,
@@ -318,7 +311,7 @@ export async function GET(req: NextRequest) {
               metaRarity: true,
               metaBrand: true,
               metaProject: true,
-            } as any,
+            },
           },
           seller: {
             select: {
@@ -331,9 +324,7 @@ export async function GET(req: NextRequest) {
       prisma.listing.count({ where }),
     ]);
 
-    // ----------------------------------------------------------------
     // Resolve any uncached metadata (parallel, budgeted)
-    // ----------------------------------------------------------------
     const mintInputs = rows
       .map((r) => (r.mint as any) || null)
       .filter(Boolean) as any[];
@@ -343,9 +334,6 @@ export async function GET(req: NextRequest) {
       timeoutBudgetMs: 4000,
     });
 
-    // ----------------------------------------------------------------
-    // Build response
-    // ----------------------------------------------------------------
     return NextResponse.json({
       ok: true,
       total,
@@ -372,7 +360,6 @@ export async function GET(req: NextRequest) {
           requestedMarketType,
         });
 
-        // Preferred media (already http, ready for next/image)
         const mediaImage = meta?.image || ipfsToHttp(m?.image) || null;
         const mediaAnimation = meta?.animation || null;
         const mediaKind = meta?.mediaKind || "image";
@@ -406,7 +393,6 @@ export async function GET(req: NextRequest) {
 
           createdAt: r.createdAt.toISOString(),
 
-          // NEW: pre-resolved media for the client — no IPFS fetch needed anymore
           media: {
             kind: mediaKind,
             src: mediaKind === "video" ? mediaAnimation : mediaImage,
@@ -414,7 +400,6 @@ export async function GET(req: NextRequest) {
             image: mediaImage,
           },
 
-          // NEW: enriched meta for the client card
           metaCollection: meta?.collection || null,
           metaItem: meta?.item || null,
           metaRarity: meta?.rarity || null,
@@ -422,7 +407,6 @@ export async function GET(req: NextRequest) {
           metaProject: meta?.project || null,
           metaDescription: meta?.description || null,
 
-          // Keep existing shape for backwards compat
           mint: m
             ? {
                 name: m.name,
