@@ -15,10 +15,30 @@
 
 // ---------- Gateway config ----------
 
-const PRIMARY_GATEWAY =
+/**
+ * Normalize a gateway URL so it always ends with "/ipfs/".
+ *
+ * Accepts:
+ *   "https://nftstorage.link"        -> "https://nftstorage.link/ipfs/"
+ *   "https://nftstorage.link/"       -> "https://nftstorage.link/ipfs/"
+ *   "https://nftstorage.link/ipfs"   -> "https://nftstorage.link/ipfs/"
+ *   "https://nftstorage.link/ipfs/"  -> "https://nftstorage.link/ipfs/"  (no-op)
+ */
+function normalizeGatewayUrl(raw: string | null | undefined): string {
+  let g = String(raw || "").trim();
+  if (!g) return "";
+  // strip trailing slashes
+  g = g.replace(/\/+$/, "");
+  // append /ipfs if missing
+  if (!g.endsWith("/ipfs")) g += "/ipfs";
+  return g + "/";
+}
+
+const PRIMARY_GATEWAY = normalizeGatewayUrl(
   process.env.IPFS_GATEWAY_PRIMARY ||
-  process.env.NEXT_PUBLIC_IPFS_GATEWAY ||
-  "https://gateway.pinata.cloud/ipfs/";
+    process.env.NEXT_PUBLIC_IPFS_GATEWAY ||
+    "https://gateway.pinata.cloud/ipfs/"
+);
 
 export const IPFS_GATEWAYS: string[] = Array.from(
   new Set(
@@ -27,7 +47,9 @@ export const IPFS_GATEWAYS: string[] = Array.from(
       "https://nftstorage.link/ipfs/",
       "https://cloudflare-ipfs.com/ipfs/",
       "https://ipfs.io/ipfs/",
-    ].map((x) => (x.endsWith("/") ? x : x + "/"))
+    ]
+      .map(normalizeGatewayUrl)
+      .filter(Boolean)
   )
 );
 
@@ -39,6 +61,18 @@ export function isHttpUrl(u?: string | null): boolean {
   return s.startsWith("http://") || s.startsWith("https://");
 }
 
+/**
+ * Convert any IPFS-ish URI into a valid HTTP URL.
+ *
+ * Handles:
+ *   ipfs://CID            -> {gw}/CID
+ *   ipfs://ipfs/CID       -> {gw}/CID
+ *   /ipfs/CID             -> {gw}/CID
+ *   Qm... / bafy...       -> {gw}/CID
+ *   https://...           -> returned as-is, BUT if it's a known gateway URL
+ *                            without /ipfs/ (e.g. "https://nftstorage.link/Qm...")
+ *                            we fix it by inserting /ipfs/.
+ */
 export function ipfsToHttp(
   uri?: string | null,
   gw: string = IPFS_GATEWAYS[0]
@@ -48,7 +82,22 @@ export function ipfsToHttp(
   const u = String(uri).trim();
   if (!u) return null;
 
-  if (isHttpUrl(u)) return u;
+  if (isHttpUrl(u)) {
+    // Fix broken gateway URLs that have a CID right after the host:
+    // e.g. "https://nftstorage.link/QmYeQj..." -> "https://nftstorage.link/ipfs/QmYeQj..."
+    try {
+      const parsed = new URL(u);
+      // If the path starts with /Qm... or /bafy... (bare CID), insert /ipfs
+      const cidMatch = parsed.pathname.match(/^\/(Qm[a-zA-Z0-9]{44}|bafy[a-zA-Z0-9]{44,})(\/.*)?$/);
+      if (cidMatch) {
+        const [, cid, rest = ""] = cidMatch;
+        return `${parsed.origin}/ipfs/${cid}${rest}${parsed.search}${parsed.hash}`;
+      }
+    } catch {
+      // ignore URL parse errors
+    }
+    return u;
+  }
 
   if (u.startsWith("ipfs://")) {
     let p = u.slice("ipfs://".length);
@@ -88,7 +137,6 @@ async function fetchJsonOneGw(
   try {
     const r = await fetch(url, {
       signal: ctrl.signal,
-      // We want HTTP-level caching in Next's fetch cache:
       next: { revalidate: 60 * 60 * 24 * 7 }, // 7d — IPFS content is immutable
       headers: { Accept: "application/json, */*" },
     });
@@ -98,12 +146,10 @@ async function fetchJsonOneGw(
     const ct = r.headers.get("content-type") || "";
     const text = await r.text();
 
-    // Some gateways return text/plain for json — try parse anyway
     try {
       return JSON.parse(text);
     } catch {
       if (ct.includes("json")) throw new Error("bad_json");
-      // Not JSON — probably a 404 HTML page
       throw new Error("not_json");
     }
   } finally {
@@ -124,13 +170,15 @@ export async function fetchIpfsJson(
 
   const timeoutMs = opts.timeoutMs ?? 4500;
 
-  // If already http(s), try direct first (skip gateway racing)
+  // If already http(s), try direct first (but make sure it's been normalized)
   if (isHttpUrl(rawUri)) {
+    const fixed = ipfsToHttp(rawUri); // fixes broken gateway URLs
+    if (!fixed) return null;
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), timeoutMs);
       try {
-        const r = await fetch(rawUri, {
+        const r = await fetch(fixed, {
           signal: ctrl.signal,
           next: { revalidate: 60 * 60 * 24 * 7 },
           headers: { Accept: "application/json, */*" },
@@ -142,8 +190,6 @@ export async function fetchIpfsJson(
         clearTimeout(t);
       }
     } catch {
-      // fall through to gateway racing using the http url as-is is pointless;
-      // only makes sense if it was ipfs-style originally.
       return null;
     }
     return null;
@@ -158,7 +204,7 @@ export async function fetchIpfsJson(
 
   try {
     const winner = await Promise.any(tasks);
-    outerCtrl.abort(); // cancel other pending fetches
+    outerCtrl.abort();
     if (winner && typeof winner === "object") {
       return winner as Record<string, any>;
     }
@@ -175,8 +221,8 @@ export type NftMetaRaw = Record<string, any>;
 export type NftMetaNormalized = {
   name: string | null;
   description: string | null;
-  image: string | null; // http(s)
-  animation: string | null; // http(s), optional
+  image: string | null;
+  animation: string | null;
   mediaKind: "image" | "video";
   collection: string | null;
   item: string | null;
