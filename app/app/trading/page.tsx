@@ -1,13 +1,21 @@
 import Link from "next/link";
+import nextDynamic from "next/dynamic";
 import type { ReactNode } from "react";
+import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import Reveal from "@/components/Reveal";
 import { authOptions } from "@/lib/auth";
-import TradingClient from "./TradingClient";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+// Split the heavy ~57KB TradingClient (+ wagmi/viem) out of the initial
+// HTML payload. It only renders on the client anyway.
+const TradingClient = nextDynamic(() => import("./TradingClient"), {
+  ssr: false,
+  loading: () => <TradingSkeleton />,
+});
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
@@ -67,6 +75,7 @@ function ActionLink({
     return (
       <Link
         href={href}
+        prefetch={false}
         className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
       >
         {children}
@@ -77,6 +86,7 @@ function ActionLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold transition hover:bg-white/10 backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
     >
       {children}
@@ -109,6 +119,23 @@ function StatCard({
       </div>
       <div className={cx("mt-3 text-lg font-black tracking-tight", toneClass)}>
         {value}
+      </div>
+    </div>
+  );
+}
+
+// Lightweight skeleton shown while TradingClient chunk is downloading
+function TradingSkeleton() {
+  return (
+    <div className="rounded-[34px] border border-white/10 bg-white/[0.03] p-6 backdrop-blur-xl">
+      <div className="h-10 w-56 rounded-xl bg-white/[0.06] animate-pulse" />
+      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className="aspect-[4/5] rounded-[26px] border border-white/10 bg-white/[0.04] animate-pulse"
+          />
+        ))}
       </div>
     </div>
   );
@@ -181,8 +208,8 @@ export default async function TradingPage() {
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
                 This page is specifically for{" "}
-                <span className="font-extrabold text-white/85">NFT trading</span>,
-                not the primary product market. Real Marketing remains the
+                <span className="font-extrabold text-white/85">NFT trading</span>
+                , not the primary product market. Real Marketing remains the
                 original primary flow for official storefront purchase,
                 delivery and redemption, while this section is the secondary
                 trading hub for listed NFTs.
@@ -221,12 +248,14 @@ export default async function TradingPage() {
       </Reveal>
 
       <Reveal delayMs={120}>
-        <TradingClient
-          viewerKey={viewerKey}
-          viewerWallet={viewerWallet}
-          initialMarketView="all"
-          lockMarketView={false}
-        />
+        <Suspense fallback={<TradingSkeleton />}>
+          <TradingClient
+            viewerKey={viewerKey}
+            viewerWallet={viewerWallet}
+            initialMarketView="all"
+            lockMarketView={false}
+          />
+        </Suspense>
       </Reveal>
 
       <Reveal delayMs={180}>

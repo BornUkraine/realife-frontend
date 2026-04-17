@@ -231,31 +231,18 @@ function isLikelyVideoUrl(u?: string | null) {
 }
 
 async function fetchJSON(url: string) {
-  const r = await fetch(url, { cache: "no-store" });
+  // Server route is ISR-cached (revalidate: 30); browser cache is fine here.
+  const r = await fetch(url, { cache: "default" });
   const j = await r.json().catch(() => null);
   if (!r.ok || !j) throw new Error(j?.error || "fetch_failed");
   return j;
 }
 
+// Metadata resolution moved to the server (see /api/market/listings).
+// Kept as a no-op stub so any lingering callers don't crash.
 async function loadMetadata(
-  tokenUri?: string | null
+  _tokenUri?: string | null
 ): Promise<ProductMeta | null> {
-  if (!tokenUri) return null;
-
-  for (const gw of IPFS_GATEWAYS) {
-    const url = ipfsToHttp(tokenUri, gw);
-    if (!url) continue;
-
-    try {
-      const r = await fetch(url, { cache: "no-store" });
-      if (!r.ok) continue;
-      const j = await r.json().catch(() => null);
-      if (j && typeof j === "object") return j as ProductMeta;
-    } catch {
-      //
-    }
-  }
-
   return null;
 }
 
@@ -708,78 +695,80 @@ export default function TradingClient({
       const url = `/api/market/listings?${params.toString()}`;
       const j = await fetchJSON(url);
 
-      const items = (j?.listings || []) as MarketListing[];
+      const items = (j?.listings || []) as Array<
+        MarketListing & {
+          media?: {
+            kind?: "image" | "video" | null;
+            src?: string | null;
+            poster?: string | null;
+            image?: string | null;
+          } | null;
+          metaCollection?: string | null;
+          metaItem?: string | null;
+          metaRarity?: string | null;
+          metaBrand?: string | null;
+          metaProject?: string | null;
+          metaDescription?: string | null;
+        }
+      >;
       const t = Number(j?.total || 0);
 
-      const enriched = await Promise.all(
-        items.map(async (item) => {
-          const meta = await loadMetadata(item.mint?.tokenUri || null);
+      // Server resolved IPFS metadata — no client IPFS fetching anymore.
+      const enriched: EnrichedMarketListing[] = items.map((item) => {
+        const media = item.media || null;
+        const mediaKind: "image" | "video" =
+          media?.kind === "video" ? "video" : "image";
 
-          const metaImageRaw =
-            meta?.image || meta?.image_url || meta?.imageUrl || null;
+        const imgHttp =
+          media?.image || ipfsToHttp(item.mint?.image || null) || null;
 
-          const metaAnimationRaw =
-            meta?.animation_url || meta?.animationUrl || meta?.animation || null;
+        const mediaSrc =
+          mediaKind === "video"
+            ? media?.src || null
+            : media?.image || imgHttp || null;
 
-          const imgHttp =
-            ipfsToHttp(metaImageRaw) || ipfsToHttp(item.mint?.image || null) || null;
+        const mediaPoster =
+          mediaKind === "video" ? media?.poster || imgHttp || null : null;
 
-          const animHttp =
-            ipfsToHttp(metaAnimationRaw, PINATA_IPFS) ||
-            ipfsToHttp(metaAnimationRaw) ||
-            null;
+        const resolvedMarketType = resolveRowMarketType(item);
 
-          const mediaKind: "image" | "video" =
-            metaAnimationRaw || isLikelyVideoUrl(animHttp) ? "video" : "image";
+        const protectedSubtype =
+          resolvedMarketType === "PROTECTED"
+            ? inferProtectedSubtype({
+                contract: item.contract,
+                fulfillmentType:
+                  item.fulfillmentType || item.mint?.fulfillmentType || null,
+                deliveryEnabled:
+                  item.deliveryEnabled ?? item.mint?.deliveryEnabled ?? null,
+                physicalItemIncluded:
+                  item.physicalItemIncluded ??
+                  item.mint?.physicalItemIncluded ??
+                  null,
+                category: item.category || item.mint?.category || null,
+                subcategory:
+                  item.subcategory || item.mint?.subcategory || null,
+              })
+            : null;
 
-          const mediaSrc =
-            mediaKind === "video" ? animHttp || null : imgHttp || null;
+        const protectedSubtypeLabel = fulfillmentTypeLabel(protectedSubtype);
 
-          const mediaPoster = mediaKind === "video" ? imgHttp || null : null;
-
-          const resolvedMarketType = resolveRowMarketType(item);
-
-          const protectedSubtype =
-            resolvedMarketType === "PROTECTED"
-              ? inferProtectedSubtype({
-                  contract: item.contract,
-                  fulfillmentType:
-                    item.fulfillmentType || item.mint?.fulfillmentType || null,
-                  deliveryEnabled:
-                    item.deliveryEnabled ?? item.mint?.deliveryEnabled ?? null,
-                  physicalItemIncluded:
-                    item.physicalItemIncluded ??
-                    item.mint?.physicalItemIncluded ??
-                    null,
-                  category: item.category || item.mint?.category || null,
-                  subcategory: item.subcategory || item.mint?.subcategory || null,
-                })
-              : null;
-
-          const protectedSubtypeLabel = fulfillmentTypeLabel(protectedSubtype);
-
-          return {
-            ...item,
-            metaImage: imgHttp,
-            metaDescription: meta?.description || null,
-            collection: meta?.collection || getAttr(meta, "Collection") || null,
-            item:
-              meta?.item ||
-              getAttr(meta, "Item") ||
-              getAttr(meta, "Drink") ||
-              null,
-            rarity: meta?.rarity || getAttr(meta, "Rarity") || null,
-            brand: meta?.brand || getAttr(meta, "Brand") || null,
-            project: meta?.project || getAttr(meta, "Project") || null,
-            mediaKind,
-            mediaSrc: mediaKind === "video" ? mediaSrc : imgHttp || null,
-            mediaPoster,
-            resolvedMarketType,
-            protectedSubtype,
-            protectedSubtypeLabel,
-          } satisfies EnrichedMarketListing;
-        })
-      );
+        return {
+          ...item,
+          metaImage: imgHttp,
+          metaDescription: item.metaDescription || null,
+          collection: item.metaCollection || null,
+          item: item.metaItem || null,
+          rarity: item.metaRarity || null,
+          brand: item.metaBrand || null,
+          project: item.metaProject || null,
+          mediaKind,
+          mediaSrc,
+          mediaPoster,
+          resolvedMarketType,
+          protectedSubtype,
+          protectedSubtypeLabel,
+        } satisfies EnrichedMarketListing;
+      });
 
       setTotal(t);
       setSkip(nextSkip);

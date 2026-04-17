@@ -176,7 +176,7 @@ model User {
   /**
    * ---------------- Points & rewards ----------------
    */
-  points      Int        @default(0)
+  points      Int          @default(0)
   lastDailyAt DateTime?
   events      PointEvent[]
 
@@ -190,8 +190,8 @@ model User {
    */
   holdings     Holding[]
   listings     Listing[]
-  tradesSold   Trade[] @relation("TradeSeller")
-  tradesBought Trade[] @relation("TradeBuyer")
+  tradesSold   Trade[]   @relation("TradeSeller")
+  tradesBought Trade[]   @relation("TradeBuyer")
 
   /**
    * ---------------- Store / delivery / escrow orders ------------
@@ -232,7 +232,7 @@ model PointEvent {
   createdAt DateTime @default(now())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   type      String
   points    Int
@@ -273,7 +273,7 @@ model Mint {
   createdAt DateTime @default(now())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   chainId  Int
   contract String
@@ -301,6 +301,26 @@ model Mint {
   category        String?
   subcategory     String?
 
+  /**
+   * ---------------- Metadata cache (from IPFS tokenUri) -----------
+   * Populated lazily by the API layer on first request, or eagerly
+   * by scripts/backfill-metadata.mjs.
+   * All nullable — if metadataCachedAt is null, row has never been
+   * resolved and the API will attempt a fetch on next read.
+   * metaMediaKind is "image" | "video" (not enforced at DB level to
+   * keep it painless to evolve).
+   */
+  metadataCachedAt DateTime?
+  metaImage        String?   @db.Text
+  metaAnimation    String?   @db.Text
+  metaMediaKind    String?
+  metaDescription  String?   @db.Text
+  metaCollection   String?
+  metaItem         String?
+  metaRarity       String?
+  metaBrand        String?
+  metaProject      String?
+
   holdings Holding[]
   listings Listing[]
   trades   Trade[]
@@ -311,6 +331,10 @@ model Mint {
   @@index([deliveryEnabled, physicalItemIncluded])
   @@index([fulfillmentType])
   @@index([category, subcategory])
+  // Hot index for the listings API: find unresolved mints quickly
+  @@index([metadataCachedAt])
+  // Hot index for the trading grid: "active listings by this contract sorted new→old"
+  @@index([verified, chainId, contract])
 }
 
 /**
@@ -324,7 +348,7 @@ model Holding {
   updatedAt DateTime @updatedAt
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   chainId  Int
   contract String
@@ -359,7 +383,7 @@ model Listing {
   standard NftStandard
 
   sellerId String?
-  seller   User? @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  seller   User?   @relation(fields: [sellerId], references: [id], onDelete: SetNull)
 
   /**
    * STANDARD  = old normal marketplace
@@ -452,10 +476,10 @@ model Trade {
   buyerWallet  String
 
   sellerId String?
-  seller   User? @relation("TradeSeller", fields: [sellerId], references: [id], onDelete: SetNull)
+  seller   User?   @relation("TradeSeller", fields: [sellerId], references: [id], onDelete: SetNull)
 
   buyerId String?
-  buyer   User? @relation("TradeBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  buyer   User?   @relation("TradeBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
 
   amount          BigInt @default(1)
   pricePerUnitWei BigInt
@@ -574,7 +598,6 @@ model StoreOrder {
    * STANDARD  = old normal marketplace
    * DELIVERY  = old delivery escrow marketplace
    * PROTECTED = new hybrid protected escrow marketplace
-   *
    * In PROTECTED hybrid flow:
    * - buyer receives NFT immediately on buy
    * - funds stay in escrow
@@ -587,10 +610,10 @@ model StoreOrder {
   buyerWallet  String
   sellerWallet String
 
-  buyerId String?
+  buyerId  String?
   sellerId String?
 
-  buyer User? @relation("StoreOrderBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
+  buyer  User? @relation("StoreOrderBuyer", fields: [buyerId], references: [id], onDelete: SetNull)
   seller User? @relation("StoreOrderSeller", fields: [sellerId], references: [id], onDelete: SetNull)
 
   /**
@@ -615,7 +638,7 @@ model StoreOrder {
    * ---------------- Protected/service execution metadata --------------------
    */
   fulfillmentType FulfillmentType?
-  serviceStatus   ServiceStatus @default(NOT_REQUIRED)
+  serviceStatus   ServiceStatus    @default(NOT_REQUIRED)
 
   /**
    * ---------------- Catalog / trading filters ------------------------------
@@ -667,14 +690,13 @@ model StoreOrder {
   escrowReleaseTxHash String?
   escrowRefundTxHash  String?
 
-  noteBuyer String?
+  noteBuyer  String?
   noteSeller String?
   adminNote  String?
 
   deliveryMessages DeliveryMessage[]
 
   @@unique([chainId, marketType, marketplaceContract, marketplacePurchaseId])
-
   @@index([buyerWallet])
   @@index([sellerWallet])
   @@index([buyerId])
@@ -710,15 +732,15 @@ model StoreOrder {
  * ==========================================================================
  */
 model DeliveryMessage {
-  id        String   @id @default(cuid())
-  orderId   String
+  id      String @id @default(cuid())
+  orderId String
 
   senderUserId String?
   senderWallet String?
   senderRole   DeliveryMessageRole
 
   body       String
-  isInternal Boolean  @default(false)
+  isInternal Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

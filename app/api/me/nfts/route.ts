@@ -2,8 +2,12 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getMintMetaMap, mintMetaKey } from "@/lib/mintMetaCache";
+import { ipfsToHttp } from "@/lib/ipfs";
 
 export const runtime = "nodejs";
+// This endpoint is user-scoped (session-based) — don't ISR it,
+// but we still skip force-dynamic so Next can optimize rendering.
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -28,19 +32,16 @@ const CAFE_CONTRACT = normAddr(
     process.env.REALIFE_CAFE_STORE_CONTRACT ||
     null
 );
-
 const STORE_CONTRACT = normAddr(
   process.env.NEXT_PUBLIC_REALIFE_STORE_CONTRACT ||
     process.env.REALIFE_STORE_CONTRACT ||
     null
 );
-
 const PUBLIC_STANDARD_CONTRACT = normAddr(
   process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT ||
     process.env.REALIFE_1155_NEW_CONTRACT ||
     null
 );
-
 const PUBLIC_DELIVERY_CONTRACT = normAddr(
   process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
     process.env.REALIFE_1155_DELIVERY_CONTRACT ||
@@ -54,18 +55,12 @@ function fixedMarketTypeByContract(
 ): FixedMarketType | null {
   const c = normAddr(contract);
   if (!c) return null;
-
   if (CAFE_CONTRACT && c === CAFE_CONTRACT) return "STANDARD";
   if (STORE_CONTRACT && c === STORE_CONTRACT) return "STANDARD";
-
   if (PUBLIC_DELIVERY_CONTRACT && c === PUBLIC_DELIVERY_CONTRACT) {
     return "PROTECTED";
   }
-
-  if (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) {
-    return null;
-  }
-
+  if (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) return null;
   return null;
 }
 
@@ -87,7 +82,6 @@ function isProtectedFulfillment(v: string | null | undefined) {
 function textLooksProtected(...values: Array<string | null | undefined>) {
   const s = values.map(normText).filter(Boolean).join(" ");
   if (!s) return false;
-
   const needles = [
     "service",
     "services",
@@ -110,7 +104,6 @@ function textLooksProtected(...values: Array<string | null | undefined>) {
     "promo work",
     "ai work",
   ];
-
   return needles.some((x) => s.includes(x));
 }
 
@@ -121,18 +114,9 @@ function suggestedMarketTypeFromAsset(input: {
   category?: string | null;
   subcategory?: string | null;
 }): MarketType {
-  if (isProtectedFulfillment(input.fulfillmentType)) {
-    return "PROTECTED";
-  }
-
-  if (input.deliveryEnabled || input.physicalItemIncluded) {
-    return "PROTECTED";
-  }
-
-  if (textLooksProtected(input.category, input.subcategory)) {
-    return "PROTECTED";
-  }
-
+  if (isProtectedFulfillment(input.fulfillmentType)) return "PROTECTED";
+  if (input.deliveryEnabled || input.physicalItemIncluded) return "PROTECTED";
+  if (textLooksProtected(input.category, input.subcategory)) return "PROTECTED";
   return "STANDARD";
 }
 
@@ -141,14 +125,9 @@ function resolveMarketType(params: {
   suggestedMarketType: MarketType;
 }): MarketType {
   const { contract, suggestedMarketType } = params;
-
   const fixed = fixedMarketTypeByContract(contract);
   if (fixed) return fixed;
-
-  if (isPublicStandardContract(contract)) {
-    return suggestedMarketType;
-  }
-
+  if (isPublicStandardContract(contract)) return suggestedMarketType;
   return suggestedMarketType;
 }
 
@@ -176,11 +155,7 @@ export async function GET(req: Request) {
       where: {
         userId: uid,
         amount: { gt: 0n },
-        mint: {
-          is: {
-            verified: true,
-          },
-        },
+        mint: { is: { verified: true } },
       },
       orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
       take: take + 1,
@@ -195,6 +170,9 @@ export async function GET(req: Request) {
         amount: true,
         mint: {
           select: {
+            chainId: true,
+            contract: true,
+            tokenId: true,
             name: true,
             image: true,
             tokenUri: true,
@@ -207,7 +185,19 @@ export async function GET(req: Request) {
             fulfillmentType: true,
             category: true,
             subcategory: true,
-          },
+
+            // cache fields
+            metadataCachedAt: true,
+            metaImage: true,
+            metaAnimation: true,
+            metaMediaKind: true,
+            metaDescription: true,
+            metaCollection: true,
+            metaItem: true,
+            metaRarity: true,
+            metaBrand: true,
+            metaProject: true,
+          } as any,
         },
       },
     });
@@ -216,21 +206,37 @@ export async function GET(req: Request) {
     const data = hasMore ? items.slice(0, take) : items;
     const nextCursor = hasMore ? data[data.length - 1]?.id ?? null : null;
 
+    // Resolve metadata in one parallel pass
+    const mintInputs = data.map((x) => x.mint as any).filter(Boolean);
+    const metaMap = await getMintMetaMap(mintInputs, {
+      concurrency: 6,
+      timeoutBudgetMs: 4000,
+    });
+
     const nfts = data.map((x) => {
       const contract = String(x.contract || "").toLowerCase();
+      const m = x.mint as any;
+      const metaKey = m
+        ? mintMetaKey(m.chainId, m.contract, m.tokenId)
+        : null;
+      const meta = metaKey ? metaMap.get(metaKey) || null : null;
 
       const suggestedMarketType = suggestedMarketTypeFromAsset({
-        fulfillmentType: x.mint?.fulfillmentType ?? null,
-        deliveryEnabled: x.mint?.deliveryEnabled ?? false,
-        physicalItemIncluded: x.mint?.physicalItemIncluded ?? false,
-        category: x.mint?.category ?? null,
-        subcategory: x.mint?.subcategory ?? null,
+        fulfillmentType: m?.fulfillmentType ?? null,
+        deliveryEnabled: m?.deliveryEnabled ?? false,
+        physicalItemIncluded: m?.physicalItemIncluded ?? false,
+        category: m?.category ?? null,
+        subcategory: m?.subcategory ?? null,
       });
 
       const resolvedMarketType = resolveMarketType({
         contract,
         suggestedMarketType,
       });
+
+      const mediaImage = meta?.image || ipfsToHttp(m?.image) || null;
+      const mediaAnimation = meta?.animation || null;
+      const mediaKind = meta?.mediaKind || "image";
 
       return {
         id: x.id,
@@ -241,19 +247,19 @@ export async function GET(req: Request) {
         standard: x.standard,
         amount: s(x.amount),
 
-        name: x.mint?.name ?? null,
-        image: x.mint?.image ?? null,
-        tokenUri: x.mint?.tokenUri ?? null,
-        verified: x.mint?.verified ?? false,
-        txHash: x.mint?.txHash ?? null,
-        mintedAt: x.mint?.createdAt ? x.mint.createdAt.toISOString() : null,
+        name: m?.name ?? null,
+        image: m?.image ?? null,
+        tokenUri: m?.tokenUri ?? null,
+        verified: m?.verified ?? false,
+        txHash: m?.txHash ?? null,
+        mintedAt: m?.createdAt ? m.createdAt.toISOString() : null,
 
-        deliveryEnabled: x.mint?.deliveryEnabled ?? false,
-        physicalItemIncluded: x.mint?.physicalItemIncluded ?? false,
-        officialItem: x.mint?.officialItem ?? false,
-        fulfillmentType: x.mint?.fulfillmentType ?? null,
-        category: x.mint?.category ?? null,
-        subcategory: x.mint?.subcategory ?? null,
+        deliveryEnabled: m?.deliveryEnabled ?? false,
+        physicalItemIncluded: m?.physicalItemIncluded ?? false,
+        officialItem: m?.officialItem ?? false,
+        fulfillmentType: m?.fulfillmentType ?? null,
+        category: m?.category ?? null,
+        subcategory: m?.subcategory ?? null,
 
         suggestedMarketType,
         resolvedMarketType,
@@ -266,6 +272,20 @@ export async function GET(req: Request) {
         isPublicDeliveryContract: Boolean(
           PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT
         ),
+
+        // NEW: pre-resolved media + meta
+        media: {
+          kind: mediaKind,
+          src: mediaKind === "video" ? mediaAnimation : mediaImage,
+          poster: mediaKind === "video" ? mediaImage : null,
+          image: mediaImage,
+        },
+        metaCollection: meta?.collection || null,
+        metaItem: meta?.item || null,
+        metaRarity: meta?.rarity || null,
+        metaBrand: meta?.brand || null,
+        metaProject: meta?.project || null,
+        metaDescription: meta?.description || null,
       };
     });
 

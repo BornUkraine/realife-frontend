@@ -1,9 +1,23 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getMintMetaMap, mintMetaKey } from "@/lib/mintMetaCache";
+import { ipfsToHttp } from "@/lib/ipfs";
 
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+
+/**
+ * Caching strategy:
+ *
+ *  - Route is ISR-cached for 30s per unique URL (revalidate below).
+ *  - Metadata resolved server-side once, then persisted in DB (Mint.meta*).
+ *  - After first hit per (contract,view), subsequent requests are effectively
+ *    a single indexed DB query + a map over rows.
+ *
+ *  - For authenticated / highly dynamic views, callers can append an
+ *    `?_=<timestamp>` cache buster to force a fresh render.
+ */
+export const revalidate = 30;
+export const dynamic = "auto";
 
 type MarketType = "STANDARD" | "PROTECTED";
 
@@ -71,7 +85,6 @@ function fixedMarketTypeByContract(
     return "PROTECTED";
   }
 
-  // public standard contract is flexible: STANDARD or PROTECTED by asset/listing
   if (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) {
     return null;
   }
@@ -86,24 +99,13 @@ function getFixedContractMarketRules(): Array<{
   const out: Array<{ contract: string; marketType: FixedMarketType }> = [];
 
   if (PUBLIC_DELIVERY_CONTRACT) {
-    out.push({
-      contract: PUBLIC_DELIVERY_CONTRACT,
-      marketType: "PROTECTED",
-    });
+    out.push({ contract: PUBLIC_DELIVERY_CONTRACT, marketType: "PROTECTED" });
   }
-
   if (CAFE_CONTRACT) {
-    out.push({
-      contract: CAFE_CONTRACT,
-      marketType: "STANDARD",
-    });
+    out.push({ contract: CAFE_CONTRACT, marketType: "STANDARD" });
   }
-
   if (STORE_CONTRACT) {
-    out.push({
-      contract: STORE_CONTRACT,
-      marketType: "STANDARD",
-    });
+    out.push({ contract: STORE_CONTRACT, marketType: "STANDARD" });
   }
 
   return out;
@@ -156,18 +158,9 @@ function suggestedMarketTypeFromAsset(input: {
   category?: string | null;
   subcategory?: string | null;
 }): MarketType {
-  if (isProtectedFulfillment(input.fulfillmentType)) {
-    return "PROTECTED";
-  }
-
-  if (input.deliveryEnabled || input.physicalItemIncluded) {
-    return "PROTECTED";
-  }
-
-  if (textLooksProtected(input.category, input.subcategory)) {
-    return "PROTECTED";
-  }
-
+  if (isProtectedFulfillment(input.fulfillmentType)) return "PROTECTED";
+  if (input.deliveryEnabled || input.physicalItemIncluded) return "PROTECTED";
+  if (textLooksProtected(input.category, input.subcategory)) return "PROTECTED";
   return "STANDARD";
 }
 
@@ -273,11 +266,9 @@ export async function GET(req: NextRequest) {
         const flexibleClause: any = {
           contract: { notIn: fixedContracts },
         };
-
         if (requestedMarketType) {
           flexibleClause.marketType = requestedMarketType;
         }
-
         orClauses.push(flexibleClause);
       }
 
@@ -290,6 +281,9 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // ----------------------------------------------------------------
+    // DB fetch — include cached metadata fields
+    // ----------------------------------------------------------------
     const [rows, total] = await Promise.all([
       prisma.listing.findMany({
         where,
@@ -299,6 +293,9 @@ export async function GET(req: NextRequest) {
         include: {
           mint: {
             select: {
+              chainId: true,
+              contract: true,
+              tokenId: true,
               name: true,
               image: true,
               tokenUri: true,
@@ -309,7 +306,19 @@ export async function GET(req: NextRequest) {
               fulfillmentType: true,
               category: true,
               subcategory: true,
-            },
+
+              // NEW: cache fields (nullable on legacy rows)
+              metadataCachedAt: true,
+              metaImage: true,
+              metaAnimation: true,
+              metaMediaKind: true,
+              metaDescription: true,
+              metaCollection: true,
+              metaItem: true,
+              metaRarity: true,
+              metaBrand: true,
+              metaProject: true,
+            } as any,
           },
           seller: {
             select: {
@@ -322,17 +331,38 @@ export async function GET(req: NextRequest) {
       prisma.listing.count({ where }),
     ]);
 
+    // ----------------------------------------------------------------
+    // Resolve any uncached metadata (parallel, budgeted)
+    // ----------------------------------------------------------------
+    const mintInputs = rows
+      .map((r) => (r.mint as any) || null)
+      .filter(Boolean) as any[];
+
+    const metaMap = await getMintMetaMap(mintInputs, {
+      concurrency: 6,
+      timeoutBudgetMs: 4000,
+    });
+
+    // ----------------------------------------------------------------
+    // Build response
+    // ----------------------------------------------------------------
     return NextResponse.json({
       ok: true,
       total,
       listings: rows.map((r) => {
+        const m = r.mint as any;
+        const metaKey = m
+          ? mintMetaKey(m.chainId, m.contract, m.tokenId)
+          : null;
+        const meta = metaKey ? metaMap.get(metaKey) || null : null;
+
         const rowSuggestedMarketType = suggestedMarketTypeFromAsset({
-          fulfillmentType: r.fulfillmentType ?? r.mint?.fulfillmentType ?? null,
-          deliveryEnabled: r.deliveryEnabled ?? r.mint?.deliveryEnabled ?? null,
+          fulfillmentType: r.fulfillmentType ?? m?.fulfillmentType ?? null,
+          deliveryEnabled: r.deliveryEnabled ?? m?.deliveryEnabled ?? null,
           physicalItemIncluded:
-            r.physicalItemIncluded ?? r.mint?.physicalItemIncluded ?? null,
-          category: r.category ?? r.mint?.category ?? null,
-          subcategory: r.subcategory ?? r.mint?.subcategory ?? null,
+            r.physicalItemIncluded ?? m?.physicalItemIncluded ?? null,
+          category: r.category ?? m?.category ?? null,
+          subcategory: r.subcategory ?? m?.subcategory ?? null,
         });
 
         const resolvedMarketType = resolveMarketType({
@@ -341,6 +371,11 @@ export async function GET(req: NextRequest) {
           storedMarketType: r.marketType,
           requestedMarketType,
         });
+
+        // Preferred media (already http, ready for next/image)
+        const mediaImage = meta?.image || ipfsToHttp(m?.image) || null;
+        const mediaAnimation = meta?.animation || null;
+        const mediaKind = meta?.mediaKind || "image";
 
         return {
           id: r.id,
@@ -371,15 +406,41 @@ export async function GET(req: NextRequest) {
 
           createdAt: r.createdAt.toISOString(),
 
-          mint: r.mint
+          // NEW: pre-resolved media for the client — no IPFS fetch needed anymore
+          media: {
+            kind: mediaKind,
+            src: mediaKind === "video" ? mediaAnimation : mediaImage,
+            poster: mediaKind === "video" ? mediaImage : null,
+            image: mediaImage,
+          },
+
+          // NEW: enriched meta for the client card
+          metaCollection: meta?.collection || null,
+          metaItem: meta?.item || null,
+          metaRarity: meta?.rarity || null,
+          metaBrand: meta?.brand || null,
+          metaProject: meta?.project || null,
+          metaDescription: meta?.description || null,
+
+          // Keep existing shape for backwards compat
+          mint: m
             ? {
-                ...r.mint,
+                name: m.name,
+                image: m.image,
+                tokenUri: m.tokenUri,
+                verified: m.verified,
+                deliveryEnabled: m.deliveryEnabled,
+                physicalItemIncluded: m.physicalItemIncluded,
+                officialItem: m.officialItem,
+                fulfillmentType: m.fulfillmentType,
+                category: m.category,
+                subcategory: m.subcategory,
                 suggestedMarketType: suggestedMarketTypeFromAsset({
-                  fulfillmentType: r.mint.fulfillmentType,
-                  deliveryEnabled: r.mint.deliveryEnabled,
-                  physicalItemIncluded: r.mint.physicalItemIncluded,
-                  category: r.mint.category,
-                  subcategory: r.mint.subcategory,
+                  fulfillmentType: m.fulfillmentType,
+                  deliveryEnabled: m.deliveryEnabled,
+                  physicalItemIncluded: m.physicalItemIncluded,
+                  category: m.category,
+                  subcategory: m.subcategory,
                 }),
               }
             : null,
@@ -388,7 +449,6 @@ export async function GET(req: NextRequest) {
     });
   } catch (e) {
     console.error("[API_MARKET_LISTINGS_ERROR]", e);
-
     return NextResponse.json(
       { ok: false, error: "INTERNAL" },
       { status: 500 }
