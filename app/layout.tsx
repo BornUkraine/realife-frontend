@@ -14,6 +14,9 @@ const geistMono = GeistMono;
 export const metadata: Metadata = {
   title: "Realife",
   description: "Tokenized real-world creativity",
+  other: {
+    "base:app_id": "69e678d9c2f43db9becf667b",
+  },
 };
 
 export const dynamic = "force-dynamic";
