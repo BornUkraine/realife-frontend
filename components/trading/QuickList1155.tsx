@@ -37,7 +37,6 @@ type QuickListListedPayload = {
   marketType: MarketType;
 };
 
-
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
@@ -323,7 +322,6 @@ export default function QuickList1155({
   preferredMarketType?: MarketType;
   onListed?: (payload: QuickListListedPayload) => void;
 }) {
-
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
@@ -432,7 +430,7 @@ export default function QuickList1155({
 
   const hasMarketplace = marketplaceAddress.startsWith("0x");
 
-  const { data: balanceRaw } = useReadContract({
+  const { data: balanceRaw, refetch: refetchBalance } = useReadContract({
     abi: erc1155CoreAbi,
     address: (
       nftAddr || "0x0000000000000000000000000000000000000000"
@@ -478,7 +476,9 @@ export default function QuickList1155({
           "0x0000000000000000000000000000000000000000") as `0x${string}`
       ),
     ],
-    query: { enabled: Boolean(address && hasMarketplace && nftAddr.startsWith("0x")) },
+    query: {
+      enabled: Boolean(address && hasMarketplace && nftAddr.startsWith("0x")),
+    },
   });
 
   const isApproved = Boolean(approvedRaw);
@@ -1029,8 +1029,8 @@ export default function QuickList1155({
                     {busy === "approve"
                       ? "Approving..."
                       : isApproved
-                      ? "Approved"
-                      : "Approve"}
+                        ? "Approved"
+                        : "Approve"}
                   </button>
 
                   <button
@@ -1042,7 +1042,11 @@ export default function QuickList1155({
                       disabledList ? "cursor-not-allowed opacity-60" : ""
                     )}
                   >
-                    {busy === "list" ? "Listing..." : refreshing ? "Syncing..." : "List"}
+                    {busy === "list"
+                      ? "Listing..."
+                      : refreshing
+                        ? "Syncing..."
+                        : "List"}
                   </button>
                 </div>
 
