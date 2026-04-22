@@ -86,7 +86,6 @@ function toBigIntSafe(v?: string | null) {
   }
 }
 
-
 const quickListHoverClass =
   "opacity-100 transition-all duration-150 md:pointer-events-none md:translate-y-1 md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:translate-y-0 md:group-hover:opacity-100 md:group-focus-within:pointer-events-auto md:group-focus-within:translate-y-0 md:group-focus-within:opacity-100";
 
@@ -114,8 +113,14 @@ function protectedSubtypeTone(subtype?: string | null) {
 function GridToastCard({ toast }: { toast: GridToast }) {
   return (
     <div className="pointer-events-auto min-w-[240px] max-w-[320px] overflow-hidden rounded-[22px] border border-white/12 bg-black/55 px-4 py-3 text-white/88 shadow-[0_18px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl">
-      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-100">{toast.title}</div>
-      {toast.text ? <div className="mt-1 text-[12px] leading-relaxed text-white/70">{toast.text}</div> : null}
+      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-100">
+        {toast.title}
+      </div>
+      {toast.text ? (
+        <div className="mt-1 text-[12px] leading-relaxed text-white/70">
+          {toast.text}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -124,7 +129,9 @@ function EmptyGridState({ isOwner }: { isOwner: boolean }) {
   return (
     <div className="col-span-full overflow-hidden rounded-[32px] bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.07),rgba(184,135,10,0.05))] p-px shadow-[0_28px_110px_rgba(0,0,0,0.55)]">
       <div className="rounded-[32px] border border-white/10 bg-[#0b0a09]/46 p-6 text-center backdrop-blur-2xl md:p-8">
-        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/40">{isOwner ? "Owner View" : "Gallery"}</div>
+        <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/40">
+          {isOwner ? "Owner View" : "Gallery"}
+        </div>
         <div className="mt-3 text-xl font-black tracking-tight text-white/90">
           {isOwner ? "No NFTs ready in this grid yet" : "No NFTs found"}
         </div>
@@ -147,7 +154,9 @@ export default function GalleryGridClient({
 }) {
   const [preview, setPreview] = useState<PreviewState>(null);
   const [gridItems, setGridItems] = useState(items);
-  const [freshlyListed, setFreshlyListed] = useState<Record<string, QuickListListedPayload>>({});
+  const [freshlyListed, setFreshlyListed] = useState<
+    Record<string, QuickListListedPayload>
+  >({});
   const [toasts, setToasts] = useState<GridToast[]>([]);
 
   useEffect(() => {
@@ -262,6 +271,7 @@ export default function GalleryGridClient({
         style={{ animationDelay: "90ms" }}
       >
         {gridItems.length === 0 ? <EmptyGridState isOwner={isOwner} /> : null}
+
         {gridItems.map((x) => {
           const showProtectedBadge = x.secondaryMarketType === "PROTECTED";
           const showProtectedSubtype =
@@ -300,7 +310,9 @@ export default function GalleryGridClient({
                             preferredMarketType={
                               x.secondaryMarketType || "STANDARD"
                             }
-                            onListed={(payload) => handleQuickListed(x.id, payload)}
+                            onListed={(payload) =>
+                              handleQuickListed(x.id, payload)
+                            }
                           />
                         </div>
                       ) : null}
@@ -357,19 +369,19 @@ export default function GalleryGridClient({
                           x.isCafeNft
                             ? "text-amber-100"
                             : x.isStoreNft
-                            ? "text-sky-200"
-                            : x.isDeliveryUserNft
-                            ? "text-violet-200"
-                            : "text-emerald-200"
+                              ? "text-sky-200"
+                              : x.isDeliveryUserNft
+                                ? "text-violet-200"
+                                : "text-emerald-200"
                         )}
                       >
                         {x.isCafeNft
                           ? "CAFE"
                           : x.isStoreNft
-                          ? "STORE"
-                          : x.isDeliveryUserNft
-                          ? "DELIVERY"
-                          : "EDITION"}
+                            ? "STORE"
+                            : x.isDeliveryUserNft
+                              ? "DELIVERY"
+                              : "EDITION"}
                       </div>
 
                       <div className="w-fit rounded-full border border-white/10 bg-black/40 px-2 py-1 text-[10px] font-bold text-white/75">
@@ -413,7 +425,7 @@ export default function GalleryGridClient({
                     ) : null}
                   </>
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center text-white/25 font-bold">
+                  <div className="flex h-full w-full items-center justify-center font-bold text-white/25">
                     No media
                   </div>
                 )}
@@ -467,12 +479,6 @@ export default function GalleryGridClient({
                   ) : null}
                 </div>
 
-                {isOwner ? (
-                  <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2 text-[11px] text-white/55">
-                    Owner inventory updates locally first, then background market sync continues.
-                  </div>
-                ) : null}
-
                 <div className="mt-4 h-px bg-white/10" />
 
                 <div className="mt-4 flex items-center justify-between text-[12px] font-bold text-amber-100/85 group-hover:text-amber-100">
@@ -513,7 +519,7 @@ export default function GalleryGridClient({
             <span className="text-xl leading-none">✕</span>
           </button>
 
-          <div className="absolute inset-x-0 top-0 z-[10000] pointer-events-none">
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-[10000]">
             <div className="mx-auto max-w-6xl px-5 pt-5">
               <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[11px] font-bold text-white/70 backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.25)]">
                 <span>Fullscreen Preview</span>
