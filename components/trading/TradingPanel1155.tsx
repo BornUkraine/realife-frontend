@@ -197,6 +197,53 @@ async function fetchJSON(url: string) {
   return j;
 }
 
+function toBigIntOrZero(v?: string | number | bigint | null) {
+  try {
+    if (typeof v === "bigint") return v;
+    if (typeof v === "number") return BigInt(Math.trunc(v));
+    if (typeof v === "string" && v.trim()) return BigInt(v);
+    return 0n;
+  } catch {
+    return 0n;
+  }
+}
+
+function recomputeStats(
+  prev: MarketNftResponse["stats"],
+  listings: Listing[]
+): MarketNftResponse["stats"] {
+  let floor: bigint | null = null;
+
+  for (const l of listings) {
+    const remaining = toBigIntOrZero(l.amountRemaining);
+    if (remaining <= 0n) continue;
+
+    const price = toBigIntOrZero(l.pricePerUnitWei);
+    if (floor === null || price < floor) {
+      floor = price;
+    }
+  }
+
+  return {
+    ...prev,
+    activeListings: listings.length,
+    floorWei: floor !== null ? floor.toString() : null,
+  };
+}
+
+function withUpdatedListings(
+  prev: MarketNftResponse,
+  listings: Listing[]
+): MarketNftResponse {
+  const filtered = listings.filter((l) => toBigIntOrZero(l.amountRemaining) > 0n);
+
+  return {
+    ...prev,
+    listings: filtered,
+    stats: recomputeStats(prev.stats, filtered),
+  };
+}
+
 function Pill({
   children,
   active = false,
@@ -596,6 +643,7 @@ export default function TradingPanel1155({
   const [data, setData] = useState<MarketNftResponse | null>(initialMarketData);
   const [tab, setTab] = useState<"buy" | "sell">("buy");
   const hasRenderableDataRef = useRef(Boolean(initialMarketData));
+  const hintTimerRef = useRef<number | null>(null);
 
   const tokenIdBI = useMemo(() => {
     try {
@@ -608,6 +656,14 @@ export default function TradingPanel1155({
   useEffect(() => {
     hasRenderableDataRef.current = Boolean(data);
   }, [data]);
+
+  useEffect(() => {
+    return () => {
+      if (hintTimerRef.current) {
+        window.clearTimeout(hintTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (initialMarketData) {
@@ -798,6 +854,100 @@ export default function TradingPanel1155({
 
   const isApproved = Boolean(approvedRaw);
 
+  const flashHint = useCallback((message: string | null, duration = 1800) => {
+    if (hintTimerRef.current) {
+      window.clearTimeout(hintTimerRef.current);
+      hintTimerRef.current = null;
+    }
+
+    setHint(message);
+
+    if (!message || typeof window === "undefined") return;
+
+    hintTimerRef.current = window.setTimeout(() => {
+      setHint((current) => (current === message ? null : current));
+      hintTimerRef.current = null;
+    }, duration);
+  }, []);
+
+  const applyOptimisticCancel = useCallback((listing: Listing) => {
+    const doomedKey = listingKeyOf(listing);
+
+    setData((prev) => {
+      if (!prev) return prev;
+      return withUpdatedListings(
+        prev,
+        prev.listings.filter((row) => listingKeyOf(row) !== doomedKey)
+      );
+    });
+
+    setSelectedListingKey((prev) => (prev === doomedKey ? null : prev));
+    hasRenderableDataRef.current = true;
+  }, []);
+
+  const applyOptimisticBuy = useCallback(
+    (
+      listing: Listing,
+      amountBought: bigint,
+      txHash: string,
+      marketTypeForTrade: MarketType
+    ) => {
+      setData((prev) => {
+        if (!prev) return prev;
+
+        const targetKey = listingKeyOf(listing);
+        const nextListings = prev.listings
+          .map((row) => {
+            if (listingKeyOf(row) !== targetKey) return row;
+
+            const nextRemaining = toBigIntOrZero(row.amountRemaining) - amountBought;
+            return {
+              ...row,
+              amountRemaining: nextRemaining > 0n ? nextRemaining.toString() : "0",
+            };
+          })
+          .filter((row) => toBigIntOrZero(row.amountRemaining) > 0n);
+
+        const total = toBigIntOrZero(listing.pricePerUnitWei) * amountBought;
+        const nextTrade: Trade = {
+          txHash,
+          logIndex: -1,
+          blockNum: "0",
+          blockTime: new Date().toISOString(),
+          sellerWallet: listing.sellerWallet,
+          buyerWallet: address || "",
+          amount: amountBought.toString(),
+          pricePerUnitWei: listing.pricePerUnitWei,
+          totalPriceWei: total.toString(),
+          marketType: marketTypeForTrade,
+          marketplaceContract: listing.marketplaceContract ?? null,
+          marketplacePurchaseId: null,
+          fulfillmentType: listing.fulfillmentType ?? null,
+          category: listing.category ?? null,
+          subcategory: listing.subcategory ?? null,
+        };
+
+        const nextBase = withUpdatedListings(prev, nextListings);
+
+        return {
+          ...nextBase,
+          trades: [nextTrade, ...(prev.trades || [])].slice(0, 50),
+          stats: {
+            ...nextBase.stats,
+            tradesCount: (prev.stats?.tradesCount ?? 0) + 1,
+            lastSaleWei: listing.pricePerUnitWei,
+            volumeTotalWei: (
+              toBigIntOrZero(prev.stats?.volumeTotalWei) + total
+            ).toString(),
+          },
+        };
+      });
+
+      hasRenderableDataRef.current = true;
+    },
+    [address]
+  );
+
   const [selectedListingKey, setSelectedListingKey] = useState<string | null>(null);
   const [buyAmount, setBuyAmount] = useState(1);
   const [sellAmount, setSellAmount] = useState(1);
@@ -912,15 +1062,37 @@ export default function TradingPanel1155({
     [refresh, refetchBalance, refetchApproved]
   );
 
-  const schedulePostTxRefreshes = useCallback(() => {
-    if (typeof window === "undefined") return;
+  const schedulePostTxRefreshes = useCallback(
+    (opts?: {
+      market?: boolean;
+      balance?: boolean;
+      approved?: boolean;
+      delays?: number[];
+    }) => {
+      if (typeof window === "undefined") return;
 
-    for (const delay of [1600, 4200]) {
-      window.setTimeout(() => {
-        void refreshAll({ silent: true });
-      }, delay);
-    }
-  }, [refreshAll]);
+      const {
+        market = true,
+        balance = false,
+        approved = false,
+        delays = [1600, 4200],
+      } = opts || {};
+
+      for (const delay of delays) {
+        window.setTimeout(() => {
+          const tasks: Array<Promise<unknown>> = [];
+
+          if (market) tasks.push(refresh({ silent: true }));
+          if (balance) tasks.push(refetchBalance());
+          if (approved) tasks.push(refetchApproved());
+
+          if (!tasks.length) return;
+          void Promise.allSettled(tasks);
+        }, delay);
+      }
+    },
+    [refresh, refetchBalance, refetchApproved]
+  );
 
   async function ensureChain() {
     if (!canTradeOnThisChain) {
@@ -928,10 +1100,33 @@ export default function TradingPanel1155({
     }
   }
 
-  async function afterMarketTx() {
+  async function afterMarketTx(opts?: {
+    immediateMarket?: boolean;
+    immediateBalance?: boolean;
+    immediateApproved?: boolean;
+    delayedMarket?: boolean;
+    delayedBalance?: boolean;
+    delayedApproved?: boolean;
+    delays?: number[];
+  }) {
     await revalidateMarketTags();
-    await refreshAll({ silent: true });
-    schedulePostTxRefreshes();
+
+    const immediateTasks: Array<Promise<unknown>> = [];
+
+    if (opts?.immediateMarket) immediateTasks.push(refresh({ silent: true }));
+    if (opts?.immediateBalance) immediateTasks.push(refetchBalance());
+    if (opts?.immediateApproved) immediateTasks.push(refetchApproved());
+
+    if (immediateTasks.length) {
+      await Promise.allSettled(immediateTasks);
+    }
+
+    schedulePostTxRefreshes({
+      market: opts?.delayedMarket ?? true,
+      balance: opts?.delayedBalance ?? false,
+      approved: opts?.delayedApproved ?? false,
+      delays: opts?.delays,
+    });
   }
 
   async function approveAll() {
@@ -1010,9 +1205,15 @@ export default function TradingPanel1155({
 
       await publicClient?.waitForTransactionReceipt({ hash });
 
-      setHint(`Listed on ${marketLabel(sellMarketType)} ✅ Updating…`);
-      await afterMarketTx();
-      setHint(null);
+      flashHint(`Listed on ${marketLabel(sellMarketType)} ✅`, 1600);
+      await afterMarketTx({
+        immediateMarket: false,
+        immediateBalance: true,
+        immediateApproved: true,
+        delayedMarket: true,
+        delayedBalance: true,
+        delayedApproved: true,
+      });
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Listing failed");
     } finally {
@@ -1069,9 +1270,17 @@ export default function TradingPanel1155({
       );
       await publicClient?.waitForTransactionReceipt({ hash });
 
-      setHint("Cancelled ✅ Updating…");
-      await afterMarketTx();
-      setHint(null);
+      applyOptimisticCancel(listing);
+      flashHint("Cancelled ✅", 1700);
+      await afterMarketTx({
+        immediateMarket: false,
+        immediateBalance: false,
+        immediateApproved: false,
+        delayedMarket: true,
+        delayedBalance: false,
+        delayedApproved: false,
+        delays: [2200, 5000],
+      });
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Cancel failed");
     } finally {
@@ -1119,16 +1328,25 @@ export default function TradingPanel1155({
 
       await publicClient?.waitForTransactionReceipt({ hash });
 
-      setHint(
+      applyOptimisticBuy(selectedListing, amt, hash, selectedListingMarketType);
+      flashHint(
         selectedListingCreatesProtectedOrder
           ? `Bought on ${marketLabel(
               selectedListingMarketType
-            )} ✅ Updating… Protected order will appear in Orders after indexer sync.`
-          : "Bought ✅ Updating…"
+            )} ✅ Protected order will appear in Orders after sync.`
+          : "Bought ✅",
+        1900
       );
 
-      await afterMarketTx();
-      setHint(null);
+      await afterMarketTx({
+        immediateMarket: false,
+        immediateBalance: false,
+        immediateApproved: false,
+        delayedMarket: true,
+        delayedBalance: false,
+        delayedApproved: false,
+        delays: [1800, 4200],
+      });
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Buy failed");
     } finally {
@@ -1566,10 +1784,11 @@ export default function TradingPanel1155({
                             }
                           }}
                           className={cx(
-                            "cursor-pointer rounded-2xl border p-4 outline-none transition",
+                            "cursor-pointer rounded-2xl border p-4 outline-none transition-all duration-200 transform-gpu",
                             active
                               ? "border-white/18 bg-white/[0.10]"
-                              : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]"
+                              : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]",
+                            isCancelling ? "scale-[0.995] opacity-65" : "opacity-100"
                           )}
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
