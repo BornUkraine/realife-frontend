@@ -37,6 +37,15 @@ type QuickListListedPayload = {
   marketType: MarketType;
 };
 
+type UiToastTone = "default" | "success" | "warning" | "error";
+
+type UiToast = {
+  id: string;
+  title: string;
+  text?: string;
+  tone?: UiToastTone;
+};
+
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
@@ -293,6 +302,32 @@ function fulfillmentTypeLabel(v?: FulfillmentType | null) {
   return String(v).replaceAll("_", " ");
 }
 
+
+function ToastCard({ toast }: { toast: UiToast }) {
+  const toneClass =
+    toast.tone === "success"
+      ? "border-emerald-500/20 bg-emerald-500/12 text-emerald-100"
+      : toast.tone === "warning"
+      ? "border-amber-500/20 bg-amber-500/12 text-amber-100"
+      : toast.tone === "error"
+      ? "border-rose-500/20 bg-rose-500/12 text-rose-100"
+      : "border-white/12 bg-black/55 text-white/88";
+
+  return (
+    <div
+      className={cx(
+        "pointer-events-auto min-w-[240px] max-w-[320px] overflow-hidden rounded-[22px] border px-4 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl",
+        toneClass
+      )}
+    >
+      <div className="text-[11px] font-black uppercase tracking-[0.18em]">{toast.title}</div>
+      {toast.text ? (
+        <div className="mt-1 text-[12px] leading-relaxed text-current/80">{toast.text}</div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function QuickList1155({
   chainId,
   contract,
@@ -490,6 +525,7 @@ export default function QuickList1155({
   const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<UiToast[]>([]);
 
   const priceWei = useMemo(() => parsePriceWeiSafe(priceEth), [priceEth]);
 
@@ -505,6 +541,19 @@ export default function QuickList1155({
   useEffect(() => {
     setAmount((prev) => clampInt(prev, 1, Math.max(1, maxAmount)));
   }, [maxAmount]);
+
+  const pushToast = useCallback(
+    (title: string, text?: string, tone: UiToastTone = "default") => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      setToasts((prev) => [...prev, { id, title, text, tone }]);
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => {
+          setToasts((prev) => prev.filter((x) => x.id !== id));
+        }, 3600);
+      }
+    },
+    []
+  );
 
   function closeModal() {
     setOpen(false);
@@ -564,6 +613,7 @@ export default function QuickList1155({
     setErr(null);
     setOk(null);
     setBusy("approve");
+    pushToast("Wallet step", "Confirm approval in your wallet.", "warning");
 
     try {
       await ensureChain();
@@ -575,12 +625,17 @@ export default function QuickList1155({
         args: [marketplaceAddress as `0x${string}`, true],
       });
 
+      pushToast("Transaction pending", "Approval submitted onchain.", "warning");
       await publicClient?.waitForTransactionReceipt({ hash });
+      pushToast("Confirmed onchain", "Approval was confirmed. Syncing state…", "success");
       await refetchApproved();
 
       setOk(`${marketLabel(inferredMarketType)} approved ✅`);
+      pushToast("Market ready", `${marketLabel(inferredMarketType)} approval synced.`, "success");
     } catch (e: any) {
-      setErr(e?.shortMessage || e?.message || "Approve failed");
+      const message = e?.shortMessage || e?.message || "Approve failed";
+      setErr(message);
+      pushToast("Approve failed", message, "error");
     } finally {
       setBusy(null);
     }
@@ -609,6 +664,9 @@ export default function QuickList1155({
       }
 
       void approvedRes;
+      if (remainingOwnedAmount !== null) {
+        pushToast("Balance updated", `Owned amount is now ${remainingOwnedAmount}.`, "default");
+      }
       return { remainingOwnedAmount };
     } finally {
       setRefreshing(false);
@@ -636,6 +694,7 @@ export default function QuickList1155({
     setErr(null);
     setOk(null);
     setBusy("list");
+    pushToast("Wallet step", "Confirm listing in your wallet.", "warning");
 
     try {
       await ensureChain();
@@ -660,11 +719,14 @@ export default function QuickList1155({
         args: args as any,
       });
 
+      pushToast("Transaction pending", "Listing submitted onchain.", "warning");
       await publicClient?.waitForTransactionReceipt({ hash });
+      pushToast("Confirmed onchain", "Listing confirmed. Updating market state…", "success");
 
       await revalidateAfterList();
       const walletState = await refreshWalletState();
       schedulePostListRefreshes();
+      pushToast("Listing created", "Quick list was created instantly. Market sync continues in background.", "success");
 
       onListed?.({
         listedAmount: amt.toString(),
@@ -684,7 +746,9 @@ export default function QuickList1155({
         closeModal();
       }, 550);
     } catch (e: any) {
-      setErr(e?.shortMessage || e?.message || "Listing failed");
+      const message = e?.shortMessage || e?.message || "Listing failed";
+      setErr(message);
+      pushToast("Listing failed", message, "error");
     } finally {
       setBusy(null);
     }
@@ -1012,6 +1076,10 @@ export default function QuickList1155({
 
                 <div className="mt-3 text-center text-[12px] font-black text-amber-100">
                   Total: {fmtEthWei(totalPriceWei)} ETH
+                </div>
+
+                <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2 text-center text-[11px] text-white/58">
+                  Wallet → Confirmed → Synced. Quick list updates your gallery first, then market sync follows.
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-2">

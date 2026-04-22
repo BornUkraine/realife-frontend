@@ -935,6 +935,29 @@ function InfoPill({
   );
 }
 
+function FavoriteSoonButton({
+  compact = false,
+}: {
+  compact?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      title="Favorites soon"
+      aria-label="Favorites soon"
+      className={cx(
+        "inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/38 text-white/88 backdrop-blur-xl transition",
+        compact
+          ? "px-3 py-1.5 text-[11px] font-bold shadow-[0_14px_40px_rgba(0,0,0,0.28)]"
+          : "px-4 py-2 text-[12px] font-black shadow-[0_18px_60px_rgba(0,0,0,0.32)]"
+      )}
+    >
+      <span className="text-[14px] leading-none text-rose-200">♥</span>
+      <span>{compact ? "Soon" : "Favorites soon"}</span>
+    </button>
+  );
+}
+
 function AccordionSection({
   title,
   subtitle,
@@ -1501,13 +1524,20 @@ export default async function NftDetailsPage({
                     </div>
                   )}
 
-                  <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-5">
-                    <div className="flex flex-wrap gap-2">
+                  <div className="absolute inset-x-0 top-0 flex items-start justify-between p-5">
+                    <div className="pointer-events-none flex flex-wrap gap-2">
                       <InfoPill>{standardLabel}</InfoPill>
                       {kind === "video" ? <InfoPill tone="gold">VIDEO</InfoPill> : null}
                     </div>
 
-                    {supplyLabel ? <InfoPill>Supply {supplyLabel}</InfoPill> : null}
+                    <div className="flex items-center gap-2">
+                      {supplyLabel ? (
+                        <div className="pointer-events-none">
+                          <InfoPill>Supply {supplyLabel}</InfoPill>
+                        </div>
+                      ) : null}
+                      <FavoriteSoonButton compact />
+                    </div>
                   </div>
 
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.76)_0%,rgba(0,0,0,0.30)_42%,transparent_100%)] p-6">
@@ -1560,8 +1590,11 @@ export default async function NftDetailsPage({
                         : "Realife Edition"}
                     </div>
 
-                    <div className="rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-amber-100">
-                      {standardLabel}
+                    <div className="flex items-center gap-2">
+                      <div className="rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-amber-100">
+                        {standardLabel}
+                      </div>
+                      <FavoriteSoonButton compact />
                     </div>
                   </div>
 

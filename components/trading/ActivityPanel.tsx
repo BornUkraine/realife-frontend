@@ -292,10 +292,43 @@ function SectionHeader({
   );
 }
 
-function EmptyCard({ text }: { text: string }) {
+function EmptyCard({
+  title,
+  text,
+  actionHref,
+  actionLabel,
+}: {
+  title: string;
+  text: string;
+  actionHref?: string;
+  actionLabel?: string;
+}) {
   return (
     <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.025] p-5 text-[12px] text-white/52">
-      {text}
+      <div className="text-[11px] font-black uppercase tracking-[0.18em] text-white/42">{title}</div>
+      <div className="mt-2 leading-relaxed">{text}</div>
+      {actionHref && actionLabel ? (
+        <Link
+          href={actionHref}
+          className="mt-4 inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.05] px-4 py-2 text-[12px] font-black text-amber-100/90 transition hover:-translate-y-[1px] hover:bg-white/[0.09] hover:text-amber-100"
+        >
+          {actionLabel}
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
+function EmptyOverview() {
+  return (
+    <div className="mt-6 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.07),rgba(184,135,10,0.05))] p-px shadow-[0_20px_70px_rgba(0,0,0,0.42)]">
+      <div className="rounded-[28px] border border-white/10 bg-[#0b0a09]/40 p-6 text-center backdrop-blur-2xl">
+        <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/40">Activity feed</div>
+        <div className="mt-3 text-xl font-black tracking-tight text-white/90">No marketplace activity yet</div>
+        <div className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-white/55">
+          Your listings, purchases and sales will appear here after the first onchain actions are indexed.
+        </div>
+      </div>
     </div>
   );
 }
@@ -583,6 +616,12 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
     }
   }
 
+  const allEmpty =
+    !loading &&
+    (totalCounts?.listings ?? 0) === 0 &&
+    (totalCounts?.purchases ?? 0) === 0 &&
+    (totalCounts?.sales ?? 0) === 0;
+
   const wrap =
     "overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.07),rgba(184,135,10,0.05))] p-px shadow-[0_28px_110px_rgba(0,0,0,0.55)]";
   const card =
@@ -654,6 +693,12 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
             </div>
           ) : null}
 
+          {refreshing && !loading ? (
+            <div className="mt-5 rounded-[22px] border border-amber-500/18 bg-amber-500/10 p-4 text-[12px] text-amber-100">
+              Syncing latest indexer activity… your cards stay visible while the feed refreshes.
+            </div>
+          ) : null}
+
           {loading ? (
             <>
               <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -675,6 +720,8 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
                 <StatCard label="Sales" value={totalCounts?.sales ?? 0} />
               </div>
 
+              {allEmpty ? <EmptyOverview /> : null}
+
               <section className="mt-8">
                 <SectionHeader
                   title="Listings"
@@ -690,7 +737,12 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
                   ))}
 
                   {listings.length === 0 ? (
-                    <EmptyCard text="No listings yet." />
+                    <EmptyCard
+                      title="No active listings"
+                      text="Create your first listing and it will appear here with live indexer updates."
+                      actionHref="/app/trading"
+                      actionLabel="Open trading"
+                    />
                   ) : null}
                 </div>
               </section>
@@ -710,7 +762,10 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
                   ))}
 
                   {purchases.length === 0 ? (
-                    <EmptyCard text="No purchases yet." />
+                    <EmptyCard
+                      title="No purchases yet"
+                      text="Once you buy an NFT, the purchase will show up here together with price and counterparty details."
+                    />
                   ) : null}
                 </div>
               </section>
@@ -730,7 +785,10 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
                   ))}
 
                   {sales.length === 0 ? (
-                    <EmptyCard text="No sales yet." />
+                    <EmptyCard
+                      title="No sales yet"
+                      text="When one of your listings sells, the sale will appear here with the latest onchain timestamp."
+                    />
                   ) : null}
                 </div>
               </section>

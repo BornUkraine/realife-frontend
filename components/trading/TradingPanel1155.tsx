@@ -112,6 +112,15 @@ type MarketNftResponse = {
   trades: Trade[];
 };
 
+type ToastTone = "default" | "success" | "info" | "warning" | "error";
+
+type ToastItem = {
+  id: number;
+  tone: ToastTone;
+  title: string;
+  text?: string | null;
+};
+
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
@@ -478,6 +487,76 @@ function fulfillmentTypeLabel(v?: FulfillmentType | null) {
   return String(v).replaceAll("_", " ");
 }
 
+
+function toneClasses(tone: ToastTone) {
+  switch (tone) {
+    case "success":
+      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
+    case "info":
+      return "border-sky-500/20 bg-sky-500/10 text-sky-100";
+    case "warning":
+      return "border-amber-500/20 bg-amber-500/10 text-amber-100";
+    case "error":
+      return "border-rose-500/20 bg-rose-500/10 text-rose-100";
+    default:
+      return "border-white/10 bg-white/[0.07] text-white/88";
+  }
+}
+
+function EmptyStateCard({
+  title,
+  text,
+  cta,
+}: {
+  title: string;
+  text: string;
+  cta?: ReactNode;
+}) {
+  return (
+    <div className="rounded-[26px] border border-dashed border-white/12 bg-white/[0.025] p-5 text-center">
+      <div className="text-[12px] font-black uppercase tracking-[0.18em] text-white/55">
+        {title}
+      </div>
+      <div className="mt-3 text-[12px] leading-relaxed text-white/58">{text}</div>
+      {cta ? <div className="mt-4 flex justify-center">{cta}</div> : null}
+    </div>
+  );
+}
+
+function ToastCard({
+  toast,
+  onClose,
+}: {
+  toast: ToastItem;
+  onClose: (id: number) => void;
+}) {
+  return (
+    <div
+      className={cx(
+        "pointer-events-auto w-full max-w-[360px] rounded-[22px] border px-4 py-3 shadow-[0_22px_80px_rgba(0,0,0,0.38)] backdrop-blur-2xl",
+        toneClasses(toast.tone)
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-[12px] font-black uppercase tracking-[0.18em]">
+            {toast.title}
+          </div>
+          {toast.text ? <div className="mt-1 text-[12px] leading-relaxed opacity-90">{toast.text}</div> : null}
+        </div>
+        <button
+          type="button"
+          onClick={() => onClose(toast.id)}
+          className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-white/75 transition hover:bg-black/35"
+          aria-label="Dismiss"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function MarketNotice({
   contractView,
   assetIsProtected,
@@ -662,6 +741,10 @@ export default function TradingPanel1155({
       if (hintTimerRef.current) {
         window.clearTimeout(hintTimerRef.current);
       }
+      for (const timer of toastTimerRefs.current) {
+        window.clearTimeout(timer);
+      }
+      toastTimerRefs.current = [];
     };
   }, []);
 
@@ -870,6 +953,29 @@ export default function TradingPanel1155({
     }, duration);
   }, []);
 
+  const dismissToast = useCallback((id: number) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  const pushToast = useCallback(
+    (
+      tone: ToastTone,
+      title: string,
+      text?: string | null,
+      duration = 2600
+    ) => {
+      if (typeof window === "undefined") return;
+      const id = Date.now() + Math.floor(Math.random() * 10000);
+      setToasts((prev) => [...prev.slice(-3), { id, tone, title, text }]);
+      const timer = window.setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+        toastTimerRefs.current = toastTimerRefs.current.filter((x) => x !== timer);
+      }, duration);
+      toastTimerRefs.current.push(timer);
+    },
+    []
+  );
+
   const applyOptimisticCancel = useCallback((listing: Listing) => {
     const doomedKey = listingKeyOf(listing);
 
@@ -953,6 +1059,8 @@ export default function TradingPanel1155({
   const [sellAmount, setSellAmount] = useState(1);
   const [sellPriceEth, setSellPriceEth] = useState("0.01");
   const [busy, setBusy] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const toastTimerRefs = useRef<number[]>([]);
 
   useEffect(() => {
     const list = data?.listings || [];
@@ -1119,6 +1227,7 @@ export default function TradingPanel1155({
 
     if (immediateTasks.length) {
       await Promise.allSettled(immediateTasks);
+      pushToast("info", "Market synced", "Latest listing and wallet state were refreshed.", 2200);
     }
 
     schedulePostTxRefreshes({
@@ -1130,7 +1239,10 @@ export default function TradingPanel1155({
   }
 
   async function approveAll() {
-    if (!isConnected) return openConnectModal?.();
+    if (!isConnected) {
+      pushToast("info", "Wallet required", "Connect wallet to continue.");
+      return openConnectModal?.();
+    }
     if (!hasSellMarketplace) return;
 
     setErr(null);
@@ -1139,6 +1251,8 @@ export default function TradingPanel1155({
 
     try {
       await ensureChain();
+
+      pushToast("info", "Wallet opened", `Confirm approval for ${marketLabel(sellMarketType)} market.`);
 
       const hash = await writeContractAsync({
         abi: erc1155CoreAbi,
@@ -1150,10 +1264,12 @@ export default function TradingPanel1155({
       setHint(
         `Approval sent to ${marketLabel(sellMarketType)} market. Waiting for confirmation…`
       );
+      pushToast("warning", "Transaction pending", "Approval transaction is waiting for on-chain confirmation.", 3200);
       await publicClient?.waitForTransactionReceipt({ hash });
 
       await refetchApproved();
       setHint(`Approved for ${marketLabel(sellMarketType)} ✅`);
+      pushToast("success", "Confirmed on-chain", `${marketLabel(sellMarketType)} approval is active now.`);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Approve failed");
     } finally {
@@ -1162,7 +1278,10 @@ export default function TradingPanel1155({
   }
 
   async function listNow() {
-    if (!isConnected) return openConnectModal?.();
+    if (!isConnected) {
+      pushToast("info", "Wallet required", "Connect wallet to list this NFT.");
+      return openConnectModal?.();
+    }
     if (!hasSellMarketplace) return;
 
     setErr(null);
@@ -1186,6 +1305,8 @@ export default function TradingPanel1155({
             ]
           : [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei];
 
+      pushToast("info", "Wallet opened", "Confirm the listing transaction in your wallet.");
+
       const hash = await writeContractAsync({
         abi: sellMarketplaceAbi as any,
         address: sellMarketplaceAddress as `0x${string}`,
@@ -1203,9 +1324,11 @@ export default function TradingPanel1155({
           : `${marketLabel(sellMarketType)} listing sent. Waiting for confirmation…`
       );
 
+      pushToast("warning", "Transaction pending", "Listing is waiting for on-chain confirmation.", 3200);
       await publicClient?.waitForTransactionReceipt({ hash });
 
       flashHint(`Listed on ${marketLabel(sellMarketType)} ✅`, 1600);
+      pushToast("success", "Confirmed on-chain", `Listed on ${marketLabel(sellMarketType)} successfully.`);
       await afterMarketTx({
         immediateMarket: false,
         immediateBalance: true,
@@ -1222,7 +1345,10 @@ export default function TradingPanel1155({
   }
 
   async function cancelListing(listing: Listing) {
-    if (!isConnected) return openConnectModal?.();
+    if (!isConnected) {
+      pushToast("info", "Wallet required", "Connect wallet to cancel your listing.");
+      return openConnectModal?.();
+    }
 
     const listingMarketType = resolveRowMarketType({
       contractView,
@@ -1258,6 +1384,8 @@ export default function TradingPanel1155({
     try {
       await ensureChain();
 
+      pushToast("info", "Wallet opened", "Confirm listing cancellation in your wallet.");
+
       const hash = await writeContractAsync({
         abi: listingMarketplaceAbi as any,
         address: listingMarketplaceAddress as `0x${string}`,
@@ -1268,10 +1396,12 @@ export default function TradingPanel1155({
       setHint(
         `Cancel sent to ${marketLabel(listingMarketType)} market. Waiting for confirmation…`
       );
+      pushToast("warning", "Transaction pending", "Cancellation is waiting for on-chain confirmation.", 3200);
       await publicClient?.waitForTransactionReceipt({ hash });
 
       applyOptimisticCancel(listing);
       flashHint("Cancelled ✅", 1700);
+      pushToast("success", "Listing removed instantly", "Your listing disappeared from the UI right after confirmation.");
       await afterMarketTx({
         immediateMarket: false,
         immediateBalance: false,
@@ -1289,7 +1419,10 @@ export default function TradingPanel1155({
   }
 
   async function buyNow() {
-    if (!isConnected) return openConnectModal?.();
+    if (!isConnected) {
+      pushToast("info", "Wallet required", "Connect wallet to buy this NFT.");
+      return openConnectModal?.();
+    }
     if (!selectedListing) return;
 
     if (!hasSelectedListingMarketplace) {
@@ -1310,6 +1443,8 @@ export default function TradingPanel1155({
       const pricePer = BigInt(selectedListing.pricePerUnitWei);
       const total = pricePer * amt;
 
+      pushToast("info", "Wallet opened", "Confirm the purchase transaction in your wallet.");
+
       const hash = await writeContractAsync({
         abi: selectedListingMarketplaceAbi as any,
         address: selectedListingMarketplaceAddress as `0x${string}`,
@@ -1326,9 +1461,11 @@ export default function TradingPanel1155({
           : "Buy sent. Waiting for confirmation…"
       );
 
+      pushToast("warning", "Transaction pending", "Purchase is waiting for on-chain confirmation.", 3200);
       await publicClient?.waitForTransactionReceipt({ hash });
 
       applyOptimisticBuy(selectedListing, amt, hash, selectedListingMarketType);
+      pushToast("success", "Purchase confirmed", "Trade was confirmed on-chain and the market view updated immediately.");
       flashHint(
         selectedListingCreatesProtectedOrder
           ? `Bought on ${marketLabel(
@@ -1382,9 +1519,75 @@ export default function TradingPanel1155({
       ? "Missing protected marketplace env (NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_CONTRACT)"
       : "Missing standard marketplace env (NEXT_PUBLIC_REALIFE_MARKETPLACE_ADDRESS or NEXT_PUBLIC_MARKETPLACE_ADDRESS)";
 
+  const ownerHasInventory = balance > 0n;
+  const viewingOwnListing = Boolean(selectedListing && iAmSellerOfSelected);
+  const roleTitle =
+    tab === "sell"
+      ? ownerHasInventory
+        ? "Owner actions"
+        : "Owner actions unavailable"
+      : viewingOwnListing
+      ? "Owner listing selected"
+      : "Buyer actions";
+  const roleText =
+    tab === "sell"
+      ? ownerHasInventory
+        ? "You hold this NFT, so you can create a listing from here."
+        : "You do not hold this NFT right now, so listing is unavailable."
+      : viewingOwnListing
+      ? "You selected your own listing. Use cancel instead of buy."
+      : "You are in buyer mode. Pick a listing and confirm the amount.";
+  const mobilePrimaryLabel = !isConnected
+    ? "Connect wallet"
+    : !canTradeOnThisChain
+    ? `Switch to ${chainId}`
+    : tab === "sell"
+    ? !isApproved && hasSellMarketplace
+      ? `Approve ${marketLabel(sellMarketType)}`
+      : busy === "list"
+      ? "Listing…"
+      : `List on ${marketLabel(sellMarketType)}`
+    : viewingOwnListing
+    ? busy === `cancel:${selectedListing ? listingKeyOf(selectedListing) : ""}`
+      ? "Cancelling…"
+      : "Cancel listing"
+    : busy === "buy"
+    ? "Buying…"
+    : "Buy now";
+  const mobilePrimaryDisabled = !isConnected
+    ? false
+    : !canTradeOnThisChain
+    ? false
+    : tab === "sell"
+    ? (!isApproved && hasSellMarketplace ? busy !== null : sellDisabled)
+    : viewingOwnListing
+    ? Boolean(
+        !selectedListing ||
+          busy !== null ||
+          !isConnected
+      )
+    : buyDisabled;
+  const mobilePrimaryAction = () => {
+    if (!isConnected) return openConnectModal?.();
+    if (!canTradeOnThisChain) return switchChainAsync?.({ chainId });
+    if (tab === "sell") {
+      if (!isApproved && hasSellMarketplace) return approveAll();
+      return listNow();
+    }
+    if (viewingOwnListing && selectedListing) return cancelListing(selectedListing);
+    return buyNow();
+  };
+
   return (
-    <div className={wrap}>
-      <div className={card}>
+    <>
+      <div className="pointer-events-none fixed inset-x-0 top-4 z-[95] flex flex-col items-center gap-2 px-4">
+        {toasts.map((toast) => (
+          <ToastCard key={toast.id} toast={toast} onClose={dismissToast} />
+        ))}
+      </div>
+
+      <div className={wrap}>
+        <div className={card}>
         <div className="p-6 md:p-7">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
@@ -1562,6 +1765,13 @@ export default function TradingPanel1155({
             <Pill active={tab === "sell"} onClick={() => setTab("sell")}>
               Sell
             </Pill>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-white/50">
+              {roleTitle}
+            </div>
+            <div className="mt-2 text-[12px] leading-relaxed text-white/64">{roleText}</div>
           </div>
 
           {tab === "sell" ? (
@@ -1746,8 +1956,22 @@ export default function TradingPanel1155({
                 </div>
 
                 {(!data?.listings || data.listings.length === 0) && !loading ? (
-                  <div className="mt-4 text-[12px] text-white/60">
-                    No active listings yet.
+                  <div className="mt-4">
+                    <EmptyStateCard
+                      title="No active listings"
+                      text="There are no open listings for this NFT yet. This is a good moment to become the first visible seller."
+                      cta={
+                        ownerHasInventory ? (
+                          <button
+                            type="button"
+                            onClick={() => setTab("sell")}
+                            className="inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-amber-100/90 transition hover:bg-white/[0.10]"
+                          >
+                            Go to sell
+                          </button>
+                        ) : null
+                      }
+                    />
                   </div>
                 ) : null}
 
@@ -2074,8 +2298,11 @@ export default function TradingPanel1155({
                     ) : null}
                   </>
                 ) : (
-                  <div className="mt-4 text-[12px] text-white/60">
-                    Select a listing from the left block.
+                  <div className="mt-4">
+                    <EmptyStateCard
+                      title="Nothing selected"
+                      text="Pick any active listing from the left side to see the buyer flow, total price and market type."
+                    />
                   </div>
                 )}
               </div>
@@ -2143,7 +2370,12 @@ export default function TradingPanel1155({
                 ))}
               </div>
             ) : (
-              <div className="mt-4 text-[12px] text-white/60">No trades yet.</div>
+              <div className="mt-4">
+                <EmptyStateCard
+                  title="No trades yet"
+                  text="This NFT does not have filled trade history yet. Once the first purchase is completed, it will appear here."
+                />
+              </div>
             )}
           </div>
 
@@ -2153,6 +2385,53 @@ export default function TradingPanel1155({
           </div>
         </div>
       </div>
-    </div>
+    </div> {/* <-- Добавлен закрывающий тег для className={wrap} */}
+
+      <div className="md:hidden">
+        <div className="pointer-events-none fixed inset-x-0 bottom-3 z-[90] px-3">
+          <div className="pointer-events-auto rounded-[26px] border border-white/12 bg-[#0b0a09]/78 p-3 shadow-[0_26px_90px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45">
+                  {tab === "sell" ? "Owner action bar" : viewingOwnListing ? "Owner listing" : "Buyer action bar"}
+                </div>
+                <div className="mt-1 truncate text-[12px] font-semibold text-white/72">
+                  {tab === "sell"
+                    ? ownerHasInventory
+                      ? `You own ${balance.toString()} item(s)`
+                      : "No owned balance available"
+                    : selectedListing
+                    ? `${fmtEth(selectedListing.pricePerUnitWei)} ETH • Left ${selectedListing.amountRemaining}`
+                    : "Select a listing to continue"}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTab(tab === "sell" ? "buy" : "sell")}
+                  className="inline-flex h-11 items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 text-[12px] font-black text-white/78 transition hover:bg-white/[0.10]"
+                >
+                  {tab === "sell" ? "Buy" : "Sell"}
+                </button>
+
+                <button
+                  type="button"
+                  disabled={mobilePrimaryDisabled}
+                  onClick={mobilePrimaryAction}
+                  className={cx(
+                    "inline-flex h-11 items-center justify-center rounded-2xl px-4 text-[12px] font-extrabold text-black ring-1 ring-black/15 transition",
+                    "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.20)] hover:brightness-110",
+                    mobilePrimaryDisabled ? "cursor-not-allowed opacity-60" : ""
+                  )}
+                >
+                  {mobilePrimaryLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }
