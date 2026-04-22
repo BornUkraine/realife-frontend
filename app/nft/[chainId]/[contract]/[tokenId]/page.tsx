@@ -1363,6 +1363,7 @@ export default async function NftDetailsPage({
   const stats = market?.stats || null;
   const listings: any[] = Array.isArray(market?.listings) ? market.listings : [];
   const trades: any[] = Array.isArray(market?.trades) ? market.trades : [];
+  const initialTradingMarketData = market && market.ok ? market : null;
   const heroBrandLabel = metaBrand || metaProject || null;
 
   const backToGalleryHref = await getPreferredGalleryHref(
@@ -1856,6 +1857,7 @@ export default async function NftDetailsPage({
               fulfillmentType={metaFulfillmentType || nft.fulfillmentType || null}
               category={metaCategory || nft.category || null}
               subcategory={metaSubcategory || nft.subcategory || null}
+              initialMarketData={initialTradingMarketData}
             />
           </div>
         </div>

@@ -1,29 +1,22 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 
 /**
  * NFT media renderer.
  *
- * Improvements over previous version:
- *  - Uses next/image for images (automatic resize/AVIF/WebP, lazy by default)
- *  - Video: preload="none" until in viewport (saves N HTTP requests on grids)
- *  - Smaller LCP payload
- *
- * Notes:
- *  - `src` must be an http(s) URL (resolve IPFS upstream, before passing here).
- *  - To keep next/image working for arbitrary NFT gateways, add their hosts
- *    to remotePatterns in next.config.js. If a domain isn't whitelisted, we
- *    fall back to unoptimized <img>.
+ * Goals of this version:
+ *  - softer perceived loading for images
+ *  - cleaner poster -> video handoff
+ *  - lighter overlay / play affordance
+ *  - keep the same public API so existing pages do not break
  */
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
 
-// --------- Whitelist for next/image optimization ---------
-// Keep in sync with next.config.js remotePatterns.
 const OPTIMIZED_HOSTS = new Set<string>([
   "gateway.pinata.cloud",
   "cloudflare-ipfs.com",
@@ -47,12 +40,10 @@ function isOptimizable(url: string | null | undefined): boolean {
   const h = hostOf(url);
   if (!h) return false;
   if (OPTIMIZED_HOSTS.has(h)) return true;
-  // Allow dedicated pinata subdomains like "xxx.mypinata.cloud"
   if (h.endsWith(".mypinata.cloud")) return true;
   return false;
 }
 
-// --------- Hook: intersection observer (for lazy video) ---------
 function useInViewport<T extends Element>(rootMargin = "200px") {
   const ref = useRef<T | null>(null);
   const [inView, setInView] = useState(false);
@@ -76,6 +67,7 @@ function useInViewport<T extends Element>(rootMargin = "200px") {
       },
       { rootMargin }
     );
+
     io.observe(el);
     return () => io.disconnect();
   }, [rootMargin]);
@@ -83,7 +75,35 @@ function useInViewport<T extends Element>(rootMargin = "200px") {
   return { ref, inView };
 }
 
-// ====================================================================
+function Placeholder({ visible }: { visible: boolean }) {
+  return (
+    <div
+      className={cx(
+        "pointer-events-none absolute inset-0 transition-opacity duration-300",
+        visible ? "opacity-100" : "opacity-0"
+      )}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.08),transparent_30%),linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.01))]" />
+      <div className="absolute inset-0 animate-pulse bg-[linear-gradient(110deg,transparent_0%,rgba(255,255,255,0.05)_35%,transparent_70%)]" />
+    </div>
+  );
+}
+
+function PlayBadge({ subtle = false }: { subtle?: boolean }) {
+  return (
+    <span
+      className={cx(
+        "inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-white/15 text-xl font-black",
+        subtle
+          ? "bg-black/32 text-amber-100/95 shadow-[0_12px_40px_rgba(0,0,0,0.32)]"
+          : "bg-black/42 text-amber-100 shadow-[0_18px_70px_rgba(0,0,0,0.45)] ring-1 ring-black/20",
+        "backdrop-blur-md"
+      )}
+    >
+      ▶
+    </span>
+  );
+}
 
 export default function NftMedia({
   src,
@@ -111,15 +131,18 @@ export default function NftMedia({
   sizes?: string;
 }) {
   const objectFit = fit === "contain" ? "object-contain" : "object-cover";
+  const [imageLoaded, setImageLoaded] = useState(priority && kind === "image");
 
-  // ---- Empty state ----
+  useEffect(() => {
+    setImageLoaded(priority && kind === "image");
+  }, [kind, priority, src]);
+
   if (!src) {
     return (
       <div
         className={cx(
-          "h-full w-full flex items-center justify-center",
+          "flex h-full w-full items-center justify-center border border-white/10",
           roundedClass,
-          "border border-white/10",
           mediaBgClass,
           className
         )}
@@ -129,54 +152,66 @@ export default function NftMedia({
     );
   }
 
-  // ==================================================================
-  // IMAGE MODE
-  // ==================================================================
   if (kind === "image") {
     const useOptimized = isOptimizable(src);
 
     return (
       <div
         className={cx(
-          "relative h-full w-full flex items-center justify-center overflow-hidden",
+          "relative flex h-full w-full items-center justify-center overflow-hidden",
           mediaBgClass,
           roundedClass,
           className
         )}
       >
+        <Placeholder visible={!imageLoaded} />
+
         {useOptimized ? (
           <Image
             src={src}
             alt={alt || "NFT"}
             fill
             sizes={sizes}
-            className={cx("h-full w-full", objectFit)}
+            className={cx(
+              "h-full w-full transition duration-500 ease-out",
+              objectFit,
+              imageLoaded ? "scale-100 opacity-100" : "scale-[1.012] opacity-0"
+            )}
             priority={priority}
             loading={priority ? "eager" : "lazy"}
             referrerPolicy="no-referrer"
             draggable={false}
             unoptimized={false}
+            onLoad={() => setImageLoaded(true)}
           />
         ) : (
-          // Fallback for non-whitelisted hosts
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={src}
             alt={alt || "NFT"}
-            className={cx("h-full w-full", objectFit)}
+            className={cx(
+              "h-full w-full transition duration-500 ease-out",
+              objectFit,
+              imageLoaded ? "scale-100 opacity-100" : "scale-[1.012] opacity-0"
+            )}
             referrerPolicy="no-referrer"
             draggable={false}
             loading={priority ? "eager" : "lazy"}
             decoding="async"
+            onLoad={() => setImageLoaded(true)}
           />
         )}
+
+        <div
+          className={cx(
+            "pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.18)_0%,transparent_38%)] transition-opacity duration-500",
+            imageLoaded ? "opacity-100" : "opacity-0"
+          )}
+        />
       </div>
     );
   }
 
-  // ==================================================================
-  // VIDEO MODE (lazy)
-  // ==================================================================
   return (
     <LazyVideo
       src={src}
@@ -187,12 +222,9 @@ export default function NftMedia({
       mediaBgClass={mediaBgClass}
       className={className}
       priority={priority}
-      sizes={sizes}
     />
   );
 }
-
-// --------------------------------------------------------------------
 
 function LazyVideo({
   src,
@@ -203,7 +235,6 @@ function LazyVideo({
   mediaBgClass,
   className,
   priority,
-  sizes,
 }: {
   src: string;
   poster?: string | null;
@@ -213,42 +244,55 @@ function LazyVideo({
   mediaBgClass: string;
   className: string;
   priority: boolean;
-  sizes: string;
 }) {
   const { ref: containerRef, inView } = useInViewport<HTMLDivElement>("200px");
   const vref = useRef<HTMLVideoElement | null>(null);
-  const [playing, setPlaying] = useState(false);
 
-  // Only after in-view do we set the real src (otherwise grid of 24 videos
-  // makes 24 preload requests immediately)
+  const [playing, setPlaying] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
+  const [posterLoaded, setPosterLoaded] = useState(false);
+
   const shouldLoad = priority || inView;
 
   useEffect(() => {
+    setPlaying(false);
+    setVideoReady(false);
+    setPosterLoaded(false);
+  }, [poster, src]);
+
+  useEffect(() => {
     const v = vref.current;
-    if (!v) return;
+    if (!v || !shouldLoad) return;
 
     const onPlay = () => setPlaying(true);
     const onPause = () => setPlaying(false);
     const onEnded = () => setPlaying(false);
+    const onLoaded = () => setVideoReady(true);
 
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
     v.addEventListener("ended", onEnded);
+    v.addEventListener("loadeddata", onLoaded);
+    v.addEventListener("canplay", onLoaded);
 
     setPlaying(!v.paused);
+    if (v.readyState >= 2) setVideoReady(true);
 
     return () => {
       v.removeEventListener("play", onPlay);
       v.removeEventListener("pause", onPause);
       v.removeEventListener("ended", onEnded);
+      v.removeEventListener("loadeddata", onLoaded);
+      v.removeEventListener("canplay", onLoaded);
     };
   }, [shouldLoad]);
 
-  const toggle = (e: React.MouseEvent) => {
+  const toggle = (e: MouseEvent<HTMLButtonElement | HTMLVideoElement>) => {
     e.preventDefault();
     e.stopPropagation();
     const v = vref.current;
     if (!v) return;
+
     if (v.paused) {
       v.play().catch(() => {});
     } else {
@@ -256,40 +300,54 @@ function LazyVideo({
     }
   };
 
+  const showPosterLayer = Boolean(poster) && (!shouldLoad || !videoReady);
+
   return (
     <div
       ref={containerRef}
       className={cx(
-        "relative h-full w-full flex items-center justify-center overflow-hidden",
+        "relative flex h-full w-full items-center justify-center overflow-hidden",
         mediaBgClass,
         roundedClass,
         className
       )}
     >
+      <Placeholder visible={!videoReady && !posterLoaded} />
+
+      {showPosterLayer ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={poster!}
+          alt=""
+          className={cx(
+            "absolute inset-0 h-full w-full transition-opacity duration-300",
+            objectFit,
+            !shouldLoad || !videoReady ? "opacity-100" : "opacity-0"
+          )}
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          draggable={false}
+          onLoad={() => setPosterLoaded(true)}
+        />
+      ) : null}
+
       {shouldLoad ? (
         <video
           ref={vref}
           src={src}
           poster={poster || undefined}
           playsInline
-          preload="metadata"
+          preload={priority ? "auto" : "metadata"}
           controls={showControls}
-          className={cx("h-full w-full", objectFit)}
+          className={cx(
+            "relative h-full w-full transition-opacity duration-500",
+            objectFit,
+            videoReady ? "opacity-100" : "opacity-0"
+          )}
           onClick={toggle}
         />
-      ) : poster ? (
-        // Show poster as a static image while video is not in viewport
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={poster}
-          alt=""
-          className={cx("h-full w-full", objectFit)}
-          loading="lazy"
-          decoding="async"
-          referrerPolicy="no-referrer"
-          draggable={false}
-        />
-      ) : (
+      ) : poster ? null : (
         <div className="h-full w-full" />
       )}
 
@@ -299,38 +357,19 @@ function LazyVideo({
           onClick={toggle}
           aria-label={playing ? "Pause" : "Play"}
           className={cx(
-            "absolute inset-0 flex items-center justify-center transition",
-            playing ? "opacity-0 pointer-events-none" : "opacity-100"
+            "absolute inset-0 flex items-center justify-center transition-opacity duration-200",
+            playing ? "pointer-events-none opacity-0" : "opacity-100"
           )}
         >
-          <span
-            className={cx(
-              "inline-flex items-center justify-center",
-              "h-14 w-14 rounded-2xl",
-              "border border-white/15 bg-black/35 backdrop-blur-md",
-              "shadow-[0_18px_70px_rgba(0,0,0,0.45)]",
-              "ring-1 ring-black/20"
-            )}
-          >
-            <span className="text-amber-200 font-black text-xl">▶</span>
-          </span>
+          <PlayBadge />
         </button>
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <span
-            className={cx(
-              "inline-flex items-center justify-center",
-              "h-14 w-14 rounded-2xl",
-              "border border-white/15 bg-black/35 backdrop-blur-md",
-              "shadow-[0_18px_70px_rgba(0,0,0,0.45)]"
-            )}
-          >
-            <span className="text-amber-200 font-black text-xl">▶</span>
-          </span>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <PlayBadge subtle />
         </div>
       )}
 
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.45)_0%,transparent_45%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.26)_0%,transparent_42%)]" />
     </div>
   );
 }

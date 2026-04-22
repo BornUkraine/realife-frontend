@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { formatUnits } from "viem";
 
@@ -49,6 +49,27 @@ type TradeRow = {
   mint: MintMini | null;
 };
 
+type TotalCounts = {
+  listings: number;
+  purchases: number;
+  sales: number;
+};
+
+type ActivityResponse = {
+  user?: ActivityUser | null;
+  totalCounts?: TotalCounts | null;
+  listings?: ListingRow[];
+  purchases?: TradeRow[];
+  sales?: TradeRow[];
+  page?: {
+    next?: {
+      listingsSkip?: number;
+      purchasesSkip?: number;
+      salesSkip?: number;
+    };
+  };
+};
+
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
@@ -80,9 +101,48 @@ function fmtInt(x: string) {
   }
 }
 
+function fmtDate(v?: string | null) {
+  if (!v) return "—";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function fmtLastUpdated(ts: number | null) {
+  if (!ts) return "Not synced yet";
+  const diff = Math.max(0, Date.now() - ts);
+  const sec = Math.floor(diff / 1000);
+  if (sec < 5) return "Updated just now";
+  if (sec < 60) return `Updated ${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `Updated ${min}m ago`;
+  const hr = Math.floor(min / 60);
+  return `Updated ${hr}h ago`;
+}
+
+function mergeUnique<T>(prev: T[], next: T[], keyOf: (x: T) => string) {
+  const seen = new Set(prev.map(keyOf));
+  const out = [...prev];
+  for (const item of next) {
+    const key = keyOf(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
 /* ---------------- IPFS -> HTTP (for mint.image safety) ---------------- */
 
-const PRIMARY_IPFS_ORIGIN = (process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link").replace(/\/$/, "");
+const PRIMARY_IPFS_ORIGIN = (
+  process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://nftstorage.link"
+).replace(/\/$/, "");
 
 const IPFS_GATEWAYS = [
   `${PRIMARY_IPFS_ORIGIN}/ipfs/`,
@@ -95,7 +155,14 @@ function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
 
-  if (u.startsWith("http://") || u.startsWith("https://") || u.startsWith("data:") || u.startsWith("blob:")) return u;
+  if (
+    u.startsWith("http://") ||
+    u.startsWith("https://") ||
+    u.startsWith("data:") ||
+    u.startsWith("blob:")
+  ) {
+    return u;
+  }
 
   if (u.startsWith("ipfs://")) {
     let p = u.slice("ipfs://".length);
@@ -115,20 +182,259 @@ async function fetchJSON(url: string, signal?: AbortSignal) {
   const r = await fetch(url, { signal, cache: "no-store" });
   const j = await r.json().catch(() => null);
   if (!r.ok || !j) throw new Error(j?.error || "fetch_failed");
-  return j;
+  return j as ActivityResponse;
+}
+
+function StatCard({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string | number;
+  tone?: "default" | "gold";
+}) {
+  return (
+    <div
+      className={cx(
+        "rounded-[24px] border p-4 transition-all duration-200",
+        tone === "gold"
+          ? "border-amber-500/15 bg-[linear-gradient(180deg,rgba(212,175,55,0.10),rgba(255,255,255,0.03))]"
+          : "border-white/8 bg-white/[0.035]"
+      )}
+    >
+      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
+        {label}
+      </div>
+      <div className="mt-2 text-[26px] font-black leading-none text-white/92">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function StatSkeleton() {
+  return (
+    <div className="rounded-[24px] border border-white/8 bg-white/[0.03] p-4">
+      <div className="h-3 w-20 rounded-full bg-white/8" />
+      <div className="mt-3 h-8 w-16 rounded-full bg-white/10" />
+    </div>
+  );
+}
+
+function MediaThumb({ img, label }: { img: string | null; label: string }) {
+  return (
+    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[18px] border border-white/10 bg-black/35">
+      {img ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={img}
+          alt={label}
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+          draggable={false}
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-[10px] font-black text-white/30">
+          RL
+        </div>
+      )}
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.28),transparent_60%)]" />
+    </div>
+  );
+}
+
+function SectionHeader({
+  title,
+  count,
+  canMore,
+  loadingMore,
+  onLoadMore,
+}: {
+  title: string;
+  count: number | null;
+  canMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2">
+        <div className="text-[12px] font-black uppercase tracking-[0.2em] text-white/75">
+          {title}
+        </div>
+        {count !== null ? (
+          <div className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[10px] font-bold text-white/50">
+            {count}
+          </div>
+        ) : null}
+      </div>
+
+      {canMore ? (
+        <button
+          type="button"
+          onClick={onLoadMore}
+          disabled={loadingMore}
+          className={cx(
+            "inline-flex items-center justify-center rounded-2xl px-4 py-2 text-[12px] font-black transition-all duration-200",
+            "border border-white/12 bg-white/[0.05] text-amber-100/90",
+            loadingMore
+              ? "cursor-default opacity-70"
+              : "hover:-translate-y-[1px] hover:bg-white/[0.09] hover:text-amber-100"
+          )}
+        >
+          {loadingMore ? "Loading…" : "Load more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function EmptyCard({ text }: { text: string }) {
+  return (
+    <div className="rounded-[24px] border border-dashed border-white/10 bg-white/[0.025] p-5 text-[12px] text-white/52">
+      {text}
+    </div>
+  );
+}
+
+function ListingCard({ row }: { row: ListingRow }) {
+  const img = ipfsToHttp(row.mint?.image) || null;
+
+  return (
+    <Link
+      href={`/nft/${row.chainId}/${row.contract}/${row.tokenId}`}
+      className={cx(
+        "group relative overflow-hidden rounded-[26px] border border-white/9 bg-white/[0.035] p-4",
+        "transition-all duration-200 hover:-translate-y-[2px] hover:border-white/14 hover:bg-white/[0.06]"
+      )}
+    >
+      <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+
+      <div className="flex gap-4">
+        <MediaThumb img={img} label={row.mint?.name || `Token #${row.tokenId}`} />
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-extrabold text-white/92">
+                {row.mint?.name || `Token #${row.tokenId}`}
+              </div>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/52">
+                <span className="font-mono">{shortAddr(row.contract)}</span>
+                <span>•</span>
+                <span className="font-mono">#{row.tokenId}</span>
+              </div>
+            </div>
+
+            <div
+              className={cx(
+                "rounded-full border px-2.5 py-1 text-[10px] font-black tracking-[0.18em]",
+                row.status === "ACTIVE"
+                  ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
+                  : row.status === "SOLD_OUT"
+                  ? "border-amber-500/18 bg-amber-500/10 text-amber-100"
+                  : "border-white/10 bg-white/[0.05] text-white/55"
+              )}
+            >
+              {row.status}
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
+            <div className="rounded-2xl border border-white/8 bg-black/18 px-3 py-2 text-white/68">
+              Price: <span className="font-black text-amber-100">{fmtEth(row.pricePerUnitWei)} ETH</span>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-black/18 px-3 py-2 text-white/68">
+              Remaining: <span className="font-black text-white/92">{fmtInt(row.amountRemaining)}</span>
+            </div>
+          </div>
+
+          <div className="mt-2 text-[11px] text-white/38">Created {fmtDate(row.createdAt)}</div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function TradeCard({ row, direction }: { row: TradeRow; direction: "from" | "to" }) {
+  const img = ipfsToHttp(row.mint?.image) || null;
+
+  return (
+    <Link
+      href={`/nft/${row.chainId}/${row.contract}/${row.tokenId}`}
+      className={cx(
+        "group relative overflow-hidden rounded-[26px] border border-white/9 bg-white/[0.035] p-4",
+        "transition-all duration-200 hover:-translate-y-[2px] hover:border-white/14 hover:bg-white/[0.06]"
+      )}
+    >
+      <div className="absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+
+      <div className="flex gap-4">
+        <MediaThumb img={img} label={row.mint?.name || `Token #${row.tokenId}`} />
+
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-extrabold text-white/92">
+            {row.mint?.name || `Token #${row.tokenId}`}
+          </div>
+
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/52">
+            <span className="font-mono">{shortAddr(row.contract)}</span>
+            <span>•</span>
+            <span className="font-mono">#{row.tokenId}</span>
+            <span>•</span>
+            <span className="font-black text-white/68">
+              {direction} {shortAddr(row.counterpartyWallet)}
+            </span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
+            <div className="rounded-2xl border border-white/8 bg-black/18 px-3 py-2 text-white/68">
+              Total: <span className="font-black text-amber-100">{fmtEth(row.totalPriceWei)} ETH</span>
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-black/18 px-3 py-2 text-white/68">
+              Amount: <span className="font-black text-white/92">{fmtInt(row.amount)}</span>
+            </div>
+          </div>
+
+          <div className="mt-2 text-[11px] text-white/38">{fmtDate(row.blockTime)}</div>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function SkeletonRow() {
+  return (
+    <div className="overflow-hidden rounded-[26px] border border-white/8 bg-white/[0.03] p-4">
+      <div className="flex gap-4">
+        <div className="h-14 w-14 shrink-0 rounded-[18px] bg-white/8" />
+        <div className="flex-1 space-y-3">
+          <div className="h-4 w-2/3 rounded-full bg-white/10" />
+          <div className="h-3 w-1/2 rounded-full bg-white/8" />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="h-9 rounded-2xl bg-white/7" />
+            <div className="h-9 rounded-2xl bg-white/7" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function ActivityPanel({ userKey }: { userKey: string }) {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   const [user, setUser] = useState<ActivityUser | null>(null);
-
   const [listings, setListings] = useState<ListingRow[]>([]);
   const [purchases, setPurchases] = useState<TradeRow[]>([]);
   const [sales, setSales] = useState<TradeRow[]>([]);
-
-  const [totalCounts, setTotalCounts] = useState<{ listings: number; purchases: number; sales: number } | null>(null);
+  const [totalCounts, setTotalCounts] = useState<TotalCounts | null>(null);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
 
   const [take] = useState(30);
   const [listingsSkip, setListingsSkip] = useState(0);
@@ -140,6 +446,9 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
     p: false,
     s: false,
   });
+
+  const abortRef = useRef<AbortController | null>(null);
+  const hasLoadedOnceRef = useRef(false);
 
   const canMoreListings = useMemo(() => {
     if (!totalCounts) return false;
@@ -156,38 +465,73 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
     return sales.length < totalCounts.sales;
   }, [sales.length, totalCounts]);
 
-  async function loadInitial() {
-    setLoading(true);
-    setErr(null);
+  const loadInitial = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = Boolean(opts?.silent);
+      const isFirstPaint = !hasLoadedOnceRef.current && !silent;
 
-    const ctrl = new AbortController();
-    try {
-      const url = `/api/u/${encodeURIComponent(userKey)}/activity?take=${take}&listingsSkip=0&purchasesSkip=0&salesSkip=0`;
-      const j = await fetchJSON(url, ctrl.signal);
+      abortRef.current?.abort();
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
 
-      setUser(j.user || null);
-      setTotalCounts(j.totalCounts || null);
+      setErr(null);
+      if (isFirstPaint) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
+      }
 
-      setListings(Array.isArray(j.listings) ? j.listings : []);
-      setPurchases(Array.isArray(j.purchases) ? j.purchases : []);
-      setSales(Array.isArray(j.sales) ? j.sales : []);
+      try {
+        const url = `/api/u/${encodeURIComponent(
+          userKey
+        )}/activity?take=${take}&listingsSkip=0&purchasesSkip=0&salesSkip=0`;
+        const j = await fetchJSON(url, ctrl.signal);
+        if (ctrl.signal.aborted) return;
 
-      setListingsSkip((j.page?.next?.listingsSkip ?? (j.listings?.length ?? 0)) as number);
-      setPurchasesSkip((j.page?.next?.purchasesSkip ?? (j.purchases?.length ?? 0)) as number);
-      setSalesSkip((j.page?.next?.salesSkip ?? (j.sales?.length ?? 0)) as number);
-    } catch (e: any) {
-      setErr(e?.message || "Failed to load activity");
-    } finally {
-      setLoading(false);
-    }
+        setUser(j.user || null);
+        setTotalCounts(j.totalCounts || null);
+        setListings(Array.isArray(j.listings) ? j.listings : []);
+        setPurchases(Array.isArray(j.purchases) ? j.purchases : []);
+        setSales(Array.isArray(j.sales) ? j.sales : []);
 
-    return () => ctrl.abort();
-  }
+        setListingsSkip(
+          Number(j.page?.next?.listingsSkip ?? j.listings?.length ?? 0)
+        );
+        setPurchasesSkip(
+          Number(j.page?.next?.purchasesSkip ?? j.purchases?.length ?? 0)
+        );
+        setSalesSkip(Number(j.page?.next?.salesSkip ?? j.sales?.length ?? 0));
+        setLastUpdatedAt(Date.now());
+        hasLoadedOnceRef.current = true;
+      } catch (e: any) {
+        if (ctrl.signal.aborted) return;
+        setErr(e?.message || "Failed to load activity");
+      } finally {
+        if (abortRef.current === ctrl) abortRef.current = null;
+        if (isFirstPaint) {
+          setLoading(false);
+        } else {
+          setRefreshing(false);
+        }
+      }
+    },
+    [take, userKey]
+  );
 
   useEffect(() => {
-    loadInitial();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userKey]);
+    void loadInitial();
+    return () => abortRef.current?.abort();
+  }, [loadInitial]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      if (!hasLoadedOnceRef.current) return;
+      void loadInitial({ silent: true });
+    };
+
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [loadInitial]);
 
   async function loadMore(kind: "l" | "p" | "s") {
     if (loadingMore[kind]) return;
@@ -197,30 +541,41 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
 
     const url =
       `/api/u/${encodeURIComponent(userKey)}/activity?take=${take}` +
-      `&listingsSkip=${kind === "l" ? listingsSkip : listingsSkip}` +
-      `&purchasesSkip=${kind === "p" ? purchasesSkip : purchasesSkip}` +
-      `&salesSkip=${kind === "s" ? salesSkip : salesSkip}`;
+      `&listingsSkip=${encodeURIComponent(String(listingsSkip))}` +
+      `&purchasesSkip=${encodeURIComponent(String(purchasesSkip))}` +
+      `&salesSkip=${encodeURIComponent(String(salesSkip))}`;
 
     try {
       const j = await fetchJSON(url);
 
       if (kind === "l") {
-        const next = Array.isArray(j.listings) ? (j.listings as ListingRow[]) : [];
-        setListings((prev) => [...prev, ...next]);
-        setListingsSkip((j.page?.next?.listingsSkip ?? (listingsSkip + next.length)) as number);
+        const next = Array.isArray(j.listings) ? j.listings : [];
+        setListings((prev) => mergeUnique(prev, next, (x) => x.id));
+        setListingsSkip(
+          Number(j.page?.next?.listingsSkip ?? listingsSkip + next.length)
+        );
       }
+
       if (kind === "p") {
-        const next = Array.isArray(j.purchases) ? (j.purchases as TradeRow[]) : [];
-        setPurchases((prev) => [...prev, ...next]);
-        setPurchasesSkip((j.page?.next?.purchasesSkip ?? (purchasesSkip + next.length)) as number);
+        const next = Array.isArray(j.purchases) ? j.purchases : [];
+        setPurchases((prev) =>
+          mergeUnique(prev, next, (x) => `${x.txHash}:${x.logIndex}`)
+        );
+        setPurchasesSkip(
+          Number(j.page?.next?.purchasesSkip ?? purchasesSkip + next.length)
+        );
       }
+
       if (kind === "s") {
-        const next = Array.isArray(j.sales) ? (j.sales as TradeRow[]) : [];
-        setSales((prev) => [...prev, ...next]);
-        setSalesSkip((j.page?.next?.salesSkip ?? (salesSkip + next.length)) as number);
+        const next = Array.isArray(j.sales) ? j.sales : [];
+        setSales((prev) =>
+          mergeUnique(prev, next, (x) => `${x.txHash}:${x.logIndex}`)
+        );
+        setSalesSkip(Number(j.page?.next?.salesSkip ?? salesSkip + next.length));
       }
 
       if (j.totalCounts) setTotalCounts(j.totalCounts);
+      setLastUpdatedAt(Date.now());
     } catch (e: any) {
       setErr(e?.message || "Failed to load more");
     } finally {
@@ -229,270 +584,158 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
   }
 
   const wrap =
-    "rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.18),rgba(212,175,55,0.08),rgba(184,135,10,0.06))] shadow-[0_34px_140px_rgba(0,0,0,0.60)]";
+    "overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.07),rgba(184,135,10,0.05))] p-px shadow-[0_28px_110px_rgba(0,0,0,0.55)]";
   const card =
-    "rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/40 backdrop-blur-2xl ring-1 ring-black/10";
+    "overflow-hidden rounded-[34px] border border-white/9 bg-[#0b0a09]/38 ring-1 ring-black/10 backdrop-blur-2xl";
 
   return (
     <div className={wrap}>
       <div className={card}>
         <div className="p-6 md:p-7">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
-              <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">My Activity</div>
-              <div className="mt-2 text-xl md:text-2xl font-black tracking-tight text-white/90 truncate">
-                {user?.handle ? `@${user.handle}` : user?.publicId ? user.publicId : shortAddr(user?.walletAddress)}
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/42">
+                  My Activity
+                </div>
+                <div
+                  className={cx(
+                    "rounded-full border px-2.5 py-1 text-[10px] font-black tracking-[0.16em]",
+                    refreshing
+                      ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
+                      : "border-emerald-500/18 bg-emerald-500/10 text-emerald-100"
+                  )}
+                >
+                  {refreshing ? "SYNCING" : "LIVE"}
+                </div>
               </div>
-              <div className="mt-2 text-[12px] text-white/55">Listings, purchases and sales from on-chain indexer.</div>
+
+              <div className="mt-2 truncate text-xl font-black tracking-tight text-white/92 md:text-2xl">
+                {user?.handle
+                  ? `@${user.handle}`
+                  : user?.publicId
+                  ? user.publicId
+                  : shortAddr(user?.walletAddress)}
+              </div>
+
+              <div className="mt-2 text-[12px] text-white/54">
+                Listings, purchases and sales from on-chain indexer.
+              </div>
+              <div className="mt-1 text-[11px] text-white/35">
+                {fmtLastUpdated(lastUpdatedAt)}
+              </div>
             </div>
 
             <button
-              onClick={() => loadInitial()}
+              type="button"
+              onClick={() => void loadInitial({ silent: true })}
+              disabled={refreshing}
               className={cx(
-                "shrink-0 inline-flex items-center justify-center px-4 py-2 rounded-2xl",
-                "border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition",
-                "text-[12px] font-black text-amber-100/90 hover:text-amber-100"
+                "inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl px-4 py-2 text-[12px] font-black transition-all duration-200",
+                "border border-white/12 bg-white/[0.05] text-amber-100/90",
+                refreshing
+                  ? "cursor-default opacity-75"
+                  : "hover:-translate-y-[1px] hover:bg-white/[0.10] hover:text-amber-100"
               )}
             >
-              Refresh
+              <span
+                className={cx(
+                  "inline-block h-2 w-2 rounded-full bg-amber-200 transition-opacity",
+                  refreshing ? "animate-pulse opacity-100" : "opacity-70"
+                )}
+              />
+              {refreshing ? "Refreshing…" : "Refresh"}
             </button>
           </div>
 
           {err ? (
-            <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100">
+            <div className="mt-5 rounded-[22px] border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100">
               {err}
             </div>
           ) : null}
 
-          {loading ? <div className="mt-6 text-white/60 text-[12px] font-semibold">Loading…</div> : null}
-
-          {/* Counters */}
-          {totalCounts ? (
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Listings</div>
-                <div className="mt-1 text-2xl font-black text-white/90">{totalCounts.listings}</div>
+          {loading ? (
+            <>
+              <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <StatSkeleton />
+                <StatSkeleton />
+                <StatSkeleton />
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Purchases</div>
-                <div className="mt-1 text-2xl font-black text-white/90">{totalCounts.purchases}</div>
+
+              <div className="mt-8 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <SkeletonRow />
+                <SkeletonRow />
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-                <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">Sales</div>
-                <div className="mt-1 text-2xl font-black text-white/90">{totalCounts.sales}</div>
+            </>
+          ) : (
+            <>
+              <div className="mt-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <StatCard label="Listings" value={totalCounts?.listings ?? 0} tone="gold" />
+                <StatCard label="Purchases" value={totalCounts?.purchases ?? 0} />
+                <StatCard label="Sales" value={totalCounts?.sales ?? 0} />
               </div>
-            </div>
-          ) : null}
 
-          {/* LISTINGS */}
-          <section className="mt-8">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">Listings</div>
-              {canMoreListings ? (
-                <button
-                  onClick={() => loadMore("l")}
-                  className="px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90"
-                >
-                  {loadingMore.l ? "Loading…" : "Load more"}
-                </button>
-              ) : null}
-            </div>
+              <section className="mt-8">
+                <SectionHeader
+                  title="Listings"
+                  count={totalCounts?.listings ?? null}
+                  canMore={canMoreListings}
+                  loadingMore={loadingMore.l}
+                  onLoadMore={() => void loadMore("l")}
+                />
 
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {listings.map((x) => {
-                const img = ipfsToHttp(x.mint?.image) || null;
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {listings.map((row) => (
+                    <ListingCard key={row.id} row={row} />
+                  ))}
 
-                return (
-                  <Link
-                    key={x.id}
-                    href={`/nft/${x.chainId}/${x.contract}/${x.tokenId}`}
-                    className={cx(
-                      "group rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition",
-                      "p-4 flex gap-4"
-                    )}
-                  >
-                    <div className="h-14 w-14 rounded-2xl border border-white/10 bg-black/30 overflow-hidden shrink-0 flex items-center justify-center">
-                      {img ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={img} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="text-[10px] font-black text-white/30">RL</div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-extrabold text-white/90 truncate">{x.mint?.name || `Token #${x.tokenId}`}</div>
-
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
-                        <span className="font-mono">{shortAddr(x.contract)}</span>
-                        <span>•</span>
-                        <span className="font-mono">#{x.tokenId}</span>
-                        <span>•</span>
-                        <span className={cx("font-black", x.status === "ACTIVE" ? "text-emerald-200" : "text-white/55")}>
-                          {x.status}
-                        </span>
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
-                        <div className="text-white/70">
-                          Price: <span className="font-black text-amber-100">{fmtEth(x.pricePerUnitWei)} ETH</span>
-                        </div>
-                        <div className="text-white/70">
-                          Remaining: <span className="font-black text-white/90">{fmtInt(x.amountRemaining)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-
-              {listings.length === 0 && !loading ? (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/60">
-                  No listings yet.
+                  {listings.length === 0 ? (
+                    <EmptyCard text="No listings yet." />
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
-          </section>
+              </section>
 
-          {/* PURCHASES */}
-          <section className="mt-10">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">Purchases</div>
-              {canMorePurchases ? (
-                <button
-                  onClick={() => loadMore("p")}
-                  className="px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90"
-                >
-                  {loadingMore.p ? "Loading…" : "Load more"}
-                </button>
-              ) : null}
-            </div>
+              <section className="mt-10">
+                <SectionHeader
+                  title="Purchases"
+                  count={totalCounts?.purchases ?? null}
+                  canMore={canMorePurchases}
+                  loadingMore={loadingMore.p}
+                  onLoadMore={() => void loadMore("p")}
+                />
 
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {purchases.map((t) => {
-                const img = ipfsToHttp(t.mint?.image) || null;
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {purchases.map((row) => (
+                    <TradeCard key={`${row.txHash}:${row.logIndex}`} row={row} direction="from" />
+                  ))}
 
-                return (
-                  <Link
-                    key={`${t.txHash}:${t.logIndex}`}
-                    href={`/nft/${t.chainId}/${t.contract}/${t.tokenId}`}
-                    className={cx(
-                      "group rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition",
-                      "p-4 flex gap-4"
-                    )}
-                  >
-                    <div className="h-14 w-14 rounded-2xl border border-white/10 bg-black/30 overflow-hidden shrink-0 flex items-center justify-center">
-                      {img ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={img} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="text-[10px] font-black text-white/30">RL</div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-extrabold text-white/90 truncate">{t.mint?.name || `Token #${t.tokenId}`}</div>
-
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
-                        <span className="font-mono">{shortAddr(t.contract)}</span>
-                        <span>•</span>
-                        <span className="font-mono">#{t.tokenId}</span>
-                        <span>•</span>
-                        <span className="font-black text-white/70">from {shortAddr(t.counterpartyWallet)}</span>
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
-                        <div className="text-white/70">
-                          Total: <span className="font-black text-amber-100">{fmtEth(t.totalPriceWei)} ETH</span>
-                        </div>
-                        <div className="text-white/70">
-                          Amount: <span className="font-black text-white/90">{fmtInt(t.amount)}</span>
-                        </div>
-                      </div>
-
-                      <div className="mt-1 text-[11px] text-white/40">{new Date(t.blockTime).toLocaleString("en-GB")}</div>
-                    </div>
-                  </Link>
-                );
-              })}
-
-              {purchases.length === 0 && !loading ? (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/60">
-                  No purchases yet.
+                  {purchases.length === 0 ? (
+                    <EmptyCard text="No purchases yet." />
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
-          </section>
+              </section>
 
-          {/* SALES */}
-          <section className="mt-10">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-[12px] font-black text-white/80 uppercase tracking-wider">Sales</div>
-              {canMoreSales ? (
-                <button
-                  onClick={() => loadMore("s")}
-                  className="px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90"
-                >
-                  {loadingMore.s ? "Loading…" : "Load more"}
-                </button>
-              ) : null}
-            </div>
+              <section className="mt-10">
+                <SectionHeader
+                  title="Sales"
+                  count={totalCounts?.sales ?? null}
+                  canMore={canMoreSales}
+                  loadingMore={loadingMore.s}
+                  onLoadMore={() => void loadMore("s")}
+                />
 
-            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-              {sales.map((t) => {
-                const img = ipfsToHttp(t.mint?.image) || null;
+                <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {sales.map((row) => (
+                    <TradeCard key={`${row.txHash}:${row.logIndex}`} row={row} direction="to" />
+                  ))}
 
-                return (
-                  <Link
-                    key={`${t.txHash}:${t.logIndex}`}
-                    href={`/nft/${t.chainId}/${t.contract}/${t.tokenId}`}
-                    className={cx(
-                      "group rounded-2xl border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] transition",
-                      "p-4 flex gap-4"
-                    )}
-                  >
-                    <div className="h-14 w-14 rounded-2xl border border-white/10 bg-black/30 overflow-hidden shrink-0 flex items-center justify-center">
-                      {img ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={img} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="text-[10px] font-black text-white/30">RL</div>
-                      )}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-extrabold text-white/90 truncate">{t.mint?.name || `Token #${t.tokenId}`}</div>
-
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
-                        <span className="font-mono">{shortAddr(t.contract)}</span>
-                        <span>•</span>
-                        <span className="font-mono">#{t.tokenId}</span>
-                        <span>•</span>
-                        <span className="font-black text-white/70">to {shortAddr(t.counterpartyWallet)}</span>
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
-                        <div className="text-white/70">
-                          Total: <span className="font-black text-amber-100">{fmtEth(t.totalPriceWei)} ETH</span>
-                        </div>
-                        <div className="text-white/70">
-                          Amount: <span className="font-black text-white/90">{fmtInt(t.amount)}</span>
-                        </div>
-                      </div>
-
-                      <div className="mt-1 text-[11px] text-white/40">{new Date(t.blockTime).toLocaleString("en-GB")}</div>
-                    </div>
-                  </Link>
-                );
-              })}
-
-              {sales.length === 0 && !loading ? (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/60">
-                  No sales yet.
+                  {sales.length === 0 ? (
+                    <EmptyCard text="No sales yet." />
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
-          </section>
+              </section>
+            </>
+          )}
         </div>
       </div>
     </div>

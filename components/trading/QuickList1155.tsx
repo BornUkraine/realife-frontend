@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   useAccount,
   useChainId,
@@ -31,6 +30,13 @@ type ContractView =
   | "cafe"
   | "store"
   | "unknown";
+
+type QuickListListedPayload = {
+  listedAmount: string;
+  remainingOwnedAmount: string | null;
+  marketType: MarketType;
+};
+
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
@@ -301,6 +307,7 @@ export default function QuickList1155({
   subcategory,
   marketTypeHint,
   preferredMarketType,
+  onListed,
 }: {
   chainId: number;
   contract: string;
@@ -314,8 +321,8 @@ export default function QuickList1155({
   subcategory?: string | null;
   marketTypeHint?: MarketType;
   preferredMarketType?: MarketType;
+  onListed?: (payload: QuickListListedPayload) => void;
 }) {
-  const router = useRouter();
 
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
@@ -480,6 +487,7 @@ export default function QuickList1155({
   const [amount, setAmount] = useState(1);
   const [priceEth, setPriceEth] = useState("0.01");
   const [busy, setBusy] = useState<"approve" | "list" | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
@@ -578,6 +586,45 @@ export default function QuickList1155({
     }
   }
 
+  const refreshWalletState = useCallback(async () => {
+    setRefreshing(true);
+
+    try {
+      const [balanceRes, approvedRes] = await Promise.allSettled([
+        refetchBalance(),
+        refetchApproved(),
+      ]);
+
+      let remainingOwnedAmount: string | null = null;
+
+      if (balanceRes.status === "fulfilled") {
+        try {
+          const value = (balanceRes.value as any)?.data;
+          if (value !== undefined && value !== null) {
+            remainingOwnedAmount = BigInt(value).toString();
+          }
+        } catch {
+          remainingOwnedAmount = null;
+        }
+      }
+
+      void approvedRes;
+      return { remainingOwnedAmount };
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchApproved, refetchBalance]);
+
+  const schedulePostListRefreshes = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    for (const delay of [1600, 4200]) {
+      window.setTimeout(() => {
+        void Promise.allSettled([refetchBalance(), refetchApproved()]);
+      }, delay);
+    }
+  }, [refetchApproved, refetchBalance]);
+
   async function listNow() {
     if (!isConnected) return openConnectModal?.();
     if (!hasMarketplace) return;
@@ -616,7 +663,14 @@ export default function QuickList1155({
       await publicClient?.waitForTransactionReceipt({ hash });
 
       await revalidateAfterList();
-      router.refresh();
+      const walletState = await refreshWalletState();
+      schedulePostListRefreshes();
+
+      onListed?.({
+        listedAmount: amt.toString(),
+        remainingOwnedAmount: walletState?.remainingOwnedAmount ?? null,
+        marketType: inferredMarketType,
+      });
 
       setOk(
         inferredMarketType === "PROTECTED"
@@ -626,9 +680,9 @@ export default function QuickList1155({
           : `Listed on ${marketLabel(inferredMarketType)} ✅`
       );
 
-      setTimeout(() => {
+      window.setTimeout(() => {
         closeModal();
-      }, 700);
+      }, 550);
     } catch (e: any) {
       setErr(e?.shortMessage || e?.message || "Listing failed");
     } finally {
@@ -638,9 +692,15 @@ export default function QuickList1155({
 
   const disabledOpen = maxAmountBI <= 0n;
   const disabledApprove =
-    busy !== null || !isConnected || needSwitch || !hasMarketplace || isApproved;
+    busy !== null ||
+    refreshing ||
+    !isConnected ||
+    needSwitch ||
+    !hasMarketplace ||
+    isApproved;
   const disabledList =
     busy !== null ||
+    refreshing ||
     !isConnected ||
     needSwitch ||
     !hasMarketplace ||
@@ -846,6 +906,12 @@ export default function QuickList1155({
                   </div>
                 ) : null}
 
+                {refreshing ? (
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-center text-[11px] text-white/65">
+                    Syncing wallet state…
+                  </div>
+                ) : null}
+
                 {!isConnected ? (
                   <button
                     onClick={() => openConnectModal?.()}
@@ -976,7 +1042,7 @@ export default function QuickList1155({
                       disabledList ? "cursor-not-allowed opacity-60" : ""
                     )}
                   >
-                    {busy === "list" ? "Listing..." : "List"}
+                    {busy === "list" ? "Listing..." : refreshing ? "Syncing..." : "List"}
                   </button>
                 </div>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import NftMedia from "@/components/NftMedia";
 import QuickList1155 from "@/components/trading/QuickList1155";
 
@@ -65,11 +65,27 @@ type PreviewState = {
   alt?: string;
 } | null;
 
+type QuickListListedPayload = {
+  listedAmount: string;
+  remainingOwnedAmount: string | null;
+  marketType: MarketType;
+};
+
+function toBigIntSafe(v?: string | null) {
+  try {
+    if (!v) return 0n;
+    return BigInt(v);
+  } catch {
+    return 0n;
+  }
+}
+
+
 const quickListHoverClass =
-  "invisible opacity-0 transition-all duration-200 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100";
+  "opacity-100 transition-all duration-150 md:pointer-events-none md:translate-y-1 md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:translate-y-0 md:group-hover:opacity-100 md:group-focus-within:pointer-events-auto md:group-focus-within:translate-y-0 md:group-focus-within:opacity-100";
 
 const previewHoverClass =
-  "invisible opacity-0 translate-y-1 pointer-events-none transition-all duration-200 group-hover:visible group-hover:opacity-100 group-hover:translate-y-0 group-hover:pointer-events-auto group-focus-within:visible group-focus-within:opacity-100 group-focus-within:translate-y-0 group-focus-within:pointer-events-auto";
+  "opacity-100 transition-all duration-150 md:pointer-events-none md:translate-y-1 md:opacity-0 md:group-hover:pointer-events-auto md:group-hover:translate-y-0 md:group-hover:opacity-100 md:group-focus-within:pointer-events-auto md:group-focus-within:translate-y-0 md:group-focus-within:opacity-100";
 
 function protectedSubtypeTone(subtype?: string | null) {
   const x = String(subtype || "").trim().toUpperCase();
@@ -97,6 +113,53 @@ export default function GalleryGridClient({
   isOwner: boolean;
 }) {
   const [preview, setPreview] = useState<PreviewState>(null);
+  const [gridItems, setGridItems] = useState(items);
+  const [freshlyListed, setFreshlyListed] = useState<Record<string, QuickListListedPayload>>({});
+
+  useEffect(() => {
+    setGridItems(items);
+  }, [items]);
+
+  const handleQuickListed = useCallback(
+    (itemId: string, payload: QuickListListedPayload) => {
+      setGridItems((prev) => {
+        const next = prev
+          .map((item) => {
+            if (item.id !== itemId) return item;
+
+            let remaining = payload.remainingOwnedAmount;
+
+            if (remaining == null) {
+              const base = toBigIntSafe(item.ownedAmount);
+              const listed = toBigIntSafe(payload.listedAmount);
+              remaining = base > listed ? (base - listed).toString() : "0";
+            }
+
+            return {
+              ...item,
+              ownedAmount: remaining,
+              secondaryMarketType: payload.marketType,
+            };
+          })
+          .filter((item) => toBigIntSafe(item.ownedAmount) > 0n);
+
+        return next;
+      });
+
+      setFreshlyListed((prev) => ({ ...prev, [itemId]: payload }));
+
+      if (typeof window !== "undefined") {
+        window.setTimeout(() => {
+          setFreshlyListed((prev) => {
+            const next = { ...prev };
+            delete next[itemId];
+            return next;
+          });
+        }, 4500);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
     if (!preview) return;
@@ -148,16 +211,17 @@ export default function GalleryGridClient({
         className="reveal grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4"
         style={{ animationDelay: "90ms" }}
       >
-        {items.map((x) => {
+        {gridItems.map((x) => {
           const showProtectedBadge = x.secondaryMarketType === "PROTECTED";
           const showProtectedSubtype =
             showProtectedBadge && Boolean(x.protectedSubtypeLabel);
+          const justListed = freshlyListed[x.id];
 
           return (
             <Link
               key={x.id}
               href={x.href}
-              className="group overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)] transition-all duration-300 hover:-translate-y-1 hover:bg-white/[0.08]"
+              className="group overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.03] shadow-[0_16px_48px_rgba(0,0,0,0.38)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/[0.06]"
             >
               <div className="relative aspect-square w-full bg-black">
                 {x.media ? (
@@ -185,6 +249,7 @@ export default function GalleryGridClient({
                             preferredMarketType={
                               x.secondaryMarketType || "STANDARD"
                             }
+                            onListed={(payload) => handleQuickListed(x.id, payload)}
                           />
                         </div>
                       ) : null}
@@ -203,7 +268,7 @@ export default function GalleryGridClient({
                               alt: x.name || "NFT",
                             });
                           }}
-                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white/90 backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.35)] transition-all duration-200 hover:scale-[1.04] hover:bg-black/60 active:scale-[0.98]"
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-black/45 text-white/90 shadow-[0_10px_28px_rgba(0,0,0,0.30)] transition-all duration-150 hover:scale-[1.03] hover:bg-black/60 active:scale-[0.98]"
                         >
                           <span className="text-lg leading-none">⤢</span>
                         </button>
@@ -254,6 +319,12 @@ export default function GalleryGridClient({
                         Owned x{x.ownedAmount}
                       </div>
 
+                      {justListed ? (
+                        <div className="w-fit rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-100">
+                          JUST LISTED
+                        </div>
+                      ) : null}
+
                       {showProtectedBadge ? (
                         <div className="w-fit rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-1 text-[10px] font-bold text-violet-100">
                           PROTECTED
@@ -290,7 +361,7 @@ export default function GalleryGridClient({
                   </div>
                 )}
 
-                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.4)_0%,transparent_40%)] opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.28)_0%,transparent_44%)] opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
               </div>
 
               <div className="p-5">
@@ -341,8 +412,8 @@ export default function GalleryGridClient({
 
                 <div className="mt-4 h-px bg-white/10" />
 
-                <div className="mt-4 flex items-center justify-between text-[12px] font-bold text-amber-100/90 group-hover:text-amber-100">
-                  <span>View Details</span>
+                <div className="mt-4 flex items-center justify-between text-[12px] font-bold text-amber-100/85 group-hover:text-amber-100">
+                  <span>{justListed ? "Listed • View Details" : "View Details"}</span>
                   <span>→</span>
                 </div>
               </div>
@@ -364,7 +435,7 @@ export default function GalleryGridClient({
               setPreview(null);
             }}
             aria-label="Close"
-            className="absolute right-4 top-4 z-[10000] inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-black/50 text-white backdrop-blur-md shadow-[0_10px_35px_rgba(0,0,0,0.35)] transition hover:scale-[1.04] hover:bg-black/70"
+            className="absolute right-4 top-4 z-[10000] inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-black/50 text-white shadow-[0_10px_30px_rgba(0,0,0,0.30)] transition duration-150 hover:scale-[1.03] hover:bg-black/70"
           >
             <span className="text-xl leading-none">✕</span>
           </button>

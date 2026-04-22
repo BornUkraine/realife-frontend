@@ -4,11 +4,11 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   useAccount,
   useChainId,
@@ -99,6 +99,7 @@ type MarketNftResponse = {
     fulfillmentType?: FulfillmentType | null;
     category?: string | null;
     subcategory?: string | null;
+    resolvedMarketType?: MarketType | null;
   };
   stats: {
     activeListings: number;
@@ -542,6 +543,7 @@ export default function TradingPanel1155({
   fulfillmentType,
   category,
   subcategory,
+  initialMarketData = null,
 }: {
   chainId: number;
   contract: string;
@@ -553,8 +555,8 @@ export default function TradingPanel1155({
   fulfillmentType?: FulfillmentType | null;
   category?: string | null;
   subcategory?: string | null;
+  initialMarketData?: MarketNftResponse | null;
 }) {
-  const router = useRouter();
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
@@ -587,11 +589,13 @@ export default function TradingPanel1155({
   const canTradeOnThisChain = currentChainId === chainId;
   const contractView = useMemo(() => classifyContractView(nftAddr), [nftAddr]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialMarketData);
+  const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
-  const [data, setData] = useState<MarketNftResponse | null>(null);
+  const [data, setData] = useState<MarketNftResponse | null>(initialMarketData);
   const [tab, setTab] = useState<"buy" | "sell">("buy");
+  const hasRenderableDataRef = useRef(Boolean(initialMarketData));
 
   const tokenIdBI = useMemo(() => {
     try {
@@ -600,6 +604,23 @@ export default function TradingPanel1155({
       return 0n;
     }
   }, [tokenId]);
+
+  useEffect(() => {
+    hasRenderableDataRef.current = Boolean(data);
+  }, [data]);
+
+  useEffect(() => {
+    if (initialMarketData) {
+      setData(initialMarketData);
+      setLoading(false);
+      hasRenderableDataRef.current = true;
+      return;
+    }
+
+    setData(null);
+    setLoading(true);
+    hasRenderableDataRef.current = false;
+  }, [initialMarketData, chainId, nftAddr, tokenId]);
 
   const assetDeliveryEnabled =
     data?.mint?.deliveryEnabled ?? deliveryEnabled ?? false;
@@ -683,30 +704,46 @@ export default function TradingPanel1155({
     }
   }, [chainId, nftAddr, tokenId]);
 
-  const refresh = useCallback(async () => {
-    setErr(null);
-    setLoading(true);
+  const refresh = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      const silent = Boolean(opts?.silent);
+      const keepVisible = silent || hasRenderableDataRef.current;
 
-    try {
-      const url =
-        `/api/market/nft?chainId=${encodeURIComponent(String(chainId))}` +
-        `&contract=${encodeURIComponent(nftAddr)}` +
-        `&tokenId=${encodeURIComponent(String(tokenId))}` +
-        `&marketType=${encodeURIComponent(resolvedMarketType)}` +
-        `&listingsTake=50&tradesTake=50`;
+      setErr(null);
 
-      const j = (await fetchJSON(url)) as MarketNftResponse;
-      setData(j);
-    } catch (e: any) {
-      setErr(e?.message || "Failed to load market data");
-    } finally {
-      setLoading(false);
-    }
-  }, [chainId, nftAddr, tokenId, resolvedMarketType]);
+      if (keepVisible) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      try {
+        const url =
+          `/api/market/nft?chainId=${encodeURIComponent(String(chainId))}` +
+          `&contract=${encodeURIComponent(nftAddr)}` +
+          `&tokenId=${encodeURIComponent(String(tokenId))}` +
+          `&marketType=${encodeURIComponent(resolvedMarketType)}` +
+          `&listingsTake=50&tradesTake=50`;
+
+        const j = (await fetchJSON(url)) as MarketNftResponse;
+        setData(j);
+        hasRenderableDataRef.current = true;
+      } catch (e: any) {
+        setErr(e?.message || "Failed to load market data");
+      } finally {
+        if (keepVisible) {
+          setRefreshing(false);
+        } else {
+          setLoading(false);
+        }
+      }
+    },
+    [chainId, nftAddr, tokenId, resolvedMarketType]
+  );
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    void refresh({ silent: Boolean(initialMarketData) });
+  }, [refresh, initialMarketData]);
 
   const sellMarketType = resolvedMarketType;
 
@@ -864,14 +901,24 @@ export default function TradingPanel1155({
     }
   }, [selectedListing, buyAmount]);
 
-  const refreshAll = useCallback(async () => {
-    await Promise.allSettled([refresh(), refetchBalance(), refetchApproved()]);
-  }, [refresh, refetchBalance, refetchApproved]);
+  const refreshAll = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      await Promise.allSettled([
+        refresh(opts),
+        refetchBalance(),
+        refetchApproved(),
+      ]);
+    },
+    [refresh, refetchBalance, refetchApproved]
+  );
 
-  const pollAfterTx = useCallback(async () => {
-    for (let i = 0; i < 5; i++) {
-      await new Promise((r) => setTimeout(r, 2200));
-      await refreshAll();
+  const schedulePostTxRefreshes = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    for (const delay of [1600, 4200]) {
+      window.setTimeout(() => {
+        void refreshAll({ silent: true });
+      }, delay);
     }
   }, [refreshAll]);
 
@@ -883,9 +930,8 @@ export default function TradingPanel1155({
 
   async function afterMarketTx() {
     await revalidateMarketTags();
-    router.refresh();
-    await refreshAll();
-    await pollAfterTx();
+    await refreshAll({ silent: true });
+    schedulePostTxRefreshes();
   }
 
   async function approveAll() {
@@ -1150,10 +1196,14 @@ export default function TradingPanel1155({
               </Link>
 
               <button
-                onClick={() => refreshAll()}
-                className="inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-amber-100/90 transition hover:bg-white/[0.10] hover:text-amber-100"
+                onClick={() => refreshAll({ silent: true })}
+                disabled={refreshing}
+                className={cx(
+                  "inline-flex items-center justify-center rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-2 text-[12px] font-black text-amber-100/90 transition hover:bg-white/[0.10] hover:text-amber-100",
+                  refreshing && "cursor-default opacity-70"
+                )}
               >
-                Refresh
+                {refreshing ? "Refreshing…" : "Refresh"}
               </button>
             </div>
           </div>
@@ -1171,10 +1221,21 @@ export default function TradingPanel1155({
           ) : null}
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/75">
-            Viewing market:{" "}
-            <span className="font-black text-amber-100">
-              {marketLabel(resolvedMarketType)}
-            </span>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                Viewing market:{" "}
+                <span className="font-black text-amber-100">
+                  {marketLabel(resolvedMarketType)}
+                </span>
+              </div>
+
+              {refreshing ? (
+                <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-white/45">
+                  <span className="h-2 w-2 rounded-full bg-amber-300/80 animate-pulse" />
+                  Syncing
+                </div>
+              ) : null}
+            </div>
           </div>
 
           {sellMarketType === "PROTECTED" ? (
