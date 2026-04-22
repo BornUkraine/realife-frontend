@@ -1142,13 +1142,15 @@ export default function TradingPanel1155({
     return toLower(selectedListing.sellerWallet) === me;
   }, [selectedListing, me]);
 
+  const sellPriceWei = useMemo(() => parseEthOrZero(sellPriceEth), [sellPriceEth]);
+
   const sellTotalWei = useMemo(() => {
     try {
-      return parseEthOrZero(sellPriceEth) * BigInt(sellAmount || 1);
+      return sellPriceWei * BigInt(sellAmount || 1);
     } catch {
       return 0n;
     }
-  }, [sellPriceEth, sellAmount]);
+  }, [sellPriceWei, sellAmount]);
 
   const buyTotalWei = useMemo(() => {
     try {
@@ -1292,7 +1294,19 @@ export default function TradingPanel1155({
       await ensureChain();
 
       const amt = BigInt(clampInt(sellAmount, 1, Math.max(1, maxSell)));
-      const priceWei = parseEthOrZero(sellPriceEth);
+
+      if (sellPriceWei <= 0n) {
+        setErr("Enter valid price");
+        pushToast(
+          "error",
+          "Invalid price",
+          "Enter a valid ETH price greater than zero."
+        );
+        setBusy(null);
+        return;
+      }
+
+      const priceWei = sellPriceWei;
 
       const listArgs =
         sellMarketType === "PROTECTED"
@@ -1504,7 +1518,8 @@ export default function TradingPanel1155({
     !hasSellMarketplace ||
     !canTradeOnThisChain ||
     !isApproved ||
-    balance <= 0n;
+    balance <= 0n ||
+    sellPriceWei <= 0n;
 
   const buyDisabled =
     busy !== null ||
@@ -1588,7 +1603,7 @@ export default function TradingPanel1155({
 
       <div className={wrap}>
         <div className={card}>
-        <div className="p-6 md:p-7">
+        <div className="p-6 pb-32 md:p-7 md:pb-7">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/45">
@@ -2385,7 +2400,7 @@ export default function TradingPanel1155({
           </div>
         </div>
       </div>
-    </div> {/* <-- Добавлен закрывающий тег для className={wrap} */}
+    </div>
 
       <div className="md:hidden">
         <div className="pointer-events-none fixed inset-x-0 bottom-3 z-[90] px-3">
