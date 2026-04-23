@@ -794,6 +794,7 @@ model AiGeneration {
   prompt         String  @db.Text
   negativePrompt String? @db.Text
 
+  quality     String?
   aspectRatio String?
   size        String?
   durationSec Int?
