@@ -1,59 +1,71 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { retrieveVideo } from "@/lib/ai/openai";
+import {
+  createVideo,
+  fileToDataUrl,
+  mapAspectRatioToVideoSize,
+} from "@/lib/ai/openai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type Params = {
-  params: Promise<{ id: string }> | { id: string };
-};
-
-export async function GET(_: Request, ctx: Params) {
+export async function POST(req: Request) {
   try {
-    const resolved = await ctx.params;
-    const id = resolved.id;
+    const form = await req.formData();
+    const prompt = String(form.get("prompt") || "").trim();
+    const model = String(form.get("model") || "sora-2").trim() as
+      | "sora-2"
+      | "sora-2-pro";
+    const aspectRatio = String(form.get("aspectRatio") || "16:9").trim();
+    const seconds = Number(form.get("seconds") || 8) as 4 | 8 | 12;
+    const referenceImage = form.get("referenceImage");
 
-    const video = await retrieveVideo(id);
+    if (!prompt) {
+      return NextResponse.json(
+        { ok: false, error: "Prompt is required." },
+        { status: 400 }
+      );
+    }
 
-    const status = normalizeStatus(video.status);
-
-    await prisma.aiGeneration.updateMany({
-      where: { externalJobId: id },
+    const generation = await prisma.aiGeneration.create({
       data: {
-        status,
-        errorMessage: video?.error?.message || null,
+        type: "VIDEO",
+        status: "PROCESSING",
+        provider: "openai",
+        model,
+        prompt,
+        aspectRatio,
+        durationSec: seconds,
+      },
+    });
+
+    const referenceImageDataUrl =
+      referenceImage instanceof File ? await fileToDataUrl(referenceImage) : undefined;
+
+    const video = await createVideo({
+      prompt,
+      model,
+      seconds,
+      size: mapAspectRatioToVideoSize(aspectRatio),
+      referenceImageDataUrl,
+    });
+
+    await prisma.aiGeneration.update({
+      where: { id: generation.id },
+      data: {
+        externalJobId: video.id,
       },
     });
 
     return NextResponse.json({
       ok: true,
-      videoId: id,
+      generationId: generation.id,
+      videoId: video.id,
       status: video.status,
-      progress: video.progress ?? 0,
-      prompt: video.prompt,
-      seconds: video.seconds,
-      size: video.size,
-      error: video?.error?.message || undefined,
-      downloadUrl:
-        video.status === "completed" ? `/api/ai/videos/download/${id}` : undefined,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to fetch video status.";
+    const message = error instanceof Error ? error.message : "Video generation failed.";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
-  }
-}
-
-function normalizeStatus(status: string) {
-  switch (status) {
-    case "completed":
-      return "COMPLETED" as const;
-    case "failed":
-      return "FAILED" as const;
-    case "queued":
-    case "in_progress":
-    default:
-      return "PROCESSING" as const;
   }
 }
