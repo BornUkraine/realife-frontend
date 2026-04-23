@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { AiGenerationStatus, AiGenerationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   createImage,
@@ -33,8 +34,8 @@ export async function POST(req: Request) {
 
     const generation = await prisma.aiGeneration.create({
       data: {
-        type: "IMAGE",
-        status: "PROCESSING",
+        type: AiGenerationType.IMAGE,
+        status: AiGenerationStatus.PROCESSING,
         provider: "openai",
         model: "gpt-image-1",
         prompt,
@@ -52,7 +53,9 @@ export async function POST(req: Request) {
 
     const result = await createImage({
       prompt,
-      size: normalizeImageSize(requestedSize) || mapAspectRatioToImageSize(aspectRatio),
+      size:
+        normalizeImageSize(requestedSize) ||
+        mapAspectRatioToImageSize(aspectRatio),
       quality,
       referenceImage: referenceImage instanceof File ? referenceImage : null,
     });
@@ -60,9 +63,10 @@ export async function POST(req: Request) {
     await prisma.aiGeneration.update({
       where: { id: generation.id },
       data: {
-        status: "COMPLETED",
+        status: AiGenerationStatus.COMPLETED,
         previewUrl: result.dataUrl,
         resultUrl: result.dataUrl,
+        errorMessage: null,
       },
     });
 
@@ -84,7 +88,7 @@ export async function POST(req: Request) {
         .update({
           where: { id: generationId },
           data: {
-            status: "FAILED",
+            status: AiGenerationStatus.FAILED,
             errorMessage: message,
           },
         })
