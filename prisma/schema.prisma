@@ -112,6 +112,24 @@ enum SupportRole {
 }
 
 /**
+ * --------------------------------------------------------------------------
+ * AI generation
+ * --------------------------------------------------------------------------
+ */
+enum AiGenerationType {
+  IMAGE
+  VIDEO
+}
+
+enum AiGenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+/**
  * ==========================================================================
  * USER
  * ==========================================================================
@@ -198,6 +216,11 @@ model User {
    */
   storeOrdersBought StoreOrder[] @relation("StoreOrderBuyer")
   storeOrdersSold   StoreOrder[] @relation("StoreOrderSeller")
+
+  /**
+   * ---------------- AI generations ----------------
+   */
+  aiGenerations AiGeneration[]
 
   @@index([twitterUser])
   @@index([discordUser])
@@ -331,9 +354,7 @@ model Mint {
   @@index([deliveryEnabled, physicalItemIncluded])
   @@index([fulfillmentType])
   @@index([category, subcategory])
-  // Hot index for the listings API: find unresolved mints quickly
   @@index([metadataCachedAt])
-  // Hot index for the trading grid: "active listings by this contract sorted new→old"
   @@index([verified, chainId, contract])
 }
 
@@ -749,4 +770,54 @@ model DeliveryMessage {
 
   @@index([orderId, createdAt])
   @@map("delivery_messages")
+}
+
+/**
+ * ==========================================================================
+ * AI GENERATIONS
+ * ==========================================================================
+ */
+model AiGeneration {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String?
+  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  type   AiGenerationType
+  status AiGenerationStatus @default(PENDING)
+
+  provider String?
+  model    String?
+
+  prompt         String  @db.Text
+  negativePrompt String? @db.Text
+
+  aspectRatio String?
+  size        String?
+  durationSec Int?
+
+  sourceImageUrl String? @db.Text
+  previewUrl     String? @db.Text
+  resultUrl      String? @db.Text
+
+  externalJobId String?
+  mimeType      String?
+  fileSize      Int?
+
+  errorMessage String? @db.Text
+
+  /**
+   * Optional business usage flags
+   */
+  usedInListing Boolean @default(false)
+  usedInService Boolean @default(false)
+  mintedAsNft   Boolean @default(false)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([type, createdAt])
+  @@index([externalJobId])
+  @@map("ai_generations")
 }
