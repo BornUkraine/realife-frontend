@@ -2,8 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import Reveal from "@/components/Reveal";
-import AiStudioClient from "@/components/ai/AiStudioClient";
-
+import AiStudioClient from "./AiStudioClient";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
