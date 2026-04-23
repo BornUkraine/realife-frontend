@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { AiGenerationStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { retrieveVideo } from "@/lib/ai/openai";
 
@@ -6,14 +7,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type Params = {
-  params: Promise<{ id: string }> | { id: string };
+type RouteContext = {
+  params: Promise<{ id: string }>;
 };
 
-export async function GET(_: Request, ctx: Params) {
+export async function GET(_: Request, { params }: RouteContext) {
   try {
-    const resolved = await ctx.params;
-    const id = resolved.id;
+    const { id } = await params;
 
     const video = await retrieveVideo(id);
     const status = normalizeStatus(video.status);
@@ -23,23 +23,13 @@ export async function GET(_: Request, ctx: Params) {
         ? `/api/ai/videos/download/${id}`
         : undefined;
 
-    const previewUrl =
-      video.status === "completed"
-        ? `/api/ai/videos/download/${id}`
-        : undefined;
-
-    const posterUrl =
-      video.status === "completed"
-        ? `/api/ai/videos/download/${id}?variant=thumbnail`
-        : undefined;
-
     await prisma.aiGeneration.updateMany({
       where: { externalJobId: id },
       data: {
         status,
-        errorMessage: video?.error?.message || null,
-        resultUrl: downloadUrl || undefined,
-        previewUrl: previewUrl || undefined,
+        errorMessage: video.error?.message || null,
+        resultUrl: downloadUrl || null,
+        previewUrl: downloadUrl || null,
       },
     });
 
@@ -51,12 +41,12 @@ export async function GET(_: Request, ctx: Params) {
       prompt: video.prompt,
       seconds: video.seconds,
       size: video.size,
-      error: video?.error?.message || undefined,
-      message: video?.error?.message || undefined,
+      error: video.error?.message || undefined,
+      message: video.error?.message || undefined,
       downloadUrl,
       resultUrl: downloadUrl,
-      previewUrl,
-      posterUrl,
+      previewUrl: downloadUrl,
+      posterUrl: undefined,
     });
   } catch (error) {
     const message =
@@ -71,17 +61,17 @@ export async function GET(_: Request, ctx: Params) {
   }
 }
 
-function normalizeStatus(status: string) {
+function normalizeStatus(status: string): AiGenerationStatus {
   switch (status) {
     case "completed":
-      return "COMPLETED" as const;
+      return AiGenerationStatus.COMPLETED;
     case "failed":
-      return "FAILED" as const;
+      return AiGenerationStatus.FAILED;
     case "cancelled":
-      return "CANCELLED" as const;
+      return AiGenerationStatus.CANCELLED;
     case "queued":
     case "in_progress":
     default:
-      return "PROCESSING" as const;
+      return AiGenerationStatus.PROCESSING;
   }
 }
