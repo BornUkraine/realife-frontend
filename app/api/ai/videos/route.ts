@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { AiGenerationStatus, AiGenerationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   createVideo,
@@ -41,8 +42,8 @@ export async function POST(req: Request) {
 
     const generation = await prisma.aiGeneration.create({
       data: {
-        type: "VIDEO",
-        status: "PROCESSING",
+        type: AiGenerationType.VIDEO,
+        status: AiGenerationStatus.PROCESSING,
         provider: "openai",
         model,
         prompt,
@@ -90,7 +91,7 @@ export async function POST(req: Request) {
         .update({
           where: { id: generationId },
           data: {
-            status: "FAILED",
+            status: AiGenerationStatus.FAILED,
             errorMessage: message,
           },
         })
