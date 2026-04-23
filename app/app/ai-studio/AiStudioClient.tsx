@@ -5,6 +5,7 @@ import NftMedia from "@/components/NftMedia";
 
 type StudioTab = "image" | "video";
 type JobState = "idle" | "uploading" | "processing" | "done" | "error";
+type ImageQuality = "low" | "medium" | "high";
 
 type ResultCard = {
   id: string;
@@ -19,10 +20,22 @@ type ResultCard = {
 };
 
 const AI_API_BASE = (process.env.NEXT_PUBLIC_AI_API_BASE || "").replace(/\/$/, "");
-const IMAGE_ENDPOINT = `${AI_API_BASE}/api/ai/images`;
-const VIDEO_ENDPOINT = `${AI_API_BASE}/api/ai/videos`;
-const VIDEO_STATUS_ENDPOINT = `${AI_API_BASE}/api/ai/videos/status`;
-const VIDEO_DOWNLOAD_ENDPOINT = `${AI_API_BASE}/api/ai/videos/download`;
+
+const IMAGE_ENDPOINT = AI_API_BASE
+  ? `${AI_API_BASE}/api/ai/images`
+  : "/api/ai/images";
+
+const VIDEO_ENDPOINT = AI_API_BASE
+  ? `${AI_API_BASE}/api/ai/videos`
+  : "/api/ai/videos";
+
+const VIDEO_STATUS_ENDPOINT = AI_API_BASE
+  ? `${AI_API_BASE}/api/ai/videos/status`
+  : "/api/ai/videos/status";
+
+const VIDEO_DOWNLOAD_ENDPOINT = AI_API_BASE
+  ? `${AI_API_BASE}/api/ai/videos/download`
+  : "/api/ai/videos/download";
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
@@ -142,6 +155,7 @@ function buildFormData(input: {
   sourceVideo: File | null;
   aspectRatio: string;
   size: string;
+  quality: ImageQuality;
   durationSec: number;
   model: string;
 }) {
@@ -149,7 +163,8 @@ function buildFormData(input: {
   form.append("prompt", input.prompt.trim());
   form.append("aspectRatio", input.aspectRatio);
   form.append("size", input.size);
-  form.append("durationSec", String(input.durationSec));
+  form.append("quality", input.quality);
+  form.append("seconds", String(input.durationSec));
   form.append("model", input.model);
 
   if (input.referenceImage) {
@@ -161,6 +176,18 @@ function buildFormData(input: {
   }
 
   return form;
+}
+
+function resolveMaybeRelativeUrl(url?: string | null) {
+  const value = String(url || "").trim();
+  if (!value) return null;
+  if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:")) {
+    return value;
+  }
+  if (value.startsWith("/") && AI_API_BASE) {
+    return `${AI_API_BASE}${value}`;
+  }
+  return value;
 }
 
 const PRODUCT_TEMPLATE =
@@ -184,6 +211,7 @@ export default function AiStudioClient() {
   const [sourceVideoPreview, setSourceVideoPreview] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [size, setSize] = useState("1024x1024");
+  const [quality, setQuality] = useState<ImageQuality>("medium");
   const [durationSec, setDurationSec] = useState(8);
   const [videoModel, setVideoModel] = useState("sora-2");
   const [state, setState] = useState<JobState>("idle");
@@ -213,9 +241,12 @@ export default function AiStudioClient() {
     setSourceVideoPreview(toObjectUrl(file));
   }
 
-  function pushResult(patch: Partial<ResultCard> & Pick<ResultCard, "id" | "type" | "prompt" | "status">) {
+  function pushResult(
+    patch: Partial<ResultCard> & Pick<ResultCard, "id" | "type" | "prompt" | "status">
+  ) {
     setResults((prev) => {
       const i = prev.findIndex((x) => x.id === patch.id);
+
       const next: ResultCard = {
         id: patch.id,
         type: patch.type,
@@ -229,8 +260,12 @@ export default function AiStudioClient() {
       };
 
       if (i === -1) return [next, ...prev];
+
       const copy = [...prev];
-      copy[i] = { ...copy[i], ...next };
+      copy[i] = {
+        ...copy[i],
+        ...next,
+      };
       return copy;
     });
   }
@@ -249,6 +284,7 @@ export default function AiStudioClient() {
         sourceVideo: null,
         aspectRatio,
         size,
+        quality,
         durationSec,
         model: "gpt-image-1",
       });
@@ -259,12 +295,18 @@ export default function AiStudioClient() {
       });
 
       const data = await res.json().catch(() => null);
+
       if (!res.ok) {
-        throw new Error(data?.message || "Image generation failed");
+        throw new Error(data?.error || data?.message || "Image generation failed");
       }
 
-      const resultUrl = String(data?.resultUrl || data?.imageUrl || data?.url || "").trim();
-      const previewUrl = String(data?.previewUrl || resultUrl || "").trim() || null;
+      const resultUrl = resolveMaybeRelativeUrl(
+        data?.resultUrl || data?.imageUrl || data?.url || ""
+      );
+
+      const previewUrl = resolveMaybeRelativeUrl(
+        data?.previewUrl || resultUrl || ""
+      );
 
       if (!resultUrl) {
         throw new Error("Image API returned no resultUrl");
@@ -282,7 +324,13 @@ export default function AiStudioClient() {
       setState("done");
     } catch (e: any) {
       const msg = e?.message || "Image generation failed";
-      pushResult({ id, type: "image", prompt, status: "error", error: msg });
+      pushResult({
+        id,
+        type: "image",
+        prompt,
+        status: "error",
+        error: msg,
+      });
       setError(msg);
       setState("error");
     }
@@ -290,22 +338,33 @@ export default function AiStudioClient() {
 
   async function pollVideoStatus(jobId: string, promptText: string) {
     for (let i = 0; i < 90; i += 1) {
-      const res = await fetch(`${VIDEO_STATUS_ENDPOINT}/${encodeURIComponent(jobId)}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(
+        `${VIDEO_STATUS_ENDPOINT}/${encodeURIComponent(jobId)}`,
+        { cache: "no-store" }
+      );
 
       const data = await res.json().catch(() => null);
+
       if (!res.ok) {
-        throw new Error(data?.message || "Video status failed");
+        throw new Error(data?.error || data?.message || "Video status failed");
       }
 
       const status = String(data?.status || "").toLowerCase();
+
       if (status === "completed" || status === "done") {
-        const resultUrl =
-          String(data?.resultUrl || data?.downloadUrl || `${VIDEO_DOWNLOAD_ENDPOINT}/${encodeURIComponent(jobId)}`)
-            .trim() || null;
-        const previewUrl = String(data?.previewUrl || resultUrl || "").trim() || null;
-        const posterUrl = String(data?.posterUrl || "").trim() || null;
+        const resultUrl = resolveMaybeRelativeUrl(
+          data?.resultUrl ||
+            data?.downloadUrl ||
+            `${VIDEO_DOWNLOAD_ENDPOINT}/${encodeURIComponent(jobId)}`
+        );
+
+        const previewUrl = resolveMaybeRelativeUrl(
+          data?.previewUrl || resultUrl || ""
+        );
+
+        const posterUrl = resolveMaybeRelativeUrl(
+          data?.posterUrl || ""
+        );
 
         pushResult({
           id: jobId,
@@ -316,12 +375,16 @@ export default function AiStudioClient() {
           previewUrl,
           posterUrl,
         });
+
         setState("done");
         return;
       }
 
       if (status === "failed" || status === "error" || status === "cancelled") {
-        const msg = String(data?.message || data?.error || "Video generation failed");
+        const msg = String(
+          data?.error || data?.message || "Video generation failed"
+        );
+
         pushResult({
           id: jobId,
           type: "video",
@@ -329,6 +392,7 @@ export default function AiStudioClient() {
           status: "error",
           error: msg,
         });
+
         setError(msg);
         setState("error");
         return;
@@ -351,6 +415,7 @@ export default function AiStudioClient() {
         sourceVideo,
         aspectRatio,
         size,
+        quality,
         durationSec,
         model: videoModel,
       });
@@ -361,16 +426,26 @@ export default function AiStudioClient() {
       });
 
       const data = await res.json().catch(() => null);
+
       if (!res.ok) {
-        throw new Error(data?.message || "Video generation failed");
+        throw new Error(data?.error || data?.message || "Video generation failed");
       }
 
-      const id = String(data?.id || data?.jobId || "").trim();
+      const id = String(
+        data?.videoId || data?.jobId || data?.id || ""
+      ).trim();
+
       if (!id) {
         throw new Error("Video API returned no job id");
       }
 
-      pushResult({ id, type: "video", prompt, status: "processing" });
+      pushResult({
+        id,
+        type: "video",
+        prompt,
+        status: "processing",
+      });
+
       setState("processing");
       await pollVideoStatus(id, prompt);
     } catch (e: any) {
@@ -411,7 +486,13 @@ export default function AiStudioClient() {
               )}
             >
               <div className="text-sm font-extrabold">Generate image</div>
-              <div className={tab === "image" ? "mt-1 text-xs text-black/70" : "mt-1 text-xs text-white/55"}>
+              <div
+                className={
+                  tab === "image"
+                    ? "mt-1 text-xs text-black/70"
+                    : "mt-1 text-xs text-white/55"
+                }
+              >
                 Product photo, service promo image, local service visual, listing
                 image.
               </div>
@@ -428,7 +509,13 @@ export default function AiStudioClient() {
               )}
             >
               <div className="text-sm font-extrabold">Generate video</div>
-              <div className={tab === "video" ? "mt-1 text-xs text-black/70" : "mt-1 text-xs text-white/55"}>
+              <div
+                className={
+                  tab === "video"
+                    ? "mt-1 text-xs text-black/70"
+                    : "mt-1 text-xs text-white/55"
+                }
+              >
                 Product commercial, cinematic promo, animated service ad, short
                 listing trailer.
               </div>
@@ -473,7 +560,9 @@ export default function AiStudioClient() {
         <Card>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <div className="text-sm font-extrabold tracking-tight">Reference image</div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Reference image
+              </div>
               <div className="mt-1 text-[11px] text-white/55">
                 Upload your face, product, logo, brand image, or another visual
                 reference.
@@ -496,16 +585,24 @@ export default function AiStudioClient() {
           <div className="flex flex-col gap-4 md:flex-row md:items-center">
             <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
               {referencePreview ? (
-                <img src={referencePreview} alt="Reference" className="h-full w-full object-cover" />
+                <img
+                  src={referencePreview}
+                  alt="Reference"
+                  className="h-full w-full object-cover"
+                />
               ) : (
-                <span className="px-3 text-center text-[10px] text-white/45">No image</span>
+                <span className="px-3 text-center text-[10px] text-white/45">
+                  No image
+                </span>
               )}
             </div>
 
             <div className="min-w-0 flex-1">
               <div className="text-xs text-white/60">
                 {referenceImage ? (
-                  <span className="block truncate font-semibold text-white/80">{referenceImage.name}</span>
+                  <span className="block truncate font-semibold text-white/80">
+                    {referenceImage.name}
+                  </span>
                 ) : (
                   "Reference images help AI make more accurate and personalized visuals."
                 )}
@@ -538,7 +635,9 @@ export default function AiStudioClient() {
           <Card>
             <div className="mb-4 flex items-end justify-between gap-4">
               <div>
-                <div className="text-sm font-extrabold tracking-tight">Optional source video</div>
+                <div className="text-sm font-extrabold tracking-tight">
+                  Optional source video
+                </div>
                 <div className="mt-1 text-[11px] text-white/55">
                   Upload an existing video only if your AI service supports remix or
                   edit flow.
@@ -561,16 +660,25 @@ export default function AiStudioClient() {
             <div className="flex flex-col gap-4 md:flex-row md:items-center">
               <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
                 {sourceVideoPreview ? (
-                  <video src={sourceVideoPreview} className="h-full w-full object-cover" muted playsInline />
+                  <video
+                    src={sourceVideoPreview}
+                    className="h-full w-full object-cover"
+                    muted
+                    playsInline
+                  />
                 ) : (
-                  <span className="px-3 text-center text-[10px] text-white/45">No video</span>
+                  <span className="px-3 text-center text-[10px] text-white/45">
+                    No video
+                  </span>
                 )}
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="text-xs text-white/60">
                   {sourceVideo ? (
-                    <span className="block truncate font-semibold text-white/80">{sourceVideo.name}</span>
+                    <span className="block truncate font-semibold text-white/80">
+                      {sourceVideo.name}
+                    </span>
                   ) : (
                     "Leave empty for prompt-only or prompt + reference image video generation."
                   )}
@@ -603,7 +711,9 @@ export default function AiStudioClient() {
         <Card>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <div className="text-sm font-extrabold tracking-tight">Generation settings</div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Generation settings
+              </div>
               <div className="mt-1 text-[11px] text-white/55">
                 Choose the shape and quality of your output.
               </div>
@@ -616,7 +726,9 @@ export default function AiStudioClient() {
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <div>
-              <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-white/45">Aspect ratio</div>
+              <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-white/45">
+                Aspect ratio
+              </div>
               <select
                 value={aspectRatio}
                 onChange={(e) => setAspectRatio(e.target.value)}
@@ -630,7 +742,9 @@ export default function AiStudioClient() {
             </div>
 
             <div>
-              <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-white/45">Image size</div>
+              <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-white/45">
+                Image size
+              </div>
               <select
                 value={size}
                 onChange={(e) => setSize(e.target.value)}
@@ -643,20 +757,39 @@ export default function AiStudioClient() {
             </div>
 
             <div>
-              <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-white/45">Video duration</div>
+              <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-white/45">
+                Image quality
+              </div>
+              <select
+                value={quality}
+                onChange={(e) => setQuality(e.target.value as ImageQuality)}
+                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+              </select>
+            </div>
+
+            <div>
+              <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-white/45">
+                Video duration
+              </div>
               <select
                 value={durationSec}
                 onChange={(e) => setDurationSec(Number(e.target.value))}
                 className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
               >
-                <option value={5}>5 sec</option>
+                <option value={4}>4 sec</option>
                 <option value={8}>8 sec</option>
-                <option value={10}>10 sec</option>
+                <option value={12}>12 sec</option>
               </select>
             </div>
 
-            <div>
-              <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-white/45">Video model</div>
+            <div className="md:col-span-2 xl:col-span-4">
+              <div className="mb-2 text-[11px] uppercase tracking-[0.16em] text-white/45">
+                Video model
+              </div>
               <select
                 value={videoModel}
                 onChange={(e) => setVideoModel(e.target.value)}
@@ -671,11 +804,19 @@ export default function AiStudioClient() {
 
         <Card>
           <div className="space-y-3">
-            <GhostButton disabled={!canGenerate || tab !== "image"} onClick={generateImage}>
-              {state === "uploading" && tab === "image" ? "Generating image…" : "Generate image"}
+            <GhostButton
+              disabled={!canGenerate || tab !== "image"}
+              onClick={generateImage}
+            >
+              {state === "uploading" && tab === "image"
+                ? "Generating image…"
+                : "Generate image"}
             </GhostButton>
 
-            <GoldButton disabled={!canGenerate || tab !== "video"} onClick={generateVideo}>
+            <GoldButton
+              disabled={!canGenerate || tab !== "video"}
+              onClick={generateVideo}
+            >
               {state === "uploading" && tab === "video"
                 ? "Submitting video job…"
                 : state === "processing" && tab === "video"
@@ -701,7 +842,9 @@ export default function AiStudioClient() {
         <Card>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <div className="text-sm font-extrabold tracking-tight">Beginner tutorial</div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Beginner tutorial
+              </div>
               <div className="mt-1 text-[11px] text-white/55">
                 Simple guide for people who are new to AI generation.
               </div>
@@ -714,7 +857,9 @@ export default function AiStudioClient() {
 
           <div className="space-y-4 text-sm leading-relaxed text-white/70">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="font-extrabold text-white">If you want to sell a product</div>
+              <div className="font-extrabold text-white">
+                If you want to sell a product
+              </div>
               <div className="mt-2 text-[13px] text-white/65">
                 Write what the product is, what material or style it has, and how you
                 want it presented. Example: premium, realistic, clean background,
@@ -723,7 +868,9 @@ export default function AiStudioClient() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="font-extrabold text-white">If you want to sell a service</div>
+              <div className="font-extrabold text-white">
+                If you want to sell a service
+              </div>
               <div className="mt-2 text-[13px] text-white/65">
                 Write what service you provide, who needs it, and what visual scene
                 represents it best. Example: website design, coaching, training,
@@ -732,7 +879,9 @@ export default function AiStudioClient() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="font-extrabold text-white">If it is a local offline service</div>
+              <div className="font-extrabold text-white">
+                If it is a local offline service
+              </div>
               <div className="mt-2 text-[13px] text-white/65">
                 Always include the city and country. Example: personal trainer in
                 Kyiv, Ukraine, or city tour guide in Sofia, Bulgaria.
@@ -740,7 +889,9 @@ export default function AiStudioClient() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="font-extrabold text-white">You can upload your own image</div>
+              <div className="font-extrabold text-white">
+                You can upload your own image
+              </div>
               <div className="mt-2 text-[13px] text-white/65">
                 Upload your face photo, product image, logo, or another reference to
                 help AI create more accurate results.
@@ -752,7 +903,9 @@ export default function AiStudioClient() {
         <Card>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <div className="text-sm font-extrabold tracking-tight">Live preview</div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Live preview
+              </div>
               <div className="mt-1 text-[11px] text-white/55">
                 The latest generated result appears here.
               </div>
@@ -777,8 +930,16 @@ export default function AiStudioClient() {
                   fit="contain"
                   mediaBgClass="bg-black"
                 />
+              ) : mainResult?.status === "error" ? (
+                <div className="flex h-full w-full items-center justify-center px-6 text-center text-sm text-rose-200">
+                  {mainResult.error || "Generation failed"}
+                </div>
               ) : referencePreview ? (
-                <img src={referencePreview} alt="Reference preview" className="h-full w-full object-contain" />
+                <img
+                  src={referencePreview}
+                  alt="Reference preview"
+                  className="h-full w-full object-contain"
+                />
               ) : (
                 <div className="flex h-full w-full items-center justify-center text-xs text-white/45">
                   Your generated result will appear here
@@ -789,7 +950,11 @@ export default function AiStudioClient() {
 
               <div className="absolute bottom-3 left-3 right-3">
                 <div className="truncate text-sm font-black text-white">
-                  {mainResult ? (mainResult.type === "video" ? "AI Video" : "AI Image") : "AI Studio"}
+                  {mainResult
+                    ? mainResult.type === "video"
+                      ? "AI Video"
+                      : "AI Image"
+                    : "AI Studio"}
                 </div>
                 <div className="mt-1 line-clamp-2 text-[11px] text-white/70">
                   {mainResult?.prompt || prompt || "Write a prompt to generate your result."}
@@ -802,7 +967,9 @@ export default function AiStudioClient() {
         <Card>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <div className="text-sm font-extrabold tracking-tight">Recent results</div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Recent results
+              </div>
               <div className="mt-1 text-[11px] text-white/55">
                 Current browser session history.
               </div>
@@ -820,13 +987,20 @@ export default function AiStudioClient() {
               </div>
             ) : (
               results.map((item) => (
-                <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                >
                   <div className="flex flex-wrap items-center gap-2">
                     <Pill>
-                      <span className="font-extrabold text-white/80">{item.type === "video" ? "VIDEO" : "IMAGE"}</span>
+                      <span className="font-extrabold text-white/80">
+                        {item.type === "video" ? "VIDEO" : "IMAGE"}
+                      </span>
                     </Pill>
                     <Pill>
-                      <span className="font-extrabold text-white/80">{item.status.toUpperCase()}</span>
+                      <span className="font-extrabold text-white/80">
+                        {item.status.toUpperCase()}
+                      </span>
                     </Pill>
                   </div>
 
