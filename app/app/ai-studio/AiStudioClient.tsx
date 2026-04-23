@@ -6,6 +6,7 @@ import NftMedia from "@/components/NftMedia";
 type StudioTab = "image" | "video";
 type JobState = "idle" | "uploading" | "processing" | "done" | "error";
 type ImageQuality = "low" | "medium" | "high";
+type VideoModel = "sora-2" | "sora-2-pro";
 
 type ResultCard = {
   id: string;
@@ -181,12 +182,19 @@ function buildFormData(input: {
 function resolveMaybeRelativeUrl(url?: string | null) {
   const value = String(url || "").trim();
   if (!value) return null;
-  if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:")) {
+
+  if (
+    value.startsWith("http://") ||
+    value.startsWith("https://") ||
+    value.startsWith("data:")
+  ) {
     return value;
   }
+
   if (value.startsWith("/") && AI_API_BASE) {
     return `${AI_API_BASE}${value}`;
   }
+
   return value;
 }
 
@@ -213,7 +221,7 @@ export default function AiStudioClient() {
   const [size, setSize] = useState("1024x1024");
   const [quality, setQuality] = useState<ImageQuality>("medium");
   const [durationSec, setDurationSec] = useState(8);
-  const [videoModel, setVideoModel] = useState("sora-2");
+  const [videoModel, setVideoModel] = useState<VideoModel>("sora-2");
   const [state, setState] = useState<JobState>("idle");
   const [error, setError] = useState("");
   const [results, setResults] = useState<ResultCard[]>([]);
@@ -226,7 +234,11 @@ export default function AiStudioClient() {
   }, [referencePreview, sourceVideoPreview]);
 
   const canGenerate = useMemo(() => {
-    return prompt.trim().length > 8 && state !== "uploading" && state !== "processing";
+    return (
+      prompt.trim().length > 8 &&
+      state !== "uploading" &&
+      state !== "processing"
+    );
   }, [prompt, state]);
 
   function setReference(file: File | null) {
@@ -242,7 +254,8 @@ export default function AiStudioClient() {
   }
 
   function pushResult(
-    patch: Partial<ResultCard> & Pick<ResultCard, "id" | "type" | "prompt" | "status">
+    patch: Partial<ResultCard> &
+      Pick<ResultCard, "id" | "type" | "prompt" | "status">
   ) {
     setResults((prev) => {
       const i = prev.findIndex((x) => x.id === patch.id);
@@ -268,6 +281,10 @@ export default function AiStudioClient() {
       };
       return copy;
     });
+  }
+
+  function removeResult(id: string) {
+    setResults((prev) => prev.filter((x) => x.id !== id));
   }
 
   async function generateImage() {
@@ -297,7 +314,9 @@ export default function AiStudioClient() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(data?.error || data?.message || "Image generation failed");
+        throw new Error(
+          data?.error || data?.message || "Image generation failed"
+        );
       }
 
       const resultUrl = resolveMaybeRelativeUrl(
@@ -324,6 +343,7 @@ export default function AiStudioClient() {
       setState("done");
     } catch (e: any) {
       const msg = e?.message || "Image generation failed";
+
       pushResult({
         id,
         type: "image",
@@ -331,6 +351,7 @@ export default function AiStudioClient() {
         status: "error",
         error: msg,
       });
+
       setError(msg);
       setState("error");
     }
@@ -362,9 +383,7 @@ export default function AiStudioClient() {
           data?.previewUrl || resultUrl || ""
         );
 
-        const posterUrl = resolveMaybeRelativeUrl(
-          data?.posterUrl || ""
-        );
+        const posterUrl = resolveMaybeRelativeUrl(data?.posterUrl || "");
 
         pushResult({
           id: jobId,
@@ -408,6 +427,14 @@ export default function AiStudioClient() {
     setError("");
     setState("uploading");
 
+    const tempId = `video_local_${Date.now()}`;
+    pushResult({
+      id: tempId,
+      type: "video",
+      prompt,
+      status: "processing",
+    });
+
     try {
       const form = buildFormData({
         prompt,
@@ -428,28 +455,58 @@ export default function AiStudioClient() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(data?.error || data?.message || "Video generation failed");
+        throw new Error(
+          data?.error || data?.message || "Video generation failed"
+        );
       }
 
-      const id = String(
+      const realJobId = String(
         data?.videoId || data?.jobId || data?.id || ""
       ).trim();
 
-      if (!id) {
+      if (!realJobId) {
         throw new Error("Video API returned no job id");
       }
 
+      removeResult(tempId);
+
       pushResult({
-        id,
+        id: realJobId,
         type: "video",
         prompt,
         status: "processing",
       });
 
       setState("processing");
-      await pollVideoStatus(id, prompt);
+
+      try {
+        await pollVideoStatus(realJobId, prompt);
+      } catch (pollError: any) {
+        const msg =
+          pollError?.message || "Video generation is taking longer than expected";
+
+        pushResult({
+          id: realJobId,
+          type: "video",
+          prompt,
+          status: "error",
+          error: msg,
+        });
+
+        setError(msg);
+        setState("error");
+      }
     } catch (e: any) {
       const msg = e?.message || "Video generation failed";
+
+      pushResult({
+        id: tempId,
+        type: "video",
+        prompt,
+        status: "error",
+        error: msg,
+      });
+
       setError(msg);
       setState("error");
     }
@@ -792,7 +849,7 @@ export default function AiStudioClient() {
               </div>
               <select
                 value={videoModel}
-                onChange={(e) => setVideoModel(e.target.value)}
+                onChange={(e) => setVideoModel(e.target.value as VideoModel)}
                 className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
               >
                 <option value="sora-2">sora-2</option>
@@ -923,7 +980,11 @@ export default function AiStudioClient() {
                   src={mainResult.resultUrl}
                   kind={mainResult.type === "video" ? "video" : "image"}
                   alt="AI result preview"
-                  poster={mainResult.type === "video" ? mainResult.posterUrl || null : null}
+                  poster={
+                    mainResult.type === "video"
+                      ? mainResult.posterUrl || null
+                      : null
+                  }
                   showControls={mainResult.type === "video"}
                   className="h-full w-full"
                   roundedClass="rounded-none"
@@ -957,7 +1018,9 @@ export default function AiStudioClient() {
                     : "AI Studio"}
                 </div>
                 <div className="mt-1 line-clamp-2 text-[11px] text-white/70">
-                  {mainResult?.prompt || prompt || "Write a prompt to generate your result."}
+                  {mainResult?.prompt ||
+                    prompt ||
+                    "Write a prompt to generate your result."}
                 </div>
               </div>
             </div>
@@ -1015,7 +1078,9 @@ export default function AiStudioClient() {
                           src={item.resultUrl}
                           kind={item.type === "video" ? "video" : "image"}
                           alt="AI result"
-                          poster={item.type === "video" ? item.posterUrl || null : null}
+                          poster={
+                            item.type === "video" ? item.posterUrl || null : null
+                          }
                           showControls={item.type === "video"}
                           className="h-full w-full"
                           roundedClass="rounded-none"
