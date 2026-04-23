@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { Metadata } from "next";
 import Reveal from "@/components/Reveal";
 import AiStudioClient from "./AiStudioClient";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -226,7 +227,10 @@ export default function AiStudioPage() {
                 </div>
 
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
-                  Recommended use: <span className="font-semibold text-white">Create listing visuals first, then mint or attach later</span>
+                  Recommended use:{" "}
+                  <span className="font-semibold text-white">
+                    Create listing visuals first, then mint or attach later
+                  </span>
                 </div>
               </div>
             </div>
