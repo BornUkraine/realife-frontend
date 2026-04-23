@@ -5,20 +5,20 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type Params = {
-  params: Promise<{ id: string }> | { id: string };
+type RouteContext = {
+  params: Promise<{ id: string }>;
 };
 
-export async function GET(req: Request, ctx: Params) {
+export async function GET(req: Request, { params }: RouteContext) {
   try {
-    const resolved = await ctx.params;
-    const id = resolved.id;
+    const { id } = await params;
     const { searchParams } = new URL(req.url);
 
-    const variant = (searchParams.get("variant") || "video") as
-      | "video"
-      | "thumbnail"
-      | "spritesheet";
+    const variantParam = searchParams.get("variant");
+    const variant =
+      variantParam === "thumbnail" || variantParam === "spritesheet"
+        ? variantParam
+        : "video";
 
     const upstream = await downloadVideoContent(id, variant);
 
