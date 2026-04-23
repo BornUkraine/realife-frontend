@@ -21,11 +21,20 @@ function authHeaders(extra?: HeadersInit): HeadersInit {
   };
 }
 
+export function normalizeImageSize(value?: string | null): ImageSize | null {
+  const v = String(value || "").trim();
+  if (v === "1024x1024") return "1024x1024";
+  if (v === "1024x1536") return "1024x1536";
+  if (v === "1536x1024") return "1536x1024";
+  return null;
+}
+
 export function mapAspectRatioToImageSize(value?: string): ImageSize {
   switch (value) {
     case "1:1":
       return "1024x1024";
     case "4:5":
+    case "9:16":
       return "1024x1536";
     case "16:9":
     default:
@@ -35,11 +44,12 @@ export function mapAspectRatioToImageSize(value?: string): ImageSize {
 
 export function mapAspectRatioToVideoSize(value?: string): VideoSize {
   switch (value) {
+    case "9:16":
+      return "720x1280";
     case "4:5":
       return "1024x1792";
-    case "1:1":
-      return "1280x720";
     case "16:9":
+    case "1:1":
     default:
       return "1280x720";
   }
@@ -75,7 +85,8 @@ export async function createImage(params: {
       body: form,
     });
 
-    const json = await response.json();
+    const json = await response.json().catch(() => null);
+
     if (!response.ok) {
       throw new Error(json?.error?.message || "OpenAI image edit failed.");
     }
@@ -107,7 +118,8 @@ export async function createImage(params: {
     }),
   });
 
-  const json = await response.json();
+  const json = await response.json().catch(() => null);
+
   if (!response.ok) {
     throw new Error(json?.error?.message || "OpenAI image generation failed.");
   }
@@ -154,7 +166,8 @@ export async function createVideo(params: {
     body: JSON.stringify(body),
   });
 
-  const json = await response.json();
+  const json = await response.json().catch(() => null);
+
   if (!response.ok) {
     throw new Error(json?.error?.message || "OpenAI video creation failed.");
   }
@@ -169,7 +182,8 @@ export async function retrieveVideo(videoId: string) {
     cache: "no-store",
   });
 
-  const json = await response.json();
+  const json = await response.json().catch(() => null);
+
   if (!response.ok) {
     throw new Error(json?.error?.message || "OpenAI video status failed.");
   }
@@ -177,7 +191,10 @@ export async function retrieveVideo(videoId: string) {
   return json;
 }
 
-export async function downloadVideoContent(videoId: string, variant: "video" | "thumbnail" | "spritesheet" = "video") {
+export async function downloadVideoContent(
+  videoId: string,
+  variant: "video" | "thumbnail" | "spritesheet" = "video"
+) {
   const response = await fetch(
     `${OPENAI_BASE_URL}/videos/${videoId}/content?variant=${variant}`,
     {
@@ -188,7 +205,9 @@ export async function downloadVideoContent(videoId: string, variant: "video" | "
 
   if (!response.ok) {
     const maybeJson = await safeJson(response);
-    throw new Error(maybeJson?.error?.message || "OpenAI video download failed.");
+    throw new Error(
+      maybeJson?.error?.message || "OpenAI video download failed."
+    );
   }
 
   return response;
