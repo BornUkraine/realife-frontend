@@ -10,7 +10,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function normalizeSeconds(value: unknown): 4 | 8 | 12 {
+  const n = Number(value);
+  if (n === 4) return 4;
+  if (n === 12) return 12;
+  return 8;
+}
+
 export async function POST(req: Request) {
+  let generationId: string | null = null;
+
   try {
     const form = await req.formData();
     const prompt = String(form.get("prompt") || "").trim();
@@ -18,12 +27,14 @@ export async function POST(req: Request) {
       | "sora-2"
       | "sora-2-pro";
     const aspectRatio = String(form.get("aspectRatio") || "16:9").trim();
-    const seconds = Number(form.get("seconds") || 8) as 4 | 8 | 12;
+    const seconds = normalizeSeconds(
+      form.get("seconds") || form.get("durationSec") || 8
+    );
     const referenceImage = form.get("referenceImage");
 
     if (!prompt) {
       return NextResponse.json(
-        { ok: false, error: "Prompt is required." },
+        { ok: false, error: "Prompt is required.", message: "Prompt is required." },
         { status: 400 }
       );
     }
@@ -40,8 +51,12 @@ export async function POST(req: Request) {
       },
     });
 
+    generationId = generation.id;
+
     const referenceImageDataUrl =
-      referenceImage instanceof File ? await fileToDataUrl(referenceImage) : undefined;
+      referenceImage instanceof File
+        ? await fileToDataUrl(referenceImage)
+        : undefined;
 
     const video = await createVideo({
       prompt,
@@ -61,11 +76,30 @@ export async function POST(req: Request) {
     return NextResponse.json({
       ok: true,
       generationId: generation.id,
+      id: video.id,
+      jobId: video.id,
       videoId: video.id,
       status: video.status,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Video generation failed.";
-    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+    const message =
+      error instanceof Error ? error.message : "Video generation failed.";
+
+    if (generationId) {
+      await prisma.aiGeneration
+        .update({
+          where: { id: generationId },
+          data: {
+            status: "FAILED",
+            errorMessage: message,
+          },
+        })
+        .catch(() => {});
+    }
+
+    return NextResponse.json(
+      { ok: false, error: message, message },
+      { status: 500 }
+    );
   }
 }
