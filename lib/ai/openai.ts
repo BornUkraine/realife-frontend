@@ -7,6 +7,34 @@ export type VideoModel = "sora-2" | "sora-2-pro";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
+type OpenAiErrorShape = {
+  error?: {
+    message?: string;
+  };
+};
+
+export type OpenAiVideoJob = {
+  id: string;
+  status: string;
+  progress?: number;
+  prompt?: string;
+  seconds?: number;
+  size?: string;
+  error?: {
+    message?: string;
+  };
+};
+
+type OpenAiImageResponse = OpenAiErrorShape & {
+  data?: Array<{
+    b64_json?: string;
+  }>;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
 export function assertOpenAiKey() {
   if (!OPENAI_API_KEY) {
     throw new Error("OPENAI_API_KEY is missing on the server.");
@@ -61,6 +89,45 @@ export async function fileToDataUrl(file: File): Promise<string> {
   return `data:${mime};base64,${buffer.toString("base64")}`;
 }
 
+async function safeJson<T = unknown>(response: Response): Promise<T | null> {
+  try {
+    return (await response.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
+function extractErrorMessage(json: unknown, fallback: string) {
+  if (
+    isRecord(json) &&
+    isRecord(json.error) &&
+    typeof json.error.message === "string" &&
+    json.error.message.trim()
+  ) {
+    return json.error.message.trim();
+  }
+  return fallback;
+}
+
+function toVideoJob(json: unknown, fallbackMessage: string): OpenAiVideoJob {
+  if (!isRecord(json) || typeof json.id !== "string" || typeof json.status !== "string") {
+    throw new Error(fallbackMessage);
+  }
+
+  return {
+    id: json.id,
+    status: json.status,
+    progress: typeof json.progress === "number" ? json.progress : undefined,
+    prompt: typeof json.prompt === "string" ? json.prompt : undefined,
+    seconds: typeof json.seconds === "number" ? json.seconds : undefined,
+    size: typeof json.size === "string" ? json.size : undefined,
+    error:
+      isRecord(json.error) && typeof json.error.message === "string"
+        ? { message: json.error.message }
+        : undefined,
+  };
+}
+
 export async function createImage(params: {
   prompt: string;
   size: ImageSize;
@@ -71,13 +138,17 @@ export async function createImage(params: {
 
   if (referenceImage) {
     const form = new FormData();
-    form.set("model", "gpt-image-1");
-    form.set("prompt", prompt);
-    form.set("size", size);
-    form.set("quality", quality);
-    form.set("output_format", "png");
-    form.set("background", "opaque");
-    form.set("image", referenceImage);
+    form.append("model", "gpt-image-1");
+    form.append("prompt", prompt);
+    form.append("size", size);
+    form.append("quality", quality);
+    form.append("output_format", "png");
+    form.append("background", "opaque");
+    form.append(
+      "image[]",
+      referenceImage,
+      referenceImage.name || "reference.png"
+    );
 
     const response = await fetch(`${OPENAI_BASE_URL}/images/edits`, {
       method: "POST",
@@ -85,10 +156,10 @@ export async function createImage(params: {
       body: form,
     });
 
-    const json = await response.json().catch(() => null);
+    const json = await safeJson<OpenAiImageResponse>(response);
 
     if (!response.ok) {
-      throw new Error(json?.error?.message || "OpenAI image edit failed.");
+      throw new Error(extractErrorMessage(json, "OpenAI image edit failed."));
     }
 
     const b64 = json?.data?.[0]?.b64_json;
@@ -118,10 +189,12 @@ export async function createImage(params: {
     }),
   });
 
-  const json = await response.json().catch(() => null);
+  const json = await safeJson<OpenAiImageResponse>(response);
 
   if (!response.ok) {
-    throw new Error(json?.error?.message || "OpenAI image generation failed.");
+    throw new Error(
+      extractErrorMessage(json, "OpenAI image generation failed.")
+    );
   }
 
   const b64 = json?.data?.[0]?.b64_json;
@@ -166,13 +239,13 @@ export async function createVideo(params: {
     body: JSON.stringify(body),
   });
 
-  const json = await response.json().catch(() => null);
+  const json = await safeJson(response);
 
   if (!response.ok) {
-    throw new Error(json?.error?.message || "OpenAI video creation failed.");
+    throw new Error(extractErrorMessage(json, "OpenAI video creation failed."));
   }
 
-  return json;
+  return toVideoJob(json, "OpenAI video creation returned invalid response.");
 }
 
 export async function retrieveVideo(videoId: string) {
@@ -182,13 +255,13 @@ export async function retrieveVideo(videoId: string) {
     cache: "no-store",
   });
 
-  const json = await response.json().catch(() => null);
+  const json = await safeJson(response);
 
   if (!response.ok) {
-    throw new Error(json?.error?.message || "OpenAI video status failed.");
+    throw new Error(extractErrorMessage(json, "OpenAI video status failed."));
   }
 
-  return json;
+  return toVideoJob(json, "OpenAI video status returned invalid response.");
 }
 
 export async function downloadVideoContent(
@@ -206,17 +279,9 @@ export async function downloadVideoContent(
   if (!response.ok) {
     const maybeJson = await safeJson(response);
     throw new Error(
-      maybeJson?.error?.message || "OpenAI video download failed."
+      extractErrorMessage(maybeJson, "OpenAI video download failed.")
     );
   }
 
   return response;
-}
-
-async function safeJson(response: Response) {
-  try {
-    return await response.json();
-  } catch {
-    return null;
-  }
 }
