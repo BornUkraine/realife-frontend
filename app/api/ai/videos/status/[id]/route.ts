@@ -1,36 +1,69 @@
-import { downloadVideoContent } from "@/lib/ai/openai";
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { createImage, mapAspectRatioToImageSize } from "@/lib/ai/openai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type Params = {
-  params: Promise<{ id: string }> | { id: string };
-};
+export async function POST(req: Request) {
+  try {
+    const form = await req.formData();
+    const prompt = String(form.get("prompt") || "").trim();
+    const quality = String(form.get("quality") || "medium").trim() as
+      | "low"
+      | "medium"
+      | "high";
+    const aspectRatio = String(form.get("aspectRatio") || "16:9").trim();
+    const referenceImage = form.get("referenceImage");
 
-export async function GET(req: Request, ctx: Params) {
-  const resolved = await ctx.params;
-  const id = resolved.id;
-  const { searchParams } = new URL(req.url);
-  const variant = (searchParams.get("variant") || "video") as
-    | "video"
-    | "thumbnail"
-    | "spritesheet";
+    if (!prompt) {
+      return NextResponse.json(
+        { ok: false, error: "Prompt is required." },
+        { status: 400 }
+      );
+    }
 
-  const upstream = await downloadVideoContent(id, variant);
+    const generation = await prisma.aiGeneration.create({
+      data: {
+        type: "IMAGE",
+        status: "PROCESSING",
+        provider: "openai",
+        model: "gpt-image-1",
+        prompt,
+        quality,
+        aspectRatio,
+        mimeType:
+          referenceImage instanceof File && referenceImage.type
+            ? referenceImage.type
+            : null,
+      },
+    });
 
-  const headers = new Headers();
-  const contentType = upstream.headers.get("content-type") || "video/mp4";
-  headers.set("content-type", contentType);
-  headers.set(
-    "content-disposition",
-    variant === "video"
-      ? `inline; filename="realife-ai-${id}.mp4"`
-      : `inline; filename="realife-ai-${id}.${variant === "thumbnail" ? "jpg" : "bin"}"`
-  );
+    const result = await createImage({
+      prompt,
+      size: mapAspectRatioToImageSize(aspectRatio),
+      quality,
+      referenceImage: referenceImage instanceof File ? referenceImage : null,
+    });
 
-  return new Response(upstream.body, {
-    status: 200,
-    headers,
-  });
+    await prisma.aiGeneration.update({
+      where: { id: generation.id },
+      data: {
+        status: "COMPLETED",
+        previewUrl: result.dataUrl,
+        resultUrl: result.dataUrl,
+      },
+    });
+
+    return NextResponse.json({
+      ok: true,
+      generationId: generation.id,
+      resultUrl: result.dataUrl,
+      prompt,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Image generation failed.";
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
 }
