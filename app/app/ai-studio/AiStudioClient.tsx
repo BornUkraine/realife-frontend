@@ -7,6 +7,7 @@ type StudioTab = "image" | "video";
 type JobState = "idle" | "uploading" | "processing" | "done" | "error";
 type ImageQuality = "low" | "medium" | "high";
 type VideoModel = "sora-2" | "sora-2-pro";
+type ImagePreset = "product" | "service" | "local-service" | "nft-poster";
 
 type ResultCard = {
   id: string;
@@ -18,6 +19,10 @@ type ResultCard = {
   previewUrl?: string | null;
   posterUrl?: string | null;
   error?: string | null;
+  model?: string | null;
+  preset?: string | null;
+  quality?: string | null;
+  size?: string | null;
 };
 
 const AI_API_BASE = (process.env.NEXT_PUBLIC_AI_API_BASE || "").replace(/\/$/, "");
@@ -37,6 +42,55 @@ const VIDEO_STATUS_ENDPOINT = AI_API_BASE
 const VIDEO_DOWNLOAD_ENDPOINT = AI_API_BASE
   ? `${AI_API_BASE}/api/ai/videos/download`
   : "/api/ai/videos/download";
+
+const IMAGE_MODEL_HINT = "gpt-image-2";
+
+const PRODUCT_TEMPLATE =
+  "Create a premium NFT-style product card image for fresh Spanish pineapples. Show ripe golden pineapples and juicy slices, luxury commercial quality, clean premium background, elegant black gold and cream mood, realistic food photography, Andalusia Spain feeling, delicious and expensive look. Include clean readable sales text: “PREMIUM PINEAPPLES”, “Juicy & Delicious”, “Spain • Andalusia”, “Phone: +34096554581”, and a small elegant “NFT PRODUCT” badge.";
+
+const SERVICE_TEMPLATE =
+  "Create a premium promotional image for a website design service for small businesses. Show a modern elegant workspace, laptop, professional creative atmosphere, black and gold premium style, clean trustworthy commercial quality, realistic lighting, high-end service marketplace cover, NFT service offer feeling.";
+
+const LOCAL_TEMPLATE =
+  "Create a premium promotional image for a local offline fitness service in Los Angeles, USA. Show a professional female personal trainer in a clean modern gym environment, trustworthy, elegant, realistic, premium commercial quality, strong local service marketplace cover, NFT service offer style.";
+
+const NFT_TEMPLATE =
+  "Create a luxury NFT product poster for a real-world marketplace listing. Premium black and gold collectible card style, elegant frame, cinematic lighting, polished commercial quality, high-end Web3 marketplace visual, strong central product hero, clean typography, expensive and impressive look.";
+
+const PRESET_META: Record<
+  ImagePreset,
+  {
+    title: string;
+    label: string;
+    description: string;
+    template: string;
+  }
+> = {
+  product: {
+    title: "Premium Product",
+    label: "PRODUCT",
+    description: "Luxury product ad, store item, delivery item, NFT product card.",
+    template: PRODUCT_TEMPLATE,
+  },
+  service: {
+    title: "Premium Service",
+    label: "SERVICE",
+    description: "Online service, digital work, consultation, creative or tech offer.",
+    template: SERVICE_TEMPLATE,
+  },
+  "local-service": {
+    title: "Local Service",
+    label: "LOCAL",
+    description: "Offline service with city/country, real-world professional offer.",
+    template: LOCAL_TEMPLATE,
+  },
+  "nft-poster": {
+    title: "Luxury NFT Poster",
+    label: "NFT",
+    description: "Collectible premium NFT card/poster with strong marketplace style.",
+    template: NFT_TEMPLATE,
+  },
+};
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
@@ -61,7 +115,7 @@ function Card({
     <div
       className={[
         "relative overflow-hidden rounded-[28px] p-px",
-        "bg-[linear-gradient(135deg,rgba(247,231,167,0.26),rgba(212,175,55,0.12),rgba(184,135,10,0.08))]",
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.30),rgba(212,175,55,0.14),rgba(184,135,10,0.08))]",
         "shadow-[0_26px_100px_rgba(0,0,0,0.55)]",
         className,
       ].join(" ")}
@@ -69,10 +123,10 @@ function Card({
       <div
         className={[
           "relative overflow-hidden rounded-[28px]",
-          "border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl",
+          "border border-white/10 bg-[#0b0a09]/58 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
-          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.10),transparent_45%)]",
+          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(212,175,55,0.12),transparent_45%)]",
           "after:pointer-events-none after:absolute after:inset-0",
           "after:bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]",
         ].join(" ")}
@@ -104,7 +158,7 @@ function GoldButton({
         "rounded-2xl px-8 py-4",
         "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
         "text-black font-extrabold tracking-tight",
-        "shadow-[0_22px_70px_rgba(212,175,55,0.18)] ring-1 ring-black/15",
+        "shadow-[0_22px_70px_rgba(212,175,55,0.22)] ring-1 ring-black/15",
         "transition duration-300 hover:-translate-y-px hover:brightness-110 active:translate-y-0",
         "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0 disabled:hover:brightness-100",
         "before:absolute before:inset-0 before:bg-[linear-gradient(120deg,transparent,rgba(255,255,255,0.35),transparent)] before:translate-x-[-140%] before:transition before:duration-700 hover:before:translate-x-[140%]",
@@ -150,6 +204,33 @@ function toObjectUrl(file: File | null) {
   return file ? URL.createObjectURL(file) : null;
 }
 
+function defaultSizeForAspectRatio(value: string) {
+  switch (value) {
+    case "1:1":
+      return "1024x1024";
+    case "9:16":
+    case "4:5":
+      return "1024x1536";
+    case "16:9":
+    default:
+      return "1536x1024";
+  }
+}
+
+function previewAspectClass(value: string) {
+  switch (value) {
+    case "1:1":
+      return "aspect-square";
+    case "9:16":
+      return "aspect-[9/16]";
+    case "4:5":
+      return "aspect-[4/5]";
+    case "16:9":
+    default:
+      return "aspect-video";
+  }
+}
+
 function buildFormData(input: {
   prompt: string;
   referenceImage: File | null;
@@ -159,14 +240,21 @@ function buildFormData(input: {
   quality: ImageQuality;
   durationSec: number;
   model: string;
+  preset: ImagePreset;
 }) {
   const form = new FormData();
+
   form.append("prompt", input.prompt.trim());
   form.append("aspectRatio", input.aspectRatio);
   form.append("size", input.size);
   form.append("quality", input.quality);
   form.append("seconds", String(input.durationSec));
   form.append("model", input.model);
+
+  // Backend route can use any of these names.
+  form.append("preset", input.preset);
+  form.append("promptType", input.preset);
+  form.append("mode", input.preset);
 
   if (input.referenceImage) {
     form.append("referenceImage", input.referenceImage);
@@ -198,30 +286,26 @@ function resolveMaybeRelativeUrl(url?: string | null) {
   return value;
 }
 
-const PRODUCT_TEMPLATE =
-  "Create a premium product image for [product]. Show the product clearly with [color/material/style], clean background, realistic commercial quality, premium look.";
-
-const SERVICE_TEMPLATE =
-  "Create a professional promotional image for [service]. Show a visual scene that represents this service for [target audience], premium, clean, trustworthy, realistic style.";
-
-const LOCAL_TEMPLATE =
-  "Create a promotional image for [service] in [city, country]. Show a realistic local environment, premium presentation, trustworthy and professional look for people who need this service.";
-
 export default function AiStudioClient() {
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [tab, setTab] = useState<StudioTab>("image");
-  const [prompt, setPrompt] = useState("");
+  const [preset, setPreset] = useState<ImagePreset>("product");
+  const [prompt, setPrompt] = useState(PRODUCT_TEMPLATE);
+
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [sourceVideo, setSourceVideo] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
   const [sourceVideoPreview, setSourceVideoPreview] = useState<string | null>(null);
+
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [size, setSize] = useState("1024x1024");
-  const [quality, setQuality] = useState<ImageQuality>("medium");
+  const [quality, setQuality] = useState<ImageQuality>("high");
+
   const [durationSec, setDurationSec] = useState(8);
-  const [videoModel, setVideoModel] = useState<VideoModel>("sora-2");
+  const [videoModel, setVideoModel] = useState<VideoModel>("sora-2-pro");
+
   const [state, setState] = useState<JobState>("idle");
   const [error, setError] = useState("");
   const [results, setResults] = useState<ResultCard[]>([]);
@@ -240,6 +324,23 @@ export default function AiStudioClient() {
       state !== "processing"
     );
   }, [prompt, state]);
+
+  function selectPreset(nextPreset: ImagePreset) {
+    setPreset(nextPreset);
+    setPrompt(PRESET_META[nextPreset].template);
+    setTab("image");
+
+    if (nextPreset === "product" || nextPreset === "nft-poster") {
+      setAspectRatio("1:1");
+      setSize("1024x1024");
+      setQuality("high");
+    }
+  }
+
+  function handleAspectRatioChange(value: string) {
+    setAspectRatio(value);
+    setSize(defaultSizeForAspectRatio(value));
+  }
 
   function setReference(file: File | null) {
     if (referencePreview) URL.revokeObjectURL(referencePreview);
@@ -270,6 +371,10 @@ export default function AiStudioClient() {
         previewUrl: patch.previewUrl || null,
         posterUrl: patch.posterUrl || null,
         error: patch.error || null,
+        model: patch.model || null,
+        preset: patch.preset || null,
+        quality: patch.quality || null,
+        size: patch.size || null,
       };
 
       if (i === -1) return [next, ...prev];
@@ -279,6 +384,7 @@ export default function AiStudioClient() {
         ...copy[i],
         ...next,
       };
+
       return copy;
     });
   }
@@ -292,7 +398,17 @@ export default function AiStudioClient() {
     setState("uploading");
 
     const id = `img_${Date.now()}`;
-    pushResult({ id, type: "image", prompt, status: "processing" });
+
+    pushResult({
+      id,
+      type: "image",
+      prompt,
+      status: "processing",
+      model: IMAGE_MODEL_HINT,
+      preset,
+      quality,
+      size,
+    });
 
     try {
       const form = buildFormData({
@@ -303,7 +419,8 @@ export default function AiStudioClient() {
         size,
         quality,
         durationSec,
-        model: "gpt-image-1",
+        model: IMAGE_MODEL_HINT,
+        preset,
       });
 
       const res = await fetch(IMAGE_ENDPOINT, {
@@ -338,6 +455,10 @@ export default function AiStudioClient() {
         status: "done",
         resultUrl,
         previewUrl,
+        model: data?.model || IMAGE_MODEL_HINT,
+        preset: data?.preset || preset,
+        quality: data?.quality || quality,
+        size: data?.size || size,
       });
 
       setState("done");
@@ -350,6 +471,10 @@ export default function AiStudioClient() {
         prompt,
         status: "error",
         error: msg,
+        model: IMAGE_MODEL_HINT,
+        preset,
+        quality,
+        size,
       });
 
       setError(msg);
@@ -393,6 +518,10 @@ export default function AiStudioClient() {
           resultUrl,
           previewUrl,
           posterUrl,
+          model: videoModel,
+          preset,
+          quality,
+          size,
         });
 
         setState("done");
@@ -410,6 +539,10 @@ export default function AiStudioClient() {
           prompt: promptText,
           status: "error",
           error: msg,
+          model: videoModel,
+          preset,
+          quality,
+          size,
         });
 
         setError(msg);
@@ -428,11 +561,16 @@ export default function AiStudioClient() {
     setState("uploading");
 
     const tempId = `video_local_${Date.now()}`;
+
     pushResult({
       id: tempId,
       type: "video",
       prompt,
       status: "processing",
+      model: videoModel,
+      preset,
+      quality,
+      size,
     });
 
     try {
@@ -445,6 +583,7 @@ export default function AiStudioClient() {
         quality,
         durationSec,
         model: videoModel,
+        preset,
       });
 
       const res = await fetch(VIDEO_ENDPOINT, {
@@ -475,6 +614,10 @@ export default function AiStudioClient() {
         type: "video",
         prompt,
         status: "processing",
+        model: videoModel,
+        preset,
+        quality,
+        size,
       });
 
       setState("processing");
@@ -491,6 +634,10 @@ export default function AiStudioClient() {
           prompt,
           status: "error",
           error: msg,
+          model: videoModel,
+          preset,
+          quality,
+          size,
         });
 
         setError(msg);
@@ -505,6 +652,10 @@ export default function AiStudioClient() {
         prompt,
         status: "error",
         error: msg,
+        model: videoModel,
+        preset,
+        quality,
+        size,
       });
 
       setError(msg);
@@ -522,12 +673,13 @@ export default function AiStudioClient() {
             <div>
               <div className="text-sm font-extrabold tracking-tight">AI mode</div>
               <div className="mt-1 text-[11px] text-white/55">
-                Choose whether you want an image or a short video.
+                Choose whether you want a premium image or short AI video.
               </div>
             </div>
+
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
-              Required
+              Mega quality
             </Pill>
           </div>
 
@@ -550,8 +702,8 @@ export default function AiStudioClient() {
                     : "mt-1 text-xs text-white/55"
                 }
               >
-                Product photo, service promo image, local service visual, listing
-                image.
+                Premium product card, service cover, local service visual, NFT
+                poster.
               </div>
             </button>
 
@@ -573,10 +725,61 @@ export default function AiStudioClient() {
                     : "mt-1 text-xs text-white/55"
                 }
               >
-                Product commercial, cinematic promo, animated service ad, short
-                listing trailer.
+                Product commercial, cinematic promo, service ad, listing trailer.
               </div>
             </button>
+          </div>
+        </Card>
+
+        <Card>
+          <div className="mb-4 flex items-end justify-between gap-4">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Premium preset
+              </div>
+              <div className="mt-1 text-[11px] text-white/55">
+                Choose the visual direction before generation.
+              </div>
+            </div>
+
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+              Art direction
+            </Pill>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {(Object.keys(PRESET_META) as ImagePreset[]).map((key) => {
+              const item = PRESET_META[key];
+              const active = preset === key;
+
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => selectPreset(key)}
+                  className={cx(
+                    "rounded-2xl border p-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.22)]",
+                    active
+                      ? "border-[#d4af37]/45 bg-[#d4af37]/12 ring-1 ring-[#d4af37]/25"
+                      : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-black text-white">
+                      {item.title}
+                    </div>
+                    <span className="rounded-full border border-white/10 bg-black/25 px-2.5 py-1 text-[10px] font-black text-[#f7e7a7]">
+                      {item.label}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 text-xs leading-relaxed text-white/58">
+                    {item.description}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </Card>
 
@@ -588,6 +791,7 @@ export default function AiStudioClient() {
                 Write clearly what product or service you want to sell.
               </div>
             </div>
+
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
               Required
@@ -597,19 +801,25 @@ export default function AiStudioClient() {
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Example: Create a premium promotional image for a website design service for small businesses, black and gold style, realistic workspace, clean and trustworthy look."
-            className="min-h-[190px] w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
+            placeholder="Example: Create a premium NFT-style product card for fresh pineapples in Andalusia, Spain, juicy and delicious, black gold luxury style, readable text, commercial quality."
+            className="min-h-[230px] w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm leading-relaxed text-white placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
           />
 
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <GhostButton onClick={() => setPrompt(PRODUCT_TEMPLATE)}>
-              Product prompt
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <GhostButton onClick={() => selectPreset("product")}>
+              Product
             </GhostButton>
-            <GhostButton onClick={() => setPrompt(SERVICE_TEMPLATE)}>
-              Service prompt
+
+            <GhostButton onClick={() => selectPreset("service")}>
+              Service
             </GhostButton>
-            <GhostButton onClick={() => setPrompt(LOCAL_TEMPLATE)}>
-              Local service prompt
+
+            <GhostButton onClick={() => selectPreset("local-service")}>
+              Local
+            </GhostButton>
+
+            <GhostButton onClick={() => selectPreset("nft-poster")}>
+              NFT poster
             </GhostButton>
           </div>
         </Card>
@@ -621,10 +831,11 @@ export default function AiStudioClient() {
                 Reference image
               </div>
               <div className="mt-1 text-[11px] text-white/55">
-                Upload your face, product, logo, brand image, or another visual
+                Upload your product, face, logo, brand image, or another visual
                 reference.
               </div>
             </div>
+
             <Pill>
               <span className="h-2 w-2 rounded-full bg-white/60" />
               Optional
@@ -640,7 +851,7 @@ export default function AiStudioClient() {
           />
 
           <div className="flex flex-col gap-4 md:flex-row md:items-center">
-            <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+            <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
               {referencePreview ? (
                 <img
                   src={referencePreview}
@@ -661,7 +872,7 @@ export default function AiStudioClient() {
                     {referenceImage.name}
                   </span>
                 ) : (
-                  "Reference images help AI make more accurate and personalized visuals."
+                  "Reference images help AI create more accurate and personalized visuals."
                 )}
               </div>
 
@@ -696,10 +907,11 @@ export default function AiStudioClient() {
                   Optional source video
                 </div>
                 <div className="mt-1 text-[11px] text-white/55">
-                  Upload an existing video only if your AI service supports remix or
-                  edit flow.
+                  Upload an existing video only if your AI service supports remix
+                  or edit flow.
                 </div>
               </div>
+
               <Pill>
                 <span className="h-2 w-2 rounded-full bg-white/60" />
                 Optional
@@ -715,7 +927,7 @@ export default function AiStudioClient() {
             />
 
             <div className="flex flex-col gap-4 md:flex-row md:items-center">
-              <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+              <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
                 {sourceVideoPreview ? (
                   <video
                     src={sourceVideoPreview}
@@ -772,9 +984,10 @@ export default function AiStudioClient() {
                 Generation settings
               </div>
               <div className="mt-1 text-[11px] text-white/55">
-                Choose the shape and quality of your output.
+                For best product/NFT results use 1:1 and High quality.
               </div>
             </div>
+
             <Pill>
               <span className="h-2 w-2 rounded-full bg-white/60" />
               Flexible
@@ -788,13 +1001,13 @@ export default function AiStudioClient() {
               </div>
               <select
                 value={aspectRatio}
-                onChange={(e) => setAspectRatio(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
+                onChange={(e) => handleAspectRatioChange(e.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-[#15120b] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
               >
-                <option value="1:1">1:1</option>
-                <option value="16:9">16:9</option>
-                <option value="9:16">9:16</option>
-                <option value="4:5">4:5</option>
+                <option value="1:1">1:1 NFT / product card</option>
+                <option value="16:9">16:9 banner / video style</option>
+                <option value="9:16">9:16 mobile story</option>
+                <option value="4:5">4:5 social post</option>
               </select>
             </div>
 
@@ -805,7 +1018,7 @@ export default function AiStudioClient() {
               <select
                 value={size}
                 onChange={(e) => setSize(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
+                className="w-full rounded-2xl border border-white/10 bg-[#15120b] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
               >
                 <option value="1024x1024">1024 × 1024</option>
                 <option value="1536x1024">1536 × 1024</option>
@@ -820,11 +1033,11 @@ export default function AiStudioClient() {
               <select
                 value={quality}
                 onChange={(e) => setQuality(e.target.value as ImageQuality)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
+                className="w-full rounded-2xl border border-white/10 bg-[#15120b] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
               >
-                <option value="low">Low</option>
+                <option value="high">High — premium</option>
                 <option value="medium">Medium</option>
-                <option value="high">High</option>
+                <option value="low">Low</option>
               </select>
             </div>
 
@@ -835,7 +1048,7 @@ export default function AiStudioClient() {
               <select
                 value={durationSec}
                 onChange={(e) => setDurationSec(Number(e.target.value))}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
+                className="w-full rounded-2xl border border-white/10 bg-[#15120b] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
               >
                 <option value={4}>4 sec</option>
                 <option value={8}>8 sec</option>
@@ -850,10 +1063,10 @@ export default function AiStudioClient() {
               <select
                 value={videoModel}
                 onChange={(e) => setVideoModel(e.target.value as VideoModel)}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
+                className="w-full rounded-2xl border border-white/10 bg-[#15120b] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
               >
+                <option value="sora-2-pro">sora-2-pro — premium</option>
                 <option value="sora-2">sora-2</option>
-                <option value="sora-2-pro">sora-2-pro</option>
               </select>
             </div>
           </div>
@@ -861,16 +1074,16 @@ export default function AiStudioClient() {
 
         <Card>
           <div className="space-y-3">
-            <GhostButton
+            <GoldButton
               disabled={!canGenerate || tab !== "image"}
               onClick={generateImage}
             >
               {state === "uploading" && tab === "image"
-                ? "Generating image…"
-                : "Generate image"}
-            </GhostButton>
+                ? "Generating premium image…"
+                : "Generate premium image"}
+            </GoldButton>
 
-            <GoldButton
+            <GhostButton
               disabled={!canGenerate || tab !== "video"}
               onClick={generateVideo}
             >
@@ -879,7 +1092,7 @@ export default function AiStudioClient() {
                 : state === "processing" && tab === "video"
                 ? "Video is rendering…"
                 : "Generate video"}
-            </GoldButton>
+            </GhostButton>
           </div>
 
           {error ? (
@@ -888,9 +1101,11 @@ export default function AiStudioClient() {
             </div>
           ) : null}
 
-          <div className="mt-4 text-[11px] leading-relaxed text-white/55">
-            Use clear prompts. Mention what product or service you sell, who it is for,
-            the style, the background, and the mood. For local services, include city and country.
+          <div className="mt-4 rounded-2xl border border-[#d4af37]/15 bg-[#d4af37]/8 px-4 py-3 text-[11px] leading-relaxed text-white/62">
+            Best result: use <span className="font-bold text-white">1:1</span>,{" "}
+            <span className="font-bold text-white">High</span>, and describe
+            product/service clearly. Your server route will enhance the prompt
+            before sending it to the image model.
           </div>
         </Card>
       </div>
@@ -903,9 +1118,10 @@ export default function AiStudioClient() {
                 Beginner tutorial
               </div>
               <div className="mt-1 text-[11px] text-white/55">
-                Simple guide for people who are new to AI generation.
+                Simple guide for sellers who are new to AI generation.
               </div>
             </div>
+
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
               Tutorial
@@ -915,43 +1131,41 @@ export default function AiStudioClient() {
           <div className="space-y-4 text-sm leading-relaxed text-white/70">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="font-extrabold text-white">
-                If you want to sell a product
+                Product image
               </div>
               <div className="mt-2 text-[13px] text-white/65">
-                Write what the product is, what material or style it has, and how you
-                want it presented. Example: premium, realistic, clean background,
-                luxury commercial look.
+                Describe the product, country/city, material, taste, color,
+                style, price feeling, and whether you want NFT product card text.
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="font-extrabold text-white">
-                If you want to sell a service
+                Service image
               </div>
               <div className="mt-2 text-[13px] text-white/65">
-                Write what service you provide, who needs it, and what visual scene
-                represents it best. Example: website design, coaching, training,
-                travel planning, consultation, repair service.
+                Describe what service you provide, who needs it, and what visual
+                scene proves trust and quality.
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="font-extrabold text-white">
-                If it is a local offline service
+                Local offline service
               </div>
               <div className="mt-2 text-[13px] text-white/65">
-                Always include the city and country. Example: personal trainer in
-                Kyiv, Ukraine, or city tour guide in Sofia, Bulgaria.
+                Include city and country. Example: personal trainer in Los
+                Angeles, repair service in Kyiv, guide in Sofia.
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="font-extrabold text-white">
-                You can upload your own image
+                Reference image
               </div>
               <div className="mt-2 text-[13px] text-white/65">
-                Upload your face photo, product image, logo, or another reference to
-                help AI create more accurate results.
+                Upload a product photo, logo, face photo, or brand image if you
+                want the generation to follow a real visual reference.
               </div>
             </div>
           </div>
@@ -967,6 +1181,7 @@ export default function AiStudioClient() {
                 The latest generated result appears here.
               </div>
             </div>
+
             <Pill>
               <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
               Live
@@ -974,7 +1189,7 @@ export default function AiStudioClient() {
           </div>
 
           <div className="overflow-hidden rounded-[26px] border border-white/10 bg-black/30">
-            <div className="relative aspect-[16/10]">
+            <div className={cx("relative", previewAspectClass(aspectRatio))}>
               {mainResult?.resultUrl ? (
                 <NftMedia
                   src={mainResult.resultUrl}
@@ -1002,22 +1217,33 @@ export default function AiStudioClient() {
                   className="h-full w-full object-contain"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center text-xs text-white/45">
-                  Your generated result will appear here
+                <div className="flex h-full w-full items-center justify-center px-6 text-center text-xs text-white/45">
+                  Your premium AI result will appear here
                 </div>
               )}
 
-              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.55),transparent_60%)]" />
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.64),transparent_62%)]" />
 
               <div className="absolute bottom-3 left-3 right-3">
-                <div className="truncate text-sm font-black text-white">
-                  {mainResult
-                    ? mainResult.type === "video"
-                      ? "AI Video"
-                      : "AI Image"
-                    : "AI Studio"}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-black text-[#f7e7a7]">
+                    {mainResult
+                      ? mainResult.type === "video"
+                        ? "AI VIDEO"
+                        : "AI IMAGE"
+                      : "AI STUDIO"}
+                  </span>
+
+                  <span className="rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-black text-white/70">
+                    {PRESET_META[preset].label}
+                  </span>
+
+                  <span className="rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-black text-white/70">
+                    {quality.toUpperCase()}
+                  </span>
                 </div>
-                <div className="mt-1 line-clamp-2 text-[11px] text-white/70">
+
+                <div className="mt-2 line-clamp-2 text-[11px] text-white/70">
                   {mainResult?.prompt ||
                     prompt ||
                     "Write a prompt to generate your result."}
@@ -1025,6 +1251,24 @@ export default function AiStudioClient() {
               </div>
             </div>
           </div>
+
+          {mainResult ? (
+            <div className="mt-4 grid grid-cols-2 gap-3 text-[11px] text-white/55">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                Model:{" "}
+                <span className="font-bold text-white/80">
+                  {mainResult.model || (mainResult.type === "image" ? IMAGE_MODEL_HINT : videoModel)}
+                </span>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                Size:{" "}
+                <span className="font-bold text-white/80">
+                  {mainResult.size || size}
+                </span>
+              </div>
+            </div>
+          ) : null}
         </Card>
 
         <Card>
@@ -1037,6 +1281,7 @@ export default function AiStudioClient() {
                 Current browser session history.
               </div>
             </div>
+
             <Pill>
               <span className="h-2 w-2 rounded-full bg-white/60" />
               Session
@@ -1060,11 +1305,20 @@ export default function AiStudioClient() {
                         {item.type === "video" ? "VIDEO" : "IMAGE"}
                       </span>
                     </Pill>
+
                     <Pill>
                       <span className="font-extrabold text-white/80">
                         {item.status.toUpperCase()}
                       </span>
                     </Pill>
+
+                    {item.model ? (
+                      <Pill>
+                        <span className="font-extrabold text-white/80">
+                          {item.model}
+                        </span>
+                      </Pill>
+                    ) : null}
                   </div>
 
                   <div className="mt-3 line-clamp-3 text-[13px] leading-relaxed text-white/65">
@@ -1073,7 +1327,7 @@ export default function AiStudioClient() {
 
                   {item.resultUrl ? (
                     <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
-                      <div className="relative aspect-[16/10]">
+                      <div className="relative aspect-square">
                         <NftMedia
                           src={item.resultUrl}
                           kind={item.type === "video" ? "video" : "image"}
