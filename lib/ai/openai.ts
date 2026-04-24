@@ -1,16 +1,41 @@
 export type ImageSize = "1024x1024" | "1024x1536" | "1536x1024";
 export type ImageQuality = "low" | "medium" | "high";
-export type VideoSize = "1280x720" | "720x1280" | "1792x1024" | "1024x1792";
+
+export type VideoSize =
+  | "1280x720"
+  | "720x1280"
+  | "1792x1024"
+  | "1024x1792";
+
 export type VideoSeconds = 4 | 8 | 12;
 export type VideoModel = "sora-2" | "sora-2-pro";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
-const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-2";
+
+/**
+ * IMPORTANT:
+ * gpt-image-2 may require verified organization access.
+ * Keep gpt-image-1 as safe default so the live site does not break.
+ *
+ * Railway:
+ * OPENAI_IMAGE_MODEL=gpt-image-1   // safe now
+ * OPENAI_IMAGE_MODEL=gpt-image-2   // after verification/access is fully active
+ */
+const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-1";
+
+/**
+ * Mega video default.
+ * Railway can override:
+ * OPENAI_VIDEO_MODEL=sora-2-pro
+ */
+const DEFAULT_OPENAI_VIDEO_MODEL: VideoModel = "sora-2-pro";
 
 type OpenAiErrorShape = {
   error?: {
     message?: string;
+    type?: string;
+    code?: string;
   };
 };
 
@@ -37,8 +62,40 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function cleanString(value: unknown) {
+  return String(value || "").trim();
+}
+
 export function getOpenAiImageModel() {
   return process.env.OPENAI_IMAGE_MODEL?.trim() || DEFAULT_OPENAI_IMAGE_MODEL;
+}
+
+export function getOpenAiVideoModel(): VideoModel {
+  const model = process.env.OPENAI_VIDEO_MODEL?.trim();
+
+  if (model === "sora-2") return "sora-2";
+  if (model === "sora-2-pro") return "sora-2-pro";
+
+  return DEFAULT_OPENAI_VIDEO_MODEL;
+}
+
+export function normalizeVideoModel(value?: string | null): VideoModel {
+  const v = cleanString(value);
+
+  if (v === "sora-2") return "sora-2";
+  if (v === "sora-2-pro") return "sora-2-pro";
+
+  return getOpenAiVideoModel();
+}
+
+export function normalizeVideoSeconds(value?: string | number | null): VideoSeconds {
+  const n = Number(value);
+
+  if (n === 4) return 4;
+  if (n === 8) return 8;
+  if (n === 12) return 12;
+
+  return 12;
 }
 
 export function assertOpenAiKey() {
@@ -57,7 +114,7 @@ function authHeaders(extra?: HeadersInit): HeadersInit {
 }
 
 export function normalizeImageSize(value?: string | null): ImageSize | null {
-  const v = String(value || "").trim();
+  const v = cleanString(value);
 
   if (v === "1024x1024") return "1024x1024";
   if (v === "1024x1536") return "1024x1536";
@@ -81,19 +138,32 @@ export function mapAspectRatioToImageSize(value?: string): ImageSize {
   }
 }
 
+/**
+ * Mega video size mapping.
+ * For premium Sora output we prefer max available sizes.
+ */
 export function mapAspectRatioToVideoSize(value?: string): VideoSize {
   switch (value) {
     case "9:16":
-      return "720x1280";
-
     case "4:5":
       return "1024x1792";
 
     case "16:9":
     case "1:1":
     default:
-      return "1280x720";
+      return "1792x1024";
   }
+}
+
+export function normalizeVideoSize(value?: string | null): VideoSize | null {
+  const v = cleanString(value);
+
+  if (v === "1280x720") return "1280x720";
+  if (v === "720x1280") return "720x1280";
+  if (v === "1792x1024") return "1792x1024";
+  if (v === "1024x1792") return "1024x1792";
+
+  return null;
 }
 
 export async function fileToDataUrl(file: File): Promise<string> {
@@ -118,7 +188,17 @@ function extractErrorMessage(json: unknown, fallback: string) {
     typeof json.error.message === "string" &&
     json.error.message.trim()
   ) {
-    return json.error.message.trim();
+    const message = json.error.message.trim();
+    const code =
+      typeof json.error.code === "string" && json.error.code.trim()
+        ? ` Code: ${json.error.code.trim()}.`
+        : "";
+    const type =
+      typeof json.error.type === "string" && json.error.type.trim()
+        ? ` Type: ${json.error.type.trim()}.`
+        : "";
+
+    return `${message}${code}${type}`;
   }
 
   return fallback;
@@ -190,6 +270,10 @@ export async function createImage(params: {
   const { prompt, size, quality, referenceImage } = params;
   const model = params.model?.trim() || getOpenAiImageModel();
 
+  if (!prompt.trim()) {
+    throw new Error("Image prompt is required.");
+  }
+
   if (referenceImage) {
     const form = new FormData();
 
@@ -199,6 +283,7 @@ export async function createImage(params: {
     form.append("quality", quality);
     form.append("output_format", "png");
     form.append("background", "opaque");
+
     form.append(
       "image[]",
       referenceImage,
@@ -265,12 +350,27 @@ export async function createImage(params: {
 
 export async function createVideo(params: {
   prompt: string;
-  model: VideoModel;
-  seconds: VideoSeconds;
-  size: VideoSize;
+  model?: VideoModel;
+  seconds?: VideoSeconds;
+  size?: VideoSize;
+  aspectRatio?: string;
   referenceImageDataUrl?: string;
 }) {
-  const { prompt, model, seconds, size, referenceImageDataUrl } = params;
+  const {
+    prompt,
+    referenceImageDataUrl,
+  } = params;
+
+  const model = params.model || getOpenAiVideoModel();
+  const seconds = params.seconds || 12;
+  const size =
+    params.size ||
+    normalizeVideoSize(params.size) ||
+    mapAspectRatioToVideoSize(params.aspectRatio);
+
+  if (!prompt.trim()) {
+    throw new Error("Video prompt is required.");
+  }
 
   const body: Record<string, unknown> = {
     prompt,
@@ -298,18 +398,29 @@ export async function createVideo(params: {
   const json = await safeJson(response);
 
   if (!response.ok) {
-    throw new Error(extractErrorMessage(json, "OpenAI video creation failed."));
+    throw new Error(
+      `${extractErrorMessage(json, "OpenAI video creation failed.")} Model: ${model}. Size: ${size}. Seconds: ${seconds}.`
+    );
   }
 
   return toVideoJob(json, "OpenAI video creation returned invalid response.");
 }
 
 export async function retrieveVideo(videoId: string) {
-  const response = await fetch(`${OPENAI_BASE_URL}/videos/${videoId}`, {
-    method: "GET",
-    headers: authHeaders(),
-    cache: "no-store",
-  });
+  const id = cleanString(videoId);
+
+  if (!id) {
+    throw new Error("Video id is required.");
+  }
+
+  const response = await fetch(
+    `${OPENAI_BASE_URL}/videos/${encodeURIComponent(id)}`,
+    {
+      method: "GET",
+      headers: authHeaders(),
+      cache: "no-store",
+    }
+  );
 
   const json = await safeJson(response);
 
@@ -324,8 +435,17 @@ export async function downloadVideoContent(
   videoId: string,
   variant: "video" | "thumbnail" | "spritesheet" = "video"
 ) {
+  const id = cleanString(videoId);
+
+  if (!id) {
+    throw new Error("Video id is required.");
+  }
+
+  const safeVariant =
+    variant === "thumbnail" || variant === "spritesheet" ? variant : "video";
+
   const response = await fetch(
-    `${OPENAI_BASE_URL}/videos/${videoId}/content?variant=${variant}`,
+    `${OPENAI_BASE_URL}/videos/${encodeURIComponent(id)}/content?variant=${safeVariant}`,
     {
       method: "GET",
       headers: authHeaders(),
