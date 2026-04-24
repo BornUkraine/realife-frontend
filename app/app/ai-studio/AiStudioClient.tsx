@@ -23,9 +23,14 @@ type ResultCard = {
   preset?: string | null;
   quality?: string | null;
   size?: string | null;
+  aspectRatio?: string | null;
+  seconds?: number | null;
 };
 
-const AI_API_BASE = (process.env.NEXT_PUBLIC_AI_API_BASE || "").replace(/\/$/, "");
+const AI_API_BASE = (process.env.NEXT_PUBLIC_AI_API_BASE || "").replace(
+  /\/$/,
+  ""
+);
 
 const IMAGE_ENDPOINT = AI_API_BASE
   ? `${AI_API_BASE}/api/ai/images`
@@ -44,6 +49,7 @@ const VIDEO_DOWNLOAD_ENDPOINT = AI_API_BASE
   : "/api/ai/videos/download";
 
 const IMAGE_MODEL_HINT = "gpt-image-2";
+const VIDEO_MODEL_HINT: VideoModel = "sora-2-pro";
 
 const PRODUCT_TEMPLATE =
   "Create a premium NFT-style product card image for fresh Spanish pineapples. Show ripe golden pineapples and juicy slices, luxury commercial quality, clean premium background, elegant black gold and cream mood, realistic food photography, Andalusia Spain feeling, delicious and expensive look. Include clean readable sales text: “PREMIUM PINEAPPLES”, “Juicy & Delicious”, “Spain • Andalusia”, “Phone: +34096554581”, and a small elegant “NFT PRODUCT” badge.";
@@ -57,6 +63,9 @@ const LOCAL_TEMPLATE =
 const NFT_TEMPLATE =
   "Create a luxury NFT product poster for a real-world marketplace listing. Premium black and gold collectible card style, elegant frame, cinematic lighting, polished commercial quality, high-end Web3 marketplace visual, strong central product hero, clean typography, expensive and impressive look.";
 
+const VIDEO_TEMPLATE =
+  "Create a luxury 12-second commercial video for fresh Spanish pineapples in Andalusia. Show ripe golden pineapples, juicy slices, premium grocery advertising style, slow cinematic camera movement, clean marble surface, tropical leaves, warm sunlight, black and gold Realife NFT marketplace feeling, elegant final hero shot. No random text, no fake logos, no watermark.";
+
 const PRESET_META: Record<
   ImagePreset,
   {
@@ -69,25 +78,29 @@ const PRESET_META: Record<
   product: {
     title: "Premium Product",
     label: "PRODUCT",
-    description: "Luxury product ad, store item, delivery item, NFT product card.",
+    description:
+      "Luxury product ad, store item, delivery item, NFT product card.",
     template: PRODUCT_TEMPLATE,
   },
   service: {
     title: "Premium Service",
     label: "SERVICE",
-    description: "Online service, digital work, consultation, creative or tech offer.",
+    description:
+      "Online service, digital work, consultation, creative or tech offer.",
     template: SERVICE_TEMPLATE,
   },
   "local-service": {
     title: "Local Service",
     label: "LOCAL",
-    description: "Offline service with city/country, real-world professional offer.",
+    description:
+      "Offline service with city/country, real-world professional offer.",
     template: LOCAL_TEMPLATE,
   },
   "nft-poster": {
     title: "Luxury NFT Poster",
     label: "NFT",
-    description: "Collectible premium NFT card/poster with strong marketplace style.",
+    description:
+      "Collectible premium NFT card/poster with strong marketplace style.",
     template: NFT_TEMPLATE,
   },
 };
@@ -234,7 +247,6 @@ function previewAspectClass(value: string) {
 function buildFormData(input: {
   prompt: string;
   referenceImage: File | null;
-  sourceVideo: File | null;
   aspectRatio: string;
   size: string;
   quality: ImageQuality;
@@ -249,19 +261,15 @@ function buildFormData(input: {
   form.append("size", input.size);
   form.append("quality", input.quality);
   form.append("seconds", String(input.durationSec));
+  form.append("durationSec", String(input.durationSec));
   form.append("model", input.model);
 
-  // Backend route can use any of these names.
   form.append("preset", input.preset);
   form.append("promptType", input.preset);
   form.append("mode", input.preset);
 
   if (input.referenceImage) {
     form.append("referenceImage", input.referenceImage);
-  }
-
-  if (input.sourceVideo) {
-    form.append("sourceVideo", input.sourceVideo);
   }
 
   return form;
@@ -288,23 +296,20 @@ function resolveMaybeRelativeUrl(url?: string | null) {
 
 export default function AiStudioClient() {
   const referenceInputRef = useRef<HTMLInputElement | null>(null);
-  const videoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [tab, setTab] = useState<StudioTab>("image");
   const [preset, setPreset] = useState<ImagePreset>("product");
   const [prompt, setPrompt] = useState(PRODUCT_TEMPLATE);
 
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
-  const [sourceVideo, setSourceVideo] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
-  const [sourceVideoPreview, setSourceVideoPreview] = useState<string | null>(null);
 
   const [aspectRatio, setAspectRatio] = useState("1:1");
   const [size, setSize] = useState("1024x1024");
   const [quality, setQuality] = useState<ImageQuality>("high");
 
-  const [durationSec, setDurationSec] = useState(8);
-  const [videoModel, setVideoModel] = useState<VideoModel>("sora-2-pro");
+  const [durationSec, setDurationSec] = useState(12);
+  const [videoModel, setVideoModel] = useState<VideoModel>(VIDEO_MODEL_HINT);
 
   const [state, setState] = useState<JobState>("idle");
   const [error, setError] = useState("");
@@ -313,9 +318,8 @@ export default function AiStudioClient() {
   useEffect(() => {
     return () => {
       if (referencePreview) URL.revokeObjectURL(referencePreview);
-      if (sourceVideoPreview) URL.revokeObjectURL(sourceVideoPreview);
     };
-  }, [referencePreview, sourceVideoPreview]);
+  }, [referencePreview]);
 
   const canGenerate = useMemo(() => {
     return (
@@ -325,16 +329,40 @@ export default function AiStudioClient() {
     );
   }, [prompt, state]);
 
+  function handleTabChange(nextTab: StudioTab) {
+    setTab(nextTab);
+    setError("");
+
+    if (nextTab === "video") {
+      setAspectRatio("16:9");
+      setSize("1536x1024");
+      setDurationSec(12);
+      setVideoModel("sora-2-pro");
+
+      if (prompt === PRODUCT_TEMPLATE) {
+        setPrompt(VIDEO_TEMPLATE);
+      }
+    }
+
+    if (nextTab === "image") {
+      setAspectRatio("1:1");
+      setSize("1024x1024");
+      setQuality("high");
+
+      if (prompt === VIDEO_TEMPLATE) {
+        setPrompt(PRESET_META[preset].template);
+      }
+    }
+  }
+
   function selectPreset(nextPreset: ImagePreset) {
     setPreset(nextPreset);
     setPrompt(PRESET_META[nextPreset].template);
     setTab("image");
-
-    if (nextPreset === "product" || nextPreset === "nft-poster") {
-      setAspectRatio("1:1");
-      setSize("1024x1024");
-      setQuality("high");
-    }
+    setAspectRatio("1:1");
+    setSize("1024x1024");
+    setQuality("high");
+    setError("");
   }
 
   function handleAspectRatioChange(value: string) {
@@ -346,12 +374,6 @@ export default function AiStudioClient() {
     if (referencePreview) URL.revokeObjectURL(referencePreview);
     setReferenceImage(file);
     setReferencePreview(toObjectUrl(file));
-  }
-
-  function setVideo(file: File | null) {
-    if (sourceVideoPreview) URL.revokeObjectURL(sourceVideoPreview);
-    setSourceVideo(file);
-    setSourceVideoPreview(toObjectUrl(file));
   }
 
   function pushResult(
@@ -375,6 +397,8 @@ export default function AiStudioClient() {
         preset: patch.preset || null,
         quality: patch.quality || null,
         size: patch.size || null,
+        aspectRatio: patch.aspectRatio || null,
+        seconds: patch.seconds || null,
       };
 
       if (i === -1) return [next, ...prev];
@@ -408,13 +432,13 @@ export default function AiStudioClient() {
       preset,
       quality,
       size,
+      aspectRatio,
     });
 
     try {
       const form = buildFormData({
         prompt,
         referenceImage,
-        sourceVideo: null,
         aspectRatio,
         size,
         quality,
@@ -432,7 +456,9 @@ export default function AiStudioClient() {
 
       if (!res.ok) {
         throw new Error(
-          data?.error || data?.message || "Image generation failed"
+          data?.error ||
+            data?.message ||
+            `Image generation failed with status ${res.status}`
         );
       }
 
@@ -459,6 +485,7 @@ export default function AiStudioClient() {
         preset: data?.preset || preset,
         quality: data?.quality || quality,
         size: data?.size || size,
+        aspectRatio: data?.aspectRatio || aspectRatio,
       });
 
       setState("done");
@@ -475,6 +502,7 @@ export default function AiStudioClient() {
         preset,
         quality,
         size,
+        aspectRatio,
       });
 
       setError(msg);
@@ -483,7 +511,7 @@ export default function AiStudioClient() {
   }
 
   async function pollVideoStatus(jobId: string, promptText: string) {
-    for (let i = 0; i < 90; i += 1) {
+    for (let i = 0; i < 120; i += 1) {
       const res = await fetch(
         `${VIDEO_STATUS_ENDPOINT}/${encodeURIComponent(jobId)}`,
         { cache: "no-store" }
@@ -492,7 +520,11 @@ export default function AiStudioClient() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        throw new Error(data?.error || data?.message || "Video status failed");
+        throw new Error(
+          data?.error ||
+            data?.message ||
+            `Video status failed with status ${res.status}`
+        );
       }
 
       const status = String(data?.status || "").toLowerCase();
@@ -521,7 +553,9 @@ export default function AiStudioClient() {
           model: videoModel,
           preset,
           quality,
-          size,
+          size: data?.size || "1792x1024",
+          aspectRatio,
+          seconds: Number(data?.seconds || durationSec),
         });
 
         setState("done");
@@ -542,7 +576,9 @@ export default function AiStudioClient() {
           model: videoModel,
           preset,
           quality,
-          size,
+          size: data?.size || "1792x1024",
+          aspectRatio,
+          seconds: durationSec,
         });
 
         setError(msg);
@@ -570,14 +606,15 @@ export default function AiStudioClient() {
       model: videoModel,
       preset,
       quality,
-      size,
+      size: "1792x1024",
+      aspectRatio,
+      seconds: durationSec,
     });
 
     try {
       const form = buildFormData({
         prompt,
         referenceImage,
-        sourceVideo,
         aspectRatio,
         size,
         quality,
@@ -595,7 +632,9 @@ export default function AiStudioClient() {
 
       if (!res.ok) {
         throw new Error(
-          data?.error || data?.message || "Video generation failed"
+          data?.error ||
+            data?.message ||
+            `Video generation failed with status ${res.status}`
         );
       }
 
@@ -614,10 +653,12 @@ export default function AiStudioClient() {
         type: "video",
         prompt,
         status: "processing",
-        model: videoModel,
-        preset,
+        model: data?.model || videoModel,
+        preset: data?.preset || preset,
         quality,
-        size,
+        size: data?.size || "1792x1024",
+        aspectRatio: data?.aspectRatio || aspectRatio,
+        seconds: Number(data?.seconds || durationSec),
       });
 
       setState("processing");
@@ -626,7 +667,8 @@ export default function AiStudioClient() {
         await pollVideoStatus(realJobId, prompt);
       } catch (pollError: any) {
         const msg =
-          pollError?.message || "Video generation is taking longer than expected";
+          pollError?.message ||
+          "Video generation is taking longer than expected";
 
         pushResult({
           id: realJobId,
@@ -637,7 +679,9 @@ export default function AiStudioClient() {
           model: videoModel,
           preset,
           quality,
-          size,
+          size: "1792x1024",
+          aspectRatio,
+          seconds: durationSec,
         });
 
         setError(msg);
@@ -655,7 +699,9 @@ export default function AiStudioClient() {
         model: videoModel,
         preset,
         quality,
-        size,
+        size: "1792x1024",
+        aspectRatio,
+        seconds: durationSec,
       });
 
       setError(msg);
@@ -671,9 +717,11 @@ export default function AiStudioClient() {
         <Card>
           <div className="mb-4 flex items-end justify-between gap-4">
             <div>
-              <div className="text-sm font-extrabold tracking-tight">AI mode</div>
+              <div className="text-sm font-extrabold tracking-tight">
+                AI mode
+              </div>
               <div className="mt-1 text-[11px] text-white/55">
-                Choose whether you want a premium image or short AI video.
+                Choose whether you want a premium image or Sora commercial video.
               </div>
             </div>
 
@@ -686,7 +734,7 @@ export default function AiStudioClient() {
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             <button
               type="button"
-              onClick={() => setTab("image")}
+              onClick={() => handleTabChange("image")}
               className={cx(
                 "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
                 tab === "image"
@@ -702,14 +750,14 @@ export default function AiStudioClient() {
                     : "mt-1 text-xs text-white/55"
                 }
               >
-                Premium product card, service cover, local service visual, NFT
-                poster.
+                GPT Image 2 product card, service cover, local service visual,
+                NFT poster.
               </div>
             </button>
 
             <button
               type="button"
-              onClick={() => setTab("video")}
+              onClick={() => handleTabChange("video")}
               className={cx(
                 "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
                 tab === "video"
@@ -725,7 +773,8 @@ export default function AiStudioClient() {
                     : "mt-1 text-xs text-white/55"
                 }
               >
-                Product commercial, cinematic promo, service ad, listing trailer.
+                Sora 2 Pro commercial, cinematic promo, service ad, listing
+                trailer.
               </div>
             </button>
           </div>
@@ -871,8 +920,10 @@ export default function AiStudioClient() {
                   <span className="block truncate font-semibold text-white/80">
                     {referenceImage.name}
                   </span>
+                ) : tab === "video" ? (
+                  "Reference image can help Sora follow a product, face, style, or brand direction."
                 ) : (
-                  "Reference images help AI create more accurate and personalized visuals."
+                  "Reference images help GPT Image 2 create more accurate and personalized visuals."
                 )}
               </div>
 
@@ -904,75 +955,27 @@ export default function AiStudioClient() {
             <div className="mb-4 flex items-end justify-between gap-4">
               <div>
                 <div className="text-sm font-extrabold tracking-tight">
-                  Optional source video
+                  Premium video mode
                 </div>
                 <div className="mt-1 text-[11px] text-white/55">
-                  Upload an existing video only if your AI service supports remix
-                  or edit flow.
+                  Current video generation uses prompt and optional reference
+                  image. Source video remix can be added later as a separate flow.
                 </div>
               </div>
 
               <Pill>
-                <span className="h-2 w-2 rounded-full bg-white/60" />
-                Optional
+                <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+                Sora
               </Pill>
             </div>
 
-            <input
-              ref={videoInputRef}
-              type="file"
-              accept="video/*"
-              className="hidden"
-              onChange={(e) => setVideo(e.target.files?.[0] || null)}
-            />
-
-            <div className="flex flex-col gap-4 md:flex-row md:items-center">
-              <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black/30">
-                {sourceVideoPreview ? (
-                  <video
-                    src={sourceVideoPreview}
-                    className="h-full w-full object-cover"
-                    muted
-                    playsInline
-                  />
-                ) : (
-                  <span className="px-3 text-center text-[10px] text-white/45">
-                    No video
-                  </span>
-                )}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="text-xs text-white/60">
-                  {sourceVideo ? (
-                    <span className="block truncate font-semibold text-white/80">
-                      {sourceVideo.name}
-                    </span>
-                  ) : (
-                    "Leave empty for prompt-only or prompt + reference image video generation."
-                  )}
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => videoInputRef.current?.click()}
-                    className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 text-xs font-extrabold transition hover:bg-white/10"
-                  >
-                    Upload video
-                  </button>
-
-                  {sourceVideo ? (
-                    <button
-                      type="button"
-                      onClick={() => setVideo(null)}
-                      className="rounded-2xl border border-white/15 bg-white/[0.04] px-4 py-2 text-xs font-extrabold text-white/70 transition hover:bg-white/[0.06]"
-                    >
-                      Remove
-                    </button>
-                  ) : null}
-                </div>
-              </div>
+            <div className="rounded-2xl border border-[#d4af37]/15 bg-[#d4af37]/8 px-4 py-3 text-[12px] leading-relaxed text-white/65">
+              For best results use{" "}
+              <span className="font-bold text-white">16:9</span>,{" "}
+              <span className="font-bold text-white">12 seconds</span>,{" "}
+              <span className="font-bold text-white">sora-2-pro</span>, and
+              write a cinematic commercial prompt with camera movement, lighting,
+              product/service details, and final hero shot.
             </div>
           </Card>
         ) : null}
@@ -984,7 +987,7 @@ export default function AiStudioClient() {
                 Generation settings
               </div>
               <div className="mt-1 text-[11px] text-white/55">
-                For best product/NFT results use 1:1 and High quality.
+                Image: 1:1 + High. Video: 16:9 + 12 sec + sora-2-pro.
               </div>
             </div>
 
@@ -1005,7 +1008,7 @@ export default function AiStudioClient() {
                 className="w-full rounded-2xl border border-white/10 bg-[#15120b] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
               >
                 <option value="1:1">1:1 NFT / product card</option>
-                <option value="16:9">16:9 banner / video style</option>
+                <option value="16:9">16:9 cinematic video / banner</option>
                 <option value="9:16">9:16 mobile story</option>
                 <option value="4:5">4:5 social post</option>
               </select>
@@ -1050,9 +1053,9 @@ export default function AiStudioClient() {
                 onChange={(e) => setDurationSec(Number(e.target.value))}
                 className="w-full rounded-2xl border border-white/10 bg-[#15120b] px-4 py-3 text-sm text-white focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40"
               >
-                <option value={4}>4 sec</option>
+                <option value={12}>12 sec — premium</option>
                 <option value={8}>8 sec</option>
-                <option value={12}>12 sec</option>
+                <option value={4}>4 sec</option>
               </select>
             </div>
 
@@ -1079,8 +1082,8 @@ export default function AiStudioClient() {
               onClick={generateImage}
             >
               {state === "uploading" && tab === "image"
-                ? "Generating premium image…"
-                : "Generate premium image"}
+                ? "Generating with GPT Image 2…"
+                : "Generate with GPT Image 2"}
             </GoldButton>
 
             <GhostButton
@@ -1088,10 +1091,10 @@ export default function AiStudioClient() {
               onClick={generateVideo}
             >
               {state === "uploading" && tab === "video"
-                ? "Submitting video job…"
+                ? "Submitting Sora 2 Pro job…"
                 : state === "processing" && tab === "video"
-                ? "Video is rendering…"
-                : "Generate video"}
+                  ? "Sora video is rendering…"
+                  : "Generate Sora 2 Pro video"}
             </GhostButton>
           </div>
 
@@ -1102,10 +1105,14 @@ export default function AiStudioClient() {
           ) : null}
 
           <div className="mt-4 rounded-2xl border border-[#d4af37]/15 bg-[#d4af37]/8 px-4 py-3 text-[11px] leading-relaxed text-white/62">
-            Best result: use <span className="font-bold text-white">1:1</span>,{" "}
-            <span className="font-bold text-white">High</span>, and describe
-            product/service clearly. Your server route will enhance the prompt
-            before sending it to the image model.
+            Best image result: use{" "}
+            <span className="font-bold text-white">1:1</span>,{" "}
+            <span className="font-bold text-white">High</span>, and a premium
+            preset. Best video result: use{" "}
+            <span className="font-bold text-white">16:9</span>,{" "}
+            <span className="font-bold text-white">12 sec</span>, and{" "}
+            <span className="font-bold text-white">sora-2-pro</span>. Your
+            server route enhances the prompt before sending it to OpenAI.
           </div>
         </Card>
       </div>
@@ -1130,9 +1137,7 @@ export default function AiStudioClient() {
 
           <div className="space-y-4 text-sm leading-relaxed text-white/70">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="font-extrabold text-white">
-                Product image
-              </div>
+              <div className="font-extrabold text-white">Product image</div>
               <div className="mt-2 text-[13px] text-white/65">
                 Describe the product, country/city, material, taste, color,
                 style, price feeling, and whether you want NFT product card text.
@@ -1140,9 +1145,7 @@ export default function AiStudioClient() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="font-extrabold text-white">
-                Service image
-              </div>
+              <div className="font-extrabold text-white">Service image</div>
               <div className="mt-2 text-[13px] text-white/65">
                 Describe what service you provide, who needs it, and what visual
                 scene proves trust and quality.
@@ -1160,12 +1163,10 @@ export default function AiStudioClient() {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="font-extrabold text-white">
-                Reference image
-              </div>
+              <div className="font-extrabold text-white">Sora video</div>
               <div className="mt-2 text-[13px] text-white/65">
-                Upload a product photo, logo, face photo, or brand image if you
-                want the generation to follow a real visual reference.
+                For video, describe camera movement, lighting, first shot, close-up
+                details, and final hero frame. Use 12 seconds for premium results.
               </div>
             </div>
           </div>
@@ -1189,7 +1190,14 @@ export default function AiStudioClient() {
           </div>
 
           <div className="overflow-hidden rounded-[26px] border border-white/10 bg-black/30">
-            <div className={cx("relative", previewAspectClass(aspectRatio))}>
+            <div
+              className={cx(
+                "relative",
+                previewAspectClass(
+                  mainResult?.aspectRatio || aspectRatio || "1:1"
+                )
+              )}
+            >
               {mainResult?.resultUrl ? (
                 <NftMedia
                   src={mainResult.resultUrl}
@@ -1239,7 +1247,9 @@ export default function AiStudioClient() {
                   </span>
 
                   <span className="rounded-full bg-black/45 px-2.5 py-1 text-[10px] font-black text-white/70">
-                    {quality.toUpperCase()}
+                    {mainResult?.type === "video"
+                      ? `${mainResult.seconds || durationSec} SEC`
+                      : quality.toUpperCase()}
                   </span>
                 </div>
 
@@ -1257,7 +1267,10 @@ export default function AiStudioClient() {
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
                 Model:{" "}
                 <span className="font-bold text-white/80">
-                  {mainResult.model || (mainResult.type === "image" ? IMAGE_MODEL_HINT : videoModel)}
+                  {mainResult.model ||
+                    (mainResult.type === "image"
+                      ? IMAGE_MODEL_HINT
+                      : videoModel)}
                 </span>
               </div>
 
@@ -1327,7 +1340,12 @@ export default function AiStudioClient() {
 
                   {item.resultUrl ? (
                     <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-black/20">
-                      <div className="relative aspect-square">
+                      <div
+                        className={cx(
+                          "relative",
+                          previewAspectClass(item.aspectRatio || "1:1")
+                        )}
+                      >
                         <NftMedia
                           src={item.resultUrl}
                           kind={item.type === "video" ? "video" : "image"}
