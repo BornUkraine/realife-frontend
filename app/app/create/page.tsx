@@ -100,13 +100,19 @@ export default function CreatePage() {
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    AI image suggest
+                    Protected services
                   </span>
                 </Pill>
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    Real-world categories
+                    Local / offline services
+                  </span>
+                </Pill>
+
+                <Pill>
+                  <span className="font-extrabold text-white/80">
+                    AI image suggest
                   </span>
                 </Pill>
               </div>
@@ -128,8 +134,9 @@ export default function CreatePage() {
                 <span className="font-semibold text-white">
                   products, services, portfolios, projects, websites,
                   collectibles, clothing, merch, travel offers, tickets,
-                </span>{" "}
-                digital work, and physical goods.
+                  online sessions, and local / offline services
+                </span>
+                .
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
@@ -142,10 +149,14 @@ export default function CreatePage() {
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                The mint form now uses a cleaner real-world structure:
+                The mint form uses a real-world structure:
                 <span className="font-semibold text-white">
                   {" "}
                   main category → item type → specific item / offer → subcategory
+                </span>
+                . For offline services, it also stores{" "}
+                <span className="font-semibold text-white">
+                  country, city, and service area
                 </span>
                 .
               </div>
@@ -164,11 +175,13 @@ export default function CreatePage() {
                   "Travel & Tours",
                   "Events & Tickets",
                   "Business & Professional Services",
+                  "Health & Wellness",
+                  "Local / Offline Services",
+                  "Home & Repair",
+                  "Fitness Sessions",
                   "Food & Beverage",
                   "Beauty & Personal Care",
-                  "Home & Repair",
                   "Electronics & Gadgets",
-                  "Health & Wellness",
                 ].map((x) => (
                   <span
                     key={x}
@@ -225,6 +238,20 @@ export default function CreatePage() {
 
                 <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
                   <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                    Local / offline service
+                  </div>
+                  <div className="mt-2 text-sm font-extrabold text-white">
+                    Country + city + area
+                  </div>
+                  <div className="mt-2 text-xs leading-relaxed text-white/60">
+                    Fitness trainer, repair worker, tour guide, photographer,
+                    cleaning, beauty, offline lessons, and other local real-world
+                    services.
+                  </div>
+                </div>
+
+                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
                     Physical delivery flow
                   </div>
                   <div className="mt-2 text-sm font-extrabold text-white">
@@ -233,6 +260,21 @@ export default function CreatePage() {
                   <div className="mt-2 text-xs leading-relaxed text-white/60">
                     Only for approved seller wallets. Used for delivery-enabled
                     physical items and protected trust flow.
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 grid max-w-6xl grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="rounded-[26px] border border-amber-500/15 bg-amber-500/10 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-amber-100/70">
+                    Example local service NFT
+                  </div>
+                  <div className="mt-2 text-sm font-extrabold text-white">
+                    Veronica Martineli — Offline Fitness Session
+                  </div>
+                  <div className="mt-2 text-xs leading-relaxed text-white/60">
+                    Health & Wellness • Personal Training • United States • Los
+                    Angeles • West Hollywood / Beverly Hills
                   </div>
                 </div>
 
@@ -295,6 +337,8 @@ export default function CreatePage() {
             <span className="opacity-60">IPFS</span>
             <span className="opacity-60">Public mint</span>
             <span className="opacity-60">Standard + delivery</span>
+            <span className="opacity-60">Protected services</span>
+            <span className="opacity-60">Local / offline</span>
             <span className="opacity-60">AI suggest</span>
             <span className="opacity-60">Real-world categories</span>
           </div>
