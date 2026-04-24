@@ -22,7 +22,7 @@ const OPENAI_BASE_URL = "https://api.openai.com/v1";
  * OPENAI_IMAGE_MODEL=gpt-image-1   // safe now
  * OPENAI_IMAGE_MODEL=gpt-image-2   // after verification/access is fully active
  */
-const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-1";
+const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-2";
 
 /**
  * Mega video default.
