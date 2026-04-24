@@ -9,9 +9,9 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export const metadata: Metadata = {
-  title: "Create with AI — Premium Images & Video",
+  title: "Create with AI — GPT Image 2 & Sora 2 Pro",
   description:
-    "Create premium AI visuals for Realife products, services, delivery items, local offers, and NFT marketplace listings.",
+    "Create premium AI visuals and videos for Realife products, services, delivery items, local offers, and NFT marketplace listings.",
   robots: {
     index: false,
     follow: false,
@@ -76,12 +76,12 @@ export default function AiStudioPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                  Create with AI • Premium Images & Video
+                  Create with AI • GPT Image 2 & Sora 2 Pro
                 </Pill>
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    GPT Image premium workflow
+                    Premium media workflow
                   </span>
                 </Pill>
 
@@ -99,13 +99,13 @@ export default function AiStudioPage() {
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    Reference upload
+                    Sora commercial videos
                   </span>
                 </Pill>
               </div>
 
               <h1 className="mt-5 max-w-5xl text-4xl font-black leading-[1.02] tracking-[-0.035em] md:text-6xl">
-                Create premium AI visuals for{" "}
+                Create premium AI visuals and videos for{" "}
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
                   Realife listings
                 </span>
@@ -113,9 +113,9 @@ export default function AiStudioPage() {
 
               <p className="mt-5 max-w-4xl text-sm leading-relaxed text-white/72 md:text-base">
                 Generate luxury product images, NFT-style product cards, service
-                promotion covers, local offline service visuals, and short videos
-                for real-world goods, services, delivery items, online sessions,
-                and marketplace offers.
+                promotion covers, local offline service visuals, and cinematic
+                Sora videos for real-world goods, services, delivery items,
+                online sessions, and marketplace offers.
               </p>
 
               <div className="mt-4 max-w-4xl text-sm leading-relaxed text-white/66">
@@ -128,31 +128,33 @@ export default function AiStudioPage() {
               <div className="mt-4 grid max-w-5xl grid-cols-1 gap-3 md:grid-cols-3">
                 <div className="rounded-[24px] border border-[#d4af37]/18 bg-[#d4af37]/8 px-4 py-3 text-xs leading-relaxed text-white/68">
                   <span className="font-extrabold text-white">
-                    Product sellers:
+                    GPT Image 2:
                   </span>{" "}
-                  describe the product, country, style, material, taste, mood,
-                  and any exact text you want on the visual.
+                  premium product cards, service covers, local visuals, NFT
+                  posters, and marketplace-ready listing media.
                 </div>
 
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-relaxed text-white/62">
                   <span className="font-extrabold text-white">
-                    Service providers:
+                    Sora 2 Pro:
                   </span>{" "}
-                  describe the service, target buyer, work result, and visual
-                  proof of trust.
+                  cinematic 12-second commercial videos with premium camera
+                  movement, lighting, and final hero shots.
                 </div>
 
                 <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-relaxed text-white/62">
                   <span className="font-extrabold text-white">
-                    Local services:
+                    Realife use:
                   </span>{" "}
-                  include the city and country so the image feels real, local,
-                  and commercially useful.
+                  save generated media for NFT creation, service offers, product
+                  listings, and Web3 marketplace presentation.
                 </div>
               </div>
 
               <div className="mt-5 flex max-w-5xl flex-wrap gap-2">
                 {[
+                  "GPT Image 2",
+                  "Sora 2 Pro",
                   "Premium product image",
                   "NFT product card",
                   "Service cover",
@@ -163,6 +165,7 @@ export default function AiStudioPage() {
                   "Prompt templates",
                   "Seller tutorial",
                   "High quality default",
+                  "12 sec video mode",
                 ].map((x) => (
                   <span
                     key={x}
@@ -204,11 +207,11 @@ export default function AiStudioPage() {
                     Step 3
                   </div>
                   <div className="mt-2 text-sm font-extrabold text-white">
-                    Upload reference
+                    Add reference image
                   </div>
                   <div className="mt-2 text-xs leading-relaxed text-white/60">
                     Use product photos, logos, faces, or brand references for
-                    more accurate output.
+                    more accurate image and video direction.
                   </div>
                 </div>
 
@@ -251,9 +254,9 @@ export default function AiStudioPage() {
                 </div>
 
                 <div className="rounded-[24px] border border-[#d4af37]/15 bg-[#d4af37]/8 px-4 py-3 text-xs text-white/60">
-                  Recommended image setup:{" "}
+                  Recommended setup:{" "}
                   <span className="font-semibold text-white">
-                    1:1 • High quality • premium preset
+                    GPT Image 2 • 1:1 • High quality • Sora 2 Pro • 12 sec
                   </span>
                 </div>
               </div>
@@ -276,8 +279,9 @@ export default function AiStudioPage() {
 
           <div className="flex flex-wrap items-center gap-4">
             <span className="opacity-60">AI Studio</span>
+            <span className="opacity-60">GPT Image 2</span>
+            <span className="opacity-60">Sora 2 Pro</span>
             <span className="opacity-60">Premium Images</span>
-            <span className="opacity-60">Video</span>
             <span className="opacity-60">Prompt tutorial</span>
             <span className="opacity-60">Reference upload</span>
           </div>
