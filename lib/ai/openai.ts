@@ -6,7 +6,6 @@ export type VideoModel = "sora-2" | "sora-2-pro";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
-
 const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-2";
 
 type OpenAiErrorShape = {
@@ -39,10 +38,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function getOpenAiImageModel() {
-  return (
-    process.env.OPENAI_IMAGE_MODEL?.trim() ||
-    DEFAULT_OPENAI_IMAGE_MODEL
-  );
+  return process.env.OPENAI_IMAGE_MODEL?.trim() || DEFAULT_OPENAI_IMAGE_MODEL;
 }
 
 export function assertOpenAiKey() {
@@ -135,12 +131,13 @@ async function responseUrlToDataUrl(url: string) {
   });
 
   if (!response.ok) {
-    throw new Error("OpenAI returned an image URL, but the image download failed.");
+    throw new Error(
+      "OpenAI returned an image URL, but the image download failed."
+    );
   }
 
   const arrayBuffer = await response.arrayBuffer();
-  const contentType =
-    response.headers.get("content-type") || "image/png";
+  const contentType = response.headers.get("content-type") || "image/png";
   const base64 = Buffer.from(arrayBuffer).toString("base64");
 
   return `data:${contentType};base64,${base64}`;
@@ -202,9 +199,6 @@ export async function createImage(params: {
     form.append("quality", quality);
     form.append("output_format", "png");
     form.append("background", "opaque");
-
-    // The image edit endpoint accepts multipart image input.
-    // Keeping image[] supports multi-image style input while still working for one reference.
     form.append(
       "image[]",
       referenceImage,
