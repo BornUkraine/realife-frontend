@@ -6,7 +6,6 @@ import ConnectWallet from "@/components/ConnectWallet";
 export default function SidebarBottom() {
   return (
     <div className="space-y-2.5">
-
       {/* ── Wallet connect block ───────────────────────────────────── */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
         <p className="mb-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
@@ -32,6 +31,20 @@ export default function SidebarBottom() {
         Create NFT
       </Link>
 
+      {/* ── Secondary: AI Studio ───────────────────────────────────── */}
+      <Link
+        href="/app/ai-studio"
+        className={[
+          "flex w-full items-center justify-center rounded-2xl px-4 py-2.5",
+          "border border-[rgba(201,168,76,0.22)] bg-[rgba(201,168,76,0.08)]",
+          "text-sm font-bold text-[#F0E4BF]",
+          "shadow-[0_14px_50px_rgba(0,0,0,0.24)]",
+          "transition hover:bg-[rgba(201,168,76,0.12)] hover:-translate-y-px active:translate-y-0",
+        ].join(" ")}
+      >
+        AI Studio
+      </Link>
+
       {/* ── Secondary: Faucet ─────────────────────────────────────── */}
       <Link
         href="/app/faucet"
@@ -44,7 +57,6 @@ export default function SidebarBottom() {
       >
         Faucet ETH
       </Link>
-
     </div>
   );
 }

@@ -8,6 +8,7 @@ export type AppNavItem = {
 export const APP_NAV: AppNavItem[] = [
   { label: "Home", href: "/app", enabled: true },
   { label: "Create NFT", href: "/app/create", enabled: true },
+  { label: "AI Studio", href: "/app/ai-studio", enabled: true },
   { label: "Trading NFTs", href: "/app/trading", enabled: true },
   { label: "Real Marketing", href: "/app/real-marketing", enabled: true },
   { label: "Social Learning", href: "/app/social", enabled: true },
@@ -17,5 +18,10 @@ export const APP_NAV: AppNavItem[] = [
 
 export function isNavActive(pathname: string, href: string) {
   if (!href || href.startsWith("/#")) return false;
-  return pathname === href;
+
+  if (href === "/app") {
+    return pathname === "/app";
+  }
+
+  return pathname === href || pathname.startsWith(`${href}/`);
 }

@@ -201,6 +201,9 @@ function inferProtectedAsset(params: {
   fulfillmentType?: FulfillmentType | string | null;
   category?: string | null;
   subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
 }) {
   const {
     contractView,
@@ -304,6 +307,25 @@ function fulfillmentTypeLabel(v?: FulfillmentType | null) {
 }
 
 
+
+function cleanLocationValue(v?: string | null) {
+  const s = String(v || "").trim();
+  return s ? s : null;
+}
+
+function formatServiceLocation(input: {
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
+}) {
+  const country = cleanLocationValue(input.serviceCountry);
+  const city = cleanLocationValue(input.serviceCity);
+  const area = cleanLocationValue(input.serviceArea);
+  const main = [city, country].filter(Boolean).join(", ");
+  if (main && area) return main + " • " + area;
+  return main || area || null;
+}
+
 function ToastCard({ toast }: { toast: UiToast }) {
   const toneClass =
     toast.tone === "success"
@@ -340,6 +362,9 @@ export default function QuickList1155({
   fulfillmentType,
   category,
   subcategory,
+  serviceCountry,
+  serviceCity,
+  serviceArea,
   marketTypeHint,
   preferredMarketType,
   onListed,
@@ -354,7 +379,11 @@ export default function QuickList1155({
   fulfillmentType?: FulfillmentType | null;
   category?: string | null;
   subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
   marketTypeHint?: MarketType;
+
   preferredMarketType?: MarketType;
   onListed?: (payload: QuickListListedPayload) => void;
 }) {
@@ -447,6 +476,13 @@ export default function QuickList1155({
   const protectedFulfillmentTypeUint8 = useMemo(() => {
     return fulfillmentTypeToUint8(protectedFulfillmentType);
   }, [protectedFulfillmentType]);
+
+  const serviceLocationLabel = useMemo(() => {
+    return formatServiceLocation({ serviceCountry, serviceCity, serviceArea });
+  }, [serviceCountry, serviceCity, serviceArea]);
+
+  const showServiceLocation =
+    protectedFulfillmentType === "LOCAL_SERVICE" && Boolean(serviceLocationLabel);
 
   const marketplaceAddress = useMemo(() => {
     return inferredMarketType === "PROTECTED"
@@ -946,6 +982,13 @@ export default function QuickList1155({
                       <span className="font-black">
                         {fulfillmentTypeLabel(protectedFulfillmentType)}
                       </span>
+                    </div>
+                  ) : null}
+
+                  {showServiceLocation ? (
+                    <div className="mt-3 rounded-2xl border border-sky-500/20 bg-sky-500/10 px-3 py-2 text-center text-[11px] text-sky-100">
+                      Service location:{" "}
+                      <span className="font-black">{serviceLocationLabel}</span>
                     </div>
                   ) : null}
 

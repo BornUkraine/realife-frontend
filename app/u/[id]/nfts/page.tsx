@@ -241,6 +241,24 @@ function fulfillmentTypeLabel(v?: string | null) {
   return s.replaceAll("_", " ");
 }
 
+function cleanLocationValue(v?: string | null) {
+  const s = String(v || "").trim();
+  return s ? s : null;
+}
+
+function formatServiceLocation(input: {
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
+}) {
+  const country = cleanLocationValue(input.serviceCountry);
+  const city = cleanLocationValue(input.serviceCity);
+  const area = cleanLocationValue(input.serviceArea);
+  const main = [city, country].filter(Boolean).join(", ");
+  if (main && area) return main + " • " + area;
+  return main || area || null;
+}
+
 // ─── IPFS / metadata helpers ──────────────────────────────────────────────────
 
 function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
@@ -559,6 +577,9 @@ export default async function PublicNFTsPage({
             fulfillmentType: true,
             category: true,
             subcategory: true,
+            serviceCountry: true,
+            serviceCity: true,
+            serviceArea: true,
           },
         },
       },
@@ -604,6 +625,24 @@ export default async function PublicNFTsPage({
         pickAny(meta, ["fulfillmentType"]) ||
         pickAttrAny(meta, ["Fulfillment Type", "Fulfillment"]) ||
         x.mint?.fulfillmentType ||
+        null;
+
+      const serviceCountry =
+        pickAny(meta, ["serviceCountry", "service_country", "country"]) ||
+        pickAttrAny(meta, ["Service Country", "Country"]) ||
+        x.mint?.serviceCountry ||
+        null;
+
+      const serviceCity =
+        pickAny(meta, ["serviceCity", "service_city", "city"]) ||
+        pickAttrAny(meta, ["Service City", "City"]) ||
+        x.mint?.serviceCity ||
+        null;
+
+      const serviceArea =
+        pickAny(meta, ["serviceArea", "service_area", "area", "serviceZone", "service_zone"]) ||
+        pickAttrAny(meta, ["Service Area", "Service Zone", "Area"]) ||
+        x.mint?.serviceArea ||
         null;
 
       if (meta) {
@@ -701,6 +740,14 @@ export default async function PublicNFTsPage({
         fulfillmentType: metaFulfillmentType,
         category: metaCategory,
         subcategory: metaSubcategory,
+        serviceCountry,
+        serviceCity,
+        serviceArea,
+        serviceLocationLabel: formatServiceLocation({
+          serviceCountry,
+          serviceCity,
+          serviceArea,
+        }),
         secondaryMarketType,
         usesProtectedSecondaryMarket,
         protectedSubtype,

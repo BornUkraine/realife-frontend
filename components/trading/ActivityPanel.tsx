@@ -29,6 +29,13 @@ type ListingRow = {
   cancelledAt: string | null;
   soldOutAt: string | null;
   mint: MintMini | null;
+  marketType?: "STANDARD" | "PROTECTED" | null;
+  fulfillmentType?: string | null;
+  category?: string | null;
+  subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
 };
 
 type TradeRow = {
@@ -47,6 +54,13 @@ type TradeRow = {
   pricePerUnitWei: string;
   totalPriceWei: string;
   mint: MintMini | null;
+  marketType?: "STANDARD" | "PROTECTED" | null;
+  fulfillmentType?: string | null;
+  category?: string | null;
+  subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
 };
 
 type TotalCounts = {
@@ -136,6 +150,40 @@ function mergeUnique<T>(prev: T[], next: T[], keyOf: (x: T) => string) {
     out.push(item);
   }
   return out;
+}
+
+
+function cleanLocationValue(v?: string | null) {
+  const s = String(v || "").trim();
+  return s ? s : null;
+}
+
+function formatServiceLocation(input: {
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
+}) {
+  const country = cleanLocationValue(input.serviceCountry);
+  const city = cleanLocationValue(input.serviceCity);
+  const area = cleanLocationValue(input.serviceArea);
+  const main = [city, country].filter(Boolean).join(", ");
+  if (main && area) return main + " • " + area;
+  return main || area || null;
+}
+
+function fulfillmentTypeLabel(v?: string | null) {
+  const x = String(v || "").trim().toUpperCase();
+  if (!x) return null;
+  return x.replaceAll("_", " ");
+}
+
+function protectedBadgeClass(v?: string | null) {
+  const x = String(v || "").trim().toUpperCase();
+  if (x === "LOCAL_SERVICE") return "border-sky-500/20 bg-sky-500/10 text-sky-100";
+  if (x === "ONLINE_SESSION") return "border-amber-500/20 bg-amber-500/10 text-amber-100";
+  if (x === "DIGITAL_SERVICE") return "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-100";
+  if (x === "PHYSICAL_GOOD") return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
+  return "border-violet-500/20 bg-violet-500/10 text-violet-100";
 }
 
 /* ---------------- IPFS -> HTTP (for mint.image safety) ---------------- */
@@ -385,6 +433,24 @@ function ListingCard({ row }: { row: ListingRow }) {
             </div>
           </div>
 
+          <div className="mt-3 flex flex-wrap gap-2">
+            {row.marketType === "PROTECTED" ? (
+              <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-1 text-[10px] font-black text-violet-100">
+                PROTECTED
+              </span>
+            ) : null}
+            {fulfillmentTypeLabel(row.fulfillmentType) ? (
+              <span className={cx("rounded-full border px-2 py-1 text-[10px] font-black", protectedBadgeClass(row.fulfillmentType))}>
+                {fulfillmentTypeLabel(row.fulfillmentType)}
+              </span>
+            ) : null}
+            {formatServiceLocation(row) ? (
+              <span className="max-w-full truncate rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[10px] font-black text-sky-100">
+                {formatServiceLocation(row)}
+              </span>
+            ) : null}
+          </div>
+
           <div className="mt-2 text-[11px] text-white/38">Created {fmtDate(row.createdAt)}</div>
         </div>
       </div>
@@ -430,6 +496,24 @@ function TradeCard({ row, direction }: { row: TradeRow; direction: "from" | "to"
             <div className="rounded-2xl border border-white/8 bg-black/18 px-3 py-2 text-white/68">
               Amount: <span className="font-black text-white/92">{fmtInt(row.amount)}</span>
             </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            {row.marketType === "PROTECTED" ? (
+              <span className="rounded-full border border-violet-500/20 bg-violet-500/10 px-2 py-1 text-[10px] font-black text-violet-100">
+                PROTECTED
+              </span>
+            ) : null}
+            {fulfillmentTypeLabel(row.fulfillmentType) ? (
+              <span className={cx("rounded-full border px-2 py-1 text-[10px] font-black", protectedBadgeClass(row.fulfillmentType))}>
+                {fulfillmentTypeLabel(row.fulfillmentType)}
+              </span>
+            ) : null}
+            {formatServiceLocation(row) ? (
+              <span className="max-w-full truncate rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[10px] font-black text-sky-100">
+                {formatServiceLocation(row)}
+              </span>
+            ) : null}
           </div>
 
           <div className="mt-2 text-[11px] text-white/38">{fmtDate(row.blockTime)}</div>

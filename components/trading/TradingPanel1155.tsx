@@ -57,6 +57,9 @@ type Listing = {
   fulfillmentType?: FulfillmentType | null;
   category?: string | null;
   subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
 
   marketType?: MarketType;
   marketplaceContract?: string | null;
@@ -76,6 +79,9 @@ type Trade = {
   fulfillmentType?: FulfillmentType | null;
   category?: string | null;
   subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
 
   marketType?: MarketType;
   marketplaceContract?: string | null;
@@ -99,6 +105,9 @@ type MarketNftResponse = {
     fulfillmentType?: FulfillmentType | null;
     category?: string | null;
     subcategory?: string | null;
+    serviceCountry?: string | null;
+    serviceCity?: string | null;
+    serviceArea?: string | null;
     resolvedMarketType?: MarketType | null;
   };
   stats: {
@@ -185,6 +194,25 @@ function explorerTxUrl(chainId: number, txHash: string) {
 
 function marketLabel(mt?: MarketType | null) {
   return mt === "PROTECTED" ? "PROTECTED" : "STANDARD";
+}
+
+
+function cleanLocationValue(v?: string | null) {
+  const s = String(v || "").trim();
+  return s ? s : null;
+}
+
+function formatServiceLocation(input: {
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
+}) {
+  const country = cleanLocationValue(input.serviceCountry);
+  const city = cleanLocationValue(input.serviceCity);
+  const area = cleanLocationValue(input.serviceArea);
+  const main = [city, country].filter(Boolean).join(", ");
+  if (main && area) return main + " • " + area;
+  return main || area || null;
 }
 
 function listingKeyOf(x: {
@@ -669,6 +697,9 @@ export default function TradingPanel1155({
   fulfillmentType,
   category,
   subcategory,
+  serviceCountry,
+  serviceCity,
+  serviceArea,
   initialMarketData = null,
 }: {
   chainId: number;
@@ -681,6 +712,9 @@ export default function TradingPanel1155({
   fulfillmentType?: FulfillmentType | null;
   category?: string | null;
   subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
   initialMarketData?: MarketNftResponse | null;
 }) {
   const { address, isConnected } = useAccount();
@@ -821,6 +855,24 @@ export default function TradingPanel1155({
   const protectedFulfillmentTypeUint8 = useMemo(() => {
     return fulfillmentTypeToUint8(protectedFulfillmentType);
   }, [protectedFulfillmentType]);
+
+  const serviceLocationLabel = useMemo(() => {
+    return formatServiceLocation({
+      serviceCountry: data?.mint?.serviceCountry || serviceCountry,
+      serviceCity: data?.mint?.serviceCity || serviceCity,
+      serviceArea: data?.mint?.serviceArea || serviceArea,
+    });
+  }, [
+    data?.mint?.serviceCountry,
+    data?.mint?.serviceCity,
+    data?.mint?.serviceArea,
+    serviceCountry,
+    serviceCity,
+    serviceArea,
+  ]);
+
+  const showServiceLocation =
+    protectedFulfillmentType === "LOCAL_SERVICE" && Boolean(serviceLocationLabel);
 
   const revalidateMarketTags = useCallback(async () => {
     const tags = [
@@ -1683,6 +1735,18 @@ export default function TradingPanel1155({
             </div>
           ) : null}
 
+          {showServiceLocation ? (
+            <div className="mt-3 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] leading-relaxed text-sky-100">
+              <div className="font-black">Local / offline service location</div>
+              <div className="mt-1">
+                Service area: <span className="font-black">{serviceLocationLabel}</span>
+              </div>
+              <div className="mt-2 text-sky-100/80">
+                Exact address, schedule and completion details should be coordinated in Orders after purchase.
+              </div>
+            </div>
+          ) : null}
+
           <div className="mt-5">
             <MarketNotice
               contractView={contractView}
@@ -2166,6 +2230,40 @@ export default function TradingPanel1155({
                         {selectedListingCreatesProtectedOrder ? (
                           <span className="rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-2 py-1 text-[10px] font-black text-fuchsia-100">
                             PROTECTED ORDER AFTER BUY
+                          </span>
+                        ) : null}
+
+                        {selectedListingCreatesProtectedOrder &&
+                        protectedFulfillmentType === "LOCAL_SERVICE" &&
+                        formatServiceLocation({
+                          serviceCountry:
+                            selectedListing.serviceCountry ||
+                            data?.mint?.serviceCountry ||
+                            serviceCountry,
+                          serviceCity:
+                            selectedListing.serviceCity ||
+                            data?.mint?.serviceCity ||
+                            serviceCity,
+                          serviceArea:
+                            selectedListing.serviceArea ||
+                            data?.mint?.serviceArea ||
+                            serviceArea,
+                        }) ? (
+                          <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[10px] font-black text-sky-100">
+                            {formatServiceLocation({
+                              serviceCountry:
+                                selectedListing.serviceCountry ||
+                                data?.mint?.serviceCountry ||
+                                serviceCountry,
+                              serviceCity:
+                                selectedListing.serviceCity ||
+                                data?.mint?.serviceCity ||
+                                serviceCity,
+                              serviceArea:
+                                selectedListing.serviceArea ||
+                                data?.mint?.serviceArea ||
+                                serviceArea,
+                            })}
                           </span>
                         ) : null}
 

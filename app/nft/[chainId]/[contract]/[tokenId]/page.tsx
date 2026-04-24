@@ -765,6 +765,24 @@ function fulfillmentTypeTone(
   return "violet";
 }
 
+function cleanLocationValue(v?: string | null) {
+  const s = String(v || "").trim();
+  return s ? s : null;
+}
+
+function formatServiceLocation(input: {
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
+}) {
+  const country = cleanLocationValue(input.serviceCountry);
+  const city = cleanLocationValue(input.serviceCity);
+  const area = cleanLocationValue(input.serviceArea);
+  const main = [city, country].filter(Boolean).join(", ");
+  if (main && area) return main + " • " + area;
+  return main || area || null;
+}
+
 async function loadMarketNft(
   origin: string | null,
   chainId: number,
@@ -1048,6 +1066,9 @@ export default async function NftDetailsPage({
       fulfillmentType: true,
       category: true,
       subcategory: true,
+      serviceCountry: true,
+      serviceCity: true,
+      serviceArea: true,
       user: {
         select: {
           handle: true,
@@ -1256,6 +1277,30 @@ export default async function NftDetailsPage({
     nft.fulfillmentType ||
     null;
 
+  const serviceCountry =
+    pickAny(meta, ["serviceCountry", "service_country", "country"]) ||
+    pickAttrAny(meta, ["Service Country", "Country"]) ||
+    nft.serviceCountry ||
+    null;
+
+  const serviceCity =
+    pickAny(meta, ["serviceCity", "service_city", "city"]) ||
+    pickAttrAny(meta, ["Service City", "City"]) ||
+    nft.serviceCity ||
+    null;
+
+  const serviceArea =
+    pickAny(meta, ["serviceArea", "service_area", "area", "serviceZone", "service_zone"]) ||
+    pickAttrAny(meta, ["Service Area", "Service Zone", "Area"]) ||
+    nft.serviceArea ||
+    null;
+
+  const serviceLocationLabel = formatServiceLocation({
+    serviceCountry,
+    serviceCity,
+    serviceArea,
+  });
+
   const dbDeliveryEnabled = Boolean(nft.deliveryEnabled);
   const dbPhysicalItemIncluded = Boolean(nft.physicalItemIncluded);
   const dbOfficialItem = Boolean(nft.officialItem);
@@ -1448,6 +1493,10 @@ export default async function NftDetailsPage({
                 </InfoPill>
               ) : null}
 
+              {serviceLocationLabel ? (
+                <InfoPill tone="sky">{serviceLocationLabel}</InfoPill>
+              ) : null}
+
               {storePrimaryDeliveryCapable ? (
                 <InfoPill tone="emerald">PRIMARY DELIVERY AVAILABLE</InfoPill>
               ) : null}
@@ -1613,6 +1662,10 @@ export default async function NftDetailsPage({
                       </InfoPill>
                     ) : null}
 
+                    {serviceLocationLabel ? (
+                      <InfoPill tone="sky">{serviceLocationLabel}</InfoPill>
+                    ) : null}
+
                     {storePrimaryDeliveryCapable ? (
                       <InfoPill tone="emerald">PRIMARY DELIVERY AVAILABLE</InfoPill>
                     ) : null}
@@ -1675,6 +1728,23 @@ export default async function NftDetailsPage({
                         {metaSubcategory ? (
                           <InfoPill tone="violet">{metaSubcategory}</InfoPill>
                         ) : null}
+                        {serviceLocationLabel ? (
+                          <InfoPill tone="sky">{serviceLocationLabel}</InfoPill>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {protectedSubtype === "LOCAL_SERVICE" && serviceLocationLabel ? (
+                    <div className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
+                      <div className="text-[12px] font-bold text-sky-100">
+                        Local / offline service location
+                      </div>
+                      <div className="mt-2 text-[12px] leading-relaxed text-sky-50/90">
+                        This service is available around
+                        <span className="font-black"> {serviceLocationLabel}</span>.
+                        Exact address, timing and handoff details should be coordinated inside
+                        the protected order room after purchase.
                       </div>
                     </div>
                   ) : null}
@@ -1897,6 +1967,9 @@ export default async function NftDetailsPage({
                 fulfillmentType={metaFulfillmentType || nft.fulfillmentType || null}
                 category={metaCategory || nft.category || null}
                 subcategory={metaSubcategory || nft.subcategory || null}
+                serviceCountry={serviceCountry}
+                serviceCity={serviceCity}
+                serviceArea={serviceArea}
                 initialMarketData={initialTradingMarketData}
               />
             </div>

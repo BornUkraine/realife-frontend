@@ -49,6 +49,10 @@ type GalleryItem = {
   fulfillmentType?: FulfillmentType | string | null;
   category?: string | null;
   subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
+  serviceLocationLabel?: string | null;
 
   secondaryMarketType?: MarketType;
   usesProtectedSecondaryMarket?: boolean;
@@ -108,6 +112,25 @@ function protectedSubtypeTone(subtype?: string | null) {
   }
 
   return "border-white/10 bg-white/[0.06] text-white/80";
+}
+
+
+function cleanLocationValue(v?: string | null) {
+  const s = String(v || "").trim();
+  return s ? s : null;
+}
+
+function formatServiceLocation(input: {
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
+}) {
+  const country = cleanLocationValue(input.serviceCountry);
+  const city = cleanLocationValue(input.serviceCity);
+  const area = cleanLocationValue(input.serviceArea);
+  const main = [city, country].filter(Boolean).join(", ");
+  if (main && area) return main + " • " + area;
+  return main || area || null;
 }
 
 function GridToastCard({ toast }: { toast: GridToast }) {
@@ -276,6 +299,16 @@ export default function GalleryGridClient({
           const showProtectedBadge = x.secondaryMarketType === "PROTECTED";
           const showProtectedSubtype =
             showProtectedBadge && Boolean(x.protectedSubtypeLabel);
+          const serviceLocationLabel =
+            x.serviceLocationLabel ||
+            formatServiceLocation({
+              serviceCountry: x.serviceCountry,
+              serviceCity: x.serviceCity,
+              serviceArea: x.serviceArea,
+            });
+          const showServiceLocation =
+            String(x.protectedSubtype || x.fulfillmentType || "").toUpperCase() ===
+              "LOCAL_SERVICE" && Boolean(serviceLocationLabel);
           const justListed = freshlyListed[x.id];
 
           return (
@@ -306,6 +339,9 @@ export default function GalleryGridClient({
                             }
                             category={x.category || null}
                             subcategory={x.subcategory || null}
+                            serviceCountry={x.serviceCountry || null}
+                            serviceCity={x.serviceCity || null}
+                            serviceArea={x.serviceArea || null}
                             marketTypeHint={x.secondaryMarketType || "STANDARD"}
                             preferredMarketType={
                               x.secondaryMarketType || "STANDARD"
@@ -410,6 +446,13 @@ export default function GalleryGridClient({
                           {x.protectedSubtypeLabel}
                         </div>
                       ) : null}
+                      {showServiceLocation ? (
+                        <div className="w-fit max-w-[180px] truncate rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[10px] font-bold text-sky-100">
+                          {serviceLocationLabel}
+                        </div>
+                      ) : null}
+
+
 
                       {x.officialItem ? (
                         <div className="w-fit rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-100">
@@ -442,6 +485,12 @@ export default function GalleryGridClient({
                   <span className="truncate">{shortAddr(x.contract)}</span>
                   <span className="font-mono">#{x.tokenId}</span>
                 </div>
+                {showServiceLocation ? (
+                  <div className="mt-2 truncate text-[12px] font-semibold text-sky-100/85">
+                    {serviceLocationLabel}
+                  </div>
+                ) : null}
+
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   {x.isCafeNft || x.isStoreNft ? (
