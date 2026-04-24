@@ -1,5 +1,6 @@
 export type ImageSize = "1024x1024" | "1024x1536" | "1536x1024";
 export type ImageQuality = "low" | "medium" | "high";
+export type ImageModel = "gpt-image-2";
 
 export type VideoSize =
   | "1280x720"
@@ -14,19 +15,22 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
 /**
- * IMPORTANT:
- * gpt-image-2 may require verified organization access.
- * Keep gpt-image-1 as safe default so the live site does not break.
+ * Realife AI Studio image generation:
+ * Strict maximum image model only.
  *
- * Railway:
- * OPENAI_IMAGE_MODEL=gpt-image-1   // safe now
- * OPENAI_IMAGE_MODEL=gpt-image-2   // after verification/access is fully active
+ * Required:
+ * OPENAI_IMAGE_MODEL=gpt-image-2
+ *
+ * If the organization/API key does not have access yet,
+ * image generation will fail until OpenAI enables access.
  */
-const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-2";
+const DEFAULT_OPENAI_IMAGE_MODEL: ImageModel = "gpt-image-2";
 
 /**
- * Mega video default.
- * Railway can override:
+ * Realife AI Studio video generation:
+ * Premium video model by default.
+ *
+ * Railway:
  * OPENAI_VIDEO_MODEL=sora-2-pro
  */
 const DEFAULT_OPENAI_VIDEO_MODEL: VideoModel = "sora-2-pro";
@@ -66,8 +70,24 @@ function cleanString(value: unknown) {
   return String(value || "").trim();
 }
 
-export function getOpenAiImageModel() {
-  return process.env.OPENAI_IMAGE_MODEL?.trim() || DEFAULT_OPENAI_IMAGE_MODEL;
+export function getOpenAiImageModel(): ImageModel {
+  const model = process.env.OPENAI_IMAGE_MODEL?.trim();
+
+  if (model === "gpt-image-2") {
+    return "gpt-image-2";
+  }
+
+  return DEFAULT_OPENAI_IMAGE_MODEL;
+}
+
+export function normalizeImageModel(value?: string | null): ImageModel {
+  const model = cleanString(value);
+
+  if (model === "gpt-image-2") {
+    return "gpt-image-2";
+  }
+
+  return getOpenAiImageModel();
 }
 
 export function getOpenAiVideoModel(): VideoModel {
@@ -80,15 +100,17 @@ export function getOpenAiVideoModel(): VideoModel {
 }
 
 export function normalizeVideoModel(value?: string | null): VideoModel {
-  const v = cleanString(value);
+  const model = cleanString(value);
 
-  if (v === "sora-2") return "sora-2";
-  if (v === "sora-2-pro") return "sora-2-pro";
+  if (model === "sora-2") return "sora-2";
+  if (model === "sora-2-pro") return "sora-2-pro";
 
   return getOpenAiVideoModel();
 }
 
-export function normalizeVideoSeconds(value?: string | number | null): VideoSeconds {
+export function normalizeVideoSeconds(
+  value?: string | number | null
+): VideoSeconds {
   const n = Number(value);
 
   if (n === 4) return 4;
@@ -189,10 +211,12 @@ function extractErrorMessage(json: unknown, fallback: string) {
     json.error.message.trim()
   ) {
     const message = json.error.message.trim();
+
     const code =
       typeof json.error.code === "string" && json.error.code.trim()
         ? ` Code: ${json.error.code.trim()}.`
         : "";
+
     const type =
       typeof json.error.type === "string" && json.error.type.trim()
         ? ` Type: ${json.error.type.trim()}.`
@@ -268,7 +292,13 @@ export async function createImage(params: {
   model?: string;
 }) {
   const { prompt, size, quality, referenceImage } = params;
-  const model = params.model?.trim() || getOpenAiImageModel();
+
+  /**
+   * Strict mode:
+   * Even if frontend or route passes something else,
+   * final OpenAI image model will be gpt-image-2 only.
+   */
+  const model = normalizeImageModel(params.model);
 
   if (!prompt.trim()) {
     throw new Error("Image prompt is required.");
@@ -301,7 +331,10 @@ export async function createImage(params: {
 
     if (!response.ok) {
       throw new Error(
-        `${extractErrorMessage(json, "OpenAI image edit failed.")} Model: ${model}`
+        `${extractErrorMessage(
+          json,
+          "OpenAI image edit failed."
+        )} Model: ${model}`
       );
     }
 
@@ -335,7 +368,10 @@ export async function createImage(params: {
 
   if (!response.ok) {
     throw new Error(
-      `${extractErrorMessage(json, "OpenAI image generation failed.")} Model: ${model}`
+      `${extractErrorMessage(
+        json,
+        "OpenAI image generation failed."
+      )} Model: ${model}`
     );
   }
 
@@ -356,17 +392,11 @@ export async function createVideo(params: {
   aspectRatio?: string;
   referenceImageDataUrl?: string;
 }) {
-  const {
-    prompt,
-    referenceImageDataUrl,
-  } = params;
+  const { prompt, referenceImageDataUrl } = params;
 
   const model = params.model || getOpenAiVideoModel();
   const seconds = params.seconds || 12;
-  const size =
-    params.size ||
-    normalizeVideoSize(params.size) ||
-    mapAspectRatioToVideoSize(params.aspectRatio);
+  const size = params.size || mapAspectRatioToVideoSize(params.aspectRatio);
 
   if (!prompt.trim()) {
     throw new Error("Video prompt is required.");
@@ -399,7 +429,10 @@ export async function createVideo(params: {
 
   if (!response.ok) {
     throw new Error(
-      `${extractErrorMessage(json, "OpenAI video creation failed.")} Model: ${model}. Size: ${size}. Seconds: ${seconds}.`
+      `${extractErrorMessage(
+        json,
+        "OpenAI video creation failed."
+      )} Model: ${model}. Size: ${size}. Seconds: ${seconds}.`
     );
   }
 
@@ -445,7 +478,9 @@ export async function downloadVideoContent(
     variant === "thumbnail" || variant === "spritesheet" ? variant : "video";
 
   const response = await fetch(
-    `${OPENAI_BASE_URL}/videos/${encodeURIComponent(id)}/content?variant=${safeVariant}`,
+    `${OPENAI_BASE_URL}/videos/${encodeURIComponent(
+      id
+    )}/content?variant=${safeVariant}`,
     {
       method: "GET",
       headers: authHeaders(),
