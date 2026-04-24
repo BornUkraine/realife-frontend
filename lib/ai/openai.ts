@@ -7,6 +7,8 @@ export type VideoModel = "sora-2" | "sora-2-pro";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 
+const DEFAULT_OPENAI_IMAGE_MODEL = "gpt-image-2";
+
 type OpenAiErrorShape = {
   error?: {
     message?: string;
@@ -28,11 +30,19 @@ export type OpenAiVideoJob = {
 type OpenAiImageResponse = OpenAiErrorShape & {
   data?: Array<{
     b64_json?: string;
+    url?: string;
   }>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+export function getOpenAiImageModel() {
+  return (
+    process.env.OPENAI_IMAGE_MODEL?.trim() ||
+    DEFAULT_OPENAI_IMAGE_MODEL
+  );
 }
 
 export function assertOpenAiKey() {
@@ -43,6 +53,7 @@ export function assertOpenAiKey() {
 
 function authHeaders(extra?: HeadersInit): HeadersInit {
   assertOpenAiKey();
+
   return {
     Authorization: `Bearer ${OPENAI_API_KEY}`,
     ...extra,
@@ -51,9 +62,11 @@ function authHeaders(extra?: HeadersInit): HeadersInit {
 
 export function normalizeImageSize(value?: string | null): ImageSize | null {
   const v = String(value || "").trim();
+
   if (v === "1024x1024") return "1024x1024";
   if (v === "1024x1536") return "1024x1536";
   if (v === "1536x1024") return "1536x1024";
+
   return null;
 }
 
@@ -61,9 +74,11 @@ export function mapAspectRatioToImageSize(value?: string): ImageSize {
   switch (value) {
     case "1:1":
       return "1024x1024";
+
     case "4:5":
     case "9:16":
       return "1024x1536";
+
     case "16:9":
     default:
       return "1536x1024";
@@ -74,8 +89,10 @@ export function mapAspectRatioToVideoSize(value?: string): VideoSize {
   switch (value) {
     case "9:16":
       return "720x1280";
+
     case "4:5":
       return "1024x1792";
+
     case "16:9":
     case "1:1":
     default:
@@ -86,6 +103,7 @@ export function mapAspectRatioToVideoSize(value?: string): VideoSize {
 export async function fileToDataUrl(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
   const mime = file.type || "application/octet-stream";
+
   return `data:${mime};base64,${buffer.toString("base64")}`;
 }
 
@@ -106,11 +124,48 @@ function extractErrorMessage(json: unknown, fallback: string) {
   ) {
     return json.error.message.trim();
   }
+
   return fallback;
 }
 
+async function responseUrlToDataUrl(url: string) {
+  const response = await fetch(url, {
+    method: "GET",
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("OpenAI returned an image URL, but the image download failed.");
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const contentType =
+    response.headers.get("content-type") || "image/png";
+  const base64 = Buffer.from(arrayBuffer).toString("base64");
+
+  return `data:${contentType};base64,${base64}`;
+}
+
+async function extractImageDataUrl(json: OpenAiImageResponse | null) {
+  const first = json?.data?.[0];
+
+  if (first?.b64_json) {
+    return `data:image/png;base64,${first.b64_json}`;
+  }
+
+  if (first?.url) {
+    return await responseUrlToDataUrl(first.url);
+  }
+
+  throw new Error("OpenAI returned no image data.");
+}
+
 function toVideoJob(json: unknown, fallbackMessage: string): OpenAiVideoJob {
-  if (!isRecord(json) || typeof json.id !== "string" || typeof json.status !== "string") {
+  if (
+    !isRecord(json) ||
+    typeof json.id !== "string" ||
+    typeof json.status !== "string"
+  ) {
     throw new Error(fallbackMessage);
   }
 
@@ -133,17 +188,23 @@ export async function createImage(params: {
   size: ImageSize;
   quality: ImageQuality;
   referenceImage?: File | null;
+  model?: string;
 }) {
   const { prompt, size, quality, referenceImage } = params;
+  const model = params.model?.trim() || getOpenAiImageModel();
 
   if (referenceImage) {
     const form = new FormData();
-    form.append("model", "gpt-image-1");
+
+    form.append("model", model);
     form.append("prompt", prompt);
     form.append("size", size);
     form.append("quality", quality);
     form.append("output_format", "png");
     form.append("background", "opaque");
+
+    // The image edit endpoint accepts multipart image input.
+    // Keeping image[] supports multi-image style input while still working for one reference.
     form.append(
       "image[]",
       referenceImage,
@@ -154,22 +215,23 @@ export async function createImage(params: {
       method: "POST",
       headers: authHeaders(),
       body: form,
+      cache: "no-store",
     });
 
     const json = await safeJson<OpenAiImageResponse>(response);
 
     if (!response.ok) {
-      throw new Error(extractErrorMessage(json, "OpenAI image edit failed."));
+      throw new Error(
+        `${extractErrorMessage(json, "OpenAI image edit failed.")} Model: ${model}`
+      );
     }
 
-    const b64 = json?.data?.[0]?.b64_json;
-    if (!b64) {
-      throw new Error("OpenAI returned no image data.");
-    }
+    const dataUrl = await extractImageDataUrl(json);
 
     return {
-      dataUrl: `data:image/png;base64,${b64}`,
+      dataUrl,
       raw: json,
+      model,
     };
   }
 
@@ -180,31 +242,30 @@ export async function createImage(params: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "gpt-image-1",
+      model,
       prompt,
       size,
       quality,
       output_format: "png",
       background: "opaque",
     }),
+    cache: "no-store",
   });
 
   const json = await safeJson<OpenAiImageResponse>(response);
 
   if (!response.ok) {
     throw new Error(
-      extractErrorMessage(json, "OpenAI image generation failed.")
+      `${extractErrorMessage(json, "OpenAI image generation failed.")} Model: ${model}`
     );
   }
 
-  const b64 = json?.data?.[0]?.b64_json;
-  if (!b64) {
-    throw new Error("OpenAI returned no image data.");
-  }
+  const dataUrl = await extractImageDataUrl(json);
 
   return {
-    dataUrl: `data:image/png;base64,${b64}`,
+    dataUrl,
     raw: json,
+    model,
   };
 }
 
@@ -237,6 +298,7 @@ export async function createVideo(params: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    cache: "no-store",
   });
 
   const json = await safeJson(response);
@@ -273,11 +335,13 @@ export async function downloadVideoContent(
     {
       method: "GET",
       headers: authHeaders(),
+      cache: "no-store",
     }
   );
 
   if (!response.ok) {
     const maybeJson = await safeJson(response);
+
     throw new Error(
       extractErrorMessage(maybeJson, "OpenAI video download failed.")
     );
