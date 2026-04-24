@@ -81,7 +81,10 @@ const ITEM_TYPE_SUGGESTIONS = [
   "Training",
   "Lesson",
   "Local Service",
+  "Offline Service",
   "Repair Service",
+  "Fitness Session",
+  "Personal Training",
 ] as const;
 
 type MintCategory = (typeof CATEGORIES)[number];
@@ -128,6 +131,8 @@ const ONLINE_SESSION_HINTS = [
   "online workout",
   "online yoga",
   "zoom",
+  "remote",
+  "online",
 ];
 
 const DIGITAL_SERVICE_HINTS = [
@@ -164,9 +169,12 @@ const DIGITAL_SERVICE_HINTS = [
 
 const LOCAL_SERVICE_HINTS = [
   "local service",
+  "offline service",
   "offline",
   "in-person",
   "in person",
+  "in_person",
+  "local",
   "repair",
   "plumber",
   "electrician",
@@ -176,7 +184,13 @@ const LOCAL_SERVICE_HINTS = [
   "massage",
   "barber",
   "gym service",
+  "fitness trainer",
+  "personal trainer",
   "trainer in person",
+  "offline fitness",
+  "offline training",
+  "fitness session",
+  "personal training",
   "yoga in person",
   "tour",
   "city tour",
@@ -267,7 +281,7 @@ function humanFulfillmentType(v: FulfillmentType) {
   if (v === "PHYSICAL_GOOD") return "Physical good";
   if (v === "DIGITAL_SERVICE") return "Digital service";
   if (v === "ONLINE_SESSION") return "Online session";
-  if (v === "LOCAL_SERVICE") return "Local service";
+  if (v === "LOCAL_SERVICE") return "Local / offline service";
   return "Collectible / standard NFT";
 }
 
@@ -300,7 +314,14 @@ function normalizeFulfillmentType(v?: string | null): FulfillmentType {
   if (s === "online_session" || s === "online session") {
     return "ONLINE_SESSION";
   }
-  if (s === "local_service" || s === "local service") {
+  if (
+    s === "local_service" ||
+    s === "local service" ||
+    s === "offline service" ||
+    s === "offline" ||
+    s === "in person" ||
+    s === "in-person"
+  ) {
     return "LOCAL_SERVICE";
   }
 
@@ -516,22 +537,22 @@ function inferFulfillmentType(params: {
     .join(" ");
 
   if (
+    categoryNorm === "home & repair" ||
+    categoryNorm === "events & tickets" ||
+    categoryNorm === "logistics & delivery" ||
+    LOCAL_SERVICE_HINTS.some((x) => merged.includes(x)) ||
+    (categoryNorm === "travel & tours" &&
+      !DIGITAL_SERVICE_HINTS.some((x) => merged.includes(x)))
+  ) {
+    return "LOCAL_SERVICE";
+  }
+
+  if (
     categoryNorm === "education & coaching" ||
     categoryNorm === "health & wellness" ||
     ONLINE_SESSION_HINTS.some((x) => merged.includes(x))
   ) {
     return "ONLINE_SESSION";
-  }
-
-  if (
-    categoryNorm === "home & repair" ||
-    categoryNorm === "events & tickets" ||
-    (categoryNorm === "travel & tours" &&
-      !DIGITAL_SERVICE_HINTS.some((x) => merged.includes(x))) ||
-    categoryNorm === "logistics & delivery" ||
-    LOCAL_SERVICE_HINTS.some((x) => merged.includes(x))
-  ) {
-    return "LOCAL_SERVICE";
   }
 
   if (
@@ -1317,6 +1338,10 @@ export default function MintForm() {
   const [supply, setSupply] = useState<number>(1);
   const [proofUrl, setProofUrl] = useState("");
 
+  const [serviceCountry, setServiceCountry] = useState("");
+  const [serviceCity, setServiceCity] = useState("");
+  const [serviceArea, setServiceArea] = useState("");
+
   const [step, setStep] = useState<"idle" | "preparing" | "signing" | "mining">(
     "idle"
   );
@@ -1350,6 +1375,8 @@ export default function MintForm() {
     [deliveryMode, category, itemType, itemLabel, subcategory]
   );
 
+  const isLocalService = fulfillmentType === "LOCAL_SERVICE";
+
   const suggestedMarketType = useMemo<SuggestedMarketType>(
     () => inferSuggestedMarketType(fulfillmentType, deliveryMode),
     [fulfillmentType, deliveryMode]
@@ -1376,11 +1403,14 @@ export default function MintForm() {
       brand.trim(),
       deliveryMode === "delivery" ? "delivery" : "standard",
       suggestedMarketType === "protected" ? "protected flow" : "standard flow",
+      isLocalService ? serviceCountry.trim() : "",
+      isLocalService ? serviceCity.trim() : "",
+      isLocalService ? serviceArea.trim() : "",
     ];
 
     return Array.from(
       new Set(raw.map((x) => String(x || "").trim()).filter(Boolean))
-    ).slice(0, 10);
+    ).slice(0, 12);
   }, [
     project,
     category,
@@ -1390,6 +1420,10 @@ export default function MintForm() {
     brand,
     deliveryMode,
     suggestedMarketType,
+    isLocalService,
+    serviceCountry,
+    serviceCity,
+    serviceArea,
   ]);
 
   const isDeliveryMode = deliveryMode === "delivery";
@@ -1464,6 +1498,9 @@ export default function MintForm() {
     setBrand("");
     setDescription("");
     setProofUrl("");
+    setServiceCountry("");
+    setServiceCity("");
+    setServiceArea("");
     setPreviewCategory("Other");
   }
 
@@ -1474,6 +1511,15 @@ export default function MintForm() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approvedPhysicalSeller]);
+
+  useEffect(() => {
+    if (!isLocalService && (serviceCountry || serviceCity || serviceArea)) {
+      setServiceCountry("");
+      setServiceCity("");
+      setServiceArea("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLocalService]);
 
   function onPickFile(f: File | null) {
     setError("");
@@ -1550,6 +1596,10 @@ export default function MintForm() {
       const targetMode = submittedMintMode;
       const targetContract = submittedMintContract;
 
+      const finalServiceCountry = isLocalService ? serviceCountry.trim() : "";
+      const finalServiceCity = isLocalService ? serviceCity.trim() : "";
+      const finalServiceArea = isLocalService ? serviceArea.trim() : "";
+
       const tokenId = extractMintTokenIdFromReceipt(
         receipt,
         targetMode,
@@ -1588,6 +1638,9 @@ export default function MintForm() {
               subcategory: subcategory.trim() || null,
               fulfillmentType,
               suggestedMarketType,
+              serviceCountry: finalServiceCountry || null,
+              serviceCity: finalServiceCity || null,
+              serviceArea: finalServiceArea || null,
             }),
           });
 
@@ -1614,6 +1667,9 @@ export default function MintForm() {
       qp.set("delivery", targetMode === "delivery" ? "1" : "0");
       qp.set("market", suggestedMarketType);
       qp.set("fulfillmentType", fulfillmentType || "");
+      qp.set("serviceCountry", finalServiceCountry);
+      qp.set("serviceCity", finalServiceCity);
+      qp.set("serviceArea", finalServiceArea);
       qp.set("tx", txHash || "");
       qp.set("tokenId", tokenId || "");
       qp.set("standard", "ERC1155");
@@ -1804,6 +1860,9 @@ export default function MintForm() {
       );
       formData.append("fulfillmentType", fulfillmentType || "");
       formData.append("suggestedMarketType", suggestedMarketType);
+      formData.append("serviceCountry", isLocalService ? serviceCountry.trim() : "");
+      formData.append("serviceCity", isLocalService ? serviceCity.trim() : "");
+      formData.append("serviceArea", isLocalService ? serviceArea.trim() : "");
       formData.append("supply", String(clampSupply(supply)));
       formData.append("proofUrl", proofUrl.trim());
 
@@ -2196,8 +2255,9 @@ export default function MintForm() {
 
           <div className="mt-3 text-[11px] leading-relaxed text-white/55">
             Best for product photos, merch, clothes, jewelry, travel cards,
-            tickets, service cards, portfolios, websites, packaging, and other
-            real-world items. For video, poster image is recommended.
+            tickets, service cards, portfolios, websites, packaging, local /
+            offline services, and other real-world items. For video, poster image
+            is recommended.
           </div>
 
           {aiSuggestError ? (
@@ -2365,7 +2425,7 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: Graphic T-shirt / Fitness coaching / Coffee bag / City walking tour / Event ticket"
+            placeholder="Example: Graphic T-shirt / Offline fitness session / Coffee bag / City walking tour / Event ticket"
             value={itemLabel}
             onChange={(e) => {
               resetPreparedState();
@@ -2396,7 +2456,7 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: T-shirt / Tour / Ticket / Consultation / Website / Coffee"
+            placeholder="Example: T-shirt / Tour / Ticket / Consultation / Website / Coffee / Offline Service"
             value={itemType}
             onChange={(e) => {
               resetPreparedState();
@@ -2448,7 +2508,7 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: Streetwear / Yoga coaching / Landing page / Handmade chocolate / City landmarks tour"
+            placeholder="Example: Streetwear / Personal training / Landing page / Handmade chocolate / City landmarks tour"
             value={subcategory}
             onChange={(e) => {
               resetPreparedState();
@@ -2607,6 +2667,82 @@ export default function MintForm() {
           </div>
         </Card>
 
+        {isLocalService ? (
+          <Card>
+            <div className="mb-4 flex items-end justify-between">
+              <div>
+                <div className="text-sm font-extrabold tracking-tight">
+                  Local / offline service location
+                </div>
+                <div className="mt-1 text-[11px] text-white/55">
+                  Where this service can be provided in real life.
+                </div>
+              </div>
+              <Pill>
+                <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+                Local service
+              </Pill>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <input
+                type="text"
+                placeholder="Country, example: United States"
+                value={serviceCountry}
+                onChange={(e) => {
+                  resetPreparedState();
+                  setServiceCountry(e.target.value);
+                }}
+                className={[
+                  "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+                  "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
+                ].join(" ")}
+              />
+
+              <input
+                type="text"
+                placeholder="City, example: Los Angeles"
+                value={serviceCity}
+                onChange={(e) => {
+                  resetPreparedState();
+                  setServiceCity(e.target.value);
+                }}
+                className={[
+                  "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+                  "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
+                ].join(" ")}
+              />
+            </div>
+
+            <input
+              type="text"
+              placeholder="Area / district / service zone, example: West Hollywood, Beverly Hills, Kyiv center"
+              value={serviceArea}
+              onChange={(e) => {
+                resetPreparedState();
+                setServiceArea(e.target.value);
+              }}
+              className={[
+                "mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+                "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
+              ].join(" ")}
+            />
+
+            <div className="mt-3 text-[11px] leading-relaxed text-white/55">
+              This is not a buyer shipping address. This is a public discovery
+              location for offline services. Exact meeting details can be shared
+              later inside the protected order room.
+            </div>
+
+            <div className="mt-3 text-[11px] leading-relaxed text-white/55">
+              Example:{" "}
+              <span className="font-semibold text-white">
+                Offline fitness session • United States • Los Angeles • West Hollywood
+              </span>
+            </div>
+          </Card>
+        ) : null}
+
         <Card>
           <div className="mb-3 flex items-end justify-between">
             <div>
@@ -2654,6 +2790,24 @@ export default function MintForm() {
               </div>
             </div>
           </div>
+
+          {isLocalService ? (
+            <div className="mt-3 rounded-2xl border border-amber-500/15 bg-amber-500/10 p-4">
+              <div className="text-[11px] uppercase tracking-[0.16em] text-amber-100/70">
+                Local service location
+              </div>
+              <div className="mt-2 text-sm font-extrabold text-white">
+                {[serviceCity.trim(), serviceCountry.trim()]
+                  .filter(Boolean)
+                  .join(", ") || "Add country and city"}
+              </div>
+              {serviceArea.trim() ? (
+                <div className="mt-1 text-xs text-white/60">
+                  {serviceArea.trim()}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="mt-3 text-[11px] leading-relaxed text-white/55">
             Category:{" "}
@@ -2851,7 +3005,7 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: Atelier Realife / Vintage House / Custom Studio"
+            placeholder="Example: Atelier Realife / Veronica Martineli / Custom Studio"
             value={brand}
             onChange={(e) => {
               resetPreparedState();
@@ -3033,6 +3187,16 @@ export default function MintForm() {
                 <span className="font-semibold text-white">{brand.trim()}</span>
               </>
             ) : null}
+            {isLocalService && (serviceCity.trim() || serviceCountry.trim()) ? (
+              <>
+                {" · "}Location:{" "}
+                <span className="font-semibold text-white">
+                  {[serviceCity.trim(), serviceCountry.trim()]
+                    .filter(Boolean)
+                    .join(", ")}
+                </span>
+              </>
+            ) : null}
           </div>
         </Card>
 
@@ -3081,6 +3245,9 @@ export default function MintForm() {
                 <div className="mt-1 truncate text-[11px] text-white/70">
                   {project} • {category}
                   {brand.trim() ? ` • ${brand.trim()}` : ""}
+                  {isLocalService && serviceCity.trim()
+                    ? ` • ${serviceCity.trim()}`
+                    : ""}
                 </div>
               </div>
             </div>
@@ -3140,6 +3307,24 @@ export default function MintForm() {
                 {clampSupply(supply)}
               </div>
             </div>
+
+            {isLocalService ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 md:col-span-2">
+                <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                  Service location
+                </div>
+                <div className="mt-2 text-sm font-extrabold text-white">
+                  {[serviceCity.trim(), serviceCountry.trim()]
+                    .filter(Boolean)
+                    .join(", ") || "—"}
+                </div>
+                {serviceArea.trim() ? (
+                  <div className="mt-1 text-xs text-white/55">
+                    {serviceArea.trim()}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4">
@@ -3158,7 +3343,7 @@ export default function MintForm() {
                 ))
               ) : (
                 <span className="text-[11px] text-white/45">
-                  Fill category, item type, item, brand, and niche to build search context.
+                  Fill category, item type, item, brand, niche, and location to build search context.
                 </span>
               )}
             </div>
