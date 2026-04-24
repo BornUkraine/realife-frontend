@@ -95,6 +95,7 @@ function textLooksProtected(...values: Array<string | null | undefined>) {
     "digital service",
     "online session",
     "local service",
+    "offline service",
     "consultation",
     "consulting",
     "lesson",
@@ -208,6 +209,9 @@ export async function GET(req: NextRequest) {
         fulfillmentType: true,
         category: true,
         subcategory: true,
+        serviceCountry: true,
+        serviceCity: true,
+        serviceArea: true,
         createdAt: true,
 
         // cache fields (now part of the Prisma client)
@@ -324,6 +328,9 @@ export async function GET(req: NextRequest) {
         fulfillmentType: mint.fulfillmentType,
         category: mint.category,
         subcategory: mint.subcategory,
+        serviceCountry: mint.serviceCountry,
+        serviceCity: mint.serviceCity,
+        serviceArea: mint.serviceArea,
         suggestedMarketType,
         resolvedMarketType,
 
@@ -381,6 +388,9 @@ export async function GET(req: NextRequest) {
           fulfillmentType: r.fulfillmentType,
           category: r.category,
           subcategory: r.subcategory,
+          serviceCountry: r.serviceCountry,
+          serviceCity: r.serviceCity,
+          serviceArea: r.serviceArea,
 
           createdAt: r.createdAt.toISOString(),
         };
@@ -416,6 +426,9 @@ export async function GET(req: NextRequest) {
           fulfillmentType: t.fulfillmentType,
           category: t.category,
           subcategory: t.subcategory,
+          serviceCountry: t.serviceCountry,
+          serviceCity: t.serviceCity,
+          serviceArea: t.serviceArea,
 
           sellerWallet: t.sellerWallet,
           buyerWallet: t.buyerWallet,

@@ -528,7 +528,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     hint:
-      "Use POST /api/mints to save a public mint or a catalog-only cafe/store entry. Public standard mint is open to authenticated users, physical goods require approvedPhysicalSeller, catalogOnly requires admin, and txHash is verified on-chain. fulfillmentType/category/subcategory are supported.",
+      "Use POST /api/mints to save a public mint or a catalog-only cafe/store entry. Public standard mint is open to authenticated users, physical goods require approvedPhysicalSeller, catalogOnly requires admin, txHash is verified on-chain, and fulfillmentType/category/subcategory/serviceCountry/serviceCity/serviceArea are supported.",
   });
 }
 
@@ -570,6 +570,10 @@ export async function POST(req: Request) {
     fulfillmentType,
     category,
     subcategory,
+
+    serviceCountry,
+    serviceCity,
+    serviceArea,
   } = body as any;
 
   if (!chainId || !contract || tokenId === undefined || tokenId === null) {
@@ -597,6 +601,10 @@ export async function POST(req: Request) {
 
   const cCategory = cleanString(category, 120);
   const cSubcategory = cleanString(subcategory, 120);
+
+  const rawServiceCountry = cleanString(serviceCountry, 120);
+  const rawServiceCity = cleanString(serviceCity, 120);
+  const rawServiceArea = cleanString(serviceArea, 160);
 
   if (!Number.isFinite(cChainId) || cChainId <= 0) {
     return NextResponse.json(
@@ -769,6 +777,12 @@ export async function POST(req: Request) {
   const finalPhysicalItemIncluded = derived.physicalItemIncluded;
   const finalOfficialItem = derived.officialItem;
 
+  const isLocalService = finalFulfillmentType === "LOCAL_SERVICE";
+
+  const finalServiceCountry = isLocalService ? rawServiceCountry : null;
+  const finalServiceCity = isLocalService ? rawServiceCity : null;
+  const finalServiceArea = isLocalService ? rawServiceArea : null;
+
   const sessionWallet = await getSessionWalletFromSession(session, userId);
   if (!sessionWallet || !isAddressLike(sessionWallet)) {
     return NextResponse.json(
@@ -915,6 +929,10 @@ export async function POST(req: Request) {
         fulfillmentType: finalFulfillmentType || undefined,
         category: cCategory || undefined,
         subcategory: cSubcategory || undefined,
+
+        serviceCountry: finalServiceCountry || undefined,
+        serviceCity: finalServiceCity || undefined,
+        serviceArea: finalServiceArea || undefined,
       };
 
       const dataUpdate = {
@@ -931,6 +949,10 @@ export async function POST(req: Request) {
         fulfillmentType: finalFulfillmentType || undefined,
         category: cCategory || undefined,
         subcategory: cSubcategory || undefined,
+
+        serviceCountry: finalServiceCountry,
+        serviceCity: finalServiceCity,
+        serviceArea: finalServiceArea,
       };
 
       let mint: any = null;
@@ -1001,6 +1023,9 @@ export async function POST(req: Request) {
               fulfillmentType: finalFulfillmentType,
               category: cCategory,
               subcategory: cSubcategory,
+              serviceCountry: finalServiceCountry,
+              serviceCity: finalServiceCity,
+              serviceArea: finalServiceArea,
             },
           },
         });

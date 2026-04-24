@@ -325,6 +325,15 @@ model Mint {
   subcategory     String?
 
   /**
+   * ---------------- Local / offline service location ---------------
+   * Used only when fulfillmentType = LOCAL_SERVICE
+   * Example: fitness trainer in Los Angeles, electrician in Kyiv, tour in Paris
+   */
+  serviceCountry String?
+  serviceCity    String?
+  serviceArea    String?
+
+  /**
    * ---------------- Metadata cache (from IPFS tokenUri) -----------
    * Populated lazily by the API layer on first request, or eagerly
    * by scripts/backfill-metadata.mjs.
@@ -354,6 +363,8 @@ model Mint {
   @@index([deliveryEnabled, physicalItemIncluded])
   @@index([fulfillmentType])
   @@index([category, subcategory])
+  @@index([fulfillmentType, serviceCountry, serviceCity])
+  @@index([serviceCountry, serviceCity])
   @@index([metadataCachedAt])
   @@index([verified, chainId, contract])
 }
@@ -438,6 +449,13 @@ model Listing {
   category        String?
   subcategory     String?
 
+  /**
+   * ---------------- Snapshot of local / offline service location ------------
+   */
+  serviceCountry String?
+  serviceCity    String?
+  serviceArea    String?
+
   status        ListingStatus @default(ACTIVE)
   cancelledAt   DateTime?
   soldOutAt     DateTime?
@@ -455,6 +473,8 @@ model Listing {
   @@index([marketplaceContract, marketplaceListingId])
   @@index([fulfillmentType])
   @@index([category, subcategory])
+  @@index([fulfillmentType, serviceCountry, serviceCity])
+  @@index([serviceCountry, serviceCity])
 }
 
 /**
@@ -493,6 +513,13 @@ model Trade {
   category        String?
   subcategory     String?
 
+  /**
+   * ---------------- Snapshot of local / offline service location ------------
+   */
+  serviceCountry String?
+  serviceCity    String?
+  serviceArea    String?
+
   sellerWallet String
   buyerWallet  String
 
@@ -520,6 +547,8 @@ model Trade {
   @@index([marketplaceContract, marketplacePurchaseId])
   @@index([fulfillmentType])
   @@index([category, subcategory])
+  @@index([fulfillmentType, serviceCountry, serviceCity])
+  @@index([serviceCountry, serviceCity])
 }
 
 /**
@@ -667,6 +696,15 @@ model StoreOrder {
   category    String?
   subcategory String?
 
+  /**
+   * ---------------- Local / offline service location ------------------------
+   * This is NOT buyer shipping address.
+   * This is where the seller provides an offline/local service.
+   */
+  serviceCountry String?
+  serviceCity    String?
+  serviceArea    String?
+
   escrowStatus   EscrowStatus   @default(PENDING)
   deliveryStatus DeliveryStatus @default(PENDING)
 
@@ -741,6 +779,8 @@ model StoreOrder {
   @@index([marketplaceContract, marketplacePurchaseId])
   @@index([fulfillmentType])
   @@index([category, subcategory])
+  @@index([fulfillmentType, serviceCountry, serviceCity])
+  @@index([serviceCountry, serviceCity])
   @@index([buyTxHash])
   @@index([escrowReleaseTxHash])
   @@index([escrowRefundTxHash])
@@ -783,7 +823,7 @@ model AiGeneration {
   updatedAt DateTime @updatedAt
 
   userId String?
-  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   type   AiGenerationType
   status AiGenerationStatus @default(PENDING)

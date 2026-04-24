@@ -128,6 +128,7 @@ function textLooksProtected(...values: Array<string | null | undefined>) {
     "digital service",
     "online session",
     "local service",
+    "offline service",
     "consultation",
     "consulting",
     "lesson",
@@ -200,6 +201,10 @@ export async function GET(req: NextRequest) {
     url.searchParams.get("marketplaceContract")
   );
 
+  const serviceCountry = normText(url.searchParams.get("serviceCountry"));
+  const serviceCity = normText(url.searchParams.get("serviceCity"));
+  const serviceArea = normText(url.searchParams.get("serviceArea"));
+
   const standardRaw = (url.searchParams.get("standard") || "").toUpperCase();
   const standard = ALLOWED_STANDARD.has(standardRaw) ? standardRaw : null;
 
@@ -232,6 +237,27 @@ export async function GET(req: NextRequest) {
   if (seller) where.sellerWallet = seller;
   if (standard) where.standard = standard;
   if (marketplaceContract) where.marketplaceContract = marketplaceContract;
+
+  if (serviceCountry) {
+    where.serviceCountry = {
+      equals: serviceCountry,
+      mode: "insensitive",
+    };
+  }
+
+  if (serviceCity) {
+    where.serviceCity = {
+      equals: serviceCity,
+      mode: "insensitive",
+    };
+  }
+
+  if (serviceArea) {
+    where.serviceArea = {
+      contains: serviceArea,
+      mode: "insensitive",
+    };
+  }
 
   const fixedRules = getFixedContractMarketRules();
   const fixedContracts = Array.from(new Set(fixedRules.map((x) => x.contract)));
@@ -300,6 +326,9 @@ export async function GET(req: NextRequest) {
               fulfillmentType: true,
               category: true,
               subcategory: true,
+              serviceCountry: true,
+              serviceCity: true,
+              serviceArea: true,
 
               metadataCachedAt: true,
               metaImage: true,
@@ -390,6 +419,9 @@ export async function GET(req: NextRequest) {
           fulfillmentType: r.fulfillmentType,
           category: r.category,
           subcategory: r.subcategory,
+          serviceCountry: r.serviceCountry,
+          serviceCity: r.serviceCity,
+          serviceArea: r.serviceArea,
 
           createdAt: r.createdAt.toISOString(),
 
@@ -419,6 +451,9 @@ export async function GET(req: NextRequest) {
                 fulfillmentType: m.fulfillmentType,
                 category: m.category,
                 subcategory: m.subcategory,
+                serviceCountry: m.serviceCountry,
+                serviceCity: m.serviceCity,
+                serviceArea: m.serviceArea,
                 suggestedMarketType: suggestedMarketTypeFromAsset({
                   fulfillmentType: m.fulfillmentType,
                   deliveryEnabled: m.deliveryEnabled,

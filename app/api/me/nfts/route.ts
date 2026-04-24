@@ -86,6 +86,7 @@ function textLooksProtected(...values: Array<string | null | undefined>) {
     "digital service",
     "online session",
     "local service",
+    "offline service",
     "consultation",
     "consulting",
     "lesson",
@@ -183,6 +184,9 @@ export async function GET(req: Request) {
             fulfillmentType: true,
             category: true,
             subcategory: true,
+            serviceCountry: true,
+            serviceCity: true,
+            serviceArea: true,
 
             metadataCachedAt: true,
             metaImage: true,
@@ -256,6 +260,9 @@ export async function GET(req: Request) {
         fulfillmentType: m?.fulfillmentType ?? null,
         category: m?.category ?? null,
         subcategory: m?.subcategory ?? null,
+        serviceCountry: m?.serviceCountry ?? null,
+        serviceCity: m?.serviceCity ?? null,
+        serviceArea: m?.serviceArea ?? null,
 
         suggestedMarketType,
         resolvedMarketType,
