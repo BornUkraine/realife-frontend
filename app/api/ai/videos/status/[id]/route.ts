@@ -16,17 +16,18 @@ export async function GET(_: Request, { params }: RouteContext) {
     const { id } = await params;
 
     const video = await retrieveVideo(id);
-    const status = normalizeStatus(video.status);
+    const normalizedStatus = normalizeStatus(video.status);
 
-    const downloadUrl =
-      video.status === "completed"
-        ? `/api/ai/videos/download/${id}`
-        : undefined;
+    const isCompleted = video.status === "completed";
+
+    const downloadUrl = isCompleted
+      ? `/api/ai/videos/download/${encodeURIComponent(id)}`
+      : undefined;
 
     await prisma.aiGeneration.updateMany({
       where: { externalJobId: id },
       data: {
-        status,
+        status: normalizedStatus,
         errorMessage: video.error?.message || null,
         resultUrl: downloadUrl || null,
         previewUrl: downloadUrl || null,
@@ -36,7 +37,10 @@ export async function GET(_: Request, { params }: RouteContext) {
     return NextResponse.json({
       ok: true,
       videoId: id,
+      id,
+      jobId: id,
       status: video.status,
+      normalizedStatus,
       progress: video.progress ?? 0,
       prompt: video.prompt,
       seconds: video.seconds,
@@ -65,10 +69,13 @@ function normalizeStatus(status: string): AiGenerationStatus {
   switch (status) {
     case "completed":
       return AiGenerationStatus.COMPLETED;
+
     case "failed":
       return AiGenerationStatus.FAILED;
+
     case "cancelled":
       return AiGenerationStatus.CANCELLED;
+
     case "queued":
     case "in_progress":
     default:
