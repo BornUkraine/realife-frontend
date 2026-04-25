@@ -58,7 +58,7 @@ function GoldEdgeWrap({
           "border border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
-          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(16,185,129,0.12),transparent_45%)]",
+          "before:bg-[radial-gradient(circle_at_18%_0%,rgba(139,92,246,0.12),transparent_45%)]",
           "after:pointer-events-none after:absolute after:inset-0",
           "after:bg-[radial-gradient(circle_at_85%_115%,rgba(255,255,255,0.06),transparent_55%)]",
         ].join(" ")}
@@ -69,7 +69,7 @@ function GoldEdgeWrap({
   );
 }
 
-export default async function PublicStandardTradingPage() {
+export default async function ServiceProtectedTradingPage() {
   const session = await getServerSession(authOptions);
 
   const viewerId =
@@ -98,38 +98,38 @@ export default async function PublicStandardTradingPage() {
       <Reveal>
         <GoldEdgeWrap className="rounded-[40px]">
           <div className="relative overflow-hidden p-7 md:p-10">
-            <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-emerald-500/10 blur-3xl" />
+            <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-violet-500/10 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
 
             <div className="relative">
               <div className="flex flex-wrap items-center gap-2">
                 <Pill>
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_6px_rgba(16,185,129,0.12)]" />
-                  Public Mint Standard
+                  <span className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_0_6px_rgba(139,92,246,0.12)]" />
+                  Service Protected
                 </Pill>
 
                 <Pill>
                   <span className="text-white/80 font-extrabold">
-                    STANDARD marketplace
+                    Standard mint contract
                   </span>
                 </Pill>
 
                 <Pill>
                   <span className="text-white/80 font-extrabold">
-                    No protected escrow
+                    PROTECTED service escrow
                   </span>
                 </Pill>
               </div>
 
               <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
-                Public Mint{" "}
-                <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#6ee7b7,#34d399,#10b981)]">
-                  Standard
+                Service{" "}
+                <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#c4b5fd,#8b5cf6,#7c3aed)]">
+                  Protected
                 </span>
               </h1>
 
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
-                User-created NFTs minted through the standard public mint contract and listed through the STANDARD market flow. This section is for normal secondary trading without protected escrow and without delivery flow.
+                Service NFTs minted through the standard public mint contract and listed through the PROTECTED escrow flow. This page is focused on digital services, online sessions, local/offline services and buyer confirmation.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -153,7 +153,7 @@ export default async function PublicStandardTradingPage() {
         <TradingClient
           viewerKey={viewerKey}
           viewerWallet={viewerWallet}
-          initialMarketView="publicStandard"
+          initialMarketView="publicProtected"
           lockMarketView={true}
         />
       </Reveal>

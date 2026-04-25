@@ -6,17 +6,27 @@ import { ipfsToHttp } from "@/lib/ipfs";
 export const runtime = "nodejs";
 
 /**
- * Caching strategy:
+ * Trading listings API.
  *
- *  - Route is ISR-cached for 30s per unique URL (revalidate below).
- *  - Metadata resolved server-side once, then persisted in DB (Mint.meta*).
- *  - After first hit per (contract,view), subsequent requests are effectively
- *    a single indexed DB query + a map over rows.
+ * Important architecture note:
+ * - This route stays DB/indexer based.
+ * - AI search does NOT live here.
+ * - /api/ai/trading-search only converts human text into safe filters.
+ * - This route receives normal filters and performs the real Prisma search.
  */
 export const revalidate = 30;
 export const dynamic = "auto";
 
 type MarketType = "STANDARD" | "PROTECTED";
+type SortMode = "new" | "priceAsc" | "priceDesc";
+
+type FixedMarketType = "STANDARD" | "PROTECTED";
+
+type FulfillmentType =
+  | "PHYSICAL_GOOD"
+  | "DIGITAL_SERVICE"
+  | "ONLINE_SESSION"
+  | "LOCAL_SERVICE";
 
 function s(v: unknown) {
   return typeof v === "bigint" ? v.toString() : v;
@@ -35,13 +45,45 @@ function normAddr(v: string | null | undefined) {
   return x.toLowerCase();
 }
 
+function cleanText(v: string | null | undefined, max = 120) {
+  const x = String(v || "").trim();
+  if (!x) return null;
+  return x.slice(0, max);
+}
+
 function normText(v: string | null | undefined) {
   return String(v || "").trim().toLowerCase();
+}
+
+function parseWei(v: string | null) {
+  const x = String(v || "").trim();
+  if (!x) return null;
+  if (!/^\d+$/.test(x)) return null;
+
+  try {
+    return BigInt(x);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeFulfillmentType(v: string | null | undefined): FulfillmentType | null {
+  const x = String(v || "").trim().toUpperCase();
+  if (
+    x === "PHYSICAL_GOOD" ||
+    x === "DIGITAL_SERVICE" ||
+    x === "ONLINE_SESSION" ||
+    x === "LOCAL_SERVICE"
+  ) {
+    return x as FulfillmentType;
+  }
+  return null;
 }
 
 const ALLOWED_STATUS = new Set(["ACTIVE", "CANCELLED", "SOLD_OUT"]);
 const ALLOWED_STANDARD = new Set(["ERC721", "ERC1155"]);
 const ALLOWED_MARKET_TYPE = new Set<MarketType>(["STANDARD", "PROTECTED"]);
+const ALLOWED_SORT = new Set<SortMode>(["new", "priceAsc", "priceDesc"]);
 
 const CAFE_CONTRACT = normAddr(
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
@@ -67,8 +109,6 @@ const PUBLIC_DELIVERY_CONTRACT = normAddr(
     null
 );
 
-type FixedMarketType = "STANDARD" | "PROTECTED";
-
 function fixedMarketTypeByContract(
   contract: string | null | undefined
 ): FixedMarketType | null {
@@ -82,6 +122,8 @@ function fixedMarketTypeByContract(
     return "PROTECTED";
   }
 
+  // Public standard can contain both STANDARD collectible/listings and
+  // PROTECTED service/session listings, so we do not hard-force it here.
   if (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) {
     return null;
   }
@@ -109,18 +151,12 @@ function getFixedContractMarketRules(): Array<{
 }
 
 function isProtectedFulfillment(v: string | null | undefined) {
-  const x = String(v || "").trim().toUpperCase();
-  return (
-    x === "PHYSICAL_GOOD" ||
-    x === "DIGITAL_SERVICE" ||
-    x === "ONLINE_SESSION" ||
-    x === "LOCAL_SERVICE"
-  );
+  return Boolean(normalizeFulfillmentType(v));
 }
 
 function textLooksProtected(...values: Array<string | null | undefined>) {
-  const s = values.map(normText).filter(Boolean).join(" ");
-  if (!s) return false;
+  const text = values.map(normText).filter(Boolean).join(" ");
+  if (!text) return false;
 
   const needles = [
     "service",
@@ -146,7 +182,7 @@ function textLooksProtected(...values: Array<string | null | undefined>) {
     "ai work",
   ];
 
-  return needles.some((x) => s.includes(x));
+  return needles.some((x) => text.includes(x));
 }
 
 function suggestedMarketTypeFromAsset(input: {
@@ -189,6 +225,84 @@ function resolveMarketType(params: {
   return suggestedMarketType;
 }
 
+function textContainsFilter(field: string, value: string | null) {
+  if (!value) return null;
+  return {
+    [field]: {
+      contains: value,
+      mode: "insensitive",
+    },
+  };
+}
+
+function relationMintTextContainsFilter(field: string, value: string | null) {
+  if (!value) return null;
+  return {
+    mint: {
+      is: {
+        [field]: {
+          contains: value,
+          mode: "insensitive",
+        },
+      },
+    },
+  };
+}
+
+function buildTextSearchClause(q: string | null) {
+  if (!q) return null;
+
+  const query = q.slice(0, 160);
+  const compactQuery = query.toLowerCase();
+
+  const directOr: any[] = [
+    { tokenId: { contains: query, mode: "insensitive" } },
+    { contract: { contains: compactQuery, mode: "insensitive" } },
+    { sellerWallet: { contains: compactQuery, mode: "insensitive" } },
+    { category: { contains: query, mode: "insensitive" } },
+    { subcategory: { contains: query, mode: "insensitive" } },
+    { serviceCountry: { contains: query, mode: "insensitive" } },
+    { serviceCity: { contains: query, mode: "insensitive" } },
+    { serviceArea: { contains: query, mode: "insensitive" } },
+    {
+      mint: {
+        is: {
+          OR: [
+            { tokenId: { contains: query, mode: "insensitive" } },
+            { contract: { contains: compactQuery, mode: "insensitive" } },
+            { name: { contains: query, mode: "insensitive" } },
+            { category: { contains: query, mode: "insensitive" } },
+            { subcategory: { contains: query, mode: "insensitive" } },
+            { serviceCountry: { contains: query, mode: "insensitive" } },
+            { serviceCity: { contains: query, mode: "insensitive" } },
+            { serviceArea: { contains: query, mode: "insensitive" } },
+            { metaCollection: { contains: query, mode: "insensitive" } },
+            { metaItem: { contains: query, mode: "insensitive" } },
+            { metaRarity: { contains: query, mode: "insensitive" } },
+            { metaBrand: { contains: query, mode: "insensitive" } },
+            { metaProject: { contains: query, mode: "insensitive" } },
+            { metaDescription: { contains: query, mode: "insensitive" } },
+          ],
+        },
+      },
+    },
+  ];
+
+  return { OR: directOr };
+}
+
+function orderByForSort(sort: SortMode) {
+  if (sort === "priceAsc") {
+    return [{ pricePerUnitWei: "asc" as const }, { createdAt: "desc" as const }];
+  }
+
+  if (sort === "priceDesc") {
+    return [{ pricePerUnitWei: "desc" as const }, { createdAt: "desc" as const }];
+  }
+
+  return [{ createdAt: "desc" as const }, { id: "desc" as const }];
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
 
@@ -201,9 +315,22 @@ export async function GET(req: NextRequest) {
     url.searchParams.get("marketplaceContract")
   );
 
-  const serviceCountry = normText(url.searchParams.get("serviceCountry"));
-  const serviceCity = normText(url.searchParams.get("serviceCity"));
-  const serviceArea = normText(url.searchParams.get("serviceArea"));
+  const q = cleanText(url.searchParams.get("q"), 160);
+  const category = cleanText(url.searchParams.get("category"), 120);
+  const subcategory = cleanText(url.searchParams.get("subcategory"), 120);
+  const fulfillmentType = normalizeFulfillmentType(
+    url.searchParams.get("fulfillmentType")
+  );
+
+  const serviceCountry = cleanText(url.searchParams.get("serviceCountry"), 120);
+  const serviceCity = cleanText(url.searchParams.get("serviceCity"), 120);
+  const serviceArea = cleanText(url.searchParams.get("serviceArea"), 120);
+
+  const minPriceWei = parseWei(url.searchParams.get("minPriceWei"));
+  const maxPriceWei = parseWei(url.searchParams.get("maxPriceWei"));
+
+  const sortRaw = (url.searchParams.get("sort") || "new") as SortMode;
+  const sort = ALLOWED_SORT.has(sortRaw) ? sortRaw : "new";
 
   const standardRaw = (url.searchParams.get("standard") || "").toUpperCase();
   const standard = ALLOWED_STANDARD.has(standardRaw) ? standardRaw : null;
@@ -233,31 +360,66 @@ export async function GET(req: NextRequest) {
     },
   };
 
+  const andClauses: any[] = [];
+
   if (chainId !== null) where.chainId = chainId;
   if (seller) where.sellerWallet = seller;
   if (standard) where.standard = standard;
   if (marketplaceContract) where.marketplaceContract = marketplaceContract;
 
-  if (serviceCountry) {
-    where.serviceCountry = {
-      equals: serviceCountry,
-      mode: "insensitive",
-    };
+  if (fulfillmentType) {
+    andClauses.push({
+      OR: [
+        { fulfillmentType },
+        {
+          mint: {
+            is: {
+              fulfillmentType,
+            },
+          },
+        },
+      ],
+    });
   }
 
-  if (serviceCity) {
-    where.serviceCity = {
-      equals: serviceCity,
-      mode: "insensitive",
-    };
+  const categoryListing = textContainsFilter("category", category);
+  const categoryMint = relationMintTextContainsFilter("category", category);
+  if (categoryListing && categoryMint) {
+    andClauses.push({ OR: [categoryListing, categoryMint] });
   }
 
-  if (serviceArea) {
-    where.serviceArea = {
-      contains: serviceArea,
-      mode: "insensitive",
-    };
+  const subcategoryListing = textContainsFilter("subcategory", subcategory);
+  const subcategoryMint = relationMintTextContainsFilter("subcategory", subcategory);
+  if (subcategoryListing && subcategoryMint) {
+    andClauses.push({ OR: [subcategoryListing, subcategoryMint] });
   }
+
+  const countryListing = textContainsFilter("serviceCountry", serviceCountry);
+  const countryMint = relationMintTextContainsFilter("serviceCountry", serviceCountry);
+  if (countryListing && countryMint) {
+    andClauses.push({ OR: [countryListing, countryMint] });
+  }
+
+  const cityListing = textContainsFilter("serviceCity", serviceCity);
+  const cityMint = relationMintTextContainsFilter("serviceCity", serviceCity);
+  if (cityListing && cityMint) {
+    andClauses.push({ OR: [cityListing, cityMint] });
+  }
+
+  const areaListing = textContainsFilter("serviceArea", serviceArea);
+  const areaMint = relationMintTextContainsFilter("serviceArea", serviceArea);
+  if (areaListing && areaMint) {
+    andClauses.push({ OR: [areaListing, areaMint] });
+  }
+
+  if (minPriceWei !== null || maxPriceWei !== null) {
+    where.pricePerUnitWei = {};
+    if (minPriceWei !== null) where.pricePerUnitWei.gte = minPriceWei;
+    if (maxPriceWei !== null) where.pricePerUnitWei.lte = maxPriceWei;
+  }
+
+  const qClause = buildTextSearchClause(q);
+  if (qClause) andClauses.push(qClause);
 
   const fixedRules = getFixedContractMarketRules();
   const fixedContracts = Array.from(new Set(fixedRules.map((x) => x.contract)));
@@ -296,18 +458,22 @@ export async function GET(req: NextRequest) {
       }
 
       if (orClauses.length > 0) {
-        where.OR = orClauses;
+        andClauses.push({ OR: orClauses });
       }
     } else if (requestedMarketType) {
       where.marketType = requestedMarketType;
     }
   }
 
+  if (andClauses.length > 0) {
+    where.AND = andClauses;
+  }
+
   try {
     const [rows, total] = await Promise.all([
       prisma.listing.findMany({
         where,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        orderBy: orderByForSort(sort),
         take,
         skip,
         include: {
@@ -353,7 +519,6 @@ export async function GET(req: NextRequest) {
       prisma.listing.count({ where }),
     ]);
 
-    // Resolve any uncached metadata (parallel, budgeted)
     const mintInputs = rows
       .map((r) => (r.mint as any) || null)
       .filter(Boolean) as any[];
@@ -366,11 +531,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ok: true,
       total,
+      filters: {
+        q,
+        category,
+        subcategory,
+        fulfillmentType,
+        serviceCountry,
+        serviceCity,
+        serviceArea,
+        minPriceWei: minPriceWei?.toString() || null,
+        maxPriceWei: maxPriceWei?.toString() || null,
+        sort,
+        marketType: requestedMarketType,
+        contract,
+      },
       listings: rows.map((r) => {
         const m = r.mint as any;
-        const metaKey = m
-          ? mintMetaKey(m.chainId, m.contract, m.tokenId)
-          : null;
+        const metaKey = m ? mintMetaKey(m.chainId, m.contract, m.tokenId) : null;
         const meta = metaKey ? metaMap.get(metaKey) || null : null;
 
         const rowSuggestedMarketType = suggestedMarketTypeFromAsset({

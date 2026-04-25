@@ -143,77 +143,86 @@ export default async function TradingPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                  Realife NFT Trading
+                  Realife Trading
                 </Pill>
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    Secondary market
+                    AI-powered search
                   </span>
                 </Pill>
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    STANDARD + PROTECTED
+                    Service + Delivery Protected
                   </span>
                 </Pill>
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    Premium trading hub
+                    Standard + Cafe + Store
                   </span>
                 </Pill>
               </div>
 
               <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
-                Realife{" "}
+                Trade{" "}
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
-                  NFT Trading
+                  real-world NFTs
                 </span>
               </h1>
 
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
-                Dedicated trading page for{" "}
-                <span className="font-extrabold text-amber-100">
-                  Realife NFTs
-                </span>
-                , focused on secondary listings, holder activity and premium
-                collectible trading across supported contracts and market flows.
+                Discover and trade Realife NFTs with a clear structure: Service
+                Protected for services from the standard mint contract, Delivery
+                Protected for physical goods from the delivery mint contract,
+                Public Standard for normal NFTs, and Cafe/Store resale at the end.
               </p>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
-                This page is specifically for{" "}
-                <span className="font-extrabold text-white/85">NFT trading</span>
-                , not the primary product market. Real Marketing remains the
-                original primary flow for official storefront purchase,
-                delivery and redemption, while this section is the secondary
-                trading hub for listed NFTs.
+                This page is the{" "}
+                <span className="font-extrabold text-white/85">
+                  secondary trading hub
+                </span>{" "}
+                for listed NFTs. Real Marketing remains the primary storefront
+                flow for official product purchase, delivery and redemption.
+                The main protected focus is split into two directions: services
+                through the standard mint contract and delivery through the
+                delivery mint contract.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
-                <ActionLink href="/app/trading" primary>
-                  Open NFT Trading
+                <ActionLink href="/app/trading/service-protected" primary>
+                  Service Protected
+                </ActionLink>
+
+                <ActionLink href="/app/trading/public-delivery">
+                  Delivery Protected
+                </ActionLink>
+
+                <ActionLink href="/app/trading/public-standard">
+                  Public Standard
                 </ActionLink>
 
                 <ActionLink href="/app/real-marketing">
-                  Open Real Marketing
+                  Real Marketing
                 </ActionLink>
               </div>
 
               <div className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-3">
                 <StatCard
-                  label="Page role"
-                  value="NFT Trading Hub"
+                  label="Main flow"
+                  value="Service Protected"
                   tone="gold"
                 />
                 <StatCard
-                  label="Market flows"
-                  value="Standard + Protected"
+                  label="Delivery flow"
+                  value="Delivery Protected"
                   tone="violet"
                 />
                 <StatCard
-                  label="Related hub"
-                  value="Real Marketing"
+                  label="Secondary resale"
+                  value="Standard + Cafe/Store"
                   tone="sky"
                 />
               </div>
@@ -234,11 +243,14 @@ export default async function TradingPage() {
       <Reveal delayMs={180}>
         <div className="flex flex-wrap items-center justify-between gap-4 pb-6 pt-2 text-xs text-white/45">
           <div>Realife NFT Trading</div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="opacity-60">AI search</span>
             <span className="opacity-60">Secondary market</span>
-            <span className="opacity-60">STANDARD</span>
-            <span className="opacity-60">PROTECTED</span>
-            <span className="opacity-60">Store + Cafe resale</span>
+            <span className="opacity-60">Service Protected</span>
+            <span className="opacity-60">Delivery Protected</span>
+            <span className="opacity-60">Public Standard</span>
+            <span className="opacity-60">Cafe resale</span>
+            <span className="opacity-60">Store resale</span>
           </div>
         </div>
       </Reveal>

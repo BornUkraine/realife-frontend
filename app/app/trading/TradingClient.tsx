@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
-import { formatUnits } from "viem";
+import { formatUnits, parseUnits } from "viem";
 import { useAccount } from "wagmi";
 import ActivityPanel from "@/components/trading/ActivityPanel";
 import NftMedia from "@/components/NftMedia";
@@ -49,6 +49,9 @@ type MarketListing = {
   fulfillmentType?: string | null;
   category?: string | null;
   subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
 
   mint?: {
     name?: string | null;
@@ -62,6 +65,9 @@ type MarketListing = {
     category?: string | null;
     subcategory?: string | null;
     suggestedMarketType?: MarketType | null;
+    serviceCountry?: string | null;
+    serviceCity?: string | null;
+    serviceArea?: string | null;
   } | null;
 };
 
@@ -105,6 +111,58 @@ type PreviewState = {
   alt?: string;
 } | null;
 
+type TradingFilters = {
+  q: string;
+  category: string;
+  subcategory: string;
+  fulfillmentType: "" | FulfillmentType;
+  serviceCountry: string;
+  serviceCity: string;
+  serviceArea: string;
+  minPriceEth: string;
+  maxPriceEth: string;
+};
+
+const EMPTY_FILTERS: TradingFilters = {
+  q: "",
+  category: "",
+  subcategory: "",
+  fulfillmentType: "",
+  serviceCountry: "",
+  serviceCity: "",
+  serviceArea: "",
+  minPriceEth: "",
+  maxPriceEth: "",
+};
+
+const CATEGORY_OPTIONS = [
+  "Art / Collectible",
+  "Creative & Design",
+  "Marketing",
+  "AI & Automation",
+  "Development & Tech",
+  "Business & Professional Services",
+  "Education & Coaching",
+  "Health & Wellness",
+  "Beauty & Personal Care",
+  "Home & Repair",
+  "Travel & Tours",
+  "Events & Tickets",
+  "Logistics & Delivery",
+  "Clothing & Merch",
+  "Accessories & Jewelry",
+  "Electronics & Gadgets",
+  "Home & Decor",
+  "Food & Beverage",
+  "Sports & Outdoor",
+  "Automotive",
+  "Pet Products & Services",
+  "Collectible Product",
+  "Other Product",
+  "Other Service",
+  "Other",
+] as const;
+
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
 }
@@ -138,20 +196,44 @@ function fmtEth(weiStr?: string | null) {
   }
 }
 
+function safeEthToWeiString(value: string) {
+  const v = String(value || "").trim().replace(",", ".");
+  if (!v) return null;
+  if (!/^\d+(\.\d{1,18})?$/.test(v)) return null;
+
+  try {
+    return parseUnits(v, 18).toString();
+  } catch {
+    return null;
+  }
+}
+
+function compactFilters(filters: TradingFilters) {
+  return {
+    q: filters.q.trim(),
+    category: filters.category.trim(),
+    subcategory: filters.subcategory.trim(),
+    fulfillmentType: filters.fulfillmentType,
+    serviceCountry: filters.serviceCountry.trim(),
+    serviceCity: filters.serviceCity.trim(),
+    serviceArea: filters.serviceArea.trim(),
+    minPriceEth: filters.minPriceEth.trim(),
+    maxPriceEth: filters.maxPriceEth.trim(),
+  };
+}
+
 function marketLabel(mt?: MarketType | null) {
   return mt === "PROTECTED" ? "PROTECTED" : "STANDARD";
 }
 
-function normalizeMarketView(
-  view?: MarketView
-): Exclude<MarketView, "publicDelivery"> {
-  if (view === "publicDelivery") return "publicProtected";
+function normalizeMarketView(view?: MarketView): MarketView {
   if (
     view === "all" ||
     view === "cafe" ||
     view === "store" ||
     view === "publicStandard" ||
-    view === "publicProtected"
+    view === "publicProtected" ||
+    view === "publicDelivery"
   ) {
     return view;
   }
@@ -399,7 +481,7 @@ function resolveRowMarketType(item: MarketListing): MarketType {
   return "STANDARD";
 }
 
-function getMarketViewConfig(view: Exclude<MarketView, "publicDelivery">) {
+function getMarketViewConfig(view: MarketView) {
   switch (view) {
     case "cafe":
       return {
@@ -421,24 +503,34 @@ function getMarketViewConfig(view: Exclude<MarketView, "publicDelivery">) {
         marketType: null as MarketType | null,
       };
 
+    case "publicProtected":
+      return {
+        label: "Service • Protected",
+        title: "Service Protected NFT Trading",
+        subtitle:
+          "Service NFTs minted through the standard public mint contract and listed through the PROTECTED escrow flow. This view is for digital services, online sessions and local/offline services.",
+        contract: PUBLIC_STANDARD_CONTRACT || null,
+        marketType: "PROTECTED" as MarketType,
+      };
+
+    case "publicDelivery":
+      return {
+        label: "Delivery • Protected",
+        title: "Delivery Protected NFT Trading",
+        subtitle:
+          "Delivery NFTs minted through the delivery public mint contract and listed through the PROTECTED delivery/escrow flow for physical products, shipping and buyer confirmation.",
+        contract: PUBLIC_DELIVERY_CONTRACT || null,
+        marketType: "PROTECTED" as MarketType,
+      };
+
     case "publicStandard":
       return {
         label: "Public Mint • Standard",
         title: "Public Standard NFT Trading",
         subtitle:
-          "User-created NFTs from the standard public contract that trade in the STANDARD market flow.",
+          "User-created NFTs minted through the standard public mint contract and listed in the STANDARD market flow without protected escrow or delivery flow.",
         contract: PUBLIC_STANDARD_CONTRACT || null,
         marketType: "STANDARD" as MarketType,
-      };
-
-    case "publicProtected":
-      return {
-        label: "Public Mint • Protected",
-        title: "Public Protected NFT Trading",
-        subtitle:
-          "Protected public NFTs across delivery-contract items and protected service/session assets from the standard public contract.",
-        contract: null,
-        marketType: "PROTECTED" as MarketType,
       };
 
     case "all":
@@ -447,14 +539,14 @@ function getMarketViewConfig(view: Exclude<MarketView, "publicDelivery">) {
         label: "All Trading NFTs",
         title: "NFT Trading",
         subtitle:
-          "All verified Realife NFTs available for secondary trading across STANDARD and PROTECTED flows, including public, cafe and store listings.",
+          "All verified Realife NFTs available for secondary trading, with the main focus on Service Protected, Delivery Protected and Public Standard flows before Cafe and Store resale.",
         contract: null,
         marketType: null as MarketType | null,
       };
   }
 }
 
-function getMarketViewNote(view: Exclude<MarketView, "publicDelivery">) {
+function getMarketViewNote(view: MarketView) {
   switch (view) {
     case "cafe":
       return {
@@ -474,14 +566,21 @@ function getMarketViewNote(view: Exclude<MarketView, "publicDelivery">) {
       return {
         tone: "border-violet-500/20 bg-violet-500/10 text-violet-100",
         text:
-          "This view shows PROTECTED public NFTs. It includes delivery-contract NFTs and protected assets from the public standard contract, with subtype badges like PHYSICAL GOOD, DIGITAL SERVICE or ONLINE SESSION.",
+          "Service Protected shows NFTs from the standard public mint contract listed through the PROTECTED escrow flow. This is the main service direction for digital services, online sessions and local/offline services with buyer confirmation.",
+      };
+
+    case "publicDelivery":
+      return {
+        tone: "border-amber-500/20 bg-amber-500/10 text-amber-100",
+        text:
+          "Delivery Protected shows NFTs from the delivery public mint contract listed through the PROTECTED delivery/escrow flow. This is the main delivery direction for physical products, fulfillment, shipping coordination and buyer confirmation.",
       };
 
     case "publicStandard":
       return {
         tone: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
         text:
-          "This page focuses on user-created standard public NFTs that trade in the STANDARD market flow.",
+          "Public Standard shows NFTs from the standard public mint contract listed through the STANDARD market flow, without protected escrow and without delivery flow.",
       };
 
     default:
@@ -489,7 +588,7 @@ function getMarketViewNote(view: Exclude<MarketView, "publicDelivery">) {
   }
 }
 
-function viewBadgeClass(view: Exclude<MarketView, "publicDelivery">) {
+function viewBadgeClass(view: MarketView) {
   switch (view) {
     case "cafe":
       return "text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.18)]";
@@ -499,6 +598,8 @@ function viewBadgeClass(view: Exclude<MarketView, "publicDelivery">) {
       return "text-emerald-100 border border-emerald-500/20 bg-emerald-500/10 ring-emerald-500/10";
     case "publicProtected":
       return "text-violet-100 border border-violet-500/20 bg-violet-500/10 ring-violet-500/10";
+    case "publicDelivery":
+      return "text-amber-100 border border-amber-500/20 bg-amber-500/10 ring-amber-500/10";
     case "all":
     default:
       return "text-white/80 border border-white/10 bg-white/[0.06] ring-white/10";
@@ -524,9 +625,9 @@ export default function TradingClient({
 
   const [mounted, setMounted] = useState(false);
   const [tab, setTab] = useState<"market" | "my">("market");
-  const [marketView, setMarketView] = useState<
-    Exclude<MarketView, "publicDelivery">
-  >(normalizeMarketView(initialMarketView));
+  const [marketView, setMarketView] = useState<MarketView>(
+    normalizeMarketView(initialMarketView)
+  );
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -535,8 +636,10 @@ export default function TradingClient({
   const [skip, setSkip] = useState(0);
   const take = 24;
 
-  const [q, setQ] = useState("");
+  const [filters, setFilters] = useState<TradingFilters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<"new" | "priceAsc" | "priceDesc">("new");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiNote, setAiNote] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewState>(null);
 
   useEffect(() => {
@@ -595,7 +698,7 @@ export default function TradingClient({
   const marketNote = useMemo(() => getMarketViewNote(marketView), [marketView]);
 
   const filtered = useMemo(() => {
-    const qq = q.trim().toLowerCase();
+    const qq = filters.q.trim().toLowerCase();
     let out = rows;
 
     if (qq) {
@@ -649,7 +752,7 @@ export default function TradingClient({
     }
 
     return out;
-  }, [rows, q, sort]);
+  }, [rows, filters.q, sort]);
 
   const myRows = useMemo(() => {
     if (!wallet) return [];
@@ -659,7 +762,8 @@ export default function TradingClient({
   async function loadPage(
     nextSkip: number,
     append: boolean,
-    view: Exclude<MarketView, "publicDelivery"> = marketView
+    view: MarketView = marketView,
+    filterOverride?: TradingFilters
   ) {
     setErr(null);
     setLoading(true);
@@ -668,7 +772,11 @@ export default function TradingClient({
       const cfg = getMarketViewConfig(view);
 
       if (
-        (view === "cafe" || view === "store" || view === "publicStandard") &&
+        (view === "cafe" ||
+          view === "store" ||
+          view === "publicProtected" ||
+          view === "publicDelivery" ||
+          view === "publicStandard") &&
         !cfg.contract
       ) {
         setRows([]);
@@ -691,6 +799,33 @@ export default function TradingClient({
       if (cfg.marketType) {
         params.set("marketType", cfg.marketType);
       }
+
+      const activeFilters = compactFilters(filterOverride || filters);
+
+      if (activeFilters.q) params.set("q", activeFilters.q);
+      if (activeFilters.category) params.set("category", activeFilters.category);
+      if (activeFilters.subcategory) {
+        params.set("subcategory", activeFilters.subcategory);
+      }
+      if (activeFilters.fulfillmentType) {
+        params.set("fulfillmentType", activeFilters.fulfillmentType);
+      }
+      if (activeFilters.serviceCountry) {
+        params.set("serviceCountry", activeFilters.serviceCountry);
+      }
+      if (activeFilters.serviceCity) {
+        params.set("serviceCity", activeFilters.serviceCity);
+      }
+      if (activeFilters.serviceArea) {
+        params.set("serviceArea", activeFilters.serviceArea);
+      }
+
+      const minWei = safeEthToWeiString(activeFilters.minPriceEth);
+      const maxWei = safeEthToWeiString(activeFilters.maxPriceEth);
+      if (minWei) params.set("minPriceWei", minWei);
+      if (maxWei) params.set("maxPriceWei", maxWei);
+
+      params.set("sort", sort);
 
       const url = `/api/market/listings?${params.toString()}`;
       const j = await fetchJSON(url);
@@ -780,11 +915,83 @@ export default function TradingClient({
     }
   }
 
+  async function applyFilters(nextFilters: TradingFilters = filters) {
+    setAiNote(null);
+    await loadPage(0, false, marketView, nextFilters);
+  }
+
+  async function runAiSearch() {
+    const query = filters.q.trim();
+    if (!query) {
+      setAiNote(
+        "Write what you want to find first, for example: fitness in Los Angeles, delivery products, website services."
+      );
+      return;
+    }
+
+    setAiLoading(true);
+    setAiNote(null);
+
+    try {
+      const r = await fetch("/api/ai/trading-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, marketView }),
+      });
+
+      const j = await r.json().catch(() => null);
+      if (!r.ok || !j?.ok) {
+        throw new Error(j?.error || "AI search failed");
+      }
+
+      const f = j.filters || {};
+      const nextFilters: TradingFilters = {
+        q: String(f.q || filters.q || ""),
+        category: String(f.category || ""),
+        subcategory: String(f.subcategory || ""),
+        fulfillmentType:
+          f.fulfillmentType === "PHYSICAL_GOOD" ||
+          f.fulfillmentType === "DIGITAL_SERVICE" ||
+          f.fulfillmentType === "ONLINE_SESSION" ||
+          f.fulfillmentType === "LOCAL_SERVICE"
+            ? f.fulfillmentType
+            : "",
+        serviceCountry: String(f.serviceCountry || ""),
+        serviceCity: String(f.serviceCity || ""),
+        serviceArea: String(f.serviceArea || ""),
+        minPriceEth: filters.minPriceEth,
+        maxPriceEth: filters.maxPriceEth,
+      };
+
+      setFilters(nextFilters);
+
+      if (f.sort === "new" || f.sort === "priceAsc" || f.sort === "priceDesc") {
+        setSort(f.sort);
+      }
+
+      setAiNote(
+        j.explanation || "AI converted your request into Realife trading filters."
+      );
+
+      await loadPage(0, false, marketView, nextFilters);
+    } catch (e: any) {
+      setAiNote(e?.message || "AI search failed");
+    } finally {
+      setAiLoading(false);
+    }
+  }
+
+  function clearFilters() {
+    setFilters(EMPTY_FILTERS);
+    setAiNote(null);
+    loadPage(0, false, marketView, EMPTY_FILTERS);
+  }
+
   useEffect(() => {
     if (tab !== "market") return;
     loadPage(0, false, marketView);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [marketView, tab]);
+  }, [marketView, tab, sort]);
 
   const canLoadMore = rows.length < total;
 
@@ -969,16 +1176,19 @@ export default function TradingClient({
                     {(
                       [
                         ["all", "All Trading NFTs"],
+                        ["publicProtected", "Service • Protected"],
+                        ["publicDelivery", "Delivery • Protected"],
+                        ["publicStandard", "Public Mint • Standard"],
                         ["cafe", "Realife Cafe NFT"],
                         ["store", "Realife Store NFT"],
-                        ["publicStandard", "Public Mint • Standard"],
-                        ["publicProtected", "Public Mint • Protected"],
-                      ] as Array<[Exclude<MarketView, "publicDelivery">, string]>
+                      ] as Array<[MarketView, string]>
                     ).map(([viewKey, label]) => {
                       const cfg = getMarketViewConfig(viewKey);
                       const disabled =
                         (viewKey === "cafe" ||
                           viewKey === "store" ||
+                          viewKey === "publicProtected" ||
+                          viewKey === "publicDelivery" ||
                           viewKey === "publicStandard") &&
                         !cfg.contract;
 
@@ -1121,11 +1331,84 @@ export default function TradingClient({
                       Search • {marketCfg.title}
                     </div>
                     <input
-                      value={q}
-                      onChange={(e) => setQ(e.target.value)}
-                      placeholder="name / token id / seller / rarity / item / brand / project / collection / category / subtype…"
+                      value={filters.q}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, q: e.target.value }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") applyFilters();
+                      }}
+                      placeholder="AI/search: fitness service in Los Angeles, delivery products, website service, pineapple Spain…"
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                     />
+                  </div>
+
+                  <div className="min-w-[220px]">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
+                      AI Search
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={runAiSearch}
+                        disabled={aiLoading}
+                        className={cx(
+                          "flex-1 rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-3 text-[12px] font-black text-black ring-1 ring-black/15 transition hover:brightness-110",
+                          aiLoading ? "cursor-not-allowed opacity-60" : ""
+                        )}
+                      >
+                        {aiLoading ? "AI…" : "AI find"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyFilters()}
+                        className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[12px] font-black text-white/85 transition hover:bg-white/[0.08]"
+                      >
+                        Search
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="min-w-[220px]">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
+                      Type
+                    </div>
+                    <select
+                      value={filters.fulfillmentType}
+                      onChange={(e) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          fulfillmentType: e.target.value as "" | FulfillmentType,
+                        }))
+                      }
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
+                    >
+                      <option value="">All types</option>
+                      <option value="PHYSICAL_GOOD">Physical good</option>
+                      <option value="DIGITAL_SERVICE">Digital service</option>
+                      <option value="ONLINE_SESSION">Online session</option>
+                      <option value="LOCAL_SERVICE">Local service</option>
+                    </select>
+                  </div>
+
+                  <div className="min-w-[220px]">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
+                      Category
+                    </div>
+                    <select
+                      value={filters.category}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, category: e.target.value }))
+                      }
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
+                    >
+                      <option value="">All categories</option>
+                      {CATEGORY_OPTIONS.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   <div className="min-w-[220px]">
@@ -1151,16 +1434,18 @@ export default function TradingClient({
                     </div>
                     <div className="mt-2 flex items-center gap-2">
                       <button
-                        onClick={() => setQ("")}
+                        onClick={clearFilters}
                         className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[12px] font-black text-white/80 transition hover:bg-white/[0.08]"
                       >
-                        Clear
+                        Clear filters
                       </button>
 
                       {wallet ? (
                         <button
                           onClick={() => {
-                            setQ(wallet);
+                            const nextFilters = { ...EMPTY_FILTERS, q: wallet };
+                            setFilters(nextFilters);
+                            loadPage(0, false, marketView, nextFilters);
                           }}
                           className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[12px] font-black text-amber-100/90 transition hover:bg-white/[0.08] hover:text-amber-100"
                         >
@@ -1170,6 +1455,89 @@ export default function TradingClient({
                     </div>
                   </div>
                 </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-5">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      Subcategory
+                    </div>
+                    <input
+                      value={filters.subcategory}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, subcategory: e.target.value }))
+                      }
+                      placeholder="fitness, repair, web design…"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      Country
+                    </div>
+                    <input
+                      value={filters.serviceCountry}
+                      onChange={(e) =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          serviceCountry: e.target.value,
+                        }))
+                      }
+                      placeholder="Spain, USA, Ukraine…"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      City
+                    </div>
+                    <input
+                      value={filters.serviceCity}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, serviceCity: e.target.value }))
+                      }
+                      placeholder="Los Angeles, Kyiv…"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      Min ETH
+                    </div>
+                    <input
+                      value={filters.minPriceEth}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, minPriceEth: e.target.value }))
+                      }
+                      placeholder="0.001"
+                      inputMode="decimal"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
+                      Max ETH
+                    </div>
+                    <input
+                      value={filters.maxPriceEth}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, maxPriceEth: e.target.value }))
+                      }
+                      placeholder="0.1"
+                      inputMode="decimal"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
+                    />
+                  </div>
+                </div>
+
+                {aiNote ? (
+                  <div className="mt-5 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
+                    {aiNote}
+                  </div>
+                ) : null}
 
                 {err ? (
                   <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100">
@@ -1238,9 +1606,11 @@ export default function TradingClient({
                     : isStore
                     ? x.collection || "STORE"
                     : isPublicDeliveryContract
-                    ? "PUBLIC DELIVERY"
+                    ? "DELIVERY PROTECTED"
+                    : isProtected && isPublicStandardContract
+                    ? "SERVICE PROTECTED"
                     : isProtected
-                    ? "PUBLIC PROTECTED"
+                    ? "PROTECTED"
                     : isPublicStandardContract
                     ? "PUBLIC STANDARD"
                     : "TRADING";
@@ -1250,7 +1620,7 @@ export default function TradingClient({
                     : isStore
                     ? "border-sky-500/20 bg-sky-500/10 text-sky-100"
                     : isPublicDeliveryContract
-                    ? "border-violet-500/20 bg-violet-500/10 text-violet-100"
+                    ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
                     : isProtected
                     ? "border-violet-500/20 bg-violet-500/10 text-violet-100"
                     : isPublicStandardContract
@@ -1381,8 +1751,8 @@ export default function TradingClient({
                           ) : null}
 
                           {showDeliveryContractBadge ? (
-                            <span className="inline-flex items-center rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold text-violet-100">
-                              DELIVERY CONTRACT
+                            <span className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-100">
+                              DELIVERY PROTECTED
                             </span>
                           ) : null}
 
