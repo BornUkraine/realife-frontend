@@ -53,6 +53,23 @@ type MarketListing = {
   serviceCity?: string | null;
   serviceArea?: string | null;
 
+  aiIndex?: {
+    status?: string | null;
+    visualText?: string | null;
+    visualSummary?: string | null;
+    detectedProduct?: string | null;
+    detectedService?: string | null;
+    detectedCategory?: string | null;
+    detectedBrand?: string | null;
+    detectedCountry?: string | null;
+    detectedRegion?: string | null;
+    detectedCity?: string | null;
+    detectedArea?: string | null;
+    searchTags?: string[] | null;
+    confidence?: number | null;
+    enrichedAt?: string | null;
+  } | null;
+
   mint?: {
     name?: string | null;
     image?: string | null;
@@ -717,6 +734,19 @@ export default function TradingClient({
         const category = String(x.category || "").toLowerCase();
         const subcategory = String(x.subcategory || "").toLowerCase();
         const protectedSubtype = String(x.protectedSubtypeLabel || "").toLowerCase();
+        const aiVisualText = String(x.aiIndex?.visualText || "").toLowerCase();
+        const aiVisualSummary = String(x.aiIndex?.visualSummary || "").toLowerCase();
+        const aiProduct = String(x.aiIndex?.detectedProduct || "").toLowerCase();
+        const aiService = String(x.aiIndex?.detectedService || "").toLowerCase();
+        const aiCategory = String(x.aiIndex?.detectedCategory || "").toLowerCase();
+        const aiBrand = String(x.aiIndex?.detectedBrand || "").toLowerCase();
+        const aiCountry = String(x.aiIndex?.detectedCountry || "").toLowerCase();
+        const aiRegion = String(x.aiIndex?.detectedRegion || "").toLowerCase();
+        const aiCity = String(x.aiIndex?.detectedCity || "").toLowerCase();
+        const aiArea = String(x.aiIndex?.detectedArea || "").toLowerCase();
+        const aiTags = Array.isArray(x.aiIndex?.searchTags)
+          ? x.aiIndex.searchTags.join(" ").toLowerCase()
+          : "";
 
         return (
           name.includes(qq) ||
@@ -732,7 +762,18 @@ export default function TradingClient({
           fulfillmentType.includes(qq) ||
           category.includes(qq) ||
           subcategory.includes(qq) ||
-          protectedSubtype.includes(qq)
+          protectedSubtype.includes(qq) ||
+          aiVisualText.includes(qq) ||
+          aiVisualSummary.includes(qq) ||
+          aiProduct.includes(qq) ||
+          aiService.includes(qq) ||
+          aiCategory.includes(qq) ||
+          aiBrand.includes(qq) ||
+          aiCountry.includes(qq) ||
+          aiRegion.includes(qq) ||
+          aiCity.includes(qq) ||
+          aiArea.includes(qq) ||
+          aiTags.includes(qq)
         );
       });
     }
@@ -844,6 +885,7 @@ export default function TradingClient({
           metaBrand?: string | null;
           metaProject?: string | null;
           metaDescription?: string | null;
+          aiIndex?: MarketListing["aiIndex"];
         }
       >;
       const t = Number(j?.total || 0);
@@ -1341,6 +1383,9 @@ export default function TradingClient({
                       placeholder="AI/search: fitness service in Los Angeles, delivery products, website service, pineapple Spain…"
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                     />
+                    <div className="mt-2 text-[11px] leading-relaxed text-white/35">
+                      Searches metadata plus AI visual index from NFT images, posters and visible text.
+                    </div>
                   </div>
 
                   <div className="min-w-[220px]">
@@ -1673,6 +1718,12 @@ export default function TradingClient({
                             </div>
                           ) : null}
 
+                          {x.aiIndex?.status === "DONE" ? (
+                            <div className="w-fit rounded-full border border-fuchsia-500/20 bg-fuchsia-500/10 px-2 py-1 text-[10px] font-bold text-fuchsia-100 backdrop-blur-md">
+                              AI INDEX
+                            </div>
+                          ) : null}
+
                           <div
                             className={cx(
                               "w-fit rounded-full border px-2 py-1 text-[10px] font-bold backdrop-blur-md",
@@ -1821,6 +1872,12 @@ export default function TradingClient({
                         {(x.category || x.subcategory) ? (
                           <div className="mt-2 line-clamp-1 text-[12px] text-white/45">
                             {[x.category, x.subcategory].filter(Boolean).join(" • ")}
+                          </div>
+                        ) : null}
+
+                        {x.aiIndex?.visualSummary ? (
+                          <div className="mt-2 line-clamp-2 rounded-2xl border border-fuchsia-500/10 bg-fuchsia-500/[0.06] px-3 py-2 text-[11px] leading-relaxed text-fuchsia-100/75">
+                            AI: {x.aiIndex.visualSummary}
                           </div>
                         ) : null}
 

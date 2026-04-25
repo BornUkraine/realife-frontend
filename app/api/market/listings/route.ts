@@ -249,6 +249,55 @@ function relationMintTextContainsFilter(field: string, value: string | null) {
   };
 }
 
+function relationMintAiTextContainsFilter(field: string, value: string | null) {
+  if (!value) return null;
+  return {
+    mint: {
+      is: {
+        aiIndex: {
+          is: {
+            [field]: {
+              contains: value,
+              mode: "insensitive",
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
+function buildAiTagSearchClause(q: string | null) {
+  if (!q) return null;
+  const raw = q.trim();
+  if (!raw) return null;
+
+  const variants = Array.from(
+    new Set(
+      [
+        raw,
+        raw.toLowerCase(),
+        raw.toUpperCase(),
+        raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase(),
+      ].filter(Boolean)
+    )
+  ).slice(0, 8);
+
+  return {
+    mint: {
+      is: {
+        aiIndex: {
+          is: {
+            searchTags: {
+              hasSome: variants,
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
 function buildTextSearchClause(q: string | null) {
   if (!q) return null;
 
@@ -282,11 +331,32 @@ function buildTextSearchClause(q: string | null) {
             { metaBrand: { contains: query, mode: "insensitive" } },
             { metaProject: { contains: query, mode: "insensitive" } },
             { metaDescription: { contains: query, mode: "insensitive" } },
+            {
+              aiIndex: {
+                is: {
+                  OR: [
+                    { visualText: { contains: query, mode: "insensitive" } },
+                    { visualSummary: { contains: query, mode: "insensitive" } },
+                    { detectedProduct: { contains: query, mode: "insensitive" } },
+                    { detectedService: { contains: query, mode: "insensitive" } },
+                    { detectedCategory: { contains: query, mode: "insensitive" } },
+                    { detectedBrand: { contains: query, mode: "insensitive" } },
+                    { detectedCountry: { contains: query, mode: "insensitive" } },
+                    { detectedRegion: { contains: query, mode: "insensitive" } },
+                    { detectedCity: { contains: query, mode: "insensitive" } },
+                    { detectedArea: { contains: query, mode: "insensitive" } },
+                  ],
+                },
+              },
+            },
           ],
         },
       },
     },
   ];
+
+  const aiTags = buildAiTagSearchClause(query);
+  if (aiTags) directOr.push(aiTags);
 
   return { OR: directOr };
 }
@@ -384,8 +454,9 @@ export async function GET(req: NextRequest) {
 
   const categoryListing = textContainsFilter("category", category);
   const categoryMint = relationMintTextContainsFilter("category", category);
+  const categoryAi = relationMintAiTextContainsFilter("detectedCategory", category);
   if (categoryListing && categoryMint) {
-    andClauses.push({ OR: [categoryListing, categoryMint] });
+    andClauses.push({ OR: [categoryListing, categoryMint, categoryAi].filter(Boolean) });
   }
 
   const subcategoryListing = textContainsFilter("subcategory", subcategory);
@@ -396,20 +467,24 @@ export async function GET(req: NextRequest) {
 
   const countryListing = textContainsFilter("serviceCountry", serviceCountry);
   const countryMint = relationMintTextContainsFilter("serviceCountry", serviceCountry);
+  const countryAi = relationMintAiTextContainsFilter("detectedCountry", serviceCountry);
   if (countryListing && countryMint) {
-    andClauses.push({ OR: [countryListing, countryMint] });
+    andClauses.push({ OR: [countryListing, countryMint, countryAi].filter(Boolean) });
   }
 
   const cityListing = textContainsFilter("serviceCity", serviceCity);
   const cityMint = relationMintTextContainsFilter("serviceCity", serviceCity);
+  const cityAi = relationMintAiTextContainsFilter("detectedCity", serviceCity);
   if (cityListing && cityMint) {
-    andClauses.push({ OR: [cityListing, cityMint] });
+    andClauses.push({ OR: [cityListing, cityMint, cityAi].filter(Boolean) });
   }
 
   const areaListing = textContainsFilter("serviceArea", serviceArea);
   const areaMint = relationMintTextContainsFilter("serviceArea", serviceArea);
+  const areaAi = relationMintAiTextContainsFilter("detectedArea", serviceArea);
+  const regionAi = relationMintAiTextContainsFilter("detectedRegion", serviceArea);
   if (areaListing && areaMint) {
-    andClauses.push({ OR: [areaListing, areaMint] });
+    andClauses.push({ OR: [areaListing, areaMint, areaAi, regionAi].filter(Boolean) });
   }
 
   if (minPriceWei !== null || maxPriceWei !== null) {
@@ -506,6 +581,24 @@ export async function GET(req: NextRequest) {
               metaRarity: true,
               metaBrand: true,
               metaProject: true,
+              aiIndex: {
+                select: {
+                  status: true,
+                  visualText: true,
+                  visualSummary: true,
+                  detectedProduct: true,
+                  detectedService: true,
+                  detectedCategory: true,
+                  detectedBrand: true,
+                  detectedCountry: true,
+                  detectedRegion: true,
+                  detectedCity: true,
+                  detectedArea: true,
+                  searchTags: true,
+                  confidence: true,
+                  enrichedAt: true,
+                },
+              },
             },
           },
           seller: {
@@ -615,6 +708,27 @@ export async function GET(req: NextRequest) {
           metaBrand: meta?.brand || null,
           metaProject: meta?.project || null,
           metaDescription: meta?.description || null,
+
+          aiIndex: m?.aiIndex
+            ? {
+                status: m.aiIndex.status,
+                visualText: m.aiIndex.visualText,
+                visualSummary: m.aiIndex.visualSummary,
+                detectedProduct: m.aiIndex.detectedProduct,
+                detectedService: m.aiIndex.detectedService,
+                detectedCategory: m.aiIndex.detectedCategory,
+                detectedBrand: m.aiIndex.detectedBrand,
+                detectedCountry: m.aiIndex.detectedCountry,
+                detectedRegion: m.aiIndex.detectedRegion,
+                detectedCity: m.aiIndex.detectedCity,
+                detectedArea: m.aiIndex.detectedArea,
+                searchTags: m.aiIndex.searchTags || [],
+                confidence: m.aiIndex.confidence,
+                enrichedAt: m.aiIndex.enrichedAt
+                  ? m.aiIndex.enrichedAt.toISOString()
+                  : null,
+              }
+            : null,
 
           mint: m
             ? {

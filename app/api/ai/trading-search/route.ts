@@ -232,6 +232,36 @@ function fallbackFilters(query: string): TradingSearchFilters {
     filters.serviceCountry = "Spain";
   }
 
+  if (q.includes("andalusia") || q.includes("andalucia") || q.includes("андалус")) {
+    filters.serviceCountry = filters.serviceCountry || "Spain";
+    filters.serviceArea = "Andalusia";
+  }
+
+  if (
+    q.includes("pineapple") ||
+    q.includes("pineapples") ||
+    q.includes("ананас") ||
+    q.includes("fruit") ||
+    q.includes("фрукт")
+  ) {
+    filters.q =
+      q.includes("pineapple") || q.includes("pineapples") || q.includes("ананас")
+        ? "pineapple"
+        : "fruit";
+    filters.category = "Food & Beverage";
+    filters.marketType = "PROTECTED";
+    filters.fulfillmentType = "PHYSICAL_GOOD";
+  }
+
+  if (q.includes("phone") || q.includes("telephone") || q.includes("номер") || q.includes("телефон")) {
+    filters.q = filters.q || "phone";
+  }
+
+  if (q.includes("visual") || q.includes("image") || q.includes("photo") || q.includes("картин") || q.includes("фото")) {
+    // Keep q broad. /api/market/listings searches metadata + AI visual index.
+    filters.q = filters.q || clean(query, 80);
+  }
+
   if (q.includes("newest") || q.includes("новые") || q.includes("свежие")) {
     filters.sort = "new";
   }
@@ -340,18 +370,22 @@ Realife marketplace concepts:
 - DIGITAL_SERVICE = website, design, SMM, automation, digital work.
 - ONLINE_SESSION = lesson, coaching call, consultation, online training.
 - LOCAL_SERVICE = offline or in-person service in a city/country, for example fitness in Los Angeles, electrician in Kyiv, local tour in Paris.
+- Trading search can use normal metadata AND the AI visual index extracted from NFT images/posters/videos.
+- The AI visual index may contain visible text from NFT images, detected product/service, brand, country, region, city, area and search tags.
 
 Rules:
 1. Do not invent unavailable fields. Use null when unsure.
-2. Keep q short: product/service keyword only, not a full sentence.
+2. Keep q short: product/service/visible-text keyword only, not a full sentence.
 3. If user asks for goods/products/delivery, use marketType PROTECTED and fulfillmentType PHYSICAL_GOOD. This means Delivery Protected.
 4. If user asks for services, use marketType PROTECTED and a service fulfillment type. This means Service Protected.
 5. If user mentions a city for offline/local work, use fulfillmentType LOCAL_SERVICE and serviceCity.
 6. If user asks for online call/lesson/consultation, use ONLINE_SESSION.
 7. If user asks for standard art/collectible/simple NFT, use marketType STANDARD.
-8. Use category only from the allowed enum.
-9. Price filters must be wei strings only. If user mentions ETH price, convert ETH to wei exactly. If unsure, null.
-10. sort can be new, priceAsc, priceDesc, or null.
+8. If user asks for something visible in NFT photo/video/poster/text, put the visible word in q. The listings API searches AI visual fields too.
+9. Use serviceCountry for country terms and serviceArea for broad regions like Andalusia, California, Bali, etc.
+10. Use category only from the allowed enum.
+11. Price filters must be wei strings only. If user mentions ETH price, convert ETH to wei exactly. If unsure, null.
+12. sort can be new, priceAsc, priceDesc, or null.
 `;
 
     const userText = [

@@ -130,6 +130,19 @@ enum AiGenerationStatus {
 }
 
 /**
+ * --------------------------------------------------------------------------
+ * AI visual enrichment / NFT search index
+ * --------------------------------------------------------------------------
+ */
+enum AiEnrichmentStatus {
+  NONE
+  PENDING
+  PROCESSING
+  DONE
+  ERROR
+}
+
+/**
  * ==========================================================================
  * USER
  * ==========================================================================
@@ -356,6 +369,13 @@ model Mint {
   holdings Holding[]
   listings Listing[]
   trades   Trade[]
+
+  /**
+   * ---------------- AI visual search index ------------------------
+   * Optional searchable AI layer for visual text, detected product,
+   * service, region, city and tags extracted from NFT image/poster.
+   */
+  aiIndex NftAiIndex?
 
   @@unique([chainId, contract, tokenId])
   @@index([userId, createdAt])
@@ -861,4 +881,70 @@ model AiGeneration {
   @@index([type, createdAt])
   @@index([externalJobId])
   @@map("ai_generations")
+}
+
+/**
+ * ==========================================================================
+ * NFT AI VISUAL SEARCH INDEX
+ * ==========================================================================
+ * Stores AI-enriched visual/search data extracted from NFT image/poster/video.
+ * This is NOT immutable NFT metadata. This is a searchable DB index layer.
+ * Example:
+ * - visualText: "PREMIUM PINEAPPLES Spain Andalusia Phone..."
+ * - detectedProduct: "Pineapples"
+ * - detectedCountry: "Spain"
+ * - detectedRegion: "Andalusia"
+ * - searchTags: ["pineapple", "fruit", "Spain", "Andalusia", "food"]
+ */
+model NftAiIndex {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chainId  Int
+  contract String
+  tokenId  String
+
+  mint Mint @relation(fields: [chainId, contract, tokenId], references: [chainId, contract, tokenId], onDelete: Cascade)
+
+  status AiEnrichmentStatus @default(PENDING)
+
+  visualText    String? @db.Text
+  visualSummary String? @db.Text
+
+  detectedProduct  String?
+  detectedService  String?
+  detectedCategory String?
+  detectedBrand    String?
+
+  detectedCountry String?
+  detectedRegion  String?
+  detectedCity    String?
+  detectedArea    String?
+
+  searchTags String[] @default([])
+
+  confidence Float?
+
+  sourceImage     String? @db.Text
+  sourceAnimation String? @db.Text
+
+  provider String?
+  model    String?
+
+  error String? @db.Text
+
+  enrichedAt DateTime?
+
+  @@unique([chainId, contract, tokenId])
+  @@index([chainId, contract])
+  @@index([status, updatedAt])
+  @@index([detectedCountry])
+  @@index([detectedRegion])
+  @@index([detectedCity])
+  @@index([detectedCategory])
+  @@index([detectedProduct])
+  @@index([detectedService])
+  @@index([enrichedAt])
+  @@map("nft_ai_index")
 }

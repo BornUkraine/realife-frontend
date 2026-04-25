@@ -225,6 +225,29 @@ export async function GET(req: NextRequest) {
         metaRarity: true,
         metaBrand: true,
         metaProject: true,
+        aiIndex: {
+          select: {
+            status: true,
+            visualText: true,
+            visualSummary: true,
+            detectedProduct: true,
+            detectedService: true,
+            detectedCategory: true,
+            detectedBrand: true,
+            detectedCountry: true,
+            detectedRegion: true,
+            detectedCity: true,
+            detectedArea: true,
+            searchTags: true,
+            confidence: true,
+            sourceImage: true,
+            sourceAnimation: true,
+            provider: true,
+            model: true,
+            error: true,
+            enrichedAt: true,
+          },
+        },
       },
     });
 
@@ -346,6 +369,31 @@ export async function GET(req: NextRequest) {
         metaBrand: meta.brand,
         metaProject: meta.project,
         metaDescription: meta.description,
+        aiIndex: mint.aiIndex
+          ? {
+              status: mint.aiIndex.status,
+              visualText: mint.aiIndex.visualText,
+              visualSummary: mint.aiIndex.visualSummary,
+              detectedProduct: mint.aiIndex.detectedProduct,
+              detectedService: mint.aiIndex.detectedService,
+              detectedCategory: mint.aiIndex.detectedCategory,
+              detectedBrand: mint.aiIndex.detectedBrand,
+              detectedCountry: mint.aiIndex.detectedCountry,
+              detectedRegion: mint.aiIndex.detectedRegion,
+              detectedCity: mint.aiIndex.detectedCity,
+              detectedArea: mint.aiIndex.detectedArea,
+              searchTags: mint.aiIndex.searchTags || [],
+              confidence: mint.aiIndex.confidence,
+              sourceImage: mint.aiIndex.sourceImage,
+              sourceAnimation: mint.aiIndex.sourceAnimation,
+              provider: mint.aiIndex.provider,
+              model: mint.aiIndex.model,
+              error: mint.aiIndex.error,
+              enrichedAt: mint.aiIndex.enrichedAt
+                ? mint.aiIndex.enrichedAt.toISOString()
+                : null,
+            }
+          : null,
       },
       stats: {
         activeListings: listings.length,
