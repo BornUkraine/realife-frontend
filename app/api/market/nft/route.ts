@@ -375,8 +375,8 @@ async function loadMint(input: {
   chainId: number;
   contract: string;
   tokenId: string;
-}) {
-  return prisma.mint.findUnique({
+}): Promise<any | null> {
+  const mint = await prisma.mint.findUnique({
     where: {
       chainId_contract_tokenId: {
         chainId: input.chainId,
@@ -386,6 +386,8 @@ async function loadMint(input: {
     },
     select: mintSelectForMode(input.mode) as any,
   } as any);
+
+  return mint as any | null;
 }
 
 async function loadListings(input: {
@@ -395,7 +397,7 @@ async function loadListings(input: {
   tokenId: string;
   marketplaceContract: string | null;
   take: number;
-}) {
+}): Promise<any[]> {
   const where: any = {
     chainId: input.chainId,
     contract: input.contract,
@@ -412,12 +414,14 @@ async function loadListings(input: {
     where.marketplaceContract = input.marketplaceContract;
   }
 
-  return prisma.listing.findMany({
+  const rows = await prisma.listing.findMany({
     where,
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: input.take,
     select: listingSelectForMode(input.mode) as any,
   } as any);
+
+  return rows as any[];
 }
 
 async function loadTrades(input: {
@@ -427,7 +431,7 @@ async function loadTrades(input: {
   tokenId: string;
   marketplaceContract: string | null;
   take: number;
-}) {
+}): Promise<any[]> {
   const where: any = {
     chainId: input.chainId,
     contract: input.contract,
@@ -443,12 +447,14 @@ async function loadTrades(input: {
     where.marketplaceContract = input.marketplaceContract;
   }
 
-  return prisma.trade.findMany({
+  const rows = await prisma.trade.findMany({
     where,
     orderBy: [{ blockTime: "desc" }, { id: "desc" }],
     take: input.take,
     select: tradeSelectForMode(input.mode) as any,
   } as any);
+
+  return rows as any[];
 }
 
 function listingToJson(r: any, requestedMarketType: MarketType | null) {
@@ -644,28 +650,30 @@ export async function GET(req: NextRequest) {
         tradeToJson(t, contract, requestedMarketType)
       );
 
-      const floorWei =
-        listings.length === 0
-          ? null
-          : listings.reduce((min: bigint | null, x: any) => {
-              try {
-                const price = BigInt(x.pricePerUnitWei || "0");
-                if (min === null) return price;
-                return price < min ? price : min;
-              } catch {
-                return min;
-              }
-            }, null);
+      let floorWei: bigint | null = null;
+
+      for (const x of listings) {
+        try {
+          const price = BigInt(x.pricePerUnitWei || "0");
+          if (floorWei === null || price < floorWei) {
+            floorWei = price;
+          }
+        } catch {
+          // ignore bad price
+        }
+      }
 
       const lastSaleWei = trades[0]?.totalPriceWei ?? null;
 
-      const volumeTotalWei = trades.reduce((acc: bigint, t: any) => {
+      let volumeTotalWei = 0n;
+
+      for (const t of trades) {
         try {
-          return acc + BigInt(t.totalPriceWei || "0");
+          volumeTotalWei += BigInt(t.totalPriceWei || "0");
         } catch {
-          return acc;
+          // ignore bad trade total
         }
-      }, 0n);
+      }
 
       const meta = metadataFromMint(mint);
 
