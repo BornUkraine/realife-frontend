@@ -9,14 +9,10 @@ export const revalidate = 0;
 /**
  * NFT detail endpoint.
  *
- * Important:
- * - This route must not break NFT pages because of AI index, metadata cache,
- *   IPFS gateway fetches, or optional fields.
- * - It uses DB cached metadata only.
- * - Fallback modes:
- *   1) ai mode: metadata cache + AI visual index
- *   2) meta mode: metadata cache only
- *   3) basic mode: core mint/listing/trade fields only
+ * Safe fallback modes:
+ * 1) ai    = metadata cache + AI visual index
+ * 2) meta  = metadata cache only
+ * 3) basic = minimal core fields only
  */
 
 type MarketType = "STANDARD" | "PROTECTED";
@@ -227,19 +223,20 @@ function mintSelectForMode(mode: QueryMode) {
     tokenUri: true,
     txHash: true,
     verified: true,
-    deliveryEnabled: true,
-    physicalItemIncluded: true,
-    officialItem: true,
-    fulfillmentType: true,
-    category: true,
-    subcategory: true,
-    serviceCountry: true,
-    serviceCity: true,
-    serviceArea: true,
     createdAt: true,
   };
 
   if (mode === "meta" || mode === "ai") {
+    base.deliveryEnabled = true;
+    base.physicalItemIncluded = true;
+    base.officialItem = true;
+    base.fulfillmentType = true;
+    base.category = true;
+    base.subcategory = true;
+    base.serviceCountry = true;
+    base.serviceCity = true;
+    base.serviceArea = true;
+
     base.metadataCachedAt = true;
     base.metaImage = true;
     base.metaAnimation = true;
@@ -281,30 +278,20 @@ function mintSelectForMode(mode: QueryMode) {
   return base;
 }
 
-function listingSelectForMode(_mode: QueryMode) {
-  return {
+function listingSelectForMode(mode: QueryMode) {
+  const base: any = {
     id: true,
     standard: true,
     chainId: true,
     contract: true,
     tokenId: true,
     status: true,
-    marketType: true,
     marketplaceContract: true,
     marketplaceListingId: true,
     sellerWallet: true,
     pricePerUnitWei: true,
     amountTotal: true,
     amountRemaining: true,
-    deliveryEnabled: true,
-    physicalItemIncluded: true,
-    officialItem: true,
-    fulfillmentType: true,
-    category: true,
-    subcategory: true,
-    serviceCountry: true,
-    serviceCity: true,
-    serviceArea: true,
     createdAt: true,
     seller: {
       select: {
@@ -313,6 +300,21 @@ function listingSelectForMode(_mode: QueryMode) {
       },
     },
   };
+
+  if (mode === "meta" || mode === "ai") {
+    base.marketType = true;
+    base.deliveryEnabled = true;
+    base.physicalItemIncluded = true;
+    base.officialItem = true;
+    base.fulfillmentType = true;
+    base.category = true;
+    base.subcategory = true;
+    base.serviceCountry = true;
+    base.serviceCity = true;
+    base.serviceArea = true;
+  }
+
+  return base;
 }
 
 function tradeSelectForMode(mode: QueryMode) {
@@ -321,9 +323,6 @@ function tradeSelectForMode(mode: QueryMode) {
     logIndex: true,
     blockNum: true,
     blockTime: true,
-    marketplaceContract: true,
-    marketplaceListingId: true,
-    marketplacePurchaseId: true,
     sellerWallet: true,
     buyerWallet: true,
     amount: true,
@@ -333,6 +332,9 @@ function tradeSelectForMode(mode: QueryMode) {
 
   if (mode === "meta" || mode === "ai") {
     base.marketType = true;
+    base.marketplaceContract = true;
+    base.marketplaceListingId = true;
+    base.marketplacePurchaseId = true;
     base.fulfillmentType = true;
     base.category = true;
     base.subcategory = true;
@@ -470,7 +472,7 @@ function listingToJson(r: any, requestedMarketType: MarketType | null) {
     standard: r.standard,
     marketType: rowResolvedMarketType,
     suggestedMarketType: rowSuggestedMarketType,
-    marketplaceContract: r.marketplaceContract,
+    marketplaceContract: r.marketplaceContract ?? null,
 
     sellerWallet: r.sellerWallet,
     seller: r.seller || null,
@@ -602,11 +604,11 @@ export async function GET(req: NextRequest) {
       }
 
       const suggestedMarketType = suggestedMarketTypeFromAsset({
-        fulfillmentType: mint.fulfillmentType,
-        deliveryEnabled: mint.deliveryEnabled,
-        physicalItemIncluded: mint.physicalItemIncluded,
-        category: mint.category,
-        subcategory: mint.subcategory,
+        fulfillmentType: mint.fulfillmentType ?? null,
+        deliveryEnabled: mint.deliveryEnabled ?? null,
+        physicalItemIncluded: mint.physicalItemIncluded ?? null,
+        category: mint.category ?? null,
+        subcategory: mint.subcategory ?? null,
       });
 
       const resolvedMarketType = resolveMarketType({
@@ -686,15 +688,15 @@ export async function GET(req: NextRequest) {
           verified: mint.verified,
           createdAt: mint.createdAt ? mint.createdAt.toISOString() : null,
 
-          deliveryEnabled: mint.deliveryEnabled,
-          physicalItemIncluded: mint.physicalItemIncluded,
-          officialItem: mint.officialItem,
-          fulfillmentType: mint.fulfillmentType,
-          category: mint.category,
-          subcategory: mint.subcategory,
-          serviceCountry: mint.serviceCountry,
-          serviceCity: mint.serviceCity,
-          serviceArea: mint.serviceArea,
+          deliveryEnabled: mint.deliveryEnabled ?? null,
+          physicalItemIncluded: mint.physicalItemIncluded ?? null,
+          officialItem: mint.officialItem ?? null,
+          fulfillmentType: mint.fulfillmentType ?? null,
+          category: mint.category ?? null,
+          subcategory: mint.subcategory ?? null,
+          serviceCountry: mint.serviceCountry ?? null,
+          serviceCity: mint.serviceCity ?? null,
+          serviceArea: mint.serviceArea ?? null,
 
           suggestedMarketType,
           resolvedMarketType,
