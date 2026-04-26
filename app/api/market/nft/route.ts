@@ -19,8 +19,31 @@ type MarketType = "STANDARD" | "PROTECTED";
 type ForcedMarketType = "STANDARD" | "PROTECTED";
 type QueryMode = "ai" | "meta" | "basic";
 
-function s(v: unknown) {
-  return typeof v === "bigint" ? v.toString() : v;
+function s(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "bigint") return v.toString();
+  return String(v);
+}
+
+function toBigIntSafe(v: unknown): bigint | null {
+  if (v === null || v === undefined) return null;
+
+  const raw =
+    typeof v === "bigint"
+      ? v.toString()
+      : typeof v === "string" ||
+        typeof v === "number" ||
+        typeof v === "boolean"
+      ? String(v)
+      : "";
+
+  if (!/^\d+$/.test(raw)) return null;
+
+  try {
+    return BigInt(raw);
+  } catch {
+    return null;
+  }
 }
 
 function toInt(v: string | null) {
@@ -653,13 +676,10 @@ export async function GET(req: NextRequest) {
       let floorWei: bigint | null = null;
 
       for (const x of listings) {
-        try {
-          const price = BigInt(x.pricePerUnitWei || "0");
-          if (floorWei === null || price < floorWei) {
-            floorWei = price;
-          }
-        } catch {
-          // ignore bad price
+        const price = toBigIntSafe(x.pricePerUnitWei);
+
+        if (price !== null && (floorWei === null || price < floorWei)) {
+          floorWei = price;
         }
       }
 
@@ -668,10 +688,10 @@ export async function GET(req: NextRequest) {
       let volumeTotalWei = 0n;
 
       for (const t of trades) {
-        try {
-          volumeTotalWei += BigInt(t.totalPriceWei || "0");
-        } catch {
-          // ignore bad trade total
+        const totalPrice = toBigIntSafe(t.totalPriceWei);
+
+        if (totalPrice !== null) {
+          volumeTotalWei += totalPrice;
         }
       }
 
@@ -754,7 +774,7 @@ export async function GET(req: NextRequest) {
           activeListings: listings.length,
           tradesCount: trades.length,
           floorWei: floorWei !== null ? s(floorWei) : null,
-          lastSaleWei: lastSaleWei ? s(lastSaleWei) : null,
+          lastSaleWei: s(lastSaleWei),
           volumeTotalWei: s(volumeTotalWei),
         },
 
