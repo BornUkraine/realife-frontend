@@ -10,8 +10,8 @@ const REAL_MARKETING_HREF = "/app/real-marketing";
 const STORY_CARDS = [
   {
     label: "Creator Story",
-    title: "Real work becomes digital value",
-    text: "A real painting, created by hand, can become a collectible digital asset inside the Realife ecosystem.",
+    title: "Real work becomes tokenized value",
+    text: "A real painting, product, or service can become an NFT-linked transaction right inside the Realife ecosystem.",
     image: "/brand/1.jpg",
     alt: "Creator standing with finished painting",
   },
@@ -23,16 +23,16 @@ const STORY_CARDS = [
     alt: "Painting process close-up",
   },
   {
-    label: "Collectible Presentation",
-    title: "From artwork to premium asset",
-    text: "A finished piece can be presented, packaged, and prepared as a collectible object with digital ownership value.",
+    label: "Product Presentation",
+    title: "From real asset to on-chain commerce",
+    text: "A finished item or service can be presented, packaged, and connected to digital ownership, marketplace activity, and fulfillment.",
     image: "/brand/3.jpg",
     alt: "Artwork with certificate and premium presentation",
   },
   {
     label: "Brand Collaboration",
-    title: "Creative work can power campaigns",
-    text: "Artists, makers, and brands can turn real creations into collectible stories, product concepts, and community activations.",
+    title: "Real-world value can power campaigns",
+    text: "Artists, makers, sellers, workers, and brands can turn real creations into tokenized product stories and community activations.",
     image: "/brand/4.jpg",
     alt: "Creative collaboration session",
   },
@@ -45,15 +45,15 @@ const STORY_CARDS = [
   },
   {
     label: "Collector Delivery",
-    title: "Ownership arrives in the real world",
-    text: "Realife connects digital ownership with physical delivery, so value can be experienced both on-chain and offline.",
+    title: "Ownership reaches the real world",
+    text: "Realife connects on-chain transaction rights with physical delivery, so value can be experienced both digitally and offline.",
     image: "/brand/6.jpg",
     alt: "Buyer receiving delivered artwork",
   },
   {
     label: "Accessible Web3",
-    title: "Built for everyday creators",
-    text: "Realife is designed for ordinary talented people — not only traders or developers, but anyone with real creative skill.",
+    title: "Built for everyday sellers and creators",
+    text: "Realife is designed for ordinary talented people — not only traders or developers, but anyone with real products, services, or skills.",
     image: "/brand/7.jpg",
     alt: "Everyday creator with artwork in studio",
   },
@@ -303,41 +303,43 @@ export default function HomePage() {
             <div className="lg:col-span-6">
               <Pill>
                 <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                Realife platform
+                Stablecoin escrow commerce
               </Pill>
 
               <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-[-0.03em] md:text-7xl">
-                Real World Value NFT Marketplace with{" "}
+                Stablecoin Escrow Commerce for{" "}
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
-                  AI and Escrow
-                </span>{" "}
-                for Services & Delivery
+                  Real-World Products & Services
+                </span>
               </h1>
 
               <p className="mt-6 max-w-2xl text-base leading-relaxed text-white/60 md:text-lg">
-                Realife transforms real-world work, products, and services into
-                on-chain assets with marketplace utility, AI assistance, and
-                escrow-backed completion or physical delivery.
+                Realife lets users buy and sell products, services, and delivery
+                with crypto payments, NFT-linked transaction rights, and escrow
+                protection until fulfillment is completed.
               </p>
 
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/50 md:text-base">
-                Built for creators, brands, workers, and collectors who want real
-                value, not only digital speculation.
+                NFTs on Realife are not only collectibles. They can represent
+                access, ownership proof, purchase rights, service claims, and
+                tradable real-world value.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 {[
-                  "On-chain proof",
-                  "AI assistance",
+                  "Stablecoin payments",
+                  "NFT-linked rights",
                   "Service escrow",
                   "Delivery escrow",
+                  "AI-assisted minting",
+                  "Live on Base Sepolia",
                 ].map((x) => (
                   <Pill key={x}>{x}</Pill>
                 ))}
               </div>
 
               <div className="mt-8 flex flex-wrap gap-4">
-                <GoldButton href="/app/create">Start minting</GoldButton>
+                <GoldButton href="/app/create">Create NFT listing</GoldButton>
                 <GhostButton href="/app/trading">Open marketplace</GhostButton>
               </div>
 
@@ -345,7 +347,7 @@ export default function HomePage() {
                 <div className="grid gap-4 p-5 md:grid-cols-12 md:items-center">
                   <div className="md:col-span-4">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
-                      Creator access
+                      Start with wallet
                     </div>
                     <div className="mt-3">
                       <ConnectWallet />
@@ -355,8 +357,8 @@ export default function HomePage() {
                   <div className="md:col-span-8">
                     <div className="grid gap-3 sm:grid-cols-3">
                       {[
-                        ["Category", "RWV NFT marketplace"],
-                        ["AI", "Integrated platform assistant"],
+                        ["Category", "Tokenized commerce layer"],
+                        ["NFT role", "Transaction rights and proof"],
                         ["Trust layer", "Escrow for services and delivery"],
                       ].map(([t, d]) => (
                         <div
@@ -379,7 +381,7 @@ export default function HomePage() {
                   label="Main video"
                   badge="Hero"
                   title="Realife in motion"
-                  text="A premium introduction to the platform vision — real value, digital ownership, and a stronger trust layer for service or delivery outcomes."
+                  text="A premium introduction to stablecoin-powered real-world commerce, digital ownership, and escrow-backed trust for products, services, and delivery."
                   src="/videos/realife-main-hero.mp4"
                   aspect="aspect-[4/3]"
                 />
@@ -388,7 +390,7 @@ export default function HomePage() {
                   label="Second video"
                   badge="People / Vision"
                   title="Real-world value"
-                  text="A supporting visual layer focused on people, atmosphere, movement, and the human side of the Realife economy."
+                  text="A supporting visual layer focused on people, work, products, service providers, and the human side of tokenized commerce."
                   src="/videos/realife-vision.mp4"
                   aspect="aspect-[16/10]"
                 />
@@ -401,28 +403,28 @@ export default function HomePage() {
           <section>
             <SectionHeading
               label="What Realife means"
-              title="Real value connected to digital ownership"
-              text="A premium ecosystem for real-world work, products, services, marketplace utility, and escrow-backed completion."
+              title="The escrow layer for real-world crypto commerce"
+              text="Realife connects stablecoin payments, NFT-linked transaction rights, marketplace activity, and escrow-protected fulfillment for products, services, and delivery."
               center
             />
 
             <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {[
                 [
-                  "Real-world work",
-                  "Human effort, skill, and creative output can become market-ready digital ownership.",
+                  "Stablecoin commerce",
+                  "Crypto users can spend digital money on real-world products, services, and fulfillment without relying only on speculative markets.",
                 ],
                 [
-                  "Real products",
-                  "Physical goods and branded objects can connect to collectible NFT utility and ownership.",
+                  "NFT-linked rights",
+                  "NFTs can represent access, ownership proof, purchase claims, service rights, and tradable transaction records.",
                 ],
                 [
                   "Real services",
-                  "Service-based value can move through protected flows inside the Realife platform.",
+                  "Digital, online, and local services can move through protected order flows with clearer completion logic.",
                 ],
                 [
-                  "Escrow and delivery",
-                  "Realife supports trusted service completion and physical delivery-oriented settlement.",
+                  "Escrow protection",
+                  "Payments can be held until delivery or service completion is confirmed, reducing trust gaps between buyers and sellers.",
                 ],
               ].map(([t, d]) => (
                 <GlassCard key={t}>
@@ -453,8 +455,8 @@ export default function HomePage() {
 
                   <p className="mb-5 text-sm leading-relaxed text-white/60">
                     This section explains the operating logic of the platform —
-                    from real-world creation to minting, trading, and escrow-backed
-                    completion or delivery.
+                    from real-world value to NFT-linked rights, marketplace
+                    activity, and escrow-backed completion or delivery.
                   </p>
 
                   <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black/30">
@@ -472,19 +474,31 @@ export default function HomePage() {
                 <div className="lg:col-span-5">
                   <SectionHeading
                     label="How Realife works"
-                    title="Create, mint, trade, and complete"
-                    text="From real-world value to NFT ownership, marketplace activity, and escrow-backed service or delivery outcomes."
+                    title="Create, tokenize, trade, and complete"
+                    text="From real-world products or services to NFT-linked transaction rights, stablecoin payments, and escrow-backed settlement."
                   />
 
                   <div className="mt-6 grid gap-3">
                     {[
-                      ["01", "Create", "Create real work, products, packaging, or services."],
-                      ["02", "Mint", "Turn value into an NFT with metadata and on-chain proof."],
-                      ["03", "Trade", "Move the asset through the Realife marketplace and ecosystem."],
+                      [
+                        "01",
+                        "Create",
+                        "Create a real product, service, delivery offer, branded item, or local work listing.",
+                      ],
+                      [
+                        "02",
+                        "Tokenize",
+                        "Mint an NFT-linked right with metadata, media, ownership proof, and marketplace utility.",
+                      ],
+                      [
+                        "03",
+                        "Trade",
+                        "List, buy, sell, or transfer real-world value through the Realife marketplace.",
+                      ],
                       [
                         "04",
-                        "Complete",
-                        "Use escrow for service completion or physical delivery with clearer trust flows.",
+                        "Settle",
+                        "Use escrow flows for service completion, buyer confirmation, refund paths, or physical delivery.",
                       ],
                     ].map(([n, t, d]) => (
                       <div
@@ -511,24 +525,24 @@ export default function HomePage() {
           <section>
             <SectionHeading
               label="Inside the ecosystem"
-              title="More than minting"
-              text="Realife expands beyond creator minting into branded campaigns, storefront experiences, premium product stories, and real-world utility."
+              title="More than a marketplace"
+              text="Realife expands beyond NFT minting into stablecoin commerce, branded storefronts, service flows, delivery logic, product stories, and real-world utility."
             />
 
             <div className="mt-10 grid gap-6 lg:grid-cols-3">
               <GlassCard className="h-full">
                 <div className="flex h-full flex-col p-8">
-                  <Pill className="bg-black/35">Brand collaboration layer</Pill>
+                  <Pill className="bg-black/35">Brand commerce layer</Pill>
                   <h3 className="mt-5 text-3xl font-black tracking-tight">Real Marketing</h3>
                   <p className="mt-3 text-sm leading-relaxed text-white/60">
                     The ecosystem hub for creator campaigns, crypto brand collaborations,
-                    Crypto Cafe, and Realife Store.
+                    Crypto Cafe, Realife Store, and real-world product activations.
                   </p>
                   <div className="mt-6 grid gap-3">
                     {[
                       "Campaigns for crypto projects",
                       "Product storytelling and vertical launches",
-                      "Bridge between creators and Web3 brands",
+                      "Bridge between sellers, creators, and Web3 brands",
                     ].map((x) => (
                       <div
                         key={x}
@@ -565,7 +579,7 @@ export default function HomePage() {
                     </div>
                     <div className="mt-2 text-sm leading-relaxed text-white/60">
                       A premium storefront concept for branded goods, collectible
-                      atmosphere, and phygital experiences.
+                      atmosphere, and crypto-native real-world experiences.
                     </div>
                   </div>
                 </div>
@@ -587,8 +601,8 @@ export default function HomePage() {
                   <div className="absolute bottom-0 left-0 right-0 p-6">
                     <div className="text-2xl font-black tracking-tight">Realife Store</div>
                     <div className="mt-2 text-sm leading-relaxed text-white/60">
-                      Tokenized real-world products, branded packaging, and collectible
-                      ownership stories.
+                      Tokenized real-world products, branded packaging, stablecoin
+                      commerce, and NFT-linked ownership stories.
                     </div>
                   </div>
                 </div>
@@ -602,7 +616,7 @@ export default function HomePage() {
             <SectionHeading
               label="Human story"
               title="Real people. Real products. Real value."
-              text="A visual layer that shows the human side of ownership, making, service, and delivery inside the Realife world."
+              text="A visual layer that shows the human side of ownership, making, service, delivery, and tokenized commerce inside the Realife world."
             />
 
             <div className="mt-10 grid gap-6 lg:grid-cols-12">
@@ -650,8 +664,8 @@ export default function HomePage() {
                     <div className="mt-6 grid gap-3 sm:grid-cols-2">
                       {[
                         "Not only for traders or developers",
-                        "Built for artists, makers, workers, and communities",
-                        "Bridge between offline talent and digital ownership",
+                        "Built for artists, makers, workers, sellers, and communities",
+                        "Bridge between offline value and on-chain ownership",
                         "A premium layer for real human contribution",
                       ].map((x) => (
                         <div
@@ -676,14 +690,14 @@ export default function HomePage() {
                 <div className="lg:col-span-8">
                   <SectionHeading
                     label="Start"
-                    title="Bring real-world value on-chain"
-                    text="Create NFTs for real products, services, and branded experiences with AI assistance, marketplace utility, and escrow-backed flows."
+                    title="Bring real-world commerce on-chain"
+                    text="Create NFT-linked listings for products, services, and branded experiences with AI assistance, marketplace utility, stablecoin payments, and escrow-backed flows."
                   />
                 </div>
                 <div className="lg:col-span-4">
                   <div className="flex flex-col gap-3">
                     <GoldButton href="/app/create" className="w-full">
-                      Start minting
+                      Create NFT listing
                     </GoldButton>
                     <GhostButton href="/app/trading" className="w-full">
                       Open marketplace
@@ -701,11 +715,12 @@ export default function HomePage() {
         <footer className="mt-16 flex flex-wrap items-center justify-between gap-4 pb-10 text-xs text-white/40">
           <div>© {year} Realife</div>
           <div className="flex flex-wrap items-center gap-4 opacity-60">
+            <span>Stablecoin commerce</span>
+            <span>NFT-linked rights</span>
             <span>AI assistance</span>
-            <span>On-chain mint</span>
             <span>Service escrow</span>
             <span>Delivery escrow</span>
-            <span>Real World Value</span>
+            <span>Real-world value</span>
           </div>
         </footer>
       </div>
