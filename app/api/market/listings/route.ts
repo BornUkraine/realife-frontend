@@ -32,6 +32,17 @@ function cleanText(v: string | null | undefined, max = 160) {
   return x ? x.slice(0, max) : null;
 }
 
+function parseWei(v: string | null) {
+  const x = String(v || "").trim();
+  if (!x || !/^\d+$/.test(x)) return null;
+
+  try {
+    return BigInt(x);
+  } catch {
+    return null;
+  }
+}
+
 function isLikelyVideoUrl(u?: string | null) {
   const s0 = String(u || "").trim().toLowerCase();
   if (!s0) return false;
@@ -128,7 +139,14 @@ function suggestedMarketTypeFromSimple(input: {
     text.includes("design") ||
     text.includes("development") ||
     text.includes("consulting") ||
-    text.includes("training")
+    text.includes("training") ||
+    text.includes("coaching") ||
+    text.includes("lesson") ||
+    text.includes("session") ||
+    text.includes("repair") ||
+    text.includes("fitness") ||
+    text.includes("marketing") ||
+    text.includes("automation")
   ) {
     return "PROTECTED";
   }
@@ -138,9 +156,7 @@ function suggestedMarketTypeFromSimple(input: {
 
 function mediaFromMint(m: any) {
   const image =
-    ipfsToHttp(m?.metaImage || null) ||
-    ipfsToHttp(m?.image || null) ||
-    null;
+    ipfsToHttp(m?.metaImage || null) || ipfsToHttp(m?.image || null) || null;
 
   const animation = ipfsToHttp(m?.metaAnimation || null) || null;
 
@@ -159,6 +175,81 @@ function mediaFromMint(m: any) {
 
 function textMatch(value: unknown, q: string) {
   return String(value || "").toLowerCase().includes(q.toLowerCase());
+}
+
+function tagsMatch(tags: unknown, q: string) {
+  if (!Array.isArray(tags)) return false;
+  return tags.some((tag) => textMatch(tag, q));
+}
+
+function aiIndexMatch(aiIndex: any, q: string) {
+  if (!aiIndex) return false;
+
+  return (
+    textMatch(aiIndex.visualText, q) ||
+    textMatch(aiIndex.visualSummary, q) ||
+    textMatch(aiIndex.detectedProduct, q) ||
+    textMatch(aiIndex.detectedService, q) ||
+    textMatch(aiIndex.detectedCategory, q) ||
+    textMatch(aiIndex.detectedBrand, q) ||
+    textMatch(aiIndex.detectedCountry, q) ||
+    textMatch(aiIndex.detectedRegion, q) ||
+    textMatch(aiIndex.detectedCity, q) ||
+    textMatch(aiIndex.detectedArea, q) ||
+    tagsMatch(aiIndex.searchTags, q)
+  );
+}
+
+function aiIndexLocationMatch(aiIndex: any, q: string) {
+  if (!aiIndex) return false;
+
+  return (
+    textMatch(aiIndex.visualText, q) ||
+    textMatch(aiIndex.visualSummary, q) ||
+    textMatch(aiIndex.detectedCountry, q) ||
+    textMatch(aiIndex.detectedRegion, q) ||
+    textMatch(aiIndex.detectedCity, q) ||
+    textMatch(aiIndex.detectedArea, q) ||
+    tagsMatch(aiIndex.searchTags, q)
+  );
+}
+
+function aiIndexCategoryMatch(aiIndex: any, q: string) {
+  if (!aiIndex) return false;
+
+  return (
+    textMatch(aiIndex.visualText, q) ||
+    textMatch(aiIndex.visualSummary, q) ||
+    textMatch(aiIndex.detectedProduct, q) ||
+    textMatch(aiIndex.detectedService, q) ||
+    textMatch(aiIndex.detectedCategory, q) ||
+    textMatch(aiIndex.detectedBrand, q) ||
+    tagsMatch(aiIndex.searchTags, q)
+  );
+}
+
+function aiIndexToJson(aiIndex: any) {
+  if (!aiIndex) return null;
+
+  return {
+    status: aiIndex.status ?? null,
+    visualText: aiIndex.visualText ?? null,
+    visualSummary: aiIndex.visualSummary ?? null,
+
+    detectedProduct: aiIndex.detectedProduct ?? null,
+    detectedService: aiIndex.detectedService ?? null,
+    detectedCategory: aiIndex.detectedCategory ?? null,
+    detectedBrand: aiIndex.detectedBrand ?? null,
+
+    detectedCountry: aiIndex.detectedCountry ?? null,
+    detectedRegion: aiIndex.detectedRegion ?? null,
+    detectedCity: aiIndex.detectedCity ?? null,
+    detectedArea: aiIndex.detectedArea ?? null,
+
+    searchTags: Array.isArray(aiIndex.searchTags) ? aiIndex.searchTags : [],
+    confidence: aiIndex.confidence ?? null,
+    enrichedAt: aiIndex.enrichedAt ? aiIndex.enrichedAt.toISOString() : null,
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -182,7 +273,9 @@ export async function GET(req: NextRequest) {
 
   const contract = normAddr(url.searchParams.get("contract"));
   const seller = normAddr(url.searchParams.get("seller"));
-  const marketplaceContract = normAddr(url.searchParams.get("marketplaceContract"));
+  const marketplaceContract = normAddr(
+    url.searchParams.get("marketplaceContract")
+  );
 
   const q = cleanText(url.searchParams.get("q"), 160);
   const category = cleanText(url.searchParams.get("category"), 120);
@@ -191,6 +284,9 @@ export async function GET(req: NextRequest) {
   const serviceCity = cleanText(url.searchParams.get("serviceCity"), 120);
   const serviceArea = cleanText(url.searchParams.get("serviceArea"), 120);
   const fulfillmentType = cleanText(url.searchParams.get("fulfillmentType"), 80);
+
+  const minPriceWei = parseWei(url.searchParams.get("minPriceWei"));
+  const maxPriceWei = parseWei(url.searchParams.get("maxPriceWei"));
 
   const marketTypeRaw = String(url.searchParams.get("marketType") || "").toUpperCase();
   const requestedMarketType = ALLOWED_MARKET_TYPE.has(marketTypeRaw as MarketType)
@@ -212,25 +308,26 @@ export async function GET(req: NextRequest) {
     if (seller) where.sellerWallet = seller;
     if (marketplaceContract) where.marketplaceContract = marketplaceContract;
 
-    /**
-     * Keep DB filters SIMPLE.
-     * Text/AI-like filters are applied in memory below.
-     * This prevents Prisma nested OR / optional relation crashes from killing /app/trading.
-     */
     if (requestedMarketType && !contract) {
       where.marketType = requestedMarketType;
     }
 
     if (requestedMarketType && contract) {
       if (PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT) {
-        // delivery contract is protected by product logic, do not force DB marketType
+        // Delivery contract is protected by product logic, do not force DB marketType.
       } else if (CAFE_CONTRACT && contract === CAFE_CONTRACT) {
-        // cafe is standard by product logic
+        // Cafe is standard by product logic.
       } else if (STORE_CONTRACT && contract === STORE_CONTRACT) {
-        // store is standard by product logic
+        // Store is standard by product logic.
       } else {
         where.marketType = requestedMarketType;
       }
+    }
+
+    if (minPriceWei !== null || maxPriceWei !== null) {
+      where.pricePerUnitWei = {};
+      if (minPriceWei !== null) where.pricePerUnitWei.gte = minPriceWei;
+      if (maxPriceWei !== null) where.pricePerUnitWei.lte = maxPriceWei;
     }
 
     const rawRows = await prisma.listing.findMany({
@@ -286,6 +383,7 @@ export async function GET(req: NextRequest) {
             serviceCountry: true,
             serviceCity: true,
             serviceArea: true,
+
             metaImage: true,
             metaAnimation: true,
             metaMediaKind: true,
@@ -295,6 +393,28 @@ export async function GET(req: NextRequest) {
             metaRarity: true,
             metaBrand: true,
             metaProject: true,
+
+            aiIndex: {
+              select: {
+                status: true,
+                visualText: true,
+                visualSummary: true,
+
+                detectedProduct: true,
+                detectedService: true,
+                detectedCategory: true,
+                detectedBrand: true,
+
+                detectedCountry: true,
+                detectedRegion: true,
+                detectedCity: true,
+                detectedArea: true,
+
+                searchTags: true,
+                confidence: true,
+                enrichedAt: true,
+              },
+            },
           },
         },
       },
@@ -333,7 +453,8 @@ export async function GET(req: NextRequest) {
           textMatch(r.mint?.category, category) ||
           textMatch(r.mint?.metaDescription, category) ||
           textMatch(r.mint?.metaItem, category) ||
-          textMatch(r.mint?.metaCollection, category)
+          textMatch(r.mint?.metaCollection, category) ||
+          aiIndexCategoryMatch(r.mint?.aiIndex, category)
         );
       });
     }
@@ -345,7 +466,10 @@ export async function GET(req: NextRequest) {
           textMatch(r.mint?.subcategory, subcategory) ||
           textMatch(r.mint?.metaDescription, subcategory) ||
           textMatch(r.mint?.metaItem, subcategory) ||
-          textMatch(r.mint?.metaCollection, subcategory)
+          textMatch(r.mint?.metaCollection, subcategory) ||
+          textMatch(r.mint?.metaBrand, subcategory) ||
+          textMatch(r.mint?.metaProject, subcategory) ||
+          aiIndexCategoryMatch(r.mint?.aiIndex, subcategory)
         );
       });
     }
@@ -359,7 +483,8 @@ export async function GET(req: NextRequest) {
           textMatch(r.mint?.metaItem, serviceCountry) ||
           textMatch(r.mint?.metaCollection, serviceCountry) ||
           textMatch(r.mint?.metaBrand, serviceCountry) ||
-          textMatch(r.mint?.metaProject, serviceCountry)
+          textMatch(r.mint?.metaProject, serviceCountry) ||
+          aiIndexLocationMatch(r.mint?.aiIndex, serviceCountry)
         );
       });
     }
@@ -370,7 +495,9 @@ export async function GET(req: NextRequest) {
           textMatch(r.serviceCity, serviceCity) ||
           textMatch(r.mint?.serviceCity, serviceCity) ||
           textMatch(r.mint?.metaDescription, serviceCity) ||
-          textMatch(r.mint?.metaItem, serviceCity)
+          textMatch(r.mint?.metaItem, serviceCity) ||
+          textMatch(r.mint?.metaCollection, serviceCity) ||
+          aiIndexLocationMatch(r.mint?.aiIndex, serviceCity)
         );
       });
     }
@@ -381,7 +508,9 @@ export async function GET(req: NextRequest) {
           textMatch(r.serviceArea, serviceArea) ||
           textMatch(r.mint?.serviceArea, serviceArea) ||
           textMatch(r.mint?.metaDescription, serviceArea) ||
-          textMatch(r.mint?.metaItem, serviceArea)
+          textMatch(r.mint?.metaItem, serviceArea) ||
+          textMatch(r.mint?.metaCollection, serviceArea) ||
+          aiIndexLocationMatch(r.mint?.aiIndex, serviceArea)
         );
       });
     }
@@ -408,14 +537,16 @@ export async function GET(req: NextRequest) {
           textMatch(r.mint?.metaItem, q) ||
           textMatch(r.mint?.metaRarity, q) ||
           textMatch(r.mint?.metaBrand, q) ||
-          textMatch(r.mint?.metaProject, q)
+          textMatch(r.mint?.metaProject, q) ||
+          aiIndexMatch(r.mint?.aiIndex, q)
         );
       });
     }
 
-    rows = rows.slice(0, take);
+    const hasMore = rows.length > take;
+    const pageRows = rows.slice(0, take);
 
-    const listings = rows.map((r) => {
+    const listings = pageRows.map((r) => {
       const m = r.mint || null;
       const media = mediaFromMint(m);
 
@@ -471,7 +602,7 @@ export async function GET(req: NextRequest) {
         metaProject: m?.metaProject || null,
         metaDescription: m?.metaDescription || null,
 
-        aiIndex: null,
+        aiIndex: aiIndexToJson(m?.aiIndex),
 
         mint: m
           ? {
@@ -503,8 +634,9 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      mode: "emergency-simple",
-      total: listings.length,
+      mode: "visual-ai-search",
+      total: skip + listings.length + (hasMore ? 1 : 0),
+      hasMore,
       filters: {
         q,
         category,
@@ -513,6 +645,8 @@ export async function GET(req: NextRequest) {
         serviceCountry,
         serviceCity,
         serviceArea,
+        minPriceWei: minPriceWei ? minPriceWei.toString() : null,
+        maxPriceWei: maxPriceWei ? maxPriceWei.toString() : null,
         sort,
         marketType: requestedMarketType,
         contract,
@@ -520,12 +654,12 @@ export async function GET(req: NextRequest) {
       listings,
     });
   } catch (e: any) {
-    console.error("[API_MARKET_LISTINGS_EMERGENCY_ERROR]", e);
+    console.error("[API_MARKET_LISTINGS_VISUAL_AI_SEARCH_ERROR]", e);
 
     return NextResponse.json(
       {
         ok: false,
-        error: "MARKET_LISTINGS_EMERGENCY_FAILED",
+        error: "MARKET_LISTINGS_VISUAL_AI_SEARCH_FAILED",
         message: e?.message || "Listings API failed",
       },
       { status: 500 }
