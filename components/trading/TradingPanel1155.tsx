@@ -1292,6 +1292,28 @@ export default function TradingPanel1155({
     });
   }
 
+  const triggerAiVisualEnrich = useCallback(async () => {
+    if (!nftAddr.startsWith("0x")) return;
+    if (!tokenId) return;
+
+    try {
+      await fetch("/api/ai/nft-enrich", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        cache: "no-store",
+        keepalive: true,
+        body: JSON.stringify({
+          chainId,
+          contract: nftAddr,
+          tokenId: String(tokenId),
+          force: false,
+        }),
+      });
+    } catch (e) {
+      console.warn("[Realife] AI visual enrichment trigger failed", e);
+    }
+  }, [chainId, nftAddr, tokenId]);
+
   async function approveAll() {
     if (!isConnected) {
       pushToast("info", "Wallet required", "Connect wallet to continue.");
@@ -1392,6 +1414,7 @@ export default function TradingPanel1155({
 
       pushToast("warning", "Transaction pending", "Listing is waiting for on-chain confirmation.", 3200);
       await publicClient?.waitForTransactionReceipt({ hash });
+      void triggerAiVisualEnrich();
 
       flashHint(`Listed on ${marketLabel(sellMarketType)} ✅`, 1600);
       pushToast("success", "Confirmed on-chain", `Listed on ${marketLabel(sellMarketType)} successfully.`);

@@ -648,6 +648,28 @@ export default function QuickList1155({
     }
   }
 
+  const triggerAiVisualEnrich = useCallback(async () => {
+    if (!nftAddr.startsWith("0x")) return;
+    if (!tokenId) return;
+
+    try {
+      await fetch("/api/ai/nft-enrich", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        cache: "no-store",
+        keepalive: true,
+        body: JSON.stringify({
+          chainId,
+          contract: nftAddr,
+          tokenId: String(tokenId),
+          force: false,
+        }),
+      });
+    } catch (e) {
+      console.warn("[Realife] AI visual enrichment trigger failed", e);
+    }
+  }, [chainId, nftAddr, tokenId]);
+
   async function approveAll() {
     if (!isConnected) return openConnectModal?.();
     if (!hasMarketplace) return;
@@ -764,6 +786,7 @@ export default function QuickList1155({
       pushToast("Transaction pending", "Listing submitted onchain.", "warning");
       await publicClient?.waitForTransactionReceipt({ hash });
       pushToast("Confirmed onchain", "Listing confirmed. Updating market state…", "success");
+      void triggerAiVisualEnrich();
 
       await revalidateAfterList();
       const walletState = await refreshWalletState();
