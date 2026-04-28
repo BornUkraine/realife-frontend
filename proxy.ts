@@ -2,13 +2,22 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // ✅ API routes не трогаем вообще.
+  // /api/market/listings должен напрямую попадать в app/api/market/listings/route.ts
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
+
   const response = NextResponse.next();
 
-  // Принудительно устанавливаем SameSite=None для куки сессии, 
-  // чтобы браузер НЕ удалял её при возврате с Твиттера.
-  const sessionCookieName = process.env.NODE_ENV === "production" 
-    ? "__Secure-next-auth.session-token" 
-    : "next-auth.session-token";
+  // Принудительно устанавливаем SameSite=None для next-auth session cookie,
+  // чтобы браузер не терял сессию после OAuth/redirect flows.
+  const sessionCookieName =
+    process.env.NODE_ENV === "production"
+      ? "__Secure-next-auth.session-token"
+      : "next-auth.session-token";
 
   const sessionCookie = request.cookies.get(sessionCookieName);
 
@@ -17,7 +26,7 @@ export function proxy(request: NextRequest) {
       name: sessionCookieName,
       value: sessionCookie.value,
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "none",
       path: "/",
     });
@@ -26,9 +35,9 @@ export function proxy(request: NextRequest) {
   return response;
 }
 
-// Запускаем middleware только для страниц и API
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    // ✅ Исключаем API и системные Next.js/static routes.
+    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)",
   ],
 };

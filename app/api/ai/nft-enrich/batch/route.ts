@@ -52,6 +52,7 @@ function getBaseUrl(req: NextRequest) {
   const proto =
     req.headers.get("x-forwarded-proto") ||
     (process.env.NODE_ENV === "development" ? "http" : "https");
+
   const host = req.headers.get("x-forwarded-host") || req.headers.get("host");
 
   if (!host) return null;
@@ -69,7 +70,11 @@ function isAuthorized(req: NextRequest) {
   return fromHeader === secret || fromQuery === secret;
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number) {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -85,6 +90,7 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
 
 function parseSearchParams(req: NextRequest) {
   const url = new URL(req.url);
+
   return {
     chainId: url.searchParams.get("chainId"),
     contract: url.searchParams.get("contract"),
@@ -114,9 +120,13 @@ async function getCandidates(input: {
 
     if (input.includeErrors) {
       aiIndexOr.push({ aiIndex: { is: { status: "ERROR" } } });
+      aiIndexOr.push({ aiIndex: { is: { status: "PENDING" } } });
+      aiIndexOr.push({ aiIndex: { is: { status: "PROCESSING" } } });
+      aiIndexOr.push({ aiIndex: { is: { status: "NONE" } } });
+    } else {
+      aiIndexOr.push({ aiIndex: { is: { status: "PENDING" } } });
+      aiIndexOr.push({ aiIndex: { is: { status: "NONE" } } });
     }
-
-    aiIndexOr.push({ aiIndex: { is: { status: "PENDING" } } });
 
     where.OR = aiIndexOr;
   }
@@ -165,6 +175,7 @@ async function runBatch(req: NextRequest, bodyInput: BatchBody) {
   const chainIdRaw = toInt(bodyInput.chainId);
   const chainId = chainIdRaw && chainIdRaw > 0 ? chainIdRaw : null;
   const contract = normAddr(bodyInput.contract);
+
   const limit = Math.max(1, Math.min(toInt(bodyInput.limit) ?? 3, 10));
   const force = toBool(bodyInput.force);
   const dryRun = toBool(bodyInput.dryRun);
@@ -183,6 +194,8 @@ async function runBatch(req: NextRequest, bodyInput: BatchBody) {
       ok: true,
       dryRun: true,
       count: candidates.length,
+      hint:
+        "This is only a dry run. To actually process NFTs, call this route with ?dryRun=false&limit=3 or POST { dryRun: false }.",
       candidates: candidates.map((m) => ({
         chainId: m.chainId,
         contract: m.contract,
@@ -207,6 +220,7 @@ async function runBatch(req: NextRequest, bodyInput: BatchBody) {
   }
 
   const baseUrl = getBaseUrl(req);
+
   if (!baseUrl) {
     return NextResponse.json(
       {
@@ -220,9 +234,13 @@ async function runBatch(req: NextRequest, bodyInput: BatchBody) {
   }
 
   const enrichUrl = `${baseUrl}/api/ai/nft-enrich`;
+
   const timeoutMs = Math.max(
     30_000,
-    Math.min(Number(process.env.OPENAI_NFT_ENRICH_ITEM_TIMEOUT_MS || 130_000), 180_000)
+    Math.min(
+      Number(process.env.OPENAI_NFT_ENRICH_ITEM_TIMEOUT_MS || 130_000),
+      180_000
+    )
   );
 
   const results: Array<{
@@ -264,7 +282,9 @@ async function runBatch(req: NextRequest, bodyInput: BatchBody) {
         ok: Boolean(r.ok && j?.ok),
         skipped: Boolean(j?.skipped),
         status: r.status,
-        error: r.ok ? j?.error || null : j?.message || j?.error || "ENRICH_FAILED",
+        error: r.ok
+          ? j?.error || null
+          : j?.message || j?.error || "ENRICH_FAILED",
         aiStatus: j?.aiIndex?.status || null,
       });
     } catch (e: any) {
@@ -294,7 +314,12 @@ async function runBatch(req: NextRequest, bodyInput: BatchBody) {
 
 export async function GET(req: NextRequest) {
   const params = parseSearchParams(req);
+
+  // Important:
+  // GET stays safe by default, so opening the URL in browser does not spend OpenAI credits.
+  // To actually run, use ?dryRun=false
   params.dryRun = params.dryRun ?? "true";
+
   return runBatch(req, params);
 }
 

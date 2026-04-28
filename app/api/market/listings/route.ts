@@ -1,35 +1,18 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getMintMetaMap, mintMetaKey } from "@/lib/mintMetaCache";
 import { ipfsToHttp } from "@/lib/ipfs";
 
 export const runtime = "nodejs";
-
-/**
- * Trading listings API.
- *
- * Important architecture note:
- * - This route stays DB/indexer based.
- * - AI search does NOT live here.
- * - /api/ai/trading-search only converts human text into safe filters.
- * - This route receives normal filters and performs the real Prisma search.
- */
-export const revalidate = 30;
-export const dynamic = "auto";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type MarketType = "STANDARD" | "PROTECTED";
 type SortMode = "new" | "priceAsc" | "priceDesc";
 
-type FixedMarketType = "STANDARD" | "PROTECTED";
-
-type FulfillmentType =
-  | "PHYSICAL_GOOD"
-  | "DIGITAL_SERVICE"
-  | "ONLINE_SESSION"
-  | "LOCAL_SERVICE";
-
-function s(v: unknown) {
-  return typeof v === "bigint" ? v.toString() : v;
+function s(v: unknown): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === "bigint") return v.toString();
+  return String(v);
 }
 
 function toInt(v: string | null) {
@@ -39,26 +22,19 @@ function toInt(v: string | null) {
   return Math.trunc(n);
 }
 
-function normAddr(v: string | null | undefined) {
+function normAddr(v?: string | null) {
   const x = String(v || "").trim();
-  if (!x) return null;
-  return x.toLowerCase();
+  return x ? x.toLowerCase() : null;
 }
 
-function cleanText(v: string | null | undefined, max = 120) {
+function cleanText(v: string | null | undefined, max = 160) {
   const x = String(v || "").trim();
-  if (!x) return null;
-  return x.slice(0, max);
-}
-
-function normText(v: string | null | undefined) {
-  return String(v || "").trim().toLowerCase();
+  return x ? x.slice(0, max) : null;
 }
 
 function parseWei(v: string | null) {
   const x = String(v || "").trim();
-  if (!x) return null;
-  if (!/^\d+$/.test(x)) return null;
+  if (!x || !/^\d+$/.test(x)) return null;
 
   try {
     return BigInt(x);
@@ -67,23 +43,23 @@ function parseWei(v: string | null) {
   }
 }
 
-function normalizeFulfillmentType(v: string | null | undefined): FulfillmentType | null {
-  const x = String(v || "").trim().toUpperCase();
-  if (
-    x === "PHYSICAL_GOOD" ||
-    x === "DIGITAL_SERVICE" ||
-    x === "ONLINE_SESSION" ||
-    x === "LOCAL_SERVICE"
-  ) {
-    return x as FulfillmentType;
-  }
-  return null;
+function isLikelyVideoUrl(u?: string | null) {
+  const s0 = String(u || "").trim().toLowerCase();
+  if (!s0) return false;
+
+  const s1 = s0.split("?")[0]?.split("#")[0] || s0;
+
+  return (
+    s1.endsWith(".mp4") ||
+    s1.endsWith(".webm") ||
+    s1.endsWith(".mov") ||
+    s1.endsWith(".m4v")
+  );
 }
 
 const ALLOWED_STATUS = new Set(["ACTIVE", "CANCELLED", "SOLD_OUT"]);
-const ALLOWED_STANDARD = new Set(["ERC721", "ERC1155"]);
-const ALLOWED_MARKET_TYPE = new Set<MarketType>(["STANDARD", "PROTECTED"]);
 const ALLOWED_SORT = new Set<SortMode>(["new", "priceAsc", "priceDesc"]);
+const ALLOWED_MARKET_TYPE = new Set<MarketType>(["STANDARD", "PROTECTED"]);
 
 const CAFE_CONTRACT = normAddr(
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
@@ -109,258 +85,6 @@ const PUBLIC_DELIVERY_CONTRACT = normAddr(
     null
 );
 
-function fixedMarketTypeByContract(
-  contract: string | null | undefined
-): FixedMarketType | null {
-  const c = normAddr(contract);
-  if (!c) return null;
-
-  if (CAFE_CONTRACT && c === CAFE_CONTRACT) return "STANDARD";
-  if (STORE_CONTRACT && c === STORE_CONTRACT) return "STANDARD";
-
-  if (PUBLIC_DELIVERY_CONTRACT && c === PUBLIC_DELIVERY_CONTRACT) {
-    return "PROTECTED";
-  }
-
-  // Public standard can contain both STANDARD collectible/listings and
-  // PROTECTED service/session listings, so we do not hard-force it here.
-  if (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) {
-    return null;
-  }
-
-  return null;
-}
-
-function getFixedContractMarketRules(): Array<{
-  contract: string;
-  marketType: FixedMarketType;
-}> {
-  const out: Array<{ contract: string; marketType: FixedMarketType }> = [];
-
-  if (PUBLIC_DELIVERY_CONTRACT) {
-    out.push({ contract: PUBLIC_DELIVERY_CONTRACT, marketType: "PROTECTED" });
-  }
-  if (CAFE_CONTRACT) {
-    out.push({ contract: CAFE_CONTRACT, marketType: "STANDARD" });
-  }
-  if (STORE_CONTRACT) {
-    out.push({ contract: STORE_CONTRACT, marketType: "STANDARD" });
-  }
-
-  return out;
-}
-
-function isProtectedFulfillment(v: string | null | undefined) {
-  return Boolean(normalizeFulfillmentType(v));
-}
-
-function textLooksProtected(...values: Array<string | null | undefined>) {
-  const text = values.map(normText).filter(Boolean).join(" ");
-  if (!text) return false;
-
-  const needles = [
-    "service",
-    "services",
-    "digital service",
-    "online session",
-    "local service",
-    "offline service",
-    "consultation",
-    "consulting",
-    "lesson",
-    "lessons",
-    "training",
-    "coaching",
-    "website",
-    "web design",
-    "web development",
-    "development",
-    "design",
-    "smm",
-    "marketing work",
-    "promo work",
-    "ai work",
-  ];
-
-  return needles.some((x) => text.includes(x));
-}
-
-function suggestedMarketTypeFromAsset(input: {
-  fulfillmentType?: string | null;
-  deliveryEnabled?: boolean | null;
-  physicalItemIncluded?: boolean | null;
-  category?: string | null;
-  subcategory?: string | null;
-}): MarketType {
-  if (isProtectedFulfillment(input.fulfillmentType)) return "PROTECTED";
-  if (input.deliveryEnabled || input.physicalItemIncluded) return "PROTECTED";
-  if (textLooksProtected(input.category, input.subcategory)) return "PROTECTED";
-  return "STANDARD";
-}
-
-function resolveMarketType(params: {
-  contract: string | null | undefined;
-  suggestedMarketType: MarketType;
-  requestedMarketType?: MarketType | null;
-  storedMarketType?: string | null;
-}): MarketType {
-  const {
-    contract,
-    suggestedMarketType,
-    requestedMarketType = null,
-    storedMarketType = null,
-  } = params;
-
-  const fixed = fixedMarketTypeByContract(contract);
-  if (fixed) return fixed;
-
-  if (storedMarketType === "STANDARD" || storedMarketType === "PROTECTED") {
-    return storedMarketType;
-  }
-
-  if (requestedMarketType === "STANDARD" || requestedMarketType === "PROTECTED") {
-    return requestedMarketType;
-  }
-
-  return suggestedMarketType;
-}
-
-function textContainsFilter(field: string, value: string | null) {
-  if (!value) return null;
-  return {
-    [field]: {
-      contains: value,
-      mode: "insensitive",
-    },
-  };
-}
-
-function relationMintTextContainsFilter(field: string, value: string | null) {
-  if (!value) return null;
-  return {
-    mint: {
-      is: {
-        [field]: {
-          contains: value,
-          mode: "insensitive",
-        },
-      },
-    },
-  };
-}
-
-function relationMintAiTextContainsFilter(field: string, value: string | null) {
-  if (!value) return null;
-  return {
-    mint: {
-      is: {
-        aiIndex: {
-          is: {
-            [field]: {
-              contains: value,
-              mode: "insensitive",
-            },
-          },
-        },
-      },
-    },
-  };
-}
-
-function buildAiTagSearchClause(q: string | null) {
-  if (!q) return null;
-  const raw = q.trim();
-  if (!raw) return null;
-
-  const variants = Array.from(
-    new Set(
-      [
-        raw,
-        raw.toLowerCase(),
-        raw.toUpperCase(),
-        raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase(),
-      ].filter(Boolean)
-    )
-  ).slice(0, 8);
-
-  return {
-    mint: {
-      is: {
-        aiIndex: {
-          is: {
-            searchTags: {
-              hasSome: variants,
-            },
-          },
-        },
-      },
-    },
-  };
-}
-
-function buildTextSearchClause(q: string | null) {
-  if (!q) return null;
-
-  const query = q.slice(0, 160);
-  const compactQuery = query.toLowerCase();
-
-  const directOr: any[] = [
-    { tokenId: { contains: query, mode: "insensitive" } },
-    { contract: { contains: compactQuery, mode: "insensitive" } },
-    { sellerWallet: { contains: compactQuery, mode: "insensitive" } },
-    { category: { contains: query, mode: "insensitive" } },
-    { subcategory: { contains: query, mode: "insensitive" } },
-    { serviceCountry: { contains: query, mode: "insensitive" } },
-    { serviceCity: { contains: query, mode: "insensitive" } },
-    { serviceArea: { contains: query, mode: "insensitive" } },
-    {
-      mint: {
-        is: {
-          OR: [
-            { tokenId: { contains: query, mode: "insensitive" } },
-            { contract: { contains: compactQuery, mode: "insensitive" } },
-            { name: { contains: query, mode: "insensitive" } },
-            { category: { contains: query, mode: "insensitive" } },
-            { subcategory: { contains: query, mode: "insensitive" } },
-            { serviceCountry: { contains: query, mode: "insensitive" } },
-            { serviceCity: { contains: query, mode: "insensitive" } },
-            { serviceArea: { contains: query, mode: "insensitive" } },
-            { metaCollection: { contains: query, mode: "insensitive" } },
-            { metaItem: { contains: query, mode: "insensitive" } },
-            { metaRarity: { contains: query, mode: "insensitive" } },
-            { metaBrand: { contains: query, mode: "insensitive" } },
-            { metaProject: { contains: query, mode: "insensitive" } },
-            { metaDescription: { contains: query, mode: "insensitive" } },
-            {
-              aiIndex: {
-                is: {
-                  OR: [
-                    { visualText: { contains: query, mode: "insensitive" } },
-                    { visualSummary: { contains: query, mode: "insensitive" } },
-                    { detectedProduct: { contains: query, mode: "insensitive" } },
-                    { detectedService: { contains: query, mode: "insensitive" } },
-                    { detectedCategory: { contains: query, mode: "insensitive" } },
-                    { detectedBrand: { contains: query, mode: "insensitive" } },
-                    { detectedCountry: { contains: query, mode: "insensitive" } },
-                    { detectedRegion: { contains: query, mode: "insensitive" } },
-                    { detectedCity: { contains: query, mode: "insensitive" } },
-                    { detectedArea: { contains: query, mode: "insensitive" } },
-                  ],
-                },
-              },
-            },
-          ],
-        },
-      },
-    },
-  ];
-
-  const aiTags = buildAiTagSearchClause(query);
-  if (aiTags) directOr.push(aiTags);
-
-  return { OR: directOr };
-}
-
 function orderByForSort(sort: SortMode) {
   if (sort === "priceAsc") {
     return [{ pricePerUnitWei: "asc" as const }, { createdAt: "desc" as const }];
@@ -373,8 +97,176 @@ function orderByForSort(sort: SortMode) {
   return [{ createdAt: "desc" as const }, { id: "desc" as const }];
 }
 
+function suggestedMarketTypeFromSimple(input: {
+  contract?: string | null;
+  marketType?: string | null;
+  fulfillmentType?: string | null;
+  deliveryEnabled?: boolean | null;
+  physicalItemIncluded?: boolean | null;
+  category?: string | null;
+  subcategory?: string | null;
+}): MarketType {
+  const contract = normAddr(input.contract);
+
+  if (PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT) {
+    return "PROTECTED";
+  }
+
+  if (CAFE_CONTRACT && contract === CAFE_CONTRACT) return "STANDARD";
+  if (STORE_CONTRACT && contract === STORE_CONTRACT) return "STANDARD";
+
+  if (input.marketType === "PROTECTED") return "PROTECTED";
+  if (input.marketType === "STANDARD") return "STANDARD";
+
+  const ft = String(input.fulfillmentType || "").toUpperCase();
+
+  if (
+    ft === "PHYSICAL_GOOD" ||
+    ft === "DIGITAL_SERVICE" ||
+    ft === "ONLINE_SESSION" ||
+    ft === "LOCAL_SERVICE"
+  ) {
+    return "PROTECTED";
+  }
+
+  if (input.deliveryEnabled || input.physicalItemIncluded) return "PROTECTED";
+
+  const text = `${input.category || ""} ${input.subcategory || ""}`.toLowerCase();
+
+  if (
+    text.includes("service") ||
+    text.includes("website") ||
+    text.includes("design") ||
+    text.includes("development") ||
+    text.includes("consulting") ||
+    text.includes("training") ||
+    text.includes("coaching") ||
+    text.includes("lesson") ||
+    text.includes("session") ||
+    text.includes("repair") ||
+    text.includes("fitness") ||
+    text.includes("marketing") ||
+    text.includes("automation")
+  ) {
+    return "PROTECTED";
+  }
+
+  return "STANDARD";
+}
+
+function mediaFromMint(m: any) {
+  const image =
+    ipfsToHttp(m?.metaImage || null) || ipfsToHttp(m?.image || null) || null;
+
+  const animation = ipfsToHttp(m?.metaAnimation || null) || null;
+
+  const kind =
+    m?.metaMediaKind === "video" || isLikelyVideoUrl(animation)
+      ? "video"
+      : "image";
+
+  return {
+    kind,
+    src: kind === "video" ? animation : image,
+    poster: kind === "video" ? image : null,
+    image,
+  };
+}
+
+function textMatch(value: unknown, q: string) {
+  return String(value || "").toLowerCase().includes(q.toLowerCase());
+}
+
+function tagsMatch(tags: unknown, q: string) {
+  if (!Array.isArray(tags)) return false;
+  return tags.some((tag) => textMatch(tag, q));
+}
+
+function aiIndexMatch(aiIndex: any, q: string) {
+  if (!aiIndex) return false;
+
+  return (
+    textMatch(aiIndex.visualText, q) ||
+    textMatch(aiIndex.visualSummary, q) ||
+    textMatch(aiIndex.detectedProduct, q) ||
+    textMatch(aiIndex.detectedService, q) ||
+    textMatch(aiIndex.detectedCategory, q) ||
+    textMatch(aiIndex.detectedBrand, q) ||
+    textMatch(aiIndex.detectedCountry, q) ||
+    textMatch(aiIndex.detectedRegion, q) ||
+    textMatch(aiIndex.detectedCity, q) ||
+    textMatch(aiIndex.detectedArea, q) ||
+    tagsMatch(aiIndex.searchTags, q)
+  );
+}
+
+function aiIndexLocationMatch(aiIndex: any, q: string) {
+  if (!aiIndex) return false;
+
+  return (
+    textMatch(aiIndex.visualText, q) ||
+    textMatch(aiIndex.visualSummary, q) ||
+    textMatch(aiIndex.detectedCountry, q) ||
+    textMatch(aiIndex.detectedRegion, q) ||
+    textMatch(aiIndex.detectedCity, q) ||
+    textMatch(aiIndex.detectedArea, q) ||
+    tagsMatch(aiIndex.searchTags, q)
+  );
+}
+
+function aiIndexCategoryMatch(aiIndex: any, q: string) {
+  if (!aiIndex) return false;
+
+  return (
+    textMatch(aiIndex.visualText, q) ||
+    textMatch(aiIndex.visualSummary, q) ||
+    textMatch(aiIndex.detectedProduct, q) ||
+    textMatch(aiIndex.detectedService, q) ||
+    textMatch(aiIndex.detectedCategory, q) ||
+    textMatch(aiIndex.detectedBrand, q) ||
+    tagsMatch(aiIndex.searchTags, q)
+  );
+}
+
+function aiIndexToJson(aiIndex: any) {
+  if (!aiIndex) return null;
+
+  return {
+    status: aiIndex.status ?? null,
+    visualText: aiIndex.visualText ?? null,
+    visualSummary: aiIndex.visualSummary ?? null,
+
+    detectedProduct: aiIndex.detectedProduct ?? null,
+    detectedService: aiIndex.detectedService ?? null,
+    detectedCategory: aiIndex.detectedCategory ?? null,
+    detectedBrand: aiIndex.detectedBrand ?? null,
+
+    detectedCountry: aiIndex.detectedCountry ?? null,
+    detectedRegion: aiIndex.detectedRegion ?? null,
+    detectedCity: aiIndex.detectedCity ?? null,
+    detectedArea: aiIndex.detectedArea ?? null,
+
+    searchTags: Array.isArray(aiIndex.searchTags) ? aiIndex.searchTags : [],
+    confidence: aiIndex.confidence ?? null,
+    enrichedAt: aiIndex.enrichedAt ? aiIndex.enrichedAt.toISOString() : null,
+  };
+}
+
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
+
+  const statusRaw = String(url.searchParams.get("status") || "ACTIVE").toUpperCase();
+  const status = ALLOWED_STATUS.has(statusRaw) ? statusRaw : "ACTIVE";
+
+  const sortRaw = String(url.searchParams.get("sort") || "new") as SortMode;
+  const sort = ALLOWED_SORT.has(sortRaw) ? sortRaw : "new";
+
+  const take = Math.max(
+    1,
+    Math.min(toInt(url.searchParams.get("take")) ?? 24, 100)
+  );
+
+  const skip = Math.max(toInt(url.searchParams.get("skip")) ?? 0, 0);
 
   const chainIdRaw = toInt(url.searchParams.get("chainId"));
   const chainId = chainIdRaw && chainIdRaw > 0 ? chainIdRaw : null;
@@ -388,242 +280,363 @@ export async function GET(req: NextRequest) {
   const q = cleanText(url.searchParams.get("q"), 160);
   const category = cleanText(url.searchParams.get("category"), 120);
   const subcategory = cleanText(url.searchParams.get("subcategory"), 120);
-  const fulfillmentType = normalizeFulfillmentType(
-    url.searchParams.get("fulfillmentType")
-  );
-
   const serviceCountry = cleanText(url.searchParams.get("serviceCountry"), 120);
   const serviceCity = cleanText(url.searchParams.get("serviceCity"), 120);
   const serviceArea = cleanText(url.searchParams.get("serviceArea"), 120);
+  const fulfillmentType = cleanText(url.searchParams.get("fulfillmentType"), 80);
 
   const minPriceWei = parseWei(url.searchParams.get("minPriceWei"));
   const maxPriceWei = parseWei(url.searchParams.get("maxPriceWei"));
 
-  const sortRaw = (url.searchParams.get("sort") || "new") as SortMode;
-  const sort = ALLOWED_SORT.has(sortRaw) ? sortRaw : "new";
-
-  const standardRaw = (url.searchParams.get("standard") || "").toUpperCase();
-  const standard = ALLOWED_STANDARD.has(standardRaw) ? standardRaw : null;
-
-  const statusRaw = (url.searchParams.get("status") || "ACTIVE").toUpperCase();
-  const status = ALLOWED_STATUS.has(statusRaw) ? statusRaw : "ACTIVE";
-
-  const marketTypeRaw = (url.searchParams.get("marketType") || "").toUpperCase();
-  const requestedMarketType = ALLOWED_MARKET_TYPE.has(
-    marketTypeRaw as MarketType
-  )
+  const marketTypeRaw = String(url.searchParams.get("marketType") || "").toUpperCase();
+  const requestedMarketType = ALLOWED_MARKET_TYPE.has(marketTypeRaw as MarketType)
     ? (marketTypeRaw as MarketType)
     : null;
 
-  const take = Math.max(
-    1,
-    Math.min(toInt(url.searchParams.get("take")) ?? 30, 100)
-  );
-  const skip = Math.max(toInt(url.searchParams.get("skip")) ?? 0, 0);
-
-  const where: any = {
-    status,
-    mint: {
-      is: {
-        verified: true,
-      },
-    },
-  };
-
-  const andClauses: any[] = [];
-
-  if (chainId !== null) where.chainId = chainId;
-  if (seller) where.sellerWallet = seller;
-  if (standard) where.standard = standard;
-  if (marketplaceContract) where.marketplaceContract = marketplaceContract;
-
-  if (fulfillmentType) {
-    andClauses.push({
-      OR: [
-        { fulfillmentType },
-        {
-          mint: {
-            is: {
-              fulfillmentType,
-            },
-          },
+  try {
+    const where: any = {
+      status,
+      mint: {
+        is: {
+          verified: true,
         },
-      ],
-    });
-  }
+      },
+    };
 
-  const categoryListing = textContainsFilter("category", category);
-  const categoryMint = relationMintTextContainsFilter("category", category);
-  const categoryAi = relationMintAiTextContainsFilter("detectedCategory", category);
-  if (categoryListing && categoryMint) {
-    andClauses.push({ OR: [categoryListing, categoryMint, categoryAi].filter(Boolean) });
-  }
+    if (chainId !== null) where.chainId = chainId;
+    if (contract) where.contract = contract;
+    if (seller) where.sellerWallet = seller;
+    if (marketplaceContract) where.marketplaceContract = marketplaceContract;
 
-  const subcategoryListing = textContainsFilter("subcategory", subcategory);
-  const subcategoryMint = relationMintTextContainsFilter("subcategory", subcategory);
-  if (subcategoryListing && subcategoryMint) {
-    andClauses.push({ OR: [subcategoryListing, subcategoryMint] });
-  }
-
-  const countryListing = textContainsFilter("serviceCountry", serviceCountry);
-  const countryMint = relationMintTextContainsFilter("serviceCountry", serviceCountry);
-  const countryAi = relationMintAiTextContainsFilter("detectedCountry", serviceCountry);
-  if (countryListing && countryMint) {
-    andClauses.push({ OR: [countryListing, countryMint, countryAi].filter(Boolean) });
-  }
-
-  const cityListing = textContainsFilter("serviceCity", serviceCity);
-  const cityMint = relationMintTextContainsFilter("serviceCity", serviceCity);
-  const cityAi = relationMintAiTextContainsFilter("detectedCity", serviceCity);
-  if (cityListing && cityMint) {
-    andClauses.push({ OR: [cityListing, cityMint, cityAi].filter(Boolean) });
-  }
-
-  const areaListing = textContainsFilter("serviceArea", serviceArea);
-  const areaMint = relationMintTextContainsFilter("serviceArea", serviceArea);
-  const areaAi = relationMintAiTextContainsFilter("detectedArea", serviceArea);
-  const regionAi = relationMintAiTextContainsFilter("detectedRegion", serviceArea);
-  if (areaListing && areaMint) {
-    andClauses.push({ OR: [areaListing, areaMint, areaAi, regionAi].filter(Boolean) });
-  }
-
-  if (minPriceWei !== null || maxPriceWei !== null) {
-    where.pricePerUnitWei = {};
-    if (minPriceWei !== null) where.pricePerUnitWei.gte = minPriceWei;
-    if (maxPriceWei !== null) where.pricePerUnitWei.lte = maxPriceWei;
-  }
-
-  const qClause = buildTextSearchClause(q);
-  if (qClause) andClauses.push(qClause);
-
-  const fixedRules = getFixedContractMarketRules();
-  const fixedContracts = Array.from(new Set(fixedRules.map((x) => x.contract)));
-
-  if (contract) {
-    where.contract = contract;
-
-    const fixedMarketType = fixedMarketTypeByContract(contract);
-    const resolvedRequestedMarketType = fixedMarketType || requestedMarketType;
-
-    if (resolvedRequestedMarketType) {
-      where.marketType = resolvedRequestedMarketType;
-    }
-  } else {
-    if (fixedRules.length > 0) {
-      const fixedClauses = fixedRules
-        .filter((rule) => {
-          if (!requestedMarketType) return true;
-          return rule.marketType === requestedMarketType;
-        })
-        .map((rule) => ({
-          contract: rule.contract,
-          marketType: rule.marketType,
-        }));
-
-      const orClauses: any[] = [...fixedClauses];
-
-      if (fixedContracts.length > 0) {
-        const flexibleClause: any = {
-          contract: { notIn: fixedContracts },
-        };
-        if (requestedMarketType) {
-          flexibleClause.marketType = requestedMarketType;
-        }
-        orClauses.push(flexibleClause);
-      }
-
-      if (orClauses.length > 0) {
-        andClauses.push({ OR: orClauses });
-      }
-    } else if (requestedMarketType) {
+    if (requestedMarketType && !contract) {
       where.marketType = requestedMarketType;
     }
-  }
 
-  if (andClauses.length > 0) {
-    where.AND = andClauses;
-  }
+    if (requestedMarketType && contract) {
+      if (PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT) {
+        // Delivery contract is protected by product logic, do not force DB marketType.
+      } else if (CAFE_CONTRACT && contract === CAFE_CONTRACT) {
+        // Cafe is standard by product logic.
+      } else if (STORE_CONTRACT && contract === STORE_CONTRACT) {
+        // Store is standard by product logic.
+      } else {
+        where.marketType = requestedMarketType;
+      }
+    }
 
-  try {
-    const [rows, total] = await Promise.all([
-      prisma.listing.findMany({
-        where,
-        orderBy: orderByForSort(sort),
-        take,
-        skip,
-        include: {
-          mint: {
-            select: {
-              chainId: true,
-              contract: true,
-              tokenId: true,
-              name: true,
-              image: true,
-              tokenUri: true,
-              verified: true,
-              deliveryEnabled: true,
-              physicalItemIncluded: true,
-              officialItem: true,
-              fulfillmentType: true,
-              category: true,
-              subcategory: true,
-              serviceCountry: true,
-              serviceCity: true,
-              serviceArea: true,
+    if (minPriceWei !== null || maxPriceWei !== null) {
+      where.pricePerUnitWei = {};
+      if (minPriceWei !== null) where.pricePerUnitWei.gte = minPriceWei;
+      if (maxPriceWei !== null) where.pricePerUnitWei.lte = maxPriceWei;
+    }
 
-              metadataCachedAt: true,
-              metaImage: true,
-              metaAnimation: true,
-              metaMediaKind: true,
-              metaDescription: true,
-              metaCollection: true,
-              metaItem: true,
-              metaRarity: true,
-              metaBrand: true,
-              metaProject: true,
-              aiIndex: {
-                select: {
-                  status: true,
-                  visualText: true,
-                  visualSummary: true,
-                  detectedProduct: true,
-                  detectedService: true,
-                  detectedCategory: true,
-                  detectedBrand: true,
-                  detectedCountry: true,
-                  detectedRegion: true,
-                  detectedCity: true,
-                  detectedArea: true,
-                  searchTags: true,
-                  confidence: true,
-                  enrichedAt: true,
-                },
+    const rawRows = await prisma.listing.findMany({
+      where,
+      orderBy: orderByForSort(sort),
+      take: take + 100,
+      skip,
+      select: {
+        id: true,
+        chainId: true,
+        contract: true,
+        tokenId: true,
+        standard: true,
+        status: true,
+        marketType: true,
+        marketplaceContract: true,
+        marketplaceListingId: true,
+        sellerWallet: true,
+        pricePerUnitWei: true,
+        amountTotal: true,
+        amountRemaining: true,
+        deliveryEnabled: true,
+        physicalItemIncluded: true,
+        officialItem: true,
+        fulfillmentType: true,
+        category: true,
+        subcategory: true,
+        serviceCountry: true,
+        serviceCity: true,
+        serviceArea: true,
+        createdAt: true,
+        seller: {
+          select: {
+            handle: true,
+            publicId: true,
+          },
+        },
+        mint: {
+          select: {
+            chainId: true,
+            contract: true,
+            tokenId: true,
+            name: true,
+            image: true,
+            tokenUri: true,
+            verified: true,
+            deliveryEnabled: true,
+            physicalItemIncluded: true,
+            officialItem: true,
+            fulfillmentType: true,
+            category: true,
+            subcategory: true,
+            serviceCountry: true,
+            serviceCity: true,
+            serviceArea: true,
+
+            metaImage: true,
+            metaAnimation: true,
+            metaMediaKind: true,
+            metaDescription: true,
+            metaCollection: true,
+            metaItem: true,
+            metaRarity: true,
+            metaBrand: true,
+            metaProject: true,
+
+            aiIndex: {
+              select: {
+                status: true,
+                visualText: true,
+                visualSummary: true,
+
+                detectedProduct: true,
+                detectedService: true,
+                detectedCategory: true,
+                detectedBrand: true,
+
+                detectedCountry: true,
+                detectedRegion: true,
+                detectedCity: true,
+                detectedArea: true,
+
+                searchTags: true,
+                confidence: true,
+                enrichedAt: true,
               },
             },
           },
-          seller: {
-            select: {
-              handle: true,
-              publicId: true,
-            },
-          },
         },
-      }),
-      prisma.listing.count({ where }),
-    ]);
+      },
+    } as any);
 
-    const mintInputs = rows
-      .map((r) => (r.mint as any) || null)
-      .filter(Boolean) as any[];
+    let rows = rawRows as any[];
 
-    const metaMap = await getMintMetaMap(mintInputs, {
-      concurrency: 6,
-      timeoutBudgetMs: 4000,
+    if (requestedMarketType) {
+      rows = rows.filter((r) => {
+        const resolved = suggestedMarketTypeFromSimple({
+          contract: r.contract,
+          marketType: r.marketType,
+          fulfillmentType: r.fulfillmentType ?? r.mint?.fulfillmentType,
+          deliveryEnabled: r.deliveryEnabled ?? r.mint?.deliveryEnabled,
+          physicalItemIncluded:
+            r.physicalItemIncluded ?? r.mint?.physicalItemIncluded,
+          category: r.category ?? r.mint?.category,
+          subcategory: r.subcategory ?? r.mint?.subcategory,
+        });
+
+        return resolved === requestedMarketType;
+      });
+    }
+
+    if (fulfillmentType) {
+      rows = rows.filter((r) => {
+        const ft = String(r.fulfillmentType || r.mint?.fulfillmentType || "");
+        return ft.toUpperCase() === fulfillmentType.toUpperCase();
+      });
+    }
+
+    if (category) {
+      rows = rows.filter((r) => {
+        return (
+          textMatch(r.category, category) ||
+          textMatch(r.mint?.category, category) ||
+          textMatch(r.mint?.metaDescription, category) ||
+          textMatch(r.mint?.metaItem, category) ||
+          textMatch(r.mint?.metaCollection, category) ||
+          aiIndexCategoryMatch(r.mint?.aiIndex, category)
+        );
+      });
+    }
+
+    if (subcategory) {
+      rows = rows.filter((r) => {
+        return (
+          textMatch(r.subcategory, subcategory) ||
+          textMatch(r.mint?.subcategory, subcategory) ||
+          textMatch(r.mint?.metaDescription, subcategory) ||
+          textMatch(r.mint?.metaItem, subcategory) ||
+          textMatch(r.mint?.metaCollection, subcategory) ||
+          textMatch(r.mint?.metaBrand, subcategory) ||
+          textMatch(r.mint?.metaProject, subcategory) ||
+          aiIndexCategoryMatch(r.mint?.aiIndex, subcategory)
+        );
+      });
+    }
+
+    if (serviceCountry) {
+      rows = rows.filter((r) => {
+        return (
+          textMatch(r.serviceCountry, serviceCountry) ||
+          textMatch(r.mint?.serviceCountry, serviceCountry) ||
+          textMatch(r.mint?.metaDescription, serviceCountry) ||
+          textMatch(r.mint?.metaItem, serviceCountry) ||
+          textMatch(r.mint?.metaCollection, serviceCountry) ||
+          textMatch(r.mint?.metaBrand, serviceCountry) ||
+          textMatch(r.mint?.metaProject, serviceCountry) ||
+          aiIndexLocationMatch(r.mint?.aiIndex, serviceCountry)
+        );
+      });
+    }
+
+    if (serviceCity) {
+      rows = rows.filter((r) => {
+        return (
+          textMatch(r.serviceCity, serviceCity) ||
+          textMatch(r.mint?.serviceCity, serviceCity) ||
+          textMatch(r.mint?.metaDescription, serviceCity) ||
+          textMatch(r.mint?.metaItem, serviceCity) ||
+          textMatch(r.mint?.metaCollection, serviceCity) ||
+          aiIndexLocationMatch(r.mint?.aiIndex, serviceCity)
+        );
+      });
+    }
+
+    if (serviceArea) {
+      rows = rows.filter((r) => {
+        return (
+          textMatch(r.serviceArea, serviceArea) ||
+          textMatch(r.mint?.serviceArea, serviceArea) ||
+          textMatch(r.mint?.metaDescription, serviceArea) ||
+          textMatch(r.mint?.metaItem, serviceArea) ||
+          textMatch(r.mint?.metaCollection, serviceArea) ||
+          aiIndexLocationMatch(r.mint?.aiIndex, serviceArea)
+        );
+      });
+    }
+
+    if (q) {
+      rows = rows.filter((r) => {
+        return (
+          textMatch(r.tokenId, q) ||
+          textMatch(r.contract, q) ||
+          textMatch(r.sellerWallet, q) ||
+          textMatch(r.category, q) ||
+          textMatch(r.subcategory, q) ||
+          textMatch(r.serviceCountry, q) ||
+          textMatch(r.serviceCity, q) ||
+          textMatch(r.serviceArea, q) ||
+          textMatch(r.mint?.name, q) ||
+          textMatch(r.mint?.category, q) ||
+          textMatch(r.mint?.subcategory, q) ||
+          textMatch(r.mint?.serviceCountry, q) ||
+          textMatch(r.mint?.serviceCity, q) ||
+          textMatch(r.mint?.serviceArea, q) ||
+          textMatch(r.mint?.metaDescription, q) ||
+          textMatch(r.mint?.metaCollection, q) ||
+          textMatch(r.mint?.metaItem, q) ||
+          textMatch(r.mint?.metaRarity, q) ||
+          textMatch(r.mint?.metaBrand, q) ||
+          textMatch(r.mint?.metaProject, q) ||
+          aiIndexMatch(r.mint?.aiIndex, q)
+        );
+      });
+    }
+
+    const hasMore = rows.length > take;
+    const pageRows = rows.slice(0, take);
+
+    const listings = pageRows.map((r) => {
+      const m = r.mint || null;
+      const media = mediaFromMint(m);
+
+      const suggestedMarketType = suggestedMarketTypeFromSimple({
+        contract: r.contract,
+        marketType: r.marketType,
+        fulfillmentType: r.fulfillmentType ?? m?.fulfillmentType,
+        deliveryEnabled: r.deliveryEnabled ?? m?.deliveryEnabled,
+        physicalItemIncluded: r.physicalItemIncluded ?? m?.physicalItemIncluded,
+        category: r.category ?? m?.category,
+        subcategory: r.subcategory ?? m?.subcategory,
+      });
+
+      return {
+        id: r.id,
+        chainId: r.chainId,
+        contract: r.contract,
+        tokenId: r.tokenId,
+        standard: r.standard,
+        status: r.status,
+
+        marketType: suggestedMarketType,
+        suggestedMarketType,
+        marketplaceContract: r.marketplaceContract,
+
+        sellerWallet: r.sellerWallet,
+        seller: r.seller || null,
+
+        marketplaceListingId: s(r.marketplaceListingId),
+        pricePerUnitWei: s(r.pricePerUnitWei),
+        amountTotal: s(r.amountTotal),
+        amountRemaining: s(r.amountRemaining),
+
+        deliveryEnabled: r.deliveryEnabled ?? m?.deliveryEnabled ?? null,
+        physicalItemIncluded:
+          r.physicalItemIncluded ?? m?.physicalItemIncluded ?? null,
+        officialItem: r.officialItem ?? m?.officialItem ?? null,
+        fulfillmentType: r.fulfillmentType ?? m?.fulfillmentType ?? null,
+        category: r.category ?? m?.category ?? null,
+        subcategory: r.subcategory ?? m?.subcategory ?? null,
+        serviceCountry: r.serviceCountry ?? m?.serviceCountry ?? null,
+        serviceCity: r.serviceCity ?? m?.serviceCity ?? null,
+        serviceArea: r.serviceArea ?? m?.serviceArea ?? null,
+
+        createdAt: r.createdAt ? r.createdAt.toISOString() : null,
+
+        media,
+
+        metaCollection: m?.metaCollection || null,
+        metaItem: m?.metaItem || null,
+        metaRarity: m?.metaRarity || null,
+        metaBrand: m?.metaBrand || null,
+        metaProject: m?.metaProject || null,
+        metaDescription: m?.metaDescription || null,
+
+        aiIndex: aiIndexToJson(m?.aiIndex),
+
+        mint: m
+          ? {
+              name: m.name,
+              image: m.image,
+              tokenUri: m.tokenUri,
+              verified: m.verified,
+              deliveryEnabled: m.deliveryEnabled,
+              physicalItemIncluded: m.physicalItemIncluded,
+              officialItem: m.officialItem,
+              fulfillmentType: m.fulfillmentType,
+              category: m.category,
+              subcategory: m.subcategory,
+              serviceCountry: m.serviceCountry,
+              serviceCity: m.serviceCity,
+              serviceArea: m.serviceArea,
+              suggestedMarketType: suggestedMarketTypeFromSimple({
+                contract: m.contract,
+                fulfillmentType: m.fulfillmentType,
+                deliveryEnabled: m.deliveryEnabled,
+                physicalItemIncluded: m.physicalItemIncluded,
+                category: m.category,
+                subcategory: m.subcategory,
+              }),
+            }
+          : null,
+      };
     });
 
     return NextResponse.json({
       ok: true,
-      total,
+      mode: "visual-ai-search",
+      total: skip + listings.length + (hasMore ? 1 : 0),
+      hasMore,
       filters: {
         q,
         category,
@@ -632,135 +645,23 @@ export async function GET(req: NextRequest) {
         serviceCountry,
         serviceCity,
         serviceArea,
-        minPriceWei: minPriceWei?.toString() || null,
-        maxPriceWei: maxPriceWei?.toString() || null,
+        minPriceWei: minPriceWei ? minPriceWei.toString() : null,
+        maxPriceWei: maxPriceWei ? maxPriceWei.toString() : null,
         sort,
         marketType: requestedMarketType,
         contract,
       },
-      listings: rows.map((r) => {
-        const m = r.mint as any;
-        const metaKey = m ? mintMetaKey(m.chainId, m.contract, m.tokenId) : null;
-        const meta = metaKey ? metaMap.get(metaKey) || null : null;
-
-        const rowSuggestedMarketType = suggestedMarketTypeFromAsset({
-          fulfillmentType: r.fulfillmentType ?? m?.fulfillmentType ?? null,
-          deliveryEnabled: r.deliveryEnabled ?? m?.deliveryEnabled ?? null,
-          physicalItemIncluded:
-            r.physicalItemIncluded ?? m?.physicalItemIncluded ?? null,
-          category: r.category ?? m?.category ?? null,
-          subcategory: r.subcategory ?? m?.subcategory ?? null,
-        });
-
-        const resolvedMarketType = resolveMarketType({
-          contract: r.contract,
-          suggestedMarketType: rowSuggestedMarketType,
-          storedMarketType: r.marketType,
-          requestedMarketType,
-        });
-
-        const mediaImage = meta?.image || ipfsToHttp(m?.image) || null;
-        const mediaAnimation = meta?.animation || null;
-        const mediaKind = meta?.mediaKind || "image";
-
-        return {
-          id: r.id,
-          chainId: r.chainId,
-          contract: r.contract,
-          tokenId: r.tokenId,
-          standard: r.standard,
-          status: r.status,
-
-          marketType: resolvedMarketType,
-          suggestedMarketType: rowSuggestedMarketType,
-          marketplaceContract: r.marketplaceContract,
-
-          sellerWallet: r.sellerWallet,
-          seller: r.seller,
-
-          marketplaceListingId: s(r.marketplaceListingId),
-          pricePerUnitWei: s(r.pricePerUnitWei),
-          amountTotal: s(r.amountTotal),
-          amountRemaining: s(r.amountRemaining),
-
-          deliveryEnabled: r.deliveryEnabled,
-          physicalItemIncluded: r.physicalItemIncluded,
-          officialItem: r.officialItem,
-          fulfillmentType: r.fulfillmentType,
-          category: r.category,
-          subcategory: r.subcategory,
-          serviceCountry: r.serviceCountry,
-          serviceCity: r.serviceCity,
-          serviceArea: r.serviceArea,
-
-          createdAt: r.createdAt.toISOString(),
-
-          media: {
-            kind: mediaKind,
-            src: mediaKind === "video" ? mediaAnimation : mediaImage,
-            poster: mediaKind === "video" ? mediaImage : null,
-            image: mediaImage,
-          },
-
-          metaCollection: meta?.collection || null,
-          metaItem: meta?.item || null,
-          metaRarity: meta?.rarity || null,
-          metaBrand: meta?.brand || null,
-          metaProject: meta?.project || null,
-          metaDescription: meta?.description || null,
-
-          aiIndex: m?.aiIndex
-            ? {
-                status: m.aiIndex.status,
-                visualText: m.aiIndex.visualText,
-                visualSummary: m.aiIndex.visualSummary,
-                detectedProduct: m.aiIndex.detectedProduct,
-                detectedService: m.aiIndex.detectedService,
-                detectedCategory: m.aiIndex.detectedCategory,
-                detectedBrand: m.aiIndex.detectedBrand,
-                detectedCountry: m.aiIndex.detectedCountry,
-                detectedRegion: m.aiIndex.detectedRegion,
-                detectedCity: m.aiIndex.detectedCity,
-                detectedArea: m.aiIndex.detectedArea,
-                searchTags: m.aiIndex.searchTags || [],
-                confidence: m.aiIndex.confidence,
-                enrichedAt: m.aiIndex.enrichedAt
-                  ? m.aiIndex.enrichedAt.toISOString()
-                  : null,
-              }
-            : null,
-
-          mint: m
-            ? {
-                name: m.name,
-                image: m.image,
-                tokenUri: m.tokenUri,
-                verified: m.verified,
-                deliveryEnabled: m.deliveryEnabled,
-                physicalItemIncluded: m.physicalItemIncluded,
-                officialItem: m.officialItem,
-                fulfillmentType: m.fulfillmentType,
-                category: m.category,
-                subcategory: m.subcategory,
-                serviceCountry: m.serviceCountry,
-                serviceCity: m.serviceCity,
-                serviceArea: m.serviceArea,
-                suggestedMarketType: suggestedMarketTypeFromAsset({
-                  fulfillmentType: m.fulfillmentType,
-                  deliveryEnabled: m.deliveryEnabled,
-                  physicalItemIncluded: m.physicalItemIncluded,
-                  category: m.category,
-                  subcategory: m.subcategory,
-                }),
-              }
-            : null,
-        };
-      }),
+      listings,
     });
-  } catch (e) {
-    console.error("[API_MARKET_LISTINGS_ERROR]", e);
+  } catch (e: any) {
+    console.error("[API_MARKET_LISTINGS_VISUAL_AI_SEARCH_ERROR]", e);
+
     return NextResponse.json(
-      { ok: false, error: "INTERNAL" },
+      {
+        ok: false,
+        error: "MARKET_LISTINGS_VISUAL_AI_SEARCH_FAILED",
+        message: e?.message || "Listings API failed",
+      },
       { status: 500 }
     );
   }

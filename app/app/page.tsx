@@ -11,63 +11,63 @@ const HOW_STEPS = [
   {
     n: "01",
     t: "Create",
-    d: "Upload real work, products, packaging, media, or branded experiences.",
+    d: "Create a product, service, delivery offer, branded item, local work, or digital service listing.",
   },
   {
     n: "02",
-    t: "Prepare",
-    d: "Add metadata, proof, story, category, and collectible context.",
+    t: "Tokenize",
+    d: "Turn real-world value into an NFT-linked transaction right with metadata, proof, media, and category data.",
   },
   {
     n: "03",
-    t: "Mint",
-    d: "Connect wallet, sign tx, and create verifiable ownership.",
+    t: "Trade",
+    d: "List, buy, sell, or transfer real-world value through the Realife marketplace.",
   },
   {
     n: "04",
-    t: "Trade / Deliver",
-    d: "Move the asset into market activity, utility, or physical fulfillment.",
+    t: "Complete",
+    d: "Use protected flows for delivery, service completion, buyer confirmation, escrow release, or refund paths.",
   },
 ] as const;
 
 const WHO_IT_SERVES = [
   {
     title: "For creators",
-    text: "Turn real work into NFTs, proof, identity, and collectible market value.",
+    text: "Turn real work, creative output, media, products, or branded experiences into NFT-linked value.",
   },
   {
-    title: "For crypto brands",
-    text: "Launch campaigns, branded products, community activations, and tokenized experiences.",
+    title: "For workers and service providers",
+    text: "Offer digital services, online sessions, local services, or real-world work through Web3 commerce flows.",
   },
   {
-    title: "For collectors",
-    text: "Own, trade, and receive real-world value through a premium Web3 interface.",
+    title: "For businesses and brands",
+    text: "Launch product-based experiences, campaigns, storefronts, branded drops, and tokenized commerce activations.",
   },
   {
-    title: "For real-world workers",
-    text: "Tailors, cooks, designers, makers, builders, and other skilled people can enter Web3 through proof of real output.",
+    title: "For Web2 and crypto users",
+    text: "Access real-world products and services through crypto payments, marketplace activity, and escrow-protected settlement.",
   },
 ] as const;
 
 const CORE_MODULES = [
   {
-    t: "Create NFT",
-    d: "The core creator entry point for upload, metadata, mint, and ownership proof.",
+    t: "Create Listing",
+    d: "The creator and seller entry point for upload, AI assistance, metadata, minting, and NFT-linked transaction rights.",
     href: "/app/create",
   },
   {
-    t: "Trading",
-    d: "Move into listings, collectible market logic, resale movement, and future liquidity flows.",
+    t: "Marketplace",
+    d: "Move products, services, and real-world value through listings, trading, ownership, and protected commerce flows.",
     href: "/app/trading",
   },
   {
     t: "Profile",
-    d: "Build creator identity, minted work, social proof, and stronger collectible presence.",
+    d: "Build identity, minted work, listings, ownership history, reputation, and stronger Web3 presence.",
     href: "/app/profile",
   },
   {
     t: "Real Marketing",
-    d: "Open the ecosystem layer for campaigns, crypto brand collaborations, storefronts, and phygital activations.",
+    d: "Open the ecosystem layer for campaigns, crypto brand collaborations, storefronts, product stories, and real-world activations.",
     href: REAL_MARKETING_HREF,
   },
 ] as const;
@@ -159,7 +159,7 @@ function StatCard({
 // ─── MiniCard ─────────────────────────────────────────────────────────────────
 function MiniCard({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-white/[0.05] px-5 py-[18px] md:px-6 md:py-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.07]">
+    <div className="rounded-[28px] border border-white/10 bg-white/[0.05] px-5 py-[18px] shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.07] md:px-6 md:py-5">
       <div className="text-[15px] font-bold tracking-tight text-white md:text-[16px]">
         {title}
       </div>
@@ -296,7 +296,6 @@ function PersonaSilhouette({
 function DuoEcosystemScene() {
   return (
     <div className="relative mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(255,255,255,0.012))] p-4 shadow-[0_22px_70px_rgba(0,0,0,0.30)] md:p-5">
-
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-[-46px] top-[-46px] h-[170px] w-[170px] rounded-full bg-[#d4af37]/[0.10] blur-[80px]" />
         <div className="absolute right-[-24px] bottom-[-42px] h-[170px] w-[170px] rounded-full bg-[#f7e7a7]/[0.06] blur-[84px]" />
@@ -310,11 +309,11 @@ function DuoEcosystemScene() {
             Human layer
           </p>
           <p className="mt-1 text-[13px] font-bold text-white">
-            Real people entering a premium on-chain ecosystem
+            Real people entering on-chain commerce
           </p>
         </div>
         <LuxPill className="bg-black/20 px-2.5 py-1 text-[10px]">
-          Motion feel
+          App flow
         </LuxPill>
       </div>
 
@@ -324,28 +323,28 @@ function DuoEcosystemScene() {
         <div className="duo-orbit absolute left-[29%] top-[136px] z-10 h-1.5 w-1.5 rounded-full bg-white/70 shadow-[0_0_10px_rgba(255,255,255,0.35)]" style={{ animationDelay: "1.1s" }} />
         <div className="duo-orbit absolute right-[30%] top-[142px] z-10 h-1.5 w-1.5 rounded-full bg-white/70 shadow-[0_0_10px_rgba(255,255,255,0.35)]" style={{ animationDelay: "0.9s" }} />
 
-        <div className="duo-drift absolute left-1/2 top-[10px] z-20 w-[188px] -translate-x-1/2 rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] p-3.5 backdrop-blur-2xl shadow-[0_24px_72px_rgba(0,0,0,0.32)] md:w-[214px] xl:w-[230px]">
+        <div className="duo-drift absolute left-1/2 top-[10px] z-20 w-[188px] -translate-x-1/2 rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.07),rgba(255,255,255,0.02))] p-3.5 shadow-[0_24px_72px_rgba(0,0,0,0.32)] backdrop-blur-2xl md:w-[214px] xl:w-[230px]">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[9px] uppercase tracking-[0.18em] text-white/40">
                 Live ecosystem
               </p>
               <p className="mt-1 text-[12px] font-bold text-white md:text-[13px]">
-                Mint ↔ Market ↔ Delivery
+                Tokenize ↔ Market ↔ Escrow
               </p>
             </div>
             <div className="duo-pulse mt-1 h-2 w-2 rounded-full bg-[#f7e7a7] shadow-[0_0_0_6px_rgba(247,231,167,0.10)]" />
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-1.5">
-            {["Create", "Mint", "Trade"].map((label) => (
+            {["Create", "Trade", "Settle"].map((label) => (
               <div key={label} className="rounded-2xl border border-white/10 bg-black/25 px-2.5 py-1.5 text-[10px] font-semibold text-white/75">
                 {label}
               </div>
             ))}
           </div>
 
-          <div className="mt-3 relative h-[58px] overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_50%_15%,rgba(247,231,167,0.13),transparent_56%),linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01))]">
+          <div className="relative mt-3 h-[58px] overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_50%_15%,rgba(247,231,167,0.13),transparent_56%),linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01))]">
             <div className="duo-rotate absolute left-1/2 top-1/2 h-[42px] w-[42px] rounded-full border border-[#f7e7a7]/22" />
             <div className="duo-rotate absolute left-1/2 top-1/2 h-[28px] w-[28px] rounded-full border border-[#d4af37]/28" style={{ animationDuration: "12s" }} />
             <div className="duo-pulse absolute left-1/2 top-1/2 h-[10px] w-[10px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#f7e7a7]/70 shadow-[0_0_14px_rgba(247,231,167,0.45)]" />
@@ -358,7 +357,7 @@ function DuoEcosystemScene() {
         <div className="absolute inset-x-0 bottom-[44px] z-[1] h-px bg-[linear-gradient(90deg,transparent,rgba(247,231,167,0.16),transparent)]" />
 
         <div className="absolute bottom-0 left-0 z-20">
-          <PersonaSilhouette variant="woman" label="Mint" className="duo-float-a" />
+          <PersonaSilhouette variant="woman" label="Create" className="duo-float-a" />
         </div>
         <div className="absolute bottom-0 right-0 z-20">
           <PersonaSilhouette variant="man" label="Market" className="duo-float-b" />
@@ -372,7 +371,6 @@ function DuoEcosystemScene() {
 export default function AppPage() {
   return (
     <div className="relative isolate">
-
       {/* Ambient background */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute left-[-140px] top-[80px] h-[360px] w-[360px] rounded-full bg-[#d4af37]/[0.10] blur-[120px]" />
@@ -385,7 +383,6 @@ export default function AppPage() {
       </div>
 
       <div className="space-y-6">
-
         {/* ── Hero ──────────────────────────────────────────────── */}
         <Reveal>
           <GoldEdgeCard>
@@ -393,15 +390,15 @@ export default function AppPage() {
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <LuxPill>
                   <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                  Tokenized real-world assets • App live
+                  Stablecoin escrow commerce • App live
                 </LuxPill>
 
                 <div className="flex items-center gap-2">
                   <Link
                     href="/app/create"
-                    className="rounded-2xl px-4 py-2 text-sm font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
+                    className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 text-sm font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
                   >
-                    Mint NFT
+                    Create listing
                   </Link>
                   <Link
                     href="/app/faucet"
@@ -413,42 +410,60 @@ export default function AppPage() {
               </div>
 
               <h1 className="mt-7 text-4xl font-black leading-[1.03] tracking-[-0.03em] md:text-6xl">
-                Realife — the premium app layer for
+                Realife — the app layer for
                 <br />
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
-                  real-world NFT assets
+                  real-world crypto commerce
                 </span>
               </h1>
 
               <p className="mt-5 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
-                This is where real-world work, products, packaging, branded
-                experiences, and creator output become structured, minted,
-                tradable, and ready for delivery-aware ownership. Built for
-                creators, crypto brands, collectors, and real-world skill economies.
+                Realife connects crypto payments, NFT-linked transaction rights,
+                marketplace activity, AI-assisted listing tools, and escrow-protected
+                fulfillment for real-world products, services, and delivery.
+              </p>
+
+              <p className="mt-4 max-w-3xl text-xs leading-relaxed text-white/45 md:text-sm">
+                Designed for stablecoin-powered commerce. The current Base Sepolia
+                testnet uses test ETH for simplified testing while the platform
+                architecture is built around real-world settlement and protected flows.
               </p>
 
               <div className="mt-10 grid gap-4 md:grid-cols-3">
-                <StatCard title="Core Loop" value="Create → Mint" hint="Turn real value into on-chain ownership" />
-                <StatCard title="Market Layer" value="Trade → Deliver" hint="Move from collectible asset to real-world utility" />
-                <StatCard title="Positioning" value="Phygital-ready NFTs" hint="Tokenized real-world assets for Web3" />
+                <StatCard
+                  title="Commerce Layer"
+                  value="Products + Services"
+                  hint="Real-world value connected to crypto payments"
+                />
+                <StatCard
+                  title="Trust Layer"
+                  value="Escrow Logic"
+                  hint="Protected completion, delivery, refund, and release flows"
+                />
+                <StatCard
+                  title="NFT Role"
+                  value="Transaction Rights"
+                  hint="NFTs can represent proof, access, ownership, and claims"
+                />
               </div>
 
               <div className="mt-10 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,rgba(247,231,167,0.30),rgba(212,175,55,0.14),rgba(184,135,10,0.10))] p-px">
                 <div className="flex flex-col gap-4 rounded-[28px] border border-white/10 bg-[#0b0a09]/50 p-6 backdrop-blur-2xl md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="text-sm font-bold text-white">
-                      Create → Mint → Trade → Deliver
+                      Create → Tokenize → Trade → Settle
                     </p>
                     <p className="mt-1 text-xs text-white/60">
-                      Tokenized real-world assets for creators, crypto brands, collectors, and delivery-aware ownership.
+                      Real-world products and services become NFT-linked transaction
+                      rights with marketplace utility and escrow-backed fulfillment.
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-3">
                     <Link
                       href="/app/create"
-                      className="inline-flex items-center justify-center rounded-2xl px-7 py-3 font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
+                      className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-7 py-3 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
                     >
-                      Start minting
+                      Create listing
                     </Link>
                     <Link
                       href={REAL_MARKETING_HREF}
@@ -465,20 +480,19 @@ export default function AppPage() {
 
         {/* ── How it works + Who it serves ──────────────────────── */}
         <div className="grid gap-6 lg:grid-cols-12 lg:items-stretch xl:gap-7">
-
           <div className="lg:col-span-8">
             <Reveal className="h-full w-full" delayMs={90}>
               <GoldEdgeCard className="h-full w-full">
                 <div className="h-full p-8 md:p-10">
                   <p className="text-xs font-semibold text-white/40">How it works</p>
                   <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">
-                    A creator-first path into on-chain ownership
+                    A practical path from real-world value to on-chain commerce
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/60">
-                    Realife keeps the experience understandable for normal people while
-                    preserving the core Web3 logic: wallet, metadata, mint, collectible
-                    ownership, market movement, and physical delivery when the tokenized
-                    asset maps to something real.
+                    Realife keeps the experience understandable for normal people
+                    while preserving the core Web3 logic: wallet connection,
+                    metadata, NFT-linked rights, marketplace movement, and protected
+                    completion when the listing maps to a real product or service.
                   </p>
 
                   <div className="mt-8 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
@@ -507,17 +521,20 @@ export default function AppPage() {
                       <div className="rounded-[28px] border border-white/10 bg-[#0b0a09]/55 p-5 backdrop-blur-2xl">
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                           <div className="max-w-2xl">
-                            <p className="text-sm font-bold text-white">Not only a collectible flow</p>
+                            <p className="text-sm font-bold text-white">
+                              Not just NFT collectibles
+                            </p>
                             <p className="mt-2 text-xs leading-relaxed text-white/60">
-                              Realife can keep an NFT purely digital or connect it to
-                              real-world fulfillment — products, packaging, creator-made
-                              objects, branded drops, and delivery-aware tokenized ownership.
+                              Realife uses NFTs as transaction rights and proof
+                              objects for real-world commerce — products, services,
+                              digital work, local work, branded drops, and delivery-aware
+                              settlement.
                             </p>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <LuxPill className="bg-black/25">Proof of real work</LuxPill>
-                            <LuxPill className="bg-black/25">Market-ready ownership</LuxPill>
-                            <LuxPill className="bg-black/25">Delivery-aware NFTs</LuxPill>
+                            <LuxPill className="bg-black/25">NFT-linked rights</LuxPill>
+                            <LuxPill className="bg-black/25">Escrow commerce</LuxPill>
+                            <LuxPill className="bg-black/25">Real-world utility</LuxPill>
                           </div>
                         </div>
                       </div>
@@ -528,15 +545,15 @@ export default function AppPage() {
                     <div className="mt-6 flex flex-wrap gap-3">
                       <Link
                         href="/app/create"
-                        className="inline-flex items-center justify-center rounded-2xl px-6 py-3 font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
+                        className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
                       >
-                        Go to mint
+                        Create listing
                       </Link>
                       <Link
                         href="/app/trading"
                         className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-3 font-extrabold transition hover:-translate-y-px hover:bg-white/[0.07] active:translate-y-0"
                       >
-                        Open market
+                        Open marketplace
                       </Link>
                     </div>
                   </div>
@@ -552,12 +569,12 @@ export default function AppPage() {
                   <div>
                     <p className="text-[13px] font-semibold text-white/40">Who it serves</p>
                     <h3 className="mt-2 text-[28px] font-black leading-[1.08] tracking-tight md:text-[32px]">
-                      Creators, crypto brands, collectors — and real-world workers
+                      Creators, workers, brands, businesses, Web2 users, and crypto users
                     </h3>
                     <p className="mt-3 text-[14px] leading-[1.72] text-white/60 md:text-[15px]">
-                      Realife is not just a mint page. It is the working surface of a
-                      larger ecosystem connecting digital ownership with real production,
-                      campaigns, commerce, and delivery.
+                      Realife is not just a mint page. It is an app layer for
+                      real-world crypto commerce, connecting digital ownership with
+                      real products, services, campaigns, fulfillment, and escrow.
                     </p>
                     <div className="mt-7 space-y-3.5">
                       {WHO_IT_SERVES.map((item) => (
@@ -566,7 +583,7 @@ export default function AppPage() {
                     </div>
                   </div>
                   <div className="mt-auto pt-6 text-[11px] leading-relaxed text-white/40">
-                    Base • IPFS • creator economy • delivery-aware NFTs • social onboarding into Web3
+                    Base Sepolia • AI-assisted minting • NFT-linked rights • marketplace • service escrow • delivery flows
                   </div>
                 </div>
               </GoldEdgeCard>
@@ -582,11 +599,12 @@ export default function AppPage() {
                 <div>
                   <p className="text-xs font-semibold text-white/40">Core modules</p>
                   <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">
-                    Move through the ecosystem with clarity
+                    Move through the Realife commerce ecosystem
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/60">
-                    Each module has a clear role: mint, present, trade, connect with brands,
-                    and build stronger creator identity with real-world utility.
+                    Each module has a clear role: create listings, tokenize real-world
+                    value, trade assets, manage identity, connect with brands, and
+                    move toward escrow-protected fulfillment.
                   </p>
                 </div>
               </div>
@@ -618,30 +636,30 @@ export default function AppPage() {
             <div className="p-8 md:p-10">
               <p className="text-xs font-semibold text-white/40">Inside the ecosystem</p>
               <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">
-                Beyond minting: real-world verticals inside Realife
+                Beyond trading: real-world verticals inside Realife
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/60">
-                Realife expands beyond creator minting into branded campaigns, storefront
-                experiences, tokenized product stories, and delivery-ready NFT ownership
-                connected to the real world.
+                Realife expands beyond NFT minting into branded campaigns, storefront
+                experiences, tokenized product stories, delivery-ready commerce, and
+                stablecoin-oriented real-world utility.
               </p>
 
               <div className="mt-8 grid gap-4 lg:grid-cols-3">
                 {/* Real Marketing */}
                 <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_22px_80px_rgba(0,0,0,0.35)]">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
-                    Brand collaboration layer
+                    Brand commerce layer
                   </p>
                   <h3 className="mt-2 text-2xl font-black tracking-tight">Real Marketing</h3>
                   <p className="mt-3 text-sm leading-relaxed text-white/60">
                     The ecosystem hub for creator campaigns, crypto brand collaborations,
-                    Crypto Cafe, Realife Store, and phygital drops.
+                    Crypto Cafe, Realife Store, product activations, and real-world commerce stories.
                   </p>
                   <div className="mt-5 grid gap-3">
                     {[
                       "Campaigns and branded experiences",
-                      "Collectible product storytelling",
-                      "Delivery-ready NFT activations",
+                      "Product storytelling and storefronts",
+                      "Bridge between Web2 value and Web3 commerce",
                     ].map((x) => (
                       <div key={x} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/75">
                         {x}
@@ -651,7 +669,7 @@ export default function AppPage() {
                   <div className="mt-6">
                     <Link
                       href={REAL_MARKETING_HREF}
-                      className="inline-flex w-full items-center justify-center rounded-2xl px-6 py-3 font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
+                      className="inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
                     >
                       Enter Real Marketing
                     </Link>
@@ -669,7 +687,8 @@ export default function AppPage() {
                     <div className="absolute bottom-0 left-0 right-0 p-5">
                       <div className="text-xl font-black tracking-tight">Realife Crypto Cafe</div>
                       <div className="mt-2 text-sm leading-relaxed text-white/60">
-                        A premium storefront concept for branded goods, collectible atmosphere, and phygital experiences.
+                        A premium storefront concept for branded goods, community culture,
+                        crypto-native commerce, and real-world experiences.
                       </div>
                     </div>
                   </div>
@@ -686,7 +705,8 @@ export default function AppPage() {
                     <div className="absolute bottom-0 left-0 right-0 p-5">
                       <div className="text-xl font-black tracking-tight">Tokenized product stories</div>
                       <div className="mt-2 text-sm leading-relaxed text-white/60">
-                        Real-world products, branded packaging, and collectible ownership experiences inside the ecosystem.
+                        Real-world products, branded packaging, NFT-linked ownership,
+                        and marketplace-ready commerce inside the ecosystem.
                       </div>
                     </div>
                   </div>
@@ -704,25 +724,26 @@ export default function AppPage() {
                 <div className="lg:col-span-8">
                   <p className="text-xs font-semibold text-white/40">Vision</p>
                   <h2 className="mt-2 text-3xl font-black leading-[1.05] tracking-tight md:text-4xl">
-                    We are building a Web3 surface where{" "}
+                    We are building a Web3 commerce layer where{" "}
                     <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
-                      real people, real products, and real work
+                      real people, real products, and real services
                     </span>{" "}
-                    become on-chain value.
+                    can move on-chain.
                   </h2>
                   <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
                     Realife is designed to feel premium for investors and simple for users:
-                    clean flow, strong storytelling, real-world relevance, creator participation,
-                    and crypto-native ownership with room for physical delivery.
+                    real-world commerce, crypto payments, NFT-linked rights, AI-assisted
+                    creation, marketplace activity, and escrow protection for products,
+                    services, and delivery.
                   </p>
                 </div>
                 <div className="lg:col-span-4">
                   <div className="flex flex-col gap-3">
                     <Link
                       href="/app/create"
-                      className="inline-flex w-full items-center justify-center rounded-2xl px-6 py-3 font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
+                      className="inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
                     >
-                      Mint now
+                      Create listing
                     </Link>
                     <Link
                       href={REAL_MARKETING_HREF}
@@ -738,9 +759,8 @@ export default function AppPage() {
         </Reveal>
 
         <div className="mt-6 px-2 text-xs text-white/40">
-          Realife premium UI • on-chain mint • IPFS metadata • tokenized real-world assets • delivery-aware ownership
+          Realife premium UI • AI-assisted minting • NFT-linked transaction rights • marketplace • protected escrow • real-world commerce
         </div>
-
       </div>
     </div>
   );

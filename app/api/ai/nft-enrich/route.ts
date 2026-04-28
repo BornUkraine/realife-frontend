@@ -89,6 +89,75 @@ function safeConfidence(v: unknown) {
   return Math.max(0, Math.min(1, n));
 }
 
+function contentTypeToImageMime(v: string | null) {
+  const ct = String(v || "").split(";")[0]?.trim().toLowerCase();
+  if (ct === "image/png") return "image/png";
+  if (ct === "image/webp") return "image/webp";
+  if (ct === "image/gif") return "image/gif";
+  if (ct === "image/jpeg" || ct === "image/jpg") return "image/jpeg";
+  return null;
+}
+
+async function fetchImageAsDataUrl(url: string) {
+  if (!url || url.startsWith("data:")) return url || null;
+  if (!url.startsWith("http://") && !url.startsWith("https://")) return null;
+
+  const maxBytes = Math.max(
+    512_000,
+    Math.min(Number(process.env.OPENAI_NFT_ENRICH_MAX_IMAGE_BYTES || 12_000_000), 20_000_000)
+  );
+
+  const timeoutMs = Math.max(
+    3_000,
+    Math.min(Number(process.env.OPENAI_NFT_ENRICH_IMAGE_FETCH_TIMEOUT_MS || 15_000), 45_000)
+  );
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const r = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
+        "user-agent": "Realife-AI-Visual-Indexer/1.0",
+      },
+    });
+
+    if (!r.ok) return null;
+
+    const mime = contentTypeToImageMime(r.headers.get("content-type"));
+    if (!mime) return null;
+
+    const contentLength = Number(r.headers.get("content-length") || "0");
+    if (contentLength && contentLength > maxBytes) return null;
+
+    const arr = await r.arrayBuffer();
+    if (arr.byteLength > maxBytes) return null;
+
+    return `data:${mime};base64,${Buffer.from(arr).toString("base64")}`;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function prepareImageUrlForOpenAI(sourceImage: string) {
+  if (!sourceImage) return sourceImage;
+  if (sourceImage.startsWith("data:")) return sourceImage;
+
+  // Default: convert IPFS/gateway images to data URLs when possible.
+  // This makes OCR more reliable because OpenAI receives the exact bytes
+  // instead of trying to fetch an IPFS gateway URL itself.
+  if (process.env.OPENAI_NFT_ENRICH_USE_REMOTE_URL === "1") {
+    return sourceImage;
+  }
+
+  const dataUrl = await fetchImageAsDataUrl(sourceImage);
+  return dataUrl || sourceImage;
+}
+
 function normalizeTags(v: unknown) {
   if (!Array.isArray(v)) return [];
 
@@ -502,12 +571,13 @@ Important rules:
 1. Do NOT guess exact location if it is not visible or strongly supported by existing metadata.
 2. If text is small, distorted, unreadable, or uncertain, mention only what is readable.
 3. If a phone number is visible and readable, include it inside visualText only. Do not create a separate phone field.
-4. detectedCountry / detectedRegion / detectedCity / detectedArea must be null if not clearly visible or supported by metadata.
+4. If visible text explicitly contains a country, region, city, or area, fill detectedCountry / detectedRegion / detectedCity / detectedArea with that exact visible location. If not clearly visible or supported by metadata, use null.
 5. For products, fill detectedProduct.
 6. For services, fill detectedService.
 7. detectedCategory should be one of the known Realife marketplace categories when possible.
-8. searchTags should include practical user search words, for example: "pineapple", "fruit", "Spain", "Andalusia", "food", "delivery", "fitness", "Los Angeles", "local service", "coaching".
-9. confidence must be between 0 and 1.
+8. searchTags should include practical user search words from BOTH the visual content and metadata, for example: "pineapple", "fruit", "Spain", "Andalusia", "food", "delivery", "fitness", "Los Angeles", "local service", "coaching".
+9. This works for any Realife NFT contract: standard public mint, delivery public mint, cafe, store, or future contracts. Do not make contract-specific assumptions.
+10. confidence must be between 0 and 1.
 `.trim();
 
     const schema = {
@@ -553,6 +623,8 @@ Important rules:
       ],
     };
 
+    const openAiImageUrl = await prepareImageUrlForOpenAI(sourceImage);
+
     const openaiPayload = {
       model,
       store: false,
@@ -570,7 +642,7 @@ Important rules:
             },
             {
               type: "input_image",
-              image_url: sourceImage,
+              image_url: openAiImageUrl,
               detail: imageDetail,
             },
           ],

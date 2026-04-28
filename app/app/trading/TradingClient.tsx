@@ -1384,7 +1384,7 @@ export default function TradingClient({
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                     />
                     <div className="mt-2 text-[11px] leading-relaxed text-white/35">
-                      Searches metadata plus AI visual index from NFT images, posters and visible text.
+                      Searches metadata + AI visual index from any NFT contract: standard mint, delivery mint, cafe, store, images, posters and visible text.
                     </div>
                   </div>
 
@@ -1518,7 +1518,7 @@ export default function TradingClient({
 
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
-                      Country
+                      Country / visual text
                     </div>
                     <input
                       value={filters.serviceCountry}
@@ -1528,7 +1528,7 @@ export default function TradingClient({
                           serviceCountry: e.target.value,
                         }))
                       }
-                      placeholder="Spain, USA, Ukraine…"
+                      placeholder="Spain, USA, Ukraine, Andalusia…"
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                     />
                   </div>
