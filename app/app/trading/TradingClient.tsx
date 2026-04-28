@@ -1875,11 +1875,6 @@ export default function TradingClient({
                           </div>
                         ) : null}
 
-                        {x.aiIndex?.visualSummary ? (
-                          <div className="mt-2 line-clamp-2 rounded-2xl border border-fuchsia-500/10 bg-fuchsia-500/[0.06] px-3 py-2 text-[11px] leading-relaxed text-fuchsia-100/75">
-                            AI: {x.aiIndex.visualSummary}
-                          </div>
-                        ) : null}
 
                         <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
                           <div className="flex items-center justify-between gap-2">
