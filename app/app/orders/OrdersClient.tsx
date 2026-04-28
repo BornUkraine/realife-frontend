@@ -240,6 +240,30 @@ function formatPaymentAmount(raw?: string | null, paymentToken?: string | null) 
   }
 }
 
+const REALIFE_SELLER_FEE_BPS = 250n;
+const BPS_DENOMINATOR = 10_000n;
+
+function formatFeePercent() {
+  return `${Number(REALIFE_SELLER_FEE_BPS) / 100}%`;
+}
+
+function calcSellerFee(raw?: string | null) {
+  try {
+    if (!raw) return { fee: null as string | null, payout: null as string | null };
+
+    const total = BigInt(raw);
+    const fee = (total * REALIFE_SELLER_FEE_BPS) / BPS_DENOMINATOR;
+    const payout = total > fee ? total - fee : 0n;
+
+    return {
+      fee: fee.toString(),
+      payout: payout.toString(),
+    };
+  } catch {
+    return { fee: null as string | null, payout: null as string | null };
+  }
+}
+
 function sourceTone(v?: string | null) {
   if (v === "MARKETPLACE") {
     return "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-100";
@@ -509,8 +533,8 @@ export default function OrdersClient() {
               <div className="mt-2 max-w-2xl text-[12px] text-white/55">
                 Physical goods use shipping flow. Service orders use completion
                 flow. Protected orders keep payout in escrow until buyer
-                confirms. Refund path can require NFT return through the
-                protected contract.
+                confirms. Realife applies a transparent 2.5% seller-side fee
+                on completed marketplace transactions.
               </div>
             </div>
 
@@ -663,6 +687,8 @@ export default function OrdersClient() {
               x.escrowStatus !== "REFUNDED" &&
               x.escrowStatus !== "CANCELLED";
 
+            const sellerFee = calcSellerFee(x.totalPrice);
+
             return (
               <div
                 key={x.id}
@@ -776,9 +802,12 @@ export default function OrdersClient() {
                         </div>
 
                         <div className="text-right">
-                          <div className="text-[12px] text-white/45">Total</div>
+                          <div className="text-[12px] text-white/45">Buyer paid</div>
                           <div className="text-[16px] font-black text-amber-100">
                             {formatPaymentAmount(x.totalPrice, x.paymentToken)}
+                          </div>
+                          <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">
+                            Seller fee {formatFeePercent()}
                           </div>
                         </div>
                       </div>
@@ -797,6 +826,30 @@ export default function OrdersClient() {
                           </div>
                           <div className="mt-1 text-[13px] font-black text-white/80">
                             {formatPaymentAmount(x.unitPrice, x.paymentToken)}
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-amber-500/15 bg-amber-500/[0.06] p-3">
+                          <div className="text-[11px] text-amber-100/55">
+                            Realife fee
+                          </div>
+                          <div className="mt-1 text-[13px] font-black text-amber-100">
+                            {formatPaymentAmount(sellerFee.fee, x.paymentToken)}
+                          </div>
+                          <div className="mt-1 text-[10px] text-white/35">
+                            {formatFeePercent()} seller-side
+                          </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.06] p-3">
+                          <div className="text-[11px] text-emerald-100/55">
+                            Seller payout
+                          </div>
+                          <div className="mt-1 text-[13px] font-black text-emerald-100">
+                            {formatPaymentAmount(sellerFee.payout, x.paymentToken)}
+                          </div>
+                          <div className="mt-1 text-[10px] text-white/35">
+                            after completion
                           </div>
                         </div>
 

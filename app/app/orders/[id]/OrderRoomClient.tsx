@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits } from "viem";
 import { useAccount, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import OrderAiAssistant from "@/components/orders/OrderAiAssistant";
 
 type ViewerRole = "buyer" | "seller" | "unknown";
 type MessageRole = "BUYER" | "SELLER" | "SUPPORT" | "SYSTEM";
@@ -760,6 +761,16 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
           </div>
         </div>
       </div>
+
+
+      <OrderAiAssistant
+        orderId={orderId}
+        viewerRole={viewerRole}
+        order={order}
+        onUseSuggestedMessage={(message) =>
+          setDraft((prev) => (prev.trim() ? `${prev.trim()}\n\n${message}` : message))
+        }
+      />
 
       {isService && viewerRole === "seller" ? (
         <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]">

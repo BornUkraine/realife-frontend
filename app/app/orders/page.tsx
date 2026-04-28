@@ -103,9 +103,10 @@ export default function OrdersPage() {
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
                 Physical orders use shipping flow. Service orders use room
                 coordination and completion flow. Protected marketplace orders
-                keep payout in escrow until buyer confirms completion, while
-                refund path can require NFT return through the protected
-                contract.
+                keep payout in escrow until buyer confirms completion. Realife
+                uses a transparent 2.5% seller-side platform fee on completed
+                marketplace transactions, while refund path can require NFT
+                return through the protected contract.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
