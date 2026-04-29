@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { formatUnits, parseUnits } from "viem";
 import { useAccount } from "wagmi";
 import ActivityPanel from "@/components/trading/ActivityPanel";
@@ -634,11 +635,41 @@ export default function TradingClient({
   initialMarketView?: MarketView;
   lockMarketView?: boolean;
 }) {
-  const { address, isConnected } = useAccount();
-  const wallet = useMemo(
-    () => normAddr(address) || normAddr(viewerWallet),
-    [address, viewerWallet]
-  );
+  const { address } = useAccount();
+  const { data: liveSession } = useSession();
+
+  const liveSessionUser = ((liveSession as any)?.user || {}) as any;
+
+  const liveSessionWallet =
+    (liveSessionUser?.walletAddress as string | undefined) ||
+    ((liveSession as any)?.walletAddress as string | undefined) ||
+    null;
+
+  const activeViewerKey =
+    (liveSessionUser?.handle as string | undefined) ||
+    (liveSessionUser?.publicId as string | undefined) ||
+    ((liveSession as any)?.handle as string | undefined) ||
+    ((liveSession as any)?.publicId as string | undefined) ||
+    viewerKey ||
+    null;
+
+  const activeWalletRaw = address || liveSessionWallet || viewerWallet || null;
+  const wallet = useMemo(() => normAddr(activeWalletRaw), [activeWalletRaw]);
+
+  const liveWalletKind = String(liveSessionUser?.walletKind || "").toUpperCase();
+  const liveEmbeddedProvider = String(
+    liveSessionUser?.embeddedWalletProvider || ""
+  ).toUpperCase();
+
+  const activeWalletLabel = address
+    ? "connected wallet"
+    : liveWalletKind === "EMBEDDED" || liveEmbeddedProvider
+    ? liveEmbeddedProvider === "WEB3AUTH"
+      ? "Google / Web3Auth"
+      : "Google embedded wallet"
+    : activeWalletRaw
+    ? "session wallet"
+    : null;
 
   const [mounted, setMounted] = useState(false);
   const [tab, setTab] = useState<"market" | "my">("market");
@@ -1175,31 +1206,26 @@ export default function TradingClient({
                     Listings • Purchases • Sales
                   </div>
                   <div className="mt-2 text-[12px] text-white/55">
-                    {isConnected ? (
+                    {activeWalletRaw ? (
                       <>
                         Wallet:{" "}
                         <span className="font-mono text-white/80">
-                          {shortAddr(address || "")}
+                          {shortAddr(activeWalletRaw)}
                         </span>
-                      </>
-                    ) : viewerWallet ? (
-                      <>
-                        Wallet:{" "}
-                        <span className="font-mono text-white/80">
-                          {shortAddr(viewerWallet)}
-                        </span>
-                        <span className="text-white/35"> (session)</span>
+                        {activeWalletLabel ? (
+                          <span className="text-white/35"> ({activeWalletLabel})</span>
+                        ) : null}
                       </>
                     ) : (
-                      <>Connect wallet to see personal activity.</>
+                      <>Connect wallet or continue with Google to see personal activity.</>
                     )}
                   </div>
                 </div>
               </div>
 
               <div className="mt-6">
-                {viewerKey ? (
-                  <ActivityPanel userKey={viewerKey} />
+                {activeViewerKey ? (
+                  <ActivityPanel userKey={activeViewerKey} />
                 ) : (
                   <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 text-[12px] text-white/60">
                     No public key found (handle/publicId). Create it in profile

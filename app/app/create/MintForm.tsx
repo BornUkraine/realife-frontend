@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   useAccount,
   useBalance,
@@ -12,9 +13,10 @@ import {
   useWaitForTransactionReceipt,
   useReadContract,
 } from "wagmi";
+import { useWeb3Auth } from "@web3auth/modal/react";
 import { baseSepolia } from "wagmi/chains";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { decodeEventLog, formatUnits } from "viem";
+import { decodeEventLog, encodeFunctionData, formatUnits, toHex } from "viem";
 
 import { realife1155Abi } from "@/lib/realife1155Abi";
 import { realife1155DeliveryAbi } from "@/lib/realife1155DeliveryAbi";
@@ -115,6 +117,78 @@ type AiSuggestion = {
 
 const ZERO_ADDRESS =
   "0x0000000000000000000000000000000000000000" as const;
+
+type Eip1193Provider = {
+  request: (args: {
+    method: string;
+    params?: unknown[] | Record<string, unknown>;
+  }) => Promise<unknown>;
+};
+
+function normalizeEvmAddress(v: unknown): `0x${string}` | undefined {
+  const s = String(v || "").trim().toLowerCase();
+  return /^0x[a-f0-9]{40}$/.test(s) ? (s as `0x${string}`) : undefined;
+}
+
+function normalizeTxHash(v: unknown): `0x${string}` | undefined {
+  const s = String(v || "").trim().toLowerCase();
+  return /^0x[a-f0-9]{64}$/.test(s) ? (s as `0x${string}`) : undefined;
+}
+
+function parseRpcChainId(v: unknown): number | undefined {
+  const s = String(v || "").trim();
+  if (!s) return undefined;
+  const n = s.startsWith("0x") ? Number.parseInt(s, 16) : Number(s);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+async function readProviderChainId(provider: Eip1193Provider | null) {
+  if (!provider) return undefined;
+  const raw = await provider.request({ method: "eth_chainId" }).catch(() => null);
+  return parseRpcChainId(raw);
+}
+
+async function ensureEmbeddedBaseSepolia(provider: Eip1193Provider | null) {
+  if (!provider) {
+    throw new Error(
+      "Embedded wallet provider is not ready. Please click Continue with Google again."
+    );
+  }
+
+  const currentChainId = await readProviderChainId(provider);
+  if (currentChainId === baseSepolia.id) return;
+
+  const chainIdHex = toHex(baseSepolia.id);
+
+  try {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
+    });
+  } catch (switchError: any) {
+    const code = switchError?.code ?? switchError?.data?.originalError?.code;
+
+    if (code !== 4902) throw switchError;
+
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: [
+        {
+          chainId: chainIdHex,
+          chainName: baseSepolia.name,
+          nativeCurrency: baseSepolia.nativeCurrency,
+          rpcUrls: [...baseSepolia.rpcUrls.default.http],
+          blockExplorerUrls: [baseSepolia.blockExplorers.default.url],
+        },
+      ],
+    });
+
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
+    });
+  }
+}
 
 const ONLINE_SESSION_HINTS = [
   "consultation",
@@ -1018,9 +1092,9 @@ function Stepper({
           <div className="mt-3 text-sm font-extrabold tracking-tight md:text-base">
             {locked
               ? !mounted
-                ? "Connect wallet to start"
+                ? "Connect wallet / Google to start"
                 : !connected
-                ? "Connect wallet to start"
+                ? "Connect wallet / Google to start"
                 : "Switch to Base Sepolia"
               : isSuccess
               ? "Created — verified on-chain"
@@ -1111,7 +1185,7 @@ function Stepper({
                   .
                 </>
               ) : (
-                <>Connect wallet and follow the flow: Prepare → Sign → Create → Verify.</>
+                <>Connect wallet or continue with Google, then follow: Prepare → Sign → Create → Verify.</>
               )
             ) : hasGas ? (
               <>
@@ -1224,6 +1298,10 @@ function Stepper({
 export default function MintForm() {
   const mounted = useMounted();
   const router = useRouter();
+  const { data: session } = useSession();
+  const { provider: web3AuthProviderRaw } = useWeb3Auth();
+
+  const embeddedProvider = (web3AuthProviderRaw as Eip1193Provider | null) || null;
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const posterInputRef = useRef<HTMLInputElement | null>(null);
@@ -1235,8 +1313,46 @@ export default function MintForm() {
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
 
-  const connected = mounted ? isConnected : false;
-  const effectiveChainId = mounted ? chainId : undefined;
+  const [embeddedChainId, setEmbeddedChainId] = useState<number | undefined>(undefined);
+
+  const sessionUser = (session as any)?.user || null;
+  const sessionWalletKind = String(sessionUser?.walletKind || "").toUpperCase();
+  const embeddedWalletAddress = normalizeEvmAddress(sessionUser?.walletAddress);
+  const externalWalletAddress = normalizeEvmAddress(address);
+
+  const activeAddress = externalWalletAddress || embeddedWalletAddress;
+  const activeWalletKind: "EXTERNAL" | "EMBEDDED" | null = externalWalletAddress
+    ? "EXTERNAL"
+    : embeddedWalletAddress && sessionWalletKind === "EMBEDDED"
+    ? "EMBEDDED"
+    : null;
+
+  const connected = mounted ? Boolean(isConnected || embeddedWalletAddress) : false;
+  const effectiveChainId = mounted
+    ? activeWalletKind === "EMBEDDED"
+      ? embeddedChainId
+      : chainId
+    : undefined;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncEmbeddedChain() {
+      if (activeWalletKind !== "EMBEDDED" || !embeddedProvider) {
+        setEmbeddedChainId(undefined);
+        return;
+      }
+
+      const nextChainId = await readProviderChainId(embeddedProvider);
+      if (!cancelled) setEmbeddedChainId(nextChainId);
+    }
+
+    void syncEmbeddedChain();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWalletKind, embeddedProvider]);
 
   const {
     data: balanceData,
@@ -1244,9 +1360,9 @@ export default function MintForm() {
     isFetching: isBalanceFetching,
     refetch: refetchBalance,
   } = useBalance({
-    address,
+    address: activeAddress,
     chainId: baseSepolia.id,
-    query: { enabled: Boolean(address), refetchInterval: 12_000 },
+    query: { enabled: Boolean(activeAddress), refetchInterval: 12_000 },
   });
 
   const balanceEth = useMemo(() => {
@@ -1266,7 +1382,11 @@ export default function MintForm() {
     return `${fmtEth(s)} ${balanceData.symbol ?? "ETH"}`;
   }, [mounted, connected, isBalanceLoading, balanceData]);
 
-  const wrongNetwork = connected && effectiveChainId !== baseSepolia.id;
+  const wrongNetwork =
+    connected &&
+    (activeWalletKind === "EMBEDDED"
+      ? Boolean(effectiveChainId && effectiveChainId !== baseSepolia.id)
+      : effectiveChainId !== baseSepolia.id);
   const hasGas = connected && !wrongNetwork && balanceEth > 0;
 
   const [approvedPhysicalSeller, setApprovedPhysicalSeller] = useState(false);
@@ -1317,7 +1437,7 @@ export default function MintForm() {
     return () => {
       cancelled = true;
     };
-  }, [mounted, address]);
+  }, [mounted, activeAddress]);
 
   const [file, setFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
@@ -1457,8 +1577,8 @@ export default function MintForm() {
     address: CONTRACT_1155_DELIVERY,
     abi: realife1155DeliveryAbi as any,
     functionName: "allowedDeliveryMinters" as any,
-    args: [((address || ZERO_ADDRESS) as `0x${string}`)],
-    query: { enabled: Boolean(CONTRACT_1155_DELIVERY && address) },
+    args: [((activeAddress || ZERO_ADDRESS) as `0x${string}`)],
+    query: { enabled: Boolean(CONTRACT_1155_DELIVERY && activeAddress) },
   });
 
   const deliveryOnchainApproved = Boolean(deliveryOnchainApprovedRaw);
@@ -1467,7 +1587,7 @@ export default function MintForm() {
   const deliveryChainBlocked =
     isDeliveryMode &&
     Boolean(CONTRACT_1155_DELIVERY) &&
-    Boolean(address) &&
+    Boolean(activeAddress) &&
     !isDeliveryAccessLoading &&
     !deliveryOnchainApproved;
 
@@ -1480,6 +1600,7 @@ export default function MintForm() {
     setPreviewCategory("Other");
     setSubmittedMintMode("standard");
     setSubmittedMintContract(undefined);
+    setEmbeddedTxHash(undefined);
     pushedRef.current = false;
     if (step !== "idle") setStep("idle");
   }
@@ -1575,13 +1696,17 @@ export default function MintForm() {
     posterInputRef.current?.click();
   }
 
+  const [embeddedTxHash, setEmbeddedTxHash] = useState<`0x${string}` | undefined>(undefined);
+
   const { data: txHash, writeContractAsync, isPending: isWalletPromptOpen } =
     useWriteContract();
 
+  const activeTxHash = (embeddedTxHash || txHash) as `0x${string}` | undefined;
+
   const { isLoading: isMining, isSuccess, data: receipt } =
     useWaitForTransactionReceipt({
-      hash: txHash,
-      query: { enabled: Boolean(txHash) },
+      hash: activeTxHash,
+      query: { enabled: Boolean(activeTxHash) },
     });
 
   useEffect(() => {
@@ -1623,7 +1748,7 @@ export default function MintForm() {
               chainId: baseSepolia.id,
               contract: targetContract,
               tokenId,
-              txHash: txHash || "",
+              txHash: activeTxHash || "",
               tokenUri: tokenURI || "",
               name: finalName,
               image: posterOrImage || null,
@@ -1670,7 +1795,7 @@ export default function MintForm() {
       qp.set("serviceCountry", finalServiceCountry);
       qp.set("serviceCity", finalServiceCity);
       qp.set("serviceArea", finalServiceArea);
-      qp.set("tx", txHash || "");
+      qp.set("tx", activeTxHash || "");
       qp.set("tokenId", tokenId || "");
       qp.set("standard", "ERC1155");
       qp.set("contract", targetContract || "");
@@ -1681,13 +1806,65 @@ export default function MintForm() {
   }, [isSuccess, receipt]);
 
   async function ensureCorrectNetwork() {
-    if (!connected) {
+    if (!connected || !activeAddress) {
       openConnectModal?.();
       throw new Error("Connect wallet first.");
     }
+
+    if (activeWalletKind === "EMBEDDED") {
+      await ensureEmbeddedBaseSepolia(embeddedProvider);
+      const nextChainId = await readProviderChainId(embeddedProvider);
+      setEmbeddedChainId(nextChainId);
+      return;
+    }
+
     if (effectiveChainId !== baseSepolia.id) {
       await switchChainAsync({ chainId: baseSepolia.id });
     }
+  }
+
+  async function handleSwitchNetwork() {
+    try {
+      await ensureCorrectNetwork();
+    } catch (e: any) {
+      setError(prettyError(e));
+    }
+  }
+
+  async function sendEmbeddedMintTransaction(amount: bigint, uri: string) {
+    if (!embeddedProvider || !activeAddress) {
+      throw new Error(
+        "Embedded wallet provider is not ready. Please click Continue with Google again."
+      );
+    }
+
+    const data = encodeFunctionData({
+      abi: activeMintAbi as any,
+      functionName:
+        activeMintMode === "delivery"
+          ? ("createDeliveryEdition" as any)
+          : ("createEdition" as any),
+      args: [amount, uri],
+    });
+
+    const tx: Record<string, string> = {
+      from: activeAddress,
+      to: activeMintContract as `0x${string}`,
+      data,
+    };
+
+    if (mintFeeWei > 0n) tx.value = toHex(mintFeeWei);
+
+    const rawHash = await embeddedProvider.request({
+      method: "eth_sendTransaction",
+      params: [tx],
+    });
+
+    const hash = normalizeTxHash(rawHash);
+    if (!hash) throw new Error("Embedded wallet did not return transaction hash.");
+
+    setEmbeddedTxHash(hash);
+    return hash;
   }
 
   async function handleAiSuggest() {
@@ -1965,6 +2142,7 @@ export default function MintForm() {
       }
 
       pushedRef.current = false;
+      setEmbeddedTxHash(undefined);
       setSubmittedMintMode(activeMintMode);
       setSubmittedMintContract(activeMintContract);
       setStep("signing");
@@ -1972,7 +2150,9 @@ export default function MintForm() {
       const amount = BigInt(clampSupply(supply));
 
       const hash =
-        activeMintMode === "delivery"
+        activeWalletKind === "EMBEDDED"
+          ? await sendEmbeddedMintTransaction(amount, tokenURI)
+          : activeMintMode === "delivery"
           ? await writeContractAsync({
               address: activeMintContract,
               abi: realife1155DeliveryAbi as any,
@@ -2011,7 +2191,7 @@ export default function MintForm() {
         wrongNetwork={wrongNetwork}
         hasGas={hasGas}
         tokenURI={tokenURI}
-        txHash={txHash}
+        txHash={activeTxHash}
         step={step}
         isMining={isMining}
         isSuccess={isSuccess}
@@ -2876,7 +3056,7 @@ export default function MintForm() {
                     : hasGas
                     ? "Gas OK — ready to create"
                     : "No gas — request test ETH"
-                  : "Connect wallet to create"}
+                  : "Connect wallet / Google to create"}
               </div>
 
               <div className="mt-2 text-xs text-white/65">
@@ -2906,7 +3086,7 @@ export default function MintForm() {
                   </>
                 ) : (
                   <>
-                    Connect wallet to enable switching, balance check and create.
+                    Connect wallet or continue with Google to enable balance check and create.
                     <span className="text-white/45"> Public mint flow.</span>
                   </>
                 )}
@@ -2938,9 +3118,7 @@ export default function MintForm() {
                 <button
                   type="button"
                   disabled={isSwitching}
-                  onClick={() =>
-                    switchChainAsync({ chainId: baseSepolia.id }).catch(() => {})
-                  }
+                  onClick={() => void handleSwitchNetwork()}
                   className="h-10 rounded-2xl bg-white px-4 text-xs font-extrabold text-black transition hover:bg-gray-100 disabled:opacity-60 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                 >
                   {isSwitching ? "Switching…" : "Switch"}

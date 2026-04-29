@@ -2,8 +2,16 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { formatUnits } from "viem";
-import { useAccount, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { encodeFunctionData, formatUnits, toHex } from "viem";
+import {
+  useAccount,
+  useChainId,
+  useSwitchChain,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
+import { useSession } from "next-auth/react";
+import { useWeb3Auth } from "@web3auth/modal/react";
 import OrderAiAssistant from "@/components/orders/OrderAiAssistant";
 
 type ViewerRole = "buyer" | "seller" | "unknown";
@@ -163,6 +171,85 @@ const PROTECTED_ESCROW_BUYER_ABI = [
     outputs: [],
   },
 ] as const;
+
+type Eip1193Provider = {
+  request: (args: {
+    method: string;
+    params?: unknown[] | Record<string, unknown>;
+  }) => Promise<unknown>;
+};
+
+function normalizeEvmAddress(v: unknown): `0x${string}` | undefined {
+  const x = String(v || "").trim().toLowerCase();
+  return /^0x[a-f0-9]{40}$/.test(x) ? (x as `0x${string}`) : undefined;
+}
+
+function normalizeTxHash(v: unknown): `0x${string}` | undefined {
+  const x = String(v || "").trim().toLowerCase();
+  return /^0x[a-f0-9]{64}$/.test(x) ? (x as `0x${string}`) : undefined;
+}
+
+function parseRpcChainId(v: unknown): number | undefined {
+  const x = String(v || "").trim();
+  if (!x) return undefined;
+  const n = x.startsWith("0x") ? Number.parseInt(x, 16) : Number(x);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+async function readProviderChainId(provider: Eip1193Provider | null) {
+  if (!provider) return undefined;
+  const raw = await provider.request({ method: "eth_chainId" }).catch(() => null);
+  return parseRpcChainId(raw);
+}
+
+function chainAddParams(chainId: number) {
+  if (chainId === 84532) {
+    return {
+      chainId: toHex(chainId),
+      chainName: "Base Sepolia",
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: ["https://sepolia.base.org"],
+      blockExplorerUrls: ["https://sepolia.basescan.org"],
+    };
+  }
+
+  return null;
+}
+
+async function ensureEmbeddedChain(provider: Eip1193Provider | null, chainId: number) {
+  if (!provider) {
+    throw new Error(
+      "Embedded wallet provider is not ready. Please click Continue with Google again."
+    );
+  }
+
+  const currentChainId = await readProviderChainId(provider);
+  if (currentChainId === chainId) return;
+
+  const chainIdHex = toHex(chainId);
+
+  try {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
+    });
+  } catch (switchError: any) {
+    const code = switchError?.code ?? switchError?.data?.originalError?.code;
+    const addParams = chainAddParams(chainId);
+
+    if (code !== 4902 || !addParams) throw switchError;
+
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: [addParams],
+    });
+
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
+    });
+  }
+}
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
@@ -325,10 +412,30 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
   const [serviceNote, setServiceNote] = useState("");
   const [revisionDraft, setRevisionDraft] = useState("");
 
-  const { address } = useAccount();
+  const { data: session } = useSession();
+  const { provider: web3AuthProviderRaw } = useWeb3Auth();
+  const embeddedProvider = (web3AuthProviderRaw as Eip1193Provider | null) || null;
+
+  const { address, isConnected } = useAccount();
+  const currentChainId = useChainId();
+  const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
+
+  const [embeddedChainId, setEmbeddedChainId] = useState<number | undefined>(undefined);
   const [chainTxHash, setChainTxHash] = useState<`0x${string}` | undefined>(undefined);
   const [chainActionKind, setChainActionKind] = useState<"confirm_release" | "refund_return" | null>(null);
+
+  const sessionUser = (session as any)?.user || null;
+  const sessionWalletKind = String(sessionUser?.walletKind || "").toUpperCase();
+  const externalWalletAddress = normalizeEvmAddress(address);
+  const embeddedWalletAddress = normalizeEvmAddress(sessionUser?.walletAddress);
+  const activeAddress = externalWalletAddress || embeddedWalletAddress;
+  const activeWalletKind: "EXTERNAL" | "EMBEDDED" | null = externalWalletAddress
+    ? "EXTERNAL"
+    : embeddedWalletAddress && sessionWalletKind === "EMBEDDED"
+    ? "EMBEDDED"
+    : null;
+  const walletReady = Boolean(isConnected || embeddedWalletAddress);
 
   const txReceipt = useWaitForTransactionReceipt({
     hash: chainTxHash,
@@ -385,6 +492,26 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
   useEffect(() => {
     void loadInitial();
   }, [orderId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncEmbeddedChain() {
+      if (activeWalletKind !== "EMBEDDED" || !embeddedProvider) {
+        setEmbeddedChainId(undefined);
+        return;
+      }
+
+      const nextChainId = await readProviderChainId(embeddedProvider);
+      if (!cancelled) setEmbeddedChainId(nextChainId);
+    }
+
+    void syncEmbeddedChain();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWalletKind, embeddedProvider]);
 
   useEffect(() => {
     if (txReceipt.isSuccess && chainTxHash) {
@@ -527,20 +654,59 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
       if (!order.marketplaceContract || !order.marketplacePurchaseId) {
         throw new Error("Marketplace contract or purchaseId is missing.");
       }
-      if (!address) throw new Error("Connect buyer wallet first.");
-      if (normAddr(address) !== normAddr(order.buyerWallet)) {
-        throw new Error("Connected wallet must match buyer wallet.");
+      if (!walletReady || !activeAddress || !activeWalletKind) {
+        throw new Error("Connect buyer wallet first or continue with Google.");
+      }
+      if (normAddr(activeAddress) !== normAddr(order.buyerWallet)) {
+        throw new Error("Active wallet must match buyer wallet.");
       }
 
-      const hash = await writeContractAsync({
-        address: order.marketplaceContract as `0x${string}`,
-        abi: PROTECTED_ESCROW_BUYER_ABI,
-        functionName:
-          action === "confirm_release"
-            ? "buyerConfirmAndRelease"
-            : "requestRefundAndReturnNft",
-        args: [BigInt(order.marketplacePurchaseId)],
-      });
+      const functionName =
+        action === "confirm_release"
+          ? "buyerConfirmAndRelease"
+          : "requestRefundAndReturnNft";
+      const args = [BigInt(order.marketplacePurchaseId)];
+      const marketplaceContract = order.marketplaceContract as `0x${string}`;
+
+      let hash: `0x${string}`;
+
+      if (activeWalletKind === "EMBEDDED") {
+        await ensureEmbeddedChain(embeddedProvider, order.chainId);
+        const nextChainId = await readProviderChainId(embeddedProvider);
+        setEmbeddedChainId(nextChainId);
+
+        const data = encodeFunctionData({
+          abi: PROTECTED_ESCROW_BUYER_ABI,
+          functionName: functionName as any,
+          args: args as any,
+        });
+
+        const rawHash = await embeddedProvider!.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: activeAddress,
+              to: marketplaceContract,
+              data,
+            },
+          ],
+        });
+
+        const txHash = normalizeTxHash(rawHash);
+        if (!txHash) throw new Error("Embedded wallet did not return transaction hash.");
+        hash = txHash;
+      } else {
+        if (currentChainId !== order.chainId) {
+          await switchChainAsync?.({ chainId: order.chainId });
+        }
+
+        hash = await writeContractAsync({
+          address: marketplaceContract,
+          abi: PROTECTED_ESCROW_BUYER_ABI,
+          functionName: functionName as any,
+          args: args as any,
+        } as any);
+      }
 
       setChainActionKind(action);
       setChainTxHash(hash);

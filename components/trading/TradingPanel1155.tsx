@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   useAccount,
   useChainId,
@@ -18,7 +19,8 @@ import {
   useReadContract,
 } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { formatUnits, parseUnits } from "viem";
+import { encodeFunctionData, formatUnits, parseUnits, toHex } from "viem";
+import { useWeb3Auth } from "@web3auth/modal/react";
 
 import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
@@ -129,6 +131,89 @@ type ToastItem = {
   title: string;
   text?: string | null;
 };
+
+
+type Eip1193Provider = {
+  request: (args: {
+    method: string;
+    params?: unknown[] | Record<string, unknown>;
+  }) => Promise<unknown>;
+};
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
+function normalizeEvmAddress(v: unknown): `0x${string}` | undefined {
+  const x = String(v || "").trim().toLowerCase();
+  return /^0x[a-f0-9]{40}$/.test(x) ? (x as `0x${string}`) : undefined;
+}
+
+function normalizeTxHash(v: unknown): `0x${string}` | undefined {
+  const x = String(v || "").trim().toLowerCase();
+  return /^0x[a-f0-9]{64}$/.test(x) ? (x as `0x${string}`) : undefined;
+}
+
+function parseRpcChainId(v: unknown): number | undefined {
+  const x = String(v || "").trim();
+  if (!x) return undefined;
+  const n = x.startsWith("0x") ? Number.parseInt(x, 16) : Number(x);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+async function readProviderChainId(provider: Eip1193Provider | null) {
+  if (!provider) return undefined;
+  const raw = await provider.request({ method: "eth_chainId" }).catch(() => null);
+  return parseRpcChainId(raw);
+}
+
+function chainAddParams(chainId: number) {
+  if (chainId === 84532) {
+    return {
+      chainId: toHex(chainId),
+      chainName: "Base Sepolia",
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: ["https://sepolia.base.org"],
+      blockExplorerUrls: ["https://sepolia.basescan.org"],
+    };
+  }
+
+  return null;
+}
+
+async function ensureEmbeddedChain(provider: Eip1193Provider | null, chainId: number) {
+  if (!provider) {
+    throw new Error(
+      "Embedded wallet provider is not ready. Please click Continue with Google again."
+    );
+  }
+
+  const currentChainId = await readProviderChainId(provider);
+  if (currentChainId === chainId) return;
+
+  const chainIdHex = toHex(chainId);
+
+  try {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
+    });
+  } catch (switchError: any) {
+    const code = switchError?.code ?? switchError?.data?.originalError?.code;
+    const addParams = chainAddParams(chainId);
+
+    if (code !== 4902 || !addParams) throw switchError;
+
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: [addParams],
+    });
+
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
+    });
+  }
+}
+
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
@@ -717,12 +802,32 @@ export default function TradingPanel1155({
   serviceArea?: string | null;
   initialMarketData?: MarketNftResponse | null;
 }) {
+  const { data: session } = useSession();
+  const { provider: web3AuthProviderRaw } = useWeb3Auth();
+  const embeddedProvider = (web3AuthProviderRaw as Eip1193Provider | null) || null;
+
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient();
   const { openConnectModal } = useConnectModal();
   const { writeContractAsync } = useWriteContract();
+
+  const [embeddedChainId, setEmbeddedChainId] = useState<number | undefined>(undefined);
+
+  const sessionUser = (session as any)?.user || null;
+  const sessionWalletKind = String(sessionUser?.walletKind || "").toUpperCase();
+  const embeddedWalletAddress = normalizeEvmAddress(sessionUser?.walletAddress);
+  const externalWalletAddress = normalizeEvmAddress(address);
+  const activeAddress = externalWalletAddress || embeddedWalletAddress;
+  const activeWalletKind: "EXTERNAL" | "EMBEDDED" | null = externalWalletAddress
+    ? "EXTERNAL"
+    : embeddedWalletAddress && sessionWalletKind === "EMBEDDED"
+    ? "EMBEDDED"
+    : null;
+  const walletReady = Boolean(isConnected || embeddedWalletAddress);
+  const effectiveChainId =
+    activeWalletKind === "EMBEDDED" ? embeddedChainId : currentChainId;
 
   const STANDARD_MARKETPLACE_ADDRESS = useMemo(() => {
     return toLower(
@@ -745,8 +850,8 @@ export default function TradingPanel1155({
   }, []);
 
   const nftAddr = useMemo(() => toLower(contract), [contract]);
-  const me = useMemo(() => toLower(address), [address]);
-  const canTradeOnThisChain = currentChainId === chainId;
+  const me = useMemo(() => toLower(activeAddress), [activeAddress]);
+  const canTradeOnThisChain = walletReady && effectiveChainId === chainId;
   const contractView = useMemo(() => classifyContractView(nftAddr), [nftAddr]);
 
   const [loading, setLoading] = useState(!initialMarketData);
@@ -957,11 +1062,11 @@ export default function TradingPanel1155({
     address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
     functionName: "balanceOf",
     args: [
-      (address || "0x0000000000000000000000000000000000000000") as `0x${string}`,
+      (activeAddress || ZERO_ADDRESS) as `0x${string}`,
       tokenIdBI,
     ],
     query: {
-      enabled: Boolean(address && nftAddr.startsWith("0x")),
+      enabled: Boolean(activeAddress && nftAddr.startsWith("0x")),
     },
   });
 
@@ -970,12 +1075,12 @@ export default function TradingPanel1155({
     address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
     functionName: "isApprovedForAll",
     args: [
-      (address || "0x0000000000000000000000000000000000000000") as `0x${string}`,
+      (activeAddress || ZERO_ADDRESS) as `0x${string}`,
       (sellMarketplaceAddress ||
         "0x0000000000000000000000000000000000000000") as `0x${string}`,
     ],
     query: {
-      enabled: Boolean(address && hasSellMarketplace && nftAddr.startsWith("0x")),
+      enabled: Boolean(activeAddress && hasSellMarketplace && nftAddr.startsWith("0x")),
     },
   });
 
@@ -1073,7 +1178,7 @@ export default function TradingPanel1155({
           blockNum: "0",
           blockTime: new Date().toISOString(),
           sellerWallet: listing.sellerWallet,
-          buyerWallet: address || "",
+          buyerWallet: activeAddress || "",
           amount: amountBought.toString(),
           pricePerUnitWei: listing.pricePerUnitWei,
           totalPriceWei: total.toString(),
@@ -1103,7 +1208,7 @@ export default function TradingPanel1155({
 
       hasRenderableDataRef.current = true;
     },
-    [address]
+    [activeAddress]
   );
 
   const [selectedListingKey, setSelectedListingKey] = useState<string | null>(null);
@@ -1256,10 +1361,89 @@ export default function TradingPanel1155({
     [refresh, refetchBalance, refetchApproved]
   );
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncEmbeddedChain() {
+      if (activeWalletKind !== "EMBEDDED" || !embeddedProvider) {
+        setEmbeddedChainId(undefined);
+        return;
+      }
+
+      const nextChainId = await readProviderChainId(embeddedProvider);
+      if (!cancelled) setEmbeddedChainId(nextChainId);
+    }
+
+    void syncEmbeddedChain();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWalletKind, embeddedProvider]);
+
   async function ensureChain() {
-    if (!canTradeOnThisChain) {
+    if (!walletReady || !activeAddress) {
+      openConnectModal?.();
+      throw new Error("Connect wallet first.");
+    }
+
+    if (activeWalletKind === "EMBEDDED") {
+      await ensureEmbeddedChain(embeddedProvider, chainId);
+      const nextChainId = await readProviderChainId(embeddedProvider);
+      setEmbeddedChainId(nextChainId);
+      return;
+    }
+
+    if (currentChainId !== chainId) {
       await switchChainAsync?.({ chainId });
     }
+  }
+
+  async function sendActiveContractTransaction(params: {
+    abi: any;
+    address: `0x${string}`;
+    functionName: string;
+    args?: any[];
+    value?: bigint;
+  }) {
+    if (activeWalletKind === "EMBEDDED") {
+      if (!embeddedProvider || !activeAddress) {
+        throw new Error(
+          "Embedded wallet provider is not ready. Please click Continue with Google again."
+        );
+      }
+
+      const data = encodeFunctionData({
+        abi: params.abi,
+        functionName: params.functionName as any,
+        args: (params.args || []) as any,
+      });
+
+      const tx: Record<string, string> = {
+        from: activeAddress,
+        to: params.address,
+        data,
+      };
+
+      if (params.value && params.value > 0n) tx.value = toHex(params.value);
+
+      const rawHash = await embeddedProvider.request({
+        method: "eth_sendTransaction",
+        params: [tx],
+      });
+
+      const hash = normalizeTxHash(rawHash);
+      if (!hash) throw new Error("Embedded wallet did not return transaction hash.");
+      return hash;
+    }
+
+    return writeContractAsync({
+      abi: params.abi,
+      address: params.address,
+      functionName: params.functionName as any,
+      args: (params.args || []) as any,
+      value: params.value,
+    } as any);
   }
 
   async function afterMarketTx(opts?: {
@@ -1315,7 +1499,7 @@ export default function TradingPanel1155({
   }, [chainId, nftAddr, tokenId]);
 
   async function approveAll() {
-    if (!isConnected) {
+    if (!walletReady) {
       pushToast("info", "Wallet required", "Connect wallet to continue.");
       return openConnectModal?.();
     }
@@ -1330,7 +1514,7 @@ export default function TradingPanel1155({
 
       pushToast("info", "Wallet opened", `Confirm approval for ${marketLabel(sellMarketType)} market.`);
 
-      const hash = await writeContractAsync({
+      const hash = await sendActiveContractTransaction({
         abi: erc1155CoreAbi,
         address: nftAddr as `0x${string}`,
         functionName: "setApprovalForAll",
@@ -1354,7 +1538,7 @@ export default function TradingPanel1155({
   }
 
   async function listNow() {
-    if (!isConnected) {
+    if (!walletReady) {
       pushToast("info", "Wallet required", "Connect wallet to list this NFT.");
       return openConnectModal?.();
     }
@@ -1395,7 +1579,7 @@ export default function TradingPanel1155({
 
       pushToast("info", "Wallet opened", "Confirm the listing transaction in your wallet.");
 
-      const hash = await writeContractAsync({
+      const hash = await sendActiveContractTransaction({
         abi: sellMarketplaceAbi as any,
         address: sellMarketplaceAddress as `0x${string}`,
         functionName: "list1155",
@@ -1434,7 +1618,7 @@ export default function TradingPanel1155({
   }
 
   async function cancelListing(listing: Listing) {
-    if (!isConnected) {
+    if (!walletReady) {
       pushToast("info", "Wallet required", "Connect wallet to cancel your listing.");
       return openConnectModal?.();
     }
@@ -1475,7 +1659,7 @@ export default function TradingPanel1155({
 
       pushToast("info", "Wallet opened", "Confirm listing cancellation in your wallet.");
 
-      const hash = await writeContractAsync({
+      const hash = await sendActiveContractTransaction({
         abi: listingMarketplaceAbi as any,
         address: listingMarketplaceAddress as `0x${string}`,
         functionName: "cancel",
@@ -1508,7 +1692,7 @@ export default function TradingPanel1155({
   }
 
   async function buyNow() {
-    if (!isConnected) {
+    if (!walletReady) {
       pushToast("info", "Wallet required", "Connect wallet to buy this NFT.");
       return openConnectModal?.();
     }
@@ -1534,7 +1718,7 @@ export default function TradingPanel1155({
 
       pushToast("info", "Wallet opened", "Confirm the purchase transaction in your wallet.");
 
-      const hash = await writeContractAsync({
+      const hash = await sendActiveContractTransaction({
         abi: selectedListingMarketplaceAbi as any,
         address: selectedListingMarketplaceAddress as `0x${string}`,
         functionName: "buy",
@@ -1589,7 +1773,7 @@ export default function TradingPanel1155({
 
   const sellDisabled =
     busy !== null ||
-    !isConnected ||
+    !walletReady ||
     !hasSellMarketplace ||
     !canTradeOnThisChain ||
     !isApproved ||
@@ -1598,7 +1782,7 @@ export default function TradingPanel1155({
 
   const buyDisabled =
     busy !== null ||
-    !isConnected ||
+    !walletReady ||
     !hasSelectedListingMarketplace ||
     !canTradeOnThisChain ||
     !selectedListing ||
@@ -1627,7 +1811,7 @@ export default function TradingPanel1155({
       : viewingOwnListing
       ? "You selected your own listing. Use cancel instead of buy."
       : "You are in buyer mode. Pick a listing and confirm the amount.";
-  const mobilePrimaryLabel = !isConnected
+  const mobilePrimaryLabel = !walletReady
     ? "Connect wallet"
     : !canTradeOnThisChain
     ? `Switch to ${chainId}`
@@ -1644,7 +1828,7 @@ export default function TradingPanel1155({
     : busy === "buy"
     ? "Buying…"
     : "Buy now";
-  const mobilePrimaryDisabled = !isConnected
+  const mobilePrimaryDisabled = !walletReady
     ? false
     : !canTradeOnThisChain
     ? false
@@ -1654,12 +1838,12 @@ export default function TradingPanel1155({
     ? Boolean(
         !selectedListing ||
           busy !== null ||
-          !isConnected
+          !walletReady
       )
     : buyDisabled;
   const mobilePrimaryAction = () => {
-    if (!isConnected) return openConnectModal?.();
-    if (!canTradeOnThisChain) return switchChainAsync?.({ chainId });
+    if (!walletReady) return openConnectModal?.();
+    if (!canTradeOnThisChain) return void ensureChain();
     if (tab === "sell") {
       if (!isApproved && hasSellMarketplace) return approveAll();
       return listNow();
@@ -1778,7 +1962,7 @@ export default function TradingPanel1155({
           </div>
 
           <div className="mt-6 flex flex-wrap items-center gap-2">
-            {!isConnected ? (
+            {!walletReady ? (
               <button
                 onClick={() => openConnectModal?.()}
                 className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-5 py-3 font-extrabold text-black ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] transition hover:brightness-110"
@@ -1787,20 +1971,20 @@ export default function TradingPanel1155({
               </button>
             ) : null}
 
-            {isConnected && !canTradeOnThisChain ? (
+            {walletReady && !canTradeOnThisChain ? (
               <button
-                onClick={() => switchChainAsync?.({ chainId })}
+                onClick={() => void ensureChain()}
                 className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-5 py-3 font-extrabold transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
               >
                 Switch Chain ({chainId})
               </button>
             ) : null}
 
-            {isConnected ? (
+            {walletReady ? (
               <div className="text-[12px] font-semibold text-white/55">
                 Wallet:{" "}
                 <span className="font-mono text-white/80">
-                  {shortAddr(address || "")}
+                  {shortAddr(activeAddress || "")}
                 </span>
               </div>
             ) : null}
@@ -1812,7 +1996,7 @@ export default function TradingPanel1155({
               </span>
             </div>
 
-            {isConnected ? (
+            {walletReady ? (
               <div className="text-[12px] font-semibold text-white/55">
                 Approval:{" "}
                 <span className={isApproved ? "text-emerald-200" : "text-amber-100"}>
@@ -1888,7 +2072,7 @@ export default function TradingPanel1155({
                   </div>
                 </div>
 
-                {!isApproved && isConnected && hasSellMarketplace ? (
+                {!isApproved && walletReady && hasSellMarketplace ? (
                   <button
                     disabled={busy !== null}
                     onClick={approveAll}
@@ -1903,7 +2087,7 @@ export default function TradingPanel1155({
                   </button>
                 ) : (
                   <div className="text-[12px] font-semibold text-white/50">
-                    {isConnected
+                    {walletReady
                       ? isApproved
                         ? "Approved ✅"
                         : "Approval required"
@@ -2177,7 +2361,7 @@ export default function TradingPanel1155({
                               {isMine ? (
                                 <button
                                   type="button"
-                                  disabled={isCancelling || busy !== null || !isConnected}
+                                  disabled={isCancelling || busy !== null || !walletReady}
                                   onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();

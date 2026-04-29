@@ -6,6 +6,7 @@ import NftMedia from "@/components/NftMedia";
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { baseSepolia } from "wagmi/chains";
 
 function useMounted() {
@@ -211,7 +212,22 @@ export default function SuccessClient({
 }) {
   const mounted = useMounted();
   const sp = useSearchParams();
+  const { data: session, status: sessionStatus } = useSession();
   const fullChainId = baseSepolia.id;
+
+  const sessionUser = ((session as any)?.user || {}) as any;
+  const sessionViewerKey = String(
+    sessionUser?.handle ||
+      sessionUser?.publicId ||
+      (session as any)?.handle ||
+      (session as any)?.publicId ||
+      ""
+  ).trim();
+  const sessionWalletAddress = String(sessionUser?.walletAddress || "").trim();
+  const sessionWalletKind = String(sessionUser?.walletKind || "").trim().toUpperCase();
+  const sessionEmbeddedProvider = String(
+    sessionUser?.embeddedWalletProvider || ""
+  ).trim();
 
   const [resolvedViewerKey, setResolvedViewerKey] = useState(
     initialViewerKey || ""
@@ -314,6 +330,16 @@ export default function SuccessClient({
     ? `/u/${resolvedViewerKey}/nfts`
     : "/app/profile";
 
+  const walletProofLabel = useMemo(() => {
+    if (!sessionWalletAddress) return "";
+    if (sessionWalletKind === "EMBEDDED") {
+      return sessionEmbeddedProvider
+        ? `${sessionEmbeddedProvider} embedded wallet`
+        : "Embedded wallet";
+    }
+    return "External wallet";
+  }, [sessionEmbeddedProvider, sessionWalletAddress, sessionWalletKind]);
+
   const [copied, setCopied] = useState<"" | "tx" | "link">("");
 
   useEffect(() => {
@@ -321,6 +347,13 @@ export default function SuccessClient({
       setResolvedViewerKey(initialViewerKey);
       return;
     }
+
+    if (sessionViewerKey) {
+      setResolvedViewerKey(sessionViewerKey);
+      return;
+    }
+
+    if (sessionStatus === "loading") return;
 
     let alive = true;
 
@@ -350,7 +383,7 @@ export default function SuccessClient({
     return () => {
       alive = false;
     };
-  }, [initialViewerKey, mounted]);
+  }, [initialViewerKey, mounted, sessionStatus, sessionViewerKey]);
 
   useEffect(() => {
     if (!previewOpen) return;
@@ -669,6 +702,18 @@ export default function SuccessClient({
                       <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_0_6px_rgba(16,185,129,0.12)]" />
                       Mint confirmed • Base Sepolia • Explorer proof
                     </Pill>
+
+                    {walletProofLabel ? (
+                      <Pill>
+                        <span className="text-white/55">Wallet:</span>
+                        <span className="font-extrabold text-white/80">
+                          {walletProofLabel}
+                        </span>
+                        <span className="font-mono text-white/60">
+                          {shortAddr(sessionWalletAddress)}
+                        </span>
+                      </Pill>
+                    ) : null}
 
                     <div className="mt-3 flex flex-wrap gap-2">
                       <Pill>

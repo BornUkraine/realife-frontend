@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
 import { createPortal } from "react-dom";
 import {
   useAccount,
@@ -11,7 +12,8 @@ import {
   useReadContract,
 } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { parseUnits, formatUnits } from "viem";
+import { encodeFunctionData, parseUnits, formatUnits, toHex } from "viem";
+import { useWeb3Auth } from "@web3auth/modal/react";
 
 import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
@@ -46,6 +48,89 @@ type UiToast = {
   text?: string;
   tone?: UiToastTone;
 };
+
+
+type Eip1193Provider = {
+  request: (args: {
+    method: string;
+    params?: unknown[] | Record<string, unknown>;
+  }) => Promise<unknown>;
+};
+
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
+function normalizeEvmAddress(v: unknown): `0x${string}` | undefined {
+  const s = String(v || "").trim().toLowerCase();
+  return /^0x[a-f0-9]{40}$/.test(s) ? (s as `0x${string}`) : undefined;
+}
+
+function normalizeTxHash(v: unknown): `0x${string}` | undefined {
+  const s = String(v || "").trim().toLowerCase();
+  return /^0x[a-f0-9]{64}$/.test(s) ? (s as `0x${string}`) : undefined;
+}
+
+function parseRpcChainId(v: unknown): number | undefined {
+  const s = String(v || "").trim();
+  if (!s) return undefined;
+  const n = s.startsWith("0x") ? Number.parseInt(s, 16) : Number(s);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+async function readProviderChainId(provider: Eip1193Provider | null) {
+  if (!provider) return undefined;
+  const raw = await provider.request({ method: "eth_chainId" }).catch(() => null);
+  return parseRpcChainId(raw);
+}
+
+function chainAddParams(chainId: number) {
+  if (chainId === 84532) {
+    return {
+      chainId: toHex(chainId),
+      chainName: "Base Sepolia",
+      nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+      rpcUrls: ["https://sepolia.base.org"],
+      blockExplorerUrls: ["https://sepolia.basescan.org"],
+    };
+  }
+
+  return null;
+}
+
+async function ensureEmbeddedChain(provider: Eip1193Provider | null, chainId: number) {
+  if (!provider) {
+    throw new Error(
+      "Embedded wallet provider is not ready. Please click Continue with Google again."
+    );
+  }
+
+  const currentChainId = await readProviderChainId(provider);
+  if (currentChainId === chainId) return;
+
+  const chainIdHex = toHex(chainId);
+
+  try {
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
+    });
+  } catch (switchError: any) {
+    const code = switchError?.code ?? switchError?.data?.originalError?.code;
+    const addParams = chainAddParams(chainId);
+
+    if (code !== 4902 || !addParams) throw switchError;
+
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: [addParams],
+    });
+
+    await provider.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: chainIdHex }],
+    });
+  }
+}
+
 
 function cx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
@@ -387,12 +472,32 @@ export default function QuickList1155({
   preferredMarketType?: MarketType;
   onListed?: (payload: QuickListListedPayload) => void;
 }) {
+  const { data: session } = useSession();
+  const { provider: web3AuthProviderRaw } = useWeb3Auth();
+  const embeddedProvider = (web3AuthProviderRaw as Eip1193Provider | null) || null;
+
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient();
   const { openConnectModal } = useConnectModal();
   const { writeContractAsync } = useWriteContract();
+
+  const [embeddedChainId, setEmbeddedChainId] = useState<number | undefined>(undefined);
+
+  const sessionUser = (session as any)?.user || null;
+  const sessionWalletKind = String(sessionUser?.walletKind || "").toUpperCase();
+  const embeddedWalletAddress = normalizeEvmAddress(sessionUser?.walletAddress);
+  const externalWalletAddress = normalizeEvmAddress(address);
+  const activeAddress = externalWalletAddress || embeddedWalletAddress;
+  const activeWalletKind: "EXTERNAL" | "EMBEDDED" | null = externalWalletAddress
+    ? "EXTERNAL"
+    : embeddedWalletAddress && sessionWalletKind === "EMBEDDED"
+    ? "EMBEDDED"
+    : null;
+  const walletReady = Boolean(isConnected || embeddedWalletAddress);
+  const effectiveChainId =
+    activeWalletKind === "EMBEDDED" ? embeddedChainId : currentChainId;
 
   const STANDARD_MARKETPLACE_ADDRESS = useMemo(() => {
     return toLower(
@@ -415,7 +520,7 @@ export default function QuickList1155({
   }, []);
 
   const nftAddr = useMemo(() => toLower(contract), [contract]);
-  const needSwitch = isConnected && currentChainId !== chainId;
+  const needSwitch = walletReady && effectiveChainId !== chainId;
   const contractView = useMemo(() => classifyContractView(nftAddr), [nftAddr]);
 
   const tokenIdBI = useMemo(() => {
@@ -510,11 +615,11 @@ export default function QuickList1155({
     functionName: "balanceOf",
     args: [
       (
-        (address || "0x0000000000000000000000000000000000000000") as `0x${string}`
+        (activeAddress || ZERO_ADDRESS) as `0x${string}`
       ),
       tokenIdBI,
     ],
-    query: { enabled: Boolean(address && nftAddr.startsWith("0x")) },
+    query: { enabled: Boolean(activeAddress && nftAddr.startsWith("0x")) },
   });
 
   const balance = useMemo(() => {
@@ -541,7 +646,7 @@ export default function QuickList1155({
     functionName: "isApprovedForAll",
     args: [
       (
-        (address || "0x0000000000000000000000000000000000000000") as `0x${string}`
+        (activeAddress || ZERO_ADDRESS) as `0x${string}`
       ),
       (
         (marketplaceAddress ||
@@ -549,7 +654,7 @@ export default function QuickList1155({
       ),
     ],
     query: {
-      enabled: Boolean(address && hasMarketplace && nftAddr.startsWith("0x")),
+      enabled: Boolean(activeAddress && hasMarketplace && nftAddr.startsWith("0x")),
     },
   });
 
@@ -621,10 +726,89 @@ export default function QuickList1155({
     };
   }, [open]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncEmbeddedChain() {
+      if (activeWalletKind !== "EMBEDDED" || !embeddedProvider) {
+        setEmbeddedChainId(undefined);
+        return;
+      }
+
+      const nextChainId = await readProviderChainId(embeddedProvider);
+      if (!cancelled) setEmbeddedChainId(nextChainId);
+    }
+
+    void syncEmbeddedChain();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWalletKind, embeddedProvider]);
+
   async function ensureChain() {
-    if (needSwitch) {
+    if (!walletReady || !activeAddress) {
+      openConnectModal?.();
+      throw new Error("Connect wallet first.");
+    }
+
+    if (activeWalletKind === "EMBEDDED") {
+      await ensureEmbeddedChain(embeddedProvider, chainId);
+      const nextChainId = await readProviderChainId(embeddedProvider);
+      setEmbeddedChainId(nextChainId);
+      return;
+    }
+
+    if (currentChainId !== chainId) {
       await switchChainAsync?.({ chainId });
     }
+  }
+
+  async function sendActiveContractTransaction(params: {
+    abi: any;
+    address: `0x${string}`;
+    functionName: string;
+    args?: any[];
+    value?: bigint;
+  }) {
+    if (activeWalletKind === "EMBEDDED") {
+      if (!embeddedProvider || !activeAddress) {
+        throw new Error(
+          "Embedded wallet provider is not ready. Please click Continue with Google again."
+        );
+      }
+
+      const data = encodeFunctionData({
+        abi: params.abi,
+        functionName: params.functionName as any,
+        args: (params.args || []) as any,
+      });
+
+      const tx: Record<string, string> = {
+        from: activeAddress,
+        to: params.address,
+        data,
+      };
+
+      if (params.value && params.value > 0n) tx.value = toHex(params.value);
+
+      const rawHash = await embeddedProvider.request({
+        method: "eth_sendTransaction",
+        params: [tx],
+      });
+
+      const hash = normalizeTxHash(rawHash);
+      if (!hash) throw new Error("Embedded wallet did not return transaction hash.");
+      return hash;
+    }
+
+    return writeContractAsync({
+      abi: params.abi,
+      address: params.address,
+      functionName: params.functionName as any,
+      args: (params.args || []) as any,
+      value: params.value,
+    } as any);
   }
 
   async function revalidateAfterList() {
@@ -671,7 +855,7 @@ export default function QuickList1155({
   }, [chainId, nftAddr, tokenId]);
 
   async function approveAll() {
-    if (!isConnected) return openConnectModal?.();
+    if (!walletReady) return openConnectModal?.();
     if (!hasMarketplace) return;
 
     setErr(null);
@@ -682,7 +866,7 @@ export default function QuickList1155({
     try {
       await ensureChain();
 
-      const hash = await writeContractAsync({
+      const hash = await sendActiveContractTransaction({
         abi: erc1155CoreAbi,
         address: nftAddr as `0x${string}`,
         functionName: "setApprovalForAll",
@@ -748,7 +932,7 @@ export default function QuickList1155({
   }, [refetchApproved, refetchBalance]);
 
   async function listNow() {
-    if (!isConnected) return openConnectModal?.();
+    if (!walletReady) return openConnectModal?.();
     if (!hasMarketplace) return;
     if (!priceWei) {
       setErr("Enter valid price");
@@ -776,7 +960,7 @@ export default function QuickList1155({
             ]
           : [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei];
 
-      const hash = await writeContractAsync({
+      const hash = await sendActiveContractTransaction({
         abi: marketplaceAbi as any,
         address: marketplaceAddress as `0x${string}`,
         functionName: "list1155",
@@ -823,14 +1007,14 @@ export default function QuickList1155({
   const disabledApprove =
     busy !== null ||
     refreshing ||
-    !isConnected ||
+    !walletReady ||
     needSwitch ||
     !hasMarketplace ||
     isApproved;
   const disabledList =
     busy !== null ||
     refreshing ||
-    !isConnected ||
+    !walletReady ||
     needSwitch ||
     !hasMarketplace ||
     !isApproved ||
@@ -1039,7 +1223,7 @@ export default function QuickList1155({
                     </div>
                   ) : null}
 
-                  {!isConnected ? (
+                  {!walletReady ? (
                     <button
                       onClick={() => openConnectModal?.()}
                       className="mt-3 inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2.5 font-extrabold text-black ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] transition hover:brightness-110"
@@ -1050,7 +1234,7 @@ export default function QuickList1155({
 
                   {needSwitch ? (
                     <button
-                      onClick={() => switchChainAsync?.({ chainId })}
+                      onClick={() => void ensureChain()}
                       className="mt-3 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-extrabold text-white transition hover:bg-white/10"
                     >
                       Switch Chain

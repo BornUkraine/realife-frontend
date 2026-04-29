@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useWeb3Auth } from "@web3auth/modal/react";
+import { encodeFunctionData } from "viem";
 import {
   useAccount,
   useChainId,
@@ -72,6 +75,50 @@ const erc20Abi = [
 ] as const;
 
 const MAX_UINT256 = (1n << 256n) - 1n;
+
+type Eip1193Provider = {
+  request: (args: { method: string; params?: unknown[] | Record<string, unknown> }) => Promise<unknown>;
+};
+
+type TxRequest = {
+  from: `0x${string}`;
+  to: `0x${string}`;
+  data?: `0x${string}`;
+  value?: `0x${string}`;
+};
+
+function normalizeEvmAddress(v: unknown) {
+  const s = String(v || "").trim().toLowerCase();
+  return /^0x[a-f0-9]{40}$/.test(s) ? (s as `0x${string}`) : null;
+}
+
+function parseChainIdNumber(v: unknown) {
+  const s = String(v || "").trim();
+  if (!s) return null;
+
+  const n = s.startsWith("0x") ? Number.parseInt(s, 16) : Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toHexQuantity(v: number | bigint) {
+  const bi = typeof v === "bigint" ? v : BigInt(Math.trunc(v));
+  return `0x${bi.toString(16)}` as `0x${string}`;
+}
+
+async function sendEmbeddedTransaction(provider: Eip1193Provider, tx: TxRequest) {
+  const hash = await provider.request({
+    method: "eth_sendTransaction",
+    params: [tx],
+  });
+
+  const h = String(hash || "");
+  if (!/^0x[a-fA-F0-9]{64}$/.test(h)) {
+    throw new Error("Embedded wallet did not return a valid transaction hash.");
+  }
+
+  return h as `0x${string}`;
+}
+
 
 const DELIVERY_CREATE_ENDPOINT = "/api/delivery/orders/create";
 const LEGACY_STORE_CREATE_ENDPOINT = "/api/store/orders/create";
@@ -157,6 +204,9 @@ export default function StorefrontBuyPanel1155({
 }) {
   const router = useRouter();
 
+  const { data: session, status } = useSession();
+  const { provider: web3AuthProvider } = useWeb3Auth();
+
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
@@ -165,7 +215,43 @@ export default function StorefrontBuyPanel1155({
   const { openConnectModal } = useConnectModal();
 
   const nftAddr = useMemo(() => toLower(nftContract), [nftContract]);
-  const me = useMemo(() => toLower(address), [address]);
+
+  const externalAddress = useMemo(() => normalizeEvmAddress(address), [address]);
+  const embeddedAddress = useMemo(() => {
+    if (status !== "authenticated") return null;
+
+    const user = (session as any)?.user || {};
+    const walletKind = String(user.walletKind || "").toUpperCase();
+    if (walletKind !== "EMBEDDED") return null;
+
+    return normalizeEvmAddress(user.walletAddress);
+  }, [session, status]);
+
+  const activeAddress = externalAddress || embeddedAddress;
+  const activeWalletKind = externalAddress ? "EXTERNAL" : embeddedAddress ? "EMBEDDED" : null;
+  const hasActiveWallet = Boolean(activeAddress);
+  const isEmbeddedWallet = activeWalletKind === "EMBEDDED";
+  const embeddedProvider = web3AuthProvider as Eip1193Provider | null;
+
+  const [embeddedChainId, setEmbeddedChainId] = useState<number | null>(null);
+
+  const refreshEmbeddedChain = useCallback(async () => {
+    if (!isEmbeddedWallet || !embeddedProvider) {
+      setEmbeddedChainId(null);
+      return null;
+    }
+
+    const raw = await embeddedProvider.request({ method: "eth_chainId" }).catch(() => null);
+    const parsed = parseChainIdNumber(raw);
+    setEmbeddedChainId(parsed);
+    return parsed;
+  }, [embeddedProvider, isEmbeddedWallet]);
+
+  useEffect(() => {
+    void refreshEmbeddedChain();
+  }, [refreshEmbeddedChain]);
+
+  const me = useMemo(() => toLower(activeAddress), [activeAddress]);
 
   const storefrontContract = useMemo(
     () => toLower(buyConfig?.contract || ""),
@@ -214,13 +300,13 @@ export default function StorefrontBuyPanel1155({
       "0x0000000000000000000000000000000000000000") as `0x${string}`,
     functionName: "allowance",
     args: [
-      ((address ||
+      ((activeAddress ||
         "0x0000000000000000000000000000000000000000") as `0x${string}`),
       ((erc20Spender ||
         "0x0000000000000000000000000000000000000000") as `0x${string}`),
     ],
     query: {
-      enabled: Boolean(isConnected && hasErc20Payment),
+      enabled: Boolean(hasActiveWallet && hasErc20Payment),
     },
   });
 
@@ -232,7 +318,12 @@ export default function StorefrontBuyPanel1155({
     }
   }, [allowanceRaw]);
 
-  const needSwitch = isConnected && currentChainId !== chainId;
+  const needSwitch = Boolean(
+    hasActiveWallet &&
+      (isEmbeddedWallet
+        ? embeddedChainId !== null && embeddedChainId !== chainId
+        : isConnected && currentChainId !== chainId)
+  );
   const needsApproval = Boolean(hasErc20Payment && allowance < requiredErc20Amount);
 
   const [busy, setBusy] = useState<string | null>(null);
@@ -280,6 +371,25 @@ export default function StorefrontBuyPanel1155({
   }
 
   async function ensureChain() {
+    if (!activeAddress) throw new Error("Connect wallet first.");
+
+    if (isEmbeddedWallet) {
+      if (!embeddedProvider) {
+        throw new Error("Embedded wallet provider is not ready. Please reconnect with Google.");
+      }
+
+      const current = await refreshEmbeddedChain();
+      if (current === chainId) return;
+
+      await embeddedProvider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: toHexQuantity(chainId) }],
+      });
+
+      await refreshEmbeddedChain();
+      return;
+    }
+
     if (needSwitch) {
       await switchChainAsync?.({ chainId });
     }
@@ -348,7 +458,7 @@ export default function StorefrontBuyPanel1155({
   }
 
   async function approveToken() {
-    if (!isConnected) return openConnectModal?.();
+    if (!activeAddress) return openConnectModal?.();
     if (!hasErc20Payment || !erc20Payment) return;
 
     setErr(null);
@@ -362,12 +472,22 @@ export default function StorefrontBuyPanel1155({
         ? MAX_UINT256
         : requiredErc20Amount;
 
-      const hash = await writeContractAsync({
-        abi: erc20Abi,
-        address: erc20Token as `0x${string}`,
-        functionName: "approve",
-        args: [erc20Spender as `0x${string}`, approveAmount],
-      });
+      const hash = isEmbeddedWallet
+        ? await sendEmbeddedTransaction(embeddedProvider as Eip1193Provider, {
+            from: activeAddress,
+            to: erc20Token as `0x${string}`,
+            data: encodeFunctionData({
+              abi: erc20Abi,
+              functionName: "approve",
+              args: [erc20Spender as `0x${string}`, approveAmount],
+            }),
+          })
+        : await writeContractAsync({
+            abi: erc20Abi,
+            address: erc20Token as `0x${string}`,
+            functionName: "approve",
+            args: [erc20Spender as `0x${string}`, approveAmount],
+          });
 
       await publicClient?.waitForTransactionReceipt({ hash });
       await refetchAllowance();
@@ -381,7 +501,7 @@ export default function StorefrontBuyPanel1155({
   }
 
   async function buyNow() {
-    if (!isConnected) return openConnectModal?.();
+    if (!activeAddress) return openConnectModal?.();
     if (!buyConfig) return;
     if (!active || isSoldOut) return;
 
@@ -403,13 +523,24 @@ export default function StorefrontBuyPanel1155({
       const args = normalizeBuyArgs(cfg);
       const value = cfg.valueWei ? BigInt(cfg.valueWei) : undefined;
 
-      const hash = await writeContractAsync({
-        abi: cfg.abi as any,
-        address: storefrontContract as `0x${string}`,
-        functionName: cfg.functionName as any,
-        args: args as any,
-        ...(value !== undefined ? { value } : {}),
-      });
+      const hash = isEmbeddedWallet
+        ? await sendEmbeddedTransaction(embeddedProvider as Eip1193Provider, {
+            from: activeAddress,
+            to: storefrontContract as `0x${string}`,
+            data: encodeFunctionData({
+              abi: cfg.abi as any,
+              functionName: cfg.functionName as any,
+              args: args as any,
+            }),
+            ...(value !== undefined ? { value: toHexQuantity(value) } : {}),
+          })
+        : await writeContractAsync({
+            abi: cfg.abi as any,
+            address: storefrontContract as `0x${string}`,
+            functionName: cfg.functionName as any,
+            args: args as any,
+            ...(value !== undefined ? { value } : {}),
+          });
 
       await publicClient?.waitForTransactionReceipt({ hash });
 
@@ -644,7 +775,7 @@ export default function StorefrontBuyPanel1155({
           ) : null}
 
           <div className="mt-5 flex flex-wrap items-center gap-2">
-            {!isConnected ? (
+            {!hasActiveWallet ? (
               <button
                 onClick={() => openConnectModal?.()}
                 className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
@@ -655,14 +786,14 @@ export default function StorefrontBuyPanel1155({
 
             {needSwitch ? (
               <button
-                onClick={() => switchChainAsync?.({ chainId })}
+                onClick={() => void ensureChain()}
                 className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition"
               >
                 Switch Chain ({chainId})
               </button>
             ) : null}
 
-            {isConnected ? (
+            {hasActiveWallet ? (
               <div className="text-[12px] text-white/55 font-semibold">
                 Wallet: <span className="font-mono text-white/80">{shortAddr(me)}</span>
               </div>
@@ -697,7 +828,7 @@ export default function StorefrontBuyPanel1155({
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 {needsApproval ? (
                   <button
-                    disabled={busy !== null || !isConnected || needSwitch}
+                    disabled={busy !== null || !hasActiveWallet || needSwitch}
                     onClick={approveToken}
                     className={cx(
                       "inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition",
@@ -719,7 +850,7 @@ export default function StorefrontBuyPanel1155({
             <button
               disabled={
                 busy !== null ||
-                !isConnected ||
+                !hasActiveWallet ||
                 needSwitch ||
                 !canBuy ||
                 (hasErc20Payment ? needsApproval : false)

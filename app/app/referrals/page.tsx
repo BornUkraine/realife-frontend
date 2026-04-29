@@ -1,8 +1,20 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Reveal from "@/components/Reveal";
+import { useSession } from "next-auth/react";
 import { useAccount, useSignMessage } from "wagmi";
+import { useWeb3Auth } from "@web3auth/modal/react";
+
+
+type Eip1193Provider = {
+  request: (args: { method: string; params?: unknown[] | Record<string, unknown> }) => Promise<unknown>;
+};
+
+function normalizeWallet(v?: string | null) {
+  const s = String(v || "").trim().toLowerCase();
+  return /^0x[a-f0-9]{40}$/.test(s) ? s : "";
+}
 
 type RefMe = {
   ok: boolean;
@@ -189,8 +201,28 @@ Issued At: ${params.issuedAt}`;
 }
 
 export default function ReferralsPage() {
+  const { data: session } = useSession();
+  const { provider: embeddedProviderRaw } = useWeb3Auth();
+
   const { address, isConnected } = useAccount();
   const { signMessageAsync } = useSignMessage();
+
+  const sessionWallet = normalizeWallet(
+    ((session as any)?.user?.walletAddress as string | undefined) ||
+      ((session as any)?.walletAddress as string | undefined) ||
+      ""
+  );
+  const sessionWalletKind = String((session as any)?.user?.walletKind || "").toUpperCase();
+  const embeddedProvider = embeddedProviderRaw as Eip1193Provider | null;
+
+  const activeAddress = normalizeWallet(address || "") || sessionWallet;
+  const activeWalletKind = normalizeWallet(address || "")
+    ? "EXTERNAL"
+    : sessionWalletKind === "EMBEDDED"
+    ? "EMBEDDED"
+    : sessionWallet
+    ? "SESSION"
+    : "";
 
   const [me, setMe] = useState<RefMe | null>(null);
   const [loading, setLoading] = useState(true);
@@ -295,16 +327,43 @@ export default function ReferralsPage() {
     return String(j.nonce);
   }
 
+  const signWithActiveWallet = useCallback(
+    async (message: string) => {
+      if (!activeAddress) throw new Error("Connect wallet first.");
+
+      if (activeWalletKind === "EXTERNAL" && isConnected && address) {
+        return signMessageAsync({ message });
+      }
+
+      if (activeWalletKind === "EMBEDDED") {
+        if (!embeddedProvider) {
+          throw new Error(
+            "Embedded wallet provider is not ready. Please reconnect with Google and try again."
+          );
+        }
+
+        const sig = await embeddedProvider.request({
+          method: "personal_sign",
+          params: [message, activeAddress],
+        });
+
+        return String(sig || "");
+      }
+
+      throw new Error("Connect wallet first.");
+    },
+    [activeAddress, activeWalletKind, address, embeddedProvider, isConnected, signMessageAsync]
+  );
+
   async function requireWalletReady() {
-    if (!isConnected || !address) throw new Error("Connect wallet first.");
+    if (!activeAddress) throw new Error("Connect wallet first.");
     if (!serverWalletOk) {
       throw new Error("Verify wallet in top bar (signature once) first.");
     }
-    if (
-      me?.walletAddress &&
-      address.toLowerCase() !== me.walletAddress.toLowerCase()
-    ) {
-      throw new Error("Connected wallet differs from verified wallet.");
+
+    const verified = normalizeWallet(me?.walletAddress || "");
+    if (verified && activeAddress !== verified) {
+      throw new Error("Active wallet differs from verified wallet.");
     }
   }
 
@@ -329,7 +388,7 @@ export default function ReferralsPage() {
         origin,
         issuedAt,
       });
-      const signature = await signMessageAsync({ message });
+      const signature = await signWithActiveWallet(message);
 
       const r = await fetch("/api/referral/set-code", {
         method: "POST",
@@ -381,7 +440,7 @@ export default function ReferralsPage() {
         origin,
         issuedAt,
       });
-      const signature = await signMessageAsync({ message });
+      const signature = await signWithActiveWallet(message);
 
       const r = await fetch("/api/referral/apply", {
         method: "POST",

@@ -8,7 +8,7 @@ type ActivityUser = {
   id: string;
   handle: string | null;
   publicId: string | null;
-  walletAddress: string;
+  walletAddress: string | null;
 };
 
 type MintMini = { name: string | null; image: string | null };

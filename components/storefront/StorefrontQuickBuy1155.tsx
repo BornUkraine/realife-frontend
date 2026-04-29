@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useWeb3Auth } from "@web3auth/modal/react";
+import { encodeFunctionData } from "viem";
 import {
   useAccount,
   useChainId,
@@ -61,6 +64,50 @@ const erc20Abi = [
 
 const MAX_UINT256 = (1n << 256n) - 1n;
 
+type Eip1193Provider = {
+  request: (args: { method: string; params?: unknown[] | Record<string, unknown> }) => Promise<unknown>;
+};
+
+type TxRequest = {
+  from: `0x${string}`;
+  to: `0x${string}`;
+  data?: `0x${string}`;
+  value?: `0x${string}`;
+};
+
+function normalizeEvmAddress(v: unknown) {
+  const s = String(v || "").trim().toLowerCase();
+  return /^0x[a-f0-9]{40}$/.test(s) ? (s as `0x${string}`) : null;
+}
+
+function parseChainIdNumber(v: unknown) {
+  const s = String(v || "").trim();
+  if (!s) return null;
+
+  const n = s.startsWith("0x") ? Number.parseInt(s, 16) : Number(s);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toHexQuantity(v: number | bigint) {
+  const bi = typeof v === "bigint" ? v : BigInt(Math.trunc(v));
+  return `0x${bi.toString(16)}` as `0x${string}`;
+}
+
+async function sendEmbeddedTransaction(provider: Eip1193Provider, tx: TxRequest) {
+  const hash = await provider.request({
+    method: "eth_sendTransaction",
+    params: [tx],
+  });
+
+  const h = String(hash || "");
+  if (!/^0x[a-fA-F0-9]{64}$/.test(h)) {
+    throw new Error("Embedded wallet did not return a valid transaction hash.");
+  }
+
+  return h as `0x${string}`;
+}
+
+
 export default function StorefrontQuickBuy1155({
   chainId,
   nftContract,
@@ -108,12 +155,50 @@ export default function StorefrontQuickBuy1155({
 }) {
   const router = useRouter();
 
+  const { data: session, status } = useSession();
+  const { provider: web3AuthProvider } = useWeb3Auth();
+
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
   const { switchChainAsync } = useSwitchChain();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
   const { openConnectModal } = useConnectModal();
+
+  const externalAddress = useMemo(() => normalizeEvmAddress(address), [address]);
+  const embeddedAddress = useMemo(() => {
+    if (status !== "authenticated") return null;
+
+    const user = (session as any)?.user || {};
+    const walletKind = String(user.walletKind || "").toUpperCase();
+    if (walletKind !== "EMBEDDED") return null;
+
+    return normalizeEvmAddress(user.walletAddress);
+  }, [session, status]);
+
+  const activeAddress = externalAddress || embeddedAddress;
+  const activeWalletKind = externalAddress ? "EXTERNAL" : embeddedAddress ? "EMBEDDED" : null;
+  const hasActiveWallet = Boolean(activeAddress);
+  const isEmbeddedWallet = activeWalletKind === "EMBEDDED";
+  const embeddedProvider = web3AuthProvider as Eip1193Provider | null;
+
+  const [embeddedChainId, setEmbeddedChainId] = useState<number | null>(null);
+
+  const refreshEmbeddedChain = useCallback(async () => {
+    if (!isEmbeddedWallet || !embeddedProvider) {
+      setEmbeddedChainId(null);
+      return null;
+    }
+
+    const raw = await embeddedProvider.request({ method: "eth_chainId" }).catch(() => null);
+    const parsed = parseChainIdNumber(raw);
+    setEmbeddedChainId(parsed);
+    return parsed;
+  }, [embeddedProvider, isEmbeddedWallet]);
+
+  useEffect(() => {
+    void refreshEmbeddedChain();
+  }, [refreshEmbeddedChain]);
 
   const nftAddr = useMemo(
     () => toLower(nftContract || storefrontContract),
@@ -125,7 +210,12 @@ export default function StorefrontQuickBuy1155({
   const unitPriceBI = useMemo(() => toBigIntSafe(unitPriceRaw), [unitPriceRaw]);
   const remainingBI = useMemo(() => toBigIntSafe(remaining), [remaining]);
 
-  const needSwitch = isConnected && currentChainId !== chainId;
+  const needSwitch = Boolean(
+    hasActiveWallet &&
+      (isEmbeddedWallet
+        ? embeddedChainId !== null && embeddedChainId !== chainId
+        : isConnected && currentChainId !== chainId)
+  );
   const isSoldOut = remaining != null ? remainingBI <= 0n : false;
   const hasStorefront = storefrontAddr.startsWith("0x");
   const hasPaymentToken = paymentToken.startsWith("0x");
@@ -182,11 +272,11 @@ export default function StorefrontQuickBuy1155({
     address: (paymentToken || "0x0000000000000000000000000000000000000000") as `0x${string}`,
     functionName: "allowance",
     args: [
-      ((address || "0x0000000000000000000000000000000000000000") as `0x${string}`),
+      ((activeAddress || "0x0000000000000000000000000000000000000000") as `0x${string}`),
       ((storefrontAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`),
     ],
     query: {
-      enabled: Boolean(isConnected && hasPaymentToken && hasStorefront),
+      enabled: Boolean(hasActiveWallet && hasPaymentToken && hasStorefront),
     },
   });
 
@@ -201,6 +291,25 @@ export default function StorefrontQuickBuy1155({
   const needsApproval = hasPaymentToken && allowance < totalPriceRawBI;
 
   async function ensureChain() {
+    if (!activeAddress) throw new Error("Connect wallet first.");
+
+    if (isEmbeddedWallet) {
+      if (!embeddedProvider) {
+        throw new Error("Embedded wallet provider is not ready. Please reconnect with Google.");
+      }
+
+      const current = await refreshEmbeddedChain();
+      if (current === chainId) return;
+
+      await embeddedProvider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: toHexQuantity(chainId) }],
+      });
+
+      await refreshEmbeddedChain();
+      return;
+    }
+
     if (needSwitch) {
       await switchChainAsync?.({ chainId });
     }
@@ -225,7 +334,7 @@ export default function StorefrontQuickBuy1155({
   }
 
   async function approveToken() {
-    if (!isConnected) return openConnectModal?.();
+    if (!activeAddress) return openConnectModal?.();
     if (!hasPaymentToken || !hasStorefront) return;
 
     setErr(null);
@@ -237,12 +346,22 @@ export default function StorefrontQuickBuy1155({
 
       const approveAmount = approveUnlimited ? MAX_UINT256 : totalPriceRawBI;
 
-      const hash = await writeContractAsync({
-        abi: erc20Abi,
-        address: paymentToken as `0x${string}`,
-        functionName: "approve",
-        args: [storefrontAddr as `0x${string}`, approveAmount],
-      });
+      const hash = isEmbeddedWallet
+        ? await sendEmbeddedTransaction(embeddedProvider as Eip1193Provider, {
+            from: activeAddress,
+            to: paymentToken as `0x${string}`,
+            data: encodeFunctionData({
+              abi: erc20Abi,
+              functionName: "approve",
+              args: [storefrontAddr as `0x${string}`, approveAmount],
+            }),
+          })
+        : await writeContractAsync({
+            abi: erc20Abi,
+            address: paymentToken as `0x${string}`,
+            functionName: "approve",
+            args: [storefrontAddr as `0x${string}`, approveAmount],
+          });
 
       await publicClient?.waitForTransactionReceipt({ hash });
       await refetchAllowance();
@@ -256,7 +375,7 @@ export default function StorefrontQuickBuy1155({
   }
 
   async function buyNow() {
-    if (!isConnected) return openConnectModal?.();
+    if (!activeAddress) return openConnectModal?.();
     if (!hasStorefront || !hasPaymentToken) return;
     if (!active || isSoldOut) return;
 
@@ -267,12 +386,24 @@ export default function StorefrontQuickBuy1155({
     try {
       await ensureChain();
 
-      const hash = await writeContractAsync({
-        abi: storefrontAbi as any,
-        address: storefrontAddr as `0x${string}`,
-        functionName: functionName as any,
-        args: [BigInt(tokenId), BigInt(amount || 1)] as any,
-      });
+      const args = [BigInt(tokenId), BigInt(amount || 1)] as any;
+
+      const hash = isEmbeddedWallet
+        ? await sendEmbeddedTransaction(embeddedProvider as Eip1193Provider, {
+            from: activeAddress,
+            to: storefrontAddr as `0x${string}`,
+            data: encodeFunctionData({
+              abi: storefrontAbi as any,
+              functionName: functionName as any,
+              args,
+            }),
+          })
+        : await writeContractAsync({
+            abi: storefrontAbi as any,
+            address: storefrontAddr as `0x${string}`,
+            functionName: functionName as any,
+            args,
+          });
 
       await publicClient?.waitForTransactionReceipt({ hash });
 
@@ -361,7 +492,7 @@ export default function StorefrontQuickBuy1155({
                   </div>
                 ) : null}
 
-                {!isConnected ? (
+                {!hasActiveWallet ? (
                   <button
                     onClick={() => openConnectModal?.()}
                     className="mt-4 w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
@@ -372,7 +503,7 @@ export default function StorefrontQuickBuy1155({
 
                 {needSwitch ? (
                   <button
-                    onClick={() => switchChainAsync?.({ chainId })}
+                    onClick={() => void ensureChain()}
                     className="mt-4 w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition text-white"
                   >
                     Switch Chain
@@ -422,14 +553,14 @@ export default function StorefrontQuickBuy1155({
 
                 <div className="mt-5 grid grid-cols-2 gap-2">
                   <button
-                    disabled={busy !== null || !isConnected || needSwitch || !needsApproval}
+                    disabled={busy !== null || !hasActiveWallet || needSwitch || !needsApproval}
                     onClick={approveToken}
                     className={cx(
                       "h-12 rounded-2xl font-extrabold transition border",
                       needsApproval
                         ? "border-white/15 bg-white/[0.06] text-white hover:bg-white/10"
                         : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
-                      busy !== null || !isConnected || needSwitch ? "opacity-60 cursor-not-allowed" : ""
+                      busy !== null || !hasActiveWallet || needSwitch ? "opacity-60 cursor-not-allowed" : ""
                     )}
                   >
                     {needsApproval ? (busy === "approve" ? "Approving..." : "Approve") : "Approved"}
@@ -438,7 +569,7 @@ export default function StorefrontQuickBuy1155({
                   <button
                     disabled={
                       busy !== null ||
-                      !isConnected ||
+                      !hasActiveWallet ||
                       needSwitch ||
                       !active ||
                       isSoldOut ||
@@ -451,7 +582,7 @@ export default function StorefrontQuickBuy1155({
                       "h-12 rounded-2xl font-extrabold transition text-black",
                       "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] hover:brightness-110",
                       busy !== null ||
-                        !isConnected ||
+                        !hasActiveWallet ||
                         needSwitch ||
                         !active ||
                         isSoldOut ||
