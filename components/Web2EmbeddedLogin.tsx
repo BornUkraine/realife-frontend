@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { signIn, signOut, useSession } from "next-auth/react";
 import {
@@ -38,6 +38,28 @@ function parseChainId(v: unknown) {
   return Number.isFinite(n) ? String(n) : "";
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function waitForEmbeddedProvider(
+  firstProvider: Eip1193Provider | null,
+  getCurrentProvider: () => Eip1193Provider | null,
+  timeoutMs = 4500
+) {
+  if (firstProvider) return firstProvider;
+
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const current = getCurrentProvider();
+    if (current) return current;
+    await sleep(250);
+  }
+
+  return null;
+}
+
 async function getProviderAddress(provider: Eip1193Provider) {
   const accountsRaw = (await provider.request({ method: "eth_accounts" }).catch(() => null)) as unknown;
   const accounts = Array.isArray(accountsRaw) ? accountsRaw : [];
@@ -62,6 +84,12 @@ function Web2EmbeddedLoginInner({ compact = false }: { compact?: boolean }) {
   const { connectTo, loading: connectLoading, error: connectError } = useWeb3AuthConnect();
   const { disconnect, loading: disconnectLoading } = useWeb3AuthDisconnect();
   const { userInfo, getUserInfo } = useWeb3AuthUser();
+
+  const providerRef = useRef<Eip1193Provider | null>(null);
+
+  useEffect(() => {
+    providerRef.current = (provider as Eip1193Provider | null) || null;
+  }, [provider]);
 
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -128,13 +156,17 @@ function Web2EmbeddedLoginInner({ compact = false }: { compact?: boolean }) {
     setBusy(true);
 
     try {
-      // Direct Google social login. This creates/opens the embedded wallet.
       const p = (await connectTo(WALLET_CONNECTORS.AUTH, {
         authConnection: AUTH_CONNECTION.GOOGLE,
       })) as Eip1193Provider | null;
 
-      const activeProvider = p || (provider as Eip1193Provider | null);
-      if (!activeProvider) throw new Error("Embedded wallet provider is not ready.");
+      const activeProvider = await waitForEmbeddedProvider(p, () => providerRef.current);
+
+      if (!activeProvider) {
+        throw new Error(
+          "Embedded wallet is connected, but provider is not ready yet. Please try again in a few seconds."
+        );
+      }
 
       await verifyEmbeddedWallet(activeProvider);
       setOpen(false);
@@ -143,7 +175,7 @@ function Web2EmbeddedLoginInner({ compact = false }: { compact?: boolean }) {
     } finally {
       setBusy(false);
     }
-  }, [busy, connectLoading, connectTo, provider, verifyEmbeddedWallet]);
+  }, [busy, connectLoading, connectTo, verifyEmbeddedWallet]);
 
   const onLogout = useCallback(async () => {
     setErr("");
@@ -237,7 +269,6 @@ function Web2EmbeddedLoginInner({ compact = false }: { compact?: boolean }) {
     );
   }
 
-  // If user is already authenticated with an external wallet, avoid pushing Google login.
   if (status === "authenticated") return null;
 
   return (
