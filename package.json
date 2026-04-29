@@ -17,7 +17,7 @@
     "@prisma/client": "6.19.2",
     "@rainbow-me/rainbowkit": "2.2.10",
     "@tanstack/react-query": "5.90.20",
-    "@web3auth/modal": "^10.15.0",
+    "@web3auth/modal": "10.15.0",
     "clsx": "2.1.1",
     "ethers": "^6.16.0",
     "framer-motion": "12.34.3",
@@ -29,7 +29,7 @@
     "react-dom": "19.2.3",
     "swiper": "^12.1.2",
     "tailwind-merge": "3.4.0",
-    "viem": "^2.29.0",
+    "viem": "2.29.0",
     "wagmi": "2.19.5"
   },
   "devDependencies": {
