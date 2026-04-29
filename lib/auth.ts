@@ -36,14 +36,44 @@ async function ensurePublicId(db: typeof prisma, userId: string): Promise<string
   throw new Error("PUBLIC_ID_GENERATION_FAILED");
 }
 
+function cleanText(v: unknown, max = 500) {
+  const s = String(v || "").trim();
+  return s ? s.slice(0, max) : null;
+}
+
+function cleanEmail(v: unknown) {
+  const s = cleanText(v, 320)?.toLowerCase() ?? null;
+  if (!s || !s.includes("@")) return null;
+  return s;
+}
+
+function parseWalletKind(v: unknown): "EXTERNAL" | "EMBEDDED" {
+  return String(v || "").trim().toUpperCase() === "EMBEDDED" ? "EMBEDDED" : "EXTERNAL";
+}
+
+function parseEmbeddedProvider(v: unknown): "WEB3AUTH" | "OPENFORT" | null {
+  const raw = String(v || "").trim().toUpperCase();
+  if (raw === "WEB3AUTH") return "WEB3AUTH";
+  if (raw === "OPENFORT") return "OPENFORT";
+  return null;
+}
+
 const tokenSelect = {
   id: true,
   points: true,
   handle: true,
   publicId: true,
 
+  authMethod: true,
+  walletKind: true,
   walletAddress: true,
   walletChainId: true,
+  embeddedWalletProvider: true,
+
+  googleId: true,
+  googleEmail: true,
+  googleName: true,
+  googleImage: true,
 
   twitterId: true,
   twitterUser: true,
@@ -62,8 +92,16 @@ type TokenUser = {
   handle: string | null;
   publicId: string | null;
 
+  authMethod: "WALLET" | "GOOGLE";
+  walletKind: "EXTERNAL" | "EMBEDDED";
   walletAddress: string | null;
   walletChainId: number | null;
+  embeddedWalletProvider: "WEB3AUTH" | "OPENFORT" | null;
+
+  googleId: string | null;
+  googleEmail: string | null;
+  googleName: string | null;
+  googleImage: string | null;
 
   twitterId: string | null;
   twitterUser: string | null;
@@ -84,8 +122,16 @@ function applyUserToToken(token: any, user: TokenUser) {
   token.handle = user.handle ?? null;
   token.publicId = user.publicId ?? null;
 
+  token.authMethod = user.authMethod ?? "WALLET";
+  token.walletKind = user.walletKind ?? "EXTERNAL";
   token.walletAddress = user.walletAddress ?? null;
   token.walletChainId = user.walletChainId ?? null;
+  token.embeddedWalletProvider = user.embeddedWalletProvider ?? null;
+
+  token.googleId = user.googleId ?? null;
+  token.googleEmail = user.googleEmail ?? null;
+  token.googleName = user.googleName ?? null;
+  token.googleImage = user.googleImage ?? null;
 
   token.twitterId = user.twitterId ?? null;
   token.twitterUser = user.twitterUser ?? null;
@@ -125,6 +171,15 @@ export const authOptions: NextAuthOptions = {
         address: { label: "Address", type: "text" },
         signature: { label: "Signature", type: "text" },
         chainId: { label: "ChainId", type: "text" },
+
+        // Optional metadata for embedded wallet flow.
+        // X / Discord are NOT login methods; they stay profile links only.
+        walletKind: { label: "WalletKind", type: "text" },
+        embeddedWalletProvider: { label: "EmbeddedWalletProvider", type: "text" },
+        googleId: { label: "GoogleId", type: "text" },
+        googleEmail: { label: "GoogleEmail", type: "text" },
+        googleName: { label: "GoogleName", type: "text" },
+        googleImage: { label: "GoogleImage", type: "text" },
       },
       async authorize(credentials) {
         const address = String(credentials?.address || "").trim().toLowerCase();
@@ -151,16 +206,39 @@ export const authOptions: NextAuthOptions = {
 
         await prisma.walletNonce.delete({ where: { address } }).catch(() => {});
 
+        const walletKind = parseWalletKind((credentials as any)?.walletKind);
+        const embeddedWalletProvider = parseEmbeddedProvider((credentials as any)?.embeddedWalletProvider);
+        const isEmbedded = walletKind === "EMBEDDED" && Boolean(embeddedWalletProvider);
+
+        const googleId = cleanText((credentials as any)?.googleId, 300);
+        const googleEmail = cleanEmail((credentials as any)?.googleEmail);
+        const googleName = cleanText((credentials as any)?.googleName, 120);
+        const googleImage = cleanText((credentials as any)?.googleImage, 2000);
+
         const user = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+          const commonData: any = {
+            walletChainId: Number.isFinite(chainId) ? chainId : null,
+            authMethod: isEmbedded ? "GOOGLE" : "WALLET",
+            walletKind: isEmbedded ? "EMBEDDED" : "EXTERNAL",
+            embeddedWalletProvider: isEmbedded ? embeddedWalletProvider : null,
+          };
+
+          // These fields are display/onboarding metadata only.
+          // Wallet ownership is proven by the signed nonce above.
+          if (isEmbedded) {
+            commonData.googleId = googleId;
+            commonData.googleEmail = googleEmail;
+            commonData.googleName = googleName;
+            commonData.googleImage = googleImage;
+          }
+
           const u = await tx.user.upsert({
             where: { walletAddress: address },
             create: {
               walletAddress: address,
-              walletChainId: Number.isFinite(chainId) ? chainId : null,
+              ...commonData,
             },
-            update: {
-              walletChainId: Number.isFinite(chainId) ? chainId : null,
-            },
+            update: commonData,
           });
 
           await ensurePublicId(tx as any, u.id);
@@ -180,6 +258,7 @@ export const authOptions: NextAuthOptions = {
       if (trigger === "update" && session) return { ...token, ...session };
 
       // ✅ При логине кошельком — один раз забираем полные поля в токен
+      // wallet provider covers both old external wallets and new embedded wallets.
       if (account?.provider === "wallet" && user?.id) {
         token.uid = user.id;
         token.sub = user.id;
@@ -194,9 +273,6 @@ export const authOptions: NextAuthOptions = {
       }
 
       // ❌ ВАЖНО: убрали постоянный DB-read на каждом запросе
-      // Если захочешь обновлять points/avatars после линковки — делай:
-      // await fetch("/api/me") на клиенте, а токен можно обновлять через session.update() по желанию.
-
       return token;
     },
 
@@ -212,8 +288,16 @@ export const authOptions: NextAuthOptions = {
         handle: (token as any)?.handle,
         publicId: (token as any)?.publicId,
 
+        authMethod: (token as any)?.authMethod,
+        walletKind: (token as any)?.walletKind,
         walletAddress: (token as any)?.walletAddress,
         walletChainId: (token as any)?.walletChainId,
+        embeddedWalletProvider: (token as any)?.embeddedWalletProvider,
+
+        googleId: (token as any)?.googleId,
+        googleEmail: (token as any)?.googleEmail,
+        googleName: (token as any)?.googleName,
+        googleImage: (token as any)?.googleImage,
 
         twitterId: (token as any)?.twitterId,
         twitterUser: (token as any)?.twitterUser,

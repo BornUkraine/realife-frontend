@@ -7,6 +7,7 @@ import { baseSepolia } from "wagmi/chains";
 import { formatUnits } from "viem";
 import { cn } from "@/lib/utils";
 import WalletMenu from "./WalletMenu";
+import Web2EmbeddedLogin from "./Web2EmbeddedLogin";
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 
@@ -361,6 +362,8 @@ export default function TopBar() {
                 >
                   <OrdersIcon className="h-[17px] w-[17px]" />
                 </Link>
+                <Web2EmbeddedLogin compact />
+
                 {showGetEth && (
                   <Link
                     href="/app/faucet"
@@ -401,6 +404,8 @@ export default function TopBar() {
                 <OrdersIcon className="h-[16px] w-[16px]" />
                 <span>My Orders</span>
               </Link>
+
+              <Web2EmbeddedLogin />
 
               {showGetEth && (
                 <Link

@@ -113,6 +113,33 @@ enum SupportRole {
 
 /**
  * --------------------------------------------------------------------------
+ * Account authentication architecture
+ * --------------------------------------------------------------------------
+ * WALLET -> external wallet login through RainbowKit / wagmi
+ * GOOGLE -> Google/social login that creates an embedded wallet
+ *
+ * Important:
+ * - X and Discord are NOT login providers in Realife.
+ * - X and Discord stay profile/social links only.
+ * --------------------------------------------------------------------------
+ */
+enum AuthMethod {
+  WALLET
+  GOOGLE
+}
+
+enum WalletKind {
+  EXTERNAL
+  EMBEDDED
+}
+
+enum EmbeddedWalletProvider {
+  WEB3AUTH
+  OPENFORT
+}
+
+/**
+ * --------------------------------------------------------------------------
  * AI generation
  * --------------------------------------------------------------------------
  */
@@ -159,10 +186,40 @@ model User {
   publicId String? @unique
 
   /**
-   * ---------------- Wallet (primary identity) ----------------
+   * ---------------- Authentication / wallet identity ----------------
+   * walletAddress remains the primary onchain address used by holdings,
+   * listings, trades and escrow/order flows.
+   *
+   * Web3 users:
+   * - authMethod = WALLET
+   * - walletKind = EXTERNAL
+   * - walletAddress = connected wallet address
+   *
+   * Web2 users:
+   * - authMethod = GOOGLE
+   * - walletKind = EMBEDDED
+   * - embeddedWalletProvider = WEB3AUTH or OPENFORT
+   * - walletAddress = generated embedded wallet address
+   *
+   * Realife never stores seed phrases or private keys.
    */
+  authMethod AuthMethod @default(WALLET)
+  walletKind WalletKind @default(EXTERNAL)
+
   walletAddress String @unique
   walletChainId Int?
+
+  embeddedWalletProvider EmbeddedWalletProvider?
+
+  /**
+   * Optional display metadata from a social/embedded wallet provider.
+   * Do not treat these fields as the source of wallet ownership.
+   * Wallet ownership is still proven by signing the Realife nonce.
+   */
+  googleId    String?
+  googleEmail String?
+  googleName  String?
+  googleImage String?
 
   /**
    * ---------------- Site support/admin role ----------------
@@ -235,6 +292,10 @@ model User {
    */
   aiGenerations AiGeneration[]
 
+  @@index([authMethod])
+  @@index([walletKind])
+  @@index([embeddedWalletProvider])
+  @@index([googleEmail])
   @@index([twitterUser])
   @@index([discordUser])
   @@index([referralCode])

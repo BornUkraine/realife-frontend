@@ -24,8 +24,17 @@ type MeUser = {
 
   points?: number;
 
-  walletAddress?: string | null; // server verified
+  authMethod?: "WALLET" | "GOOGLE" | string | null;
+  walletKind?: "EXTERNAL" | "EMBEDDED" | string | null;
+  embeddedWalletProvider?: "WEB3AUTH" | "OPENFORT" | string | null;
+
+  walletAddress?: string | null; // server verified onchain address
   walletChainId?: number | null;
+
+  googleId?: string | null;
+  googleEmail?: string | null;
+  googleName?: string | null;
+  googleImage?: string | null;
 
   displayName?: string | null;
   mainAvatar?: string | null;
@@ -377,7 +386,7 @@ function RewardStrip({
             {label} <span className="text-amber-200">+{reward}</span> points
           </div>
           <div className="mt-1 text-xs text-white/45">
-            One-time bonus for linking your identity.
+            One-time bonus for linking your profile identity.
           </div>
         </div>
 
@@ -495,7 +504,7 @@ function SocialRow({
 
       {!connected && (
         <div className="mt-4 text-[11px] text-white/55">
-          After auth, your account will be linked to your wallet profile automatically.
+          X and Discord are profile links only. Login remains Wallet or Google embedded wallet.
         </div>
       )}
     </Card>
@@ -527,6 +536,9 @@ export default function ProfilePage() {
   const busyTimerRef = useRef<number | null>(null);
 
   const serverWalletAddress = me?.walletAddress ?? null;
+  const authMethod = String(me?.authMethod || "WALLET").toUpperCase();
+  const walletKind = String(me?.walletKind || "EXTERNAL").toUpperCase();
+  const isEmbeddedWallet = walletKind === "EMBEDDED";
 
   const twitterConnected = Boolean(me?.twitterId);
   const discordConnected = Boolean(me?.discordId);
@@ -560,6 +572,7 @@ export default function ProfilePage() {
     if (!me) return "Loading…";
     return (
       me.displayName ||
+      me.googleName ||
       me.twitterName ||
       me.discordName ||
       (me.twitterUser ? `@${me.twitterUser}` : null) ||
@@ -570,7 +583,7 @@ export default function ProfilePage() {
   }, [me, serverWalletAddress]);
 
   const heroAvatar = useMemo(() => {
-    return me?.mainAvatar || me?.twitterImage || me?.discordImage || null;
+    return me?.mainAvatar || me?.googleImage || me?.twitterImage || me?.discordImage || null;
   }, [me]);
 
   const dailyStatus = useMemo(() => {
@@ -793,7 +806,9 @@ export default function ProfilePage() {
   }, [authed, busyDiscord, loadMe]);
 
   const walletPillText = serverWalletAddress
-    ? "Wallet verified (server)"
+    ? isEmbeddedWallet
+      ? "Google embedded wallet"
+      : "Wallet verified (server)"
     : walletIsConnected
     ? "Wallet connected (client)"
     : "Wallet not connected";
@@ -815,7 +830,7 @@ export default function ProfilePage() {
       {!authed && (
         <Alert
           title="No server session yet"
-          text="Connect wallet in the top bar and sign once to view your profile."
+          text="Connect wallet and sign once, or continue with Google to create an embedded wallet profile."
           tone="warn"
         />
       )}
@@ -842,6 +857,13 @@ export default function ProfilePage() {
                   <Pill tone={serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"}>
                     {walletPillText}
                   </Pill>
+
+                  {authed && (
+                    <Pill tone={isEmbeddedWallet ? "gold" : "muted"}>
+                      {authMethod === "GOOGLE" ? "Google login" : "Wallet login"}
+                      {isEmbeddedWallet ? ` • ${me?.embeddedWalletProvider || "EMBEDDED"}` : ""}
+                    </Pill>
+                  )}
 
                   <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>
                     {dailyStatus.canClaim ? "Daily available" : "Claimed today"}
@@ -914,8 +936,14 @@ export default function ProfilePage() {
             />
 
             <Field
-              label="Wallet (connected)"
-              value={walletIsConnected && liveAddress ? shortAddr(liveAddress) : "—"}
+              label={isEmbeddedWallet ? "Embedded wallet" : "Wallet (connected)"}
+              value={
+                isEmbeddedWallet
+                  ? shortAddr(serverWalletAddress)
+                  : walletIsConnected && liveAddress
+                  ? shortAddr(liveAddress)
+                  : "—"
+              }
               mono
             />
 
@@ -1062,8 +1090,8 @@ export default function ProfilePage() {
 
       <Reveal delayMs={200}>
         <div className="text-[11px] text-white/40 text-center">
-          Tip: wallet verification happens in the top bar (signature once). This page reads everything
-          from <span className="font-mono text-white/55">/api/me</span>.
+          Tip: wallet login and Google embedded login both create the same Realife profile ID. X and
+          Discord stay profile links only. This page reads everything from <span className="font-mono text-white/55">/api/me</span>.
         </div>
       </Reveal>
     </div>

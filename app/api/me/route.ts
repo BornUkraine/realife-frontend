@@ -38,6 +38,12 @@ async function ensurePublicIdTx(tx: any, userId: string) {
   throw new Error("PUBLIC_ID_GENERATION_FAILED");
 }
 
+function shortAddr(addr?: string | null) {
+  const s = addr ? String(addr) : "";
+  if (!s) return null;
+  return `${s.slice(0, 6)}...${s.slice(-4)}`;
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   const uid = (session as any)?.userId || (session as any)?.user?.id;
@@ -56,8 +62,16 @@ export async function GET() {
           publicId: true,
           points: true,
 
+          authMethod: true,
+          walletKind: true,
           walletAddress: true,
           walletChainId: true,
+          embeddedWalletProvider: true,
+
+          googleId: true,
+          googleEmail: true,
+          googleName: true,
+          googleImage: true,
 
           lastDailyAt: true,
           createdAt: true,
@@ -67,14 +81,14 @@ export async function GET() {
           approvedPhysicalAt: true,
           approvedPhysicalNote: true,
 
-          // X (Twitter)
+          // X (Twitter) — profile/social link only, NOT login
           twitterId: true,
           twitterUser: true,
           twitterName: true,
           twitterImage: true,
           twitterRewarded: true,
 
-          // Discord
+          // Discord — profile/social link only, NOT login
           discordId: true,
           discordUser: true,
           discordName: true,
@@ -96,16 +110,16 @@ export async function GET() {
       const publicUrl = publicKey ? `${PUBLIC_PREFIX}/${publicKey}` : null;
 
       const displayName =
+        user.googleName ||
         user.twitterName ||
         (user.twitterUser ? `@${user.twitterUser}` : null) ||
         user.discordName ||
         (user.discordUser ? `@${user.discordUser}` : null) ||
         (user.handle ? `@${user.handle}` : null) ||
-        (user.walletAddress
-          ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`
-          : "Realife user");
+        shortAddr(user.walletAddress) ||
+        "Realife user";
 
-      const mainAvatar = user.twitterImage || user.discordImage || null;
+      const mainAvatar = user.googleImage || user.twitterImage || user.discordImage || null;
 
       return {
         status: 200 as const,
@@ -117,6 +131,8 @@ export async function GET() {
             publicUrl,
             displayName,
             mainAvatar,
+            isEmbeddedWallet: user.walletKind === "EMBEDDED",
+            isExternalWallet: user.walletKind === "EXTERNAL",
           },
         },
       };
