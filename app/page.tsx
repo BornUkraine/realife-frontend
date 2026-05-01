@@ -303,35 +303,35 @@ export default function HomePage() {
             <div className="lg:col-span-6">
               <Pill>
                 <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                Stablecoin escrow commerce
+                Tokenized real-world commerce
               </Pill>
 
               <h1 className="mt-6 text-4xl font-black leading-[1.02] tracking-[-0.03em] md:text-7xl">
-                Stablecoin Escrow Commerce for{" "}
+                Stablecoin Escrow Marketplace for{" "}
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
-                  Real-World Products & Services
+                  Tokenized Real-World Goods & Services
                 </span>
               </h1>
 
               <p className="mt-6 max-w-2xl text-base leading-relaxed text-white/60 md:text-lg">
-                Realife lets users buy and sell products, services, and delivery
-                with crypto payments, NFT-linked transaction rights, and escrow
+                Realife lets users buy and sell real-world goods, services, and delivery
+                through stablecoin-ready payments, NFT-linked transaction rights, and escrow
                 protection until fulfillment is completed.
               </p>
 
               <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/50 md:text-base">
-                NFTs on Realife are not only collectibles. They can represent
-                access, ownership proof, purchase rights, service claims, and
-                tradable real-world value.
+                NFTs on Realife are not only collectibles. They can represent transaction
+                rights connected to real products, services, delivery, fulfillment, and
+                protected settlement.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 {[
                   "Stablecoin payments",
+                  "Tokenized goods & services",
                   "NFT-linked rights",
                   "Service escrow",
                   "Delivery escrow",
-                  "AI-assisted minting",
                   "Live on Base Sepolia",
                 ].map((x) => (
                   <Pill key={x}>{x}</Pill>
@@ -357,7 +357,7 @@ export default function HomePage() {
                   <div className="md:col-span-8">
                     <div className="grid gap-3 sm:grid-cols-3">
                       {[
-                        ["Category", "Tokenized commerce layer"],
+                        ["Category", "Stablecoin escrow marketplace"],
                         ["NFT role", "Transaction rights and proof"],
                         ["Trust layer", "Escrow for services and delivery"],
                       ].map(([t, d]) => (
@@ -381,7 +381,7 @@ export default function HomePage() {
                   label="Main video"
                   badge="Hero"
                   title="Realife in motion"
-                  text="A premium introduction to stablecoin-powered real-world commerce, digital ownership, and escrow-backed trust for products, services, and delivery."
+                  text="A premium introduction to stablecoin-powered real-world commerce, NFT-linked transaction rights, and escrow-backed trust for products, services, and delivery."
                   src="/videos/realife-main-hero.mp4"
                   aspect="aspect-[4/3]"
                 />
@@ -403,8 +403,8 @@ export default function HomePage() {
           <section>
             <SectionHeading
               label="What Realife means"
-              title="The escrow layer for real-world crypto commerce"
-              text="Realife connects stablecoin payments, NFT-linked transaction rights, marketplace activity, and escrow-protected fulfillment for products, services, and delivery."
+              title="The stablecoin escrow layer for tokenized real-world commerce"
+              text="Realife connects stablecoin-ready payments, NFT-linked transaction rights, marketplace activity, and escrow-protected fulfillment for products, services, and delivery."
               center
             />
 
@@ -455,8 +455,8 @@ export default function HomePage() {
 
                   <p className="mb-5 text-sm leading-relaxed text-white/60">
                     This section explains the operating logic of the platform —
-                    from real-world value to NFT-linked rights, marketplace
-                    activity, and escrow-backed completion or delivery.
+                    from real-world value to NFT-linked transaction rights,
+                    marketplace activity, and escrow-backed completion or delivery.
                   </p>
 
                   <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black/30">
@@ -475,7 +475,7 @@ export default function HomePage() {
                   <SectionHeading
                     label="How Realife works"
                     title="Create, tokenize, trade, and complete"
-                    text="From real-world products or services to NFT-linked transaction rights, stablecoin payments, and escrow-backed settlement."
+                    text="From real-world products or services to NFT-linked transaction rights, stablecoin-ready payments, and escrow-backed settlement."
                   />
 
                   <div className="mt-6 grid gap-3">
@@ -488,7 +488,7 @@ export default function HomePage() {
                       [
                         "02",
                         "Tokenize",
-                        "Mint an NFT-linked right with metadata, media, ownership proof, and marketplace utility.",
+                        "Mint an NFT-linked transaction right with metadata, media, ownership proof, and marketplace utility.",
                       ],
                       [
                         "03",
@@ -526,7 +526,7 @@ export default function HomePage() {
             <SectionHeading
               label="Inside the ecosystem"
               title="More than a marketplace"
-              text="Realife expands beyond NFT minting into stablecoin commerce, branded storefronts, service flows, delivery logic, product stories, and real-world utility."
+              text="Realife expands beyond NFT minting into tokenized real-world commerce, stablecoin payments, branded storefronts, service flows, delivery logic, product stories, and practical utility."
             />
 
             <div className="mt-10 grid gap-6 lg:grid-cols-3">
@@ -665,7 +665,7 @@ export default function HomePage() {
                       {[
                         "Not only for traders or developers",
                         "Built for artists, makers, workers, sellers, and communities",
-                        "Bridge between offline value and on-chain ownership",
+                        "Bridge between offline value and on-chain transaction rights",
                         "A premium layer for real human contribution",
                       ].map((x) => (
                         <div
@@ -690,8 +690,8 @@ export default function HomePage() {
                 <div className="lg:col-span-8">
                   <SectionHeading
                     label="Start"
-                    title="Bring real-world commerce on-chain"
-                    text="Create NFT-linked listings for products, services, and branded experiences with AI assistance, marketplace utility, stablecoin payments, and escrow-backed flows."
+                    title="Bring tokenized real-world commerce on-chain"
+                    text="Create NFT-linked listings for products, services, and branded experiences with AI assistance, marketplace utility, stablecoin-ready payments, and escrow-backed flows."
                   />
                 </div>
                 <div className="lg:col-span-4">
@@ -716,6 +716,7 @@ export default function HomePage() {
           <div>© {year} Realife</div>
           <div className="flex flex-wrap items-center gap-4 opacity-60">
             <span>Stablecoin commerce</span>
+            <span>Tokenized goods & services</span>
             <span>NFT-linked rights</span>
             <span>AI assistance</span>
             <span>Service escrow</span>
