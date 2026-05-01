@@ -1,16 +1,15 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 
 /**
  * NFT media renderer.
  *
- * Goals of this version:
- *  - softer perceived loading for images
- *  - cleaner poster -> video handoff
- *  - lighter overlay / play affordance
- *  - keep the same public API so existing pages do not break
+ * This version adds client-side IPFS gateway fallback for images.
+ * Some gateways can return 403 through /_next/image for specific CIDs.
+ * When that happens we retry the same CID through another gateway instead of
+ * leaving the card black.
  */
 
 function cx(...a: Array<string | false | null | undefined>) {
@@ -27,6 +26,15 @@ const OPTIMIZED_HOSTS = new Set<string>([
   "dweb.link",
 ]);
 
+const IPFS_IMAGE_GATEWAYS = [
+  "https://gateway.pinata.cloud/ipfs/",
+  "https://nftstorage.link/ipfs/",
+  "https://ipfs.io/ipfs/",
+  "https://cloudflare-ipfs.com/ipfs/",
+  "https://w3s.link/ipfs/",
+  "https://dweb.link/ipfs/",
+];
+
 function hostOf(url: string | null | undefined): string | null {
   if (!url) return null;
   try {
@@ -42,6 +50,78 @@ function isOptimizable(url: string | null | undefined): boolean {
   if (OPTIMIZED_HOSTS.has(h)) return true;
   if (h.endsWith(".mypinata.cloud")) return true;
   return false;
+}
+
+function normalizeGateway(raw: string) {
+  let g = String(raw || "").trim();
+  if (!g) return "";
+  g = g.replace(/\/+$/, "");
+  if (!g.endsWith("/ipfs")) g += "/ipfs";
+  return `${g}/`;
+}
+
+function isLikelyCidPath(v: string) {
+  return /^(Qm[a-zA-Z0-9]{44}|bafy[a-zA-Z0-9]{20,}|bafk[a-zA-Z0-9]{20,})(\/.*)?$/.test(
+    v
+  );
+}
+
+function extractIpfsPath(raw?: string | null): string | null {
+  const s = String(raw || "").trim();
+  if (!s) return null;
+
+  if (s.startsWith("ipfs://")) {
+    let p = s.slice("ipfs://".length);
+    if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
+    return p || null;
+  }
+
+  if (s.startsWith("/ipfs/")) return s.slice("/ipfs/".length) || null;
+  if (isLikelyCidPath(s)) return s;
+
+  try {
+    const u = new URL(s);
+    const path = u.pathname || "";
+    const ipfsIndex = path.indexOf("/ipfs/");
+
+    if (ipfsIndex >= 0) {
+      const p = path.slice(ipfsIndex + "/ipfs/".length);
+      return `${p}${u.search}${u.hash}` || null;
+    }
+
+    const bare = path.replace(/^\/+/, "");
+    if (isLikelyCidPath(bare)) return `${bare}${u.search}${u.hash}`;
+
+    const subdomainMatch = u.hostname.match(/^(.+)\.ipfs\./i);
+    if (subdomainMatch?.[1]) {
+      const rest = path && path !== "/" ? path : "";
+      return `${subdomainMatch[1]}${rest}${u.search}${u.hash}`;
+    }
+  } catch {
+    // not a URL
+  }
+
+  return null;
+}
+
+function ipfsPathToGatewayUrl(path: string, gateway: string) {
+  return `${normalizeGateway(gateway)}${path.replace(/^\/+/, "")}`;
+}
+
+function buildImageCandidates(src: string | null) {
+  if (!src) return [];
+
+  const original = String(src).trim();
+  const path = extractIpfsPath(original);
+
+  if (!path) return [original];
+
+  return Array.from(
+    new Set([
+      original,
+      ...IPFS_IMAGE_GATEWAYS.map((gateway) => ipfsPathToGatewayUrl(path, gateway)),
+    ])
+  );
 }
 
 function useInViewport<T extends Element>(rootMargin = "200px") {
@@ -131,10 +211,16 @@ export default function NftMedia({
   sizes?: string;
 }) {
   const objectFit = fit === "contain" ? "object-contain" : "object-cover";
+  const imageCandidates = useMemo(() => buildImageCandidates(src), [src]);
+
+  const [imageIndex, setImageIndex] = useState(0);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
+    setImageIndex(0);
     setImageLoaded(false);
+    setImageFailed(false);
   }, [kind, src]);
 
   if (!src) {
@@ -147,13 +233,30 @@ export default function NftMedia({
           className
         )}
       >
-        <div className="text-white/25 font-black">No media</div>
+        <div className="font-black text-white/25">No media</div>
       </div>
     );
   }
 
   if (kind === "image") {
-    const useOptimized = isOptimizable(src);
+    const activeSrc = imageCandidates[imageIndex] || src;
+    const hasMoreGateways = imageIndex < imageCandidates.length - 1;
+
+    // First try Next optimizer for supported URLs. If that request returns 403,
+    // retry fallback gateways as direct <img> requests to avoid black cards.
+    const useOptimized = isOptimizable(activeSrc) && imageIndex === 0;
+
+    const handleError = () => {
+      if (hasMoreGateways) {
+        setImageLoaded(false);
+        setImageFailed(false);
+        setImageIndex((prev) => prev + 1);
+        return;
+      }
+
+      setImageLoaded(false);
+      setImageFailed(true);
+    };
 
     return (
       <div
@@ -164,11 +267,12 @@ export default function NftMedia({
           className
         )}
       >
-        <Placeholder visible={!imageLoaded} />
+        <Placeholder visible={!imageLoaded && !imageFailed} />
 
         {useOptimized ? (
           <Image
-            src={src}
+            key={activeSrc}
+            src={activeSrc}
             alt={alt || "NFT"}
             fill
             sizes={sizes}
@@ -178,16 +282,21 @@ export default function NftMedia({
               imageLoaded ? "scale-100 opacity-100" : "scale-[1.012] opacity-0"
             )}
             priority={priority}
-            loading={priority ? "eager" : "lazy"}
+            loading={priority ? undefined : "lazy"}
             referrerPolicy="no-referrer"
             draggable={false}
             unoptimized={false}
-            onLoad={() => setImageLoaded(true)}
+            onLoad={() => {
+              setImageLoaded(true);
+              setImageFailed(false);
+            }}
+            onError={handleError}
           />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={src}
+            key={activeSrc}
+            src={activeSrc}
             alt={alt || "NFT"}
             className={cx(
               "h-full w-full transition duration-500 ease-out",
@@ -198,9 +307,21 @@ export default function NftMedia({
             draggable={false}
             loading={priority ? "eager" : "lazy"}
             decoding="async"
-            onLoad={() => setImageLoaded(true)}
+            onLoad={() => {
+              setImageLoaded(true);
+              setImageFailed(false);
+            }}
+            onError={handleError}
           />
         )}
+
+        {imageFailed ? (
+          <div className="absolute inset-0 flex items-center justify-center px-4 text-center">
+            <div className="rounded-2xl border border-white/10 bg-black/45 px-3 py-2 text-[11px] font-bold text-white/45 backdrop-blur-md">
+              Media gateway unavailable
+            </div>
+          </div>
+        ) : null}
 
         <div
           className={cx(

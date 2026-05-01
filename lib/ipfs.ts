@@ -5,31 +5,15 @@
  *  - Fetch IPFS JSON/bytes as fast as possible (race multiple gateways)
  *  - Never block a request longer than `timeoutMs`
  *  - Always return something usable (or null) — never throw into request handlers
- *
- * Usage:
- *   import { ipfsToHttp, fetchIpfsJson } from "@/lib/ipfs";
- *
- *   const url = ipfsToHttp("ipfs://bafy.../meta.json");
- *   const meta = await fetchIpfsJson("ipfs://bafy.../meta.json");
+ *  - Normalize known gateway URLs to the preferred gateway to avoid sticky 403s
  */
 
 // ---------- Gateway config ----------
 
-/**
- * Normalize a gateway URL so it always ends with "/ipfs/".
- *
- * Accepts:
- *   "https://nftstorage.link"        -> "https://nftstorage.link/ipfs/"
- *   "https://nftstorage.link/"       -> "https://nftstorage.link/ipfs/"
- *   "https://nftstorage.link/ipfs"   -> "https://nftstorage.link/ipfs/"
- *   "https://nftstorage.link/ipfs/"  -> "https://nftstorage.link/ipfs/"  (no-op)
- */
 function normalizeGatewayUrl(raw: string | null | undefined): string {
   let g = String(raw || "").trim();
   if (!g) return "";
-  // strip trailing slashes
   g = g.replace(/\/+$/, "");
-  // append /ipfs if missing
   if (!g.endsWith("/ipfs")) g += "/ipfs";
   return g + "/";
 }
@@ -44,14 +28,38 @@ export const IPFS_GATEWAYS: string[] = Array.from(
   new Set(
     [
       PRIMARY_GATEWAY,
+      "https://gateway.pinata.cloud/ipfs/",
       "https://nftstorage.link/ipfs/",
-      "https://cloudflare-ipfs.com/ipfs/",
       "https://ipfs.io/ipfs/",
+      "https://cloudflare-ipfs.com/ipfs/",
+      "https://w3s.link/ipfs/",
+      "https://dweb.link/ipfs/",
     ]
       .map(normalizeGatewayUrl)
       .filter(Boolean)
   )
 );
+
+const KNOWN_IPFS_GATEWAY_HOSTS = new Set<string>([
+  "gateway.pinata.cloud",
+  "cloudflare-ipfs.com",
+  "cf-ipfs.com",
+  "nftstorage.link",
+  "w3s.link",
+  "dweb.link",
+  "ipfs.io",
+]);
+
+function isKnownGatewayHost(hostname: string) {
+  const h = hostname.toLowerCase();
+  return KNOWN_IPFS_GATEWAY_HOSTS.has(h) || h.endsWith(".mypinata.cloud");
+}
+
+function isLikelyCidPath(v: string) {
+  return /^(Qm[a-zA-Z0-9]{44}|bafy[a-zA-Z0-9]{20,}|bafk[a-zA-Z0-9]{20,})(\/.*)?$/.test(
+    v
+  );
+}
 
 // ---------- URL helpers ----------
 
@@ -59,6 +67,60 @@ export function isHttpUrl(u?: string | null): boolean {
   if (!u) return false;
   const s = String(u).trim();
   return s.startsWith("http://") || s.startsWith("https://");
+}
+
+export function extractIpfsPath(raw?: string | null): string | null {
+  const s = String(raw || "").trim();
+  if (!s) return null;
+
+  if (s.startsWith("ipfs://")) {
+    let p = s.slice("ipfs://".length);
+    if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
+    return p || null;
+  }
+
+  if (s.startsWith("/ipfs/")) return s.slice("/ipfs/".length) || null;
+  if (isLikelyCidPath(s)) return s;
+
+  try {
+    const parsed = new URL(s);
+    const path = parsed.pathname || "";
+    const ipfsIndex = path.indexOf("/ipfs/");
+
+    if (ipfsIndex >= 0 && isKnownGatewayHost(parsed.hostname)) {
+      const p = path.slice(ipfsIndex + "/ipfs/".length);
+      return `${p}${parsed.search}${parsed.hash}` || null;
+    }
+
+    const barePath = path.replace(/^\/+/, "");
+    if (isKnownGatewayHost(parsed.hostname) && isLikelyCidPath(barePath)) {
+      return `${barePath}${parsed.search}${parsed.hash}`;
+    }
+
+    const subdomainMatch = parsed.hostname.match(/^(.+)\.ipfs\./i);
+    if (subdomainMatch?.[1]) {
+      const rest = path && path !== "/" ? path : "";
+      return `${subdomainMatch[1]}${rest}${parsed.search}${parsed.hash}`;
+    }
+  } catch {
+    // not a URL
+  }
+
+  return null;
+}
+
+export function ipfsGatewayUrls(raw?: string | null): string[] {
+  const path = extractIpfsPath(raw);
+  if (!path) return raw ? [String(raw)] : [];
+
+  return Array.from(
+    new Set([
+      ...IPFS_GATEWAYS.map(
+        (gateway) => `${gateway}${path.replace(/^\/+/, "")}`
+      ),
+      ...(raw ? [String(raw)] : []),
+    ])
+  );
 }
 
 /**
@@ -69,9 +131,7 @@ export function isHttpUrl(u?: string | null): boolean {
  *   ipfs://ipfs/CID       -> {gw}/CID
  *   /ipfs/CID             -> {gw}/CID
  *   Qm... / bafy...       -> {gw}/CID
- *   https://...           -> returned as-is, BUT if it's a known gateway URL
- *                            without /ipfs/ (e.g. "https://nftstorage.link/Qm...")
- *                            we fix it by inserting /ipfs/.
+ *   https://gateway/ipfs/CID -> rewritten to preferred gw when host is known
  */
 export function ipfsToHttp(
   uri?: string | null,
@@ -83,35 +143,17 @@ export function ipfsToHttp(
   if (!u) return null;
 
   if (isHttpUrl(u)) {
-    // Fix broken gateway URLs that have a CID right after the host:
-    // e.g. "https://nftstorage.link/QmYeQj..." -> "https://nftstorage.link/ipfs/QmYeQj..."
-    try {
-      const parsed = new URL(u);
-      // If the path starts with /Qm... or /bafy... (bare CID), insert /ipfs
-      const cidMatch = parsed.pathname.match(/^\/(Qm[a-zA-Z0-9]{44}|bafy[a-zA-Z0-9]{44,})(\/.*)?$/);
-      if (cidMatch) {
-        const [, cid, rest = ""] = cidMatch;
-        return `${parsed.origin}/ipfs/${cid}${rest}${parsed.search}${parsed.hash}`;
-      }
-    } catch {
-      // ignore URL parse errors
+    const ipfsPath = extractIpfsPath(u);
+    if (ipfsPath) {
+      return `${normalizeGatewayUrl(gw)}${ipfsPath.replace(/^\/+/, "")}`;
     }
+
     return u;
   }
 
-  if (u.startsWith("ipfs://")) {
-    let p = u.slice("ipfs://".length);
-    if (p.startsWith("ipfs/")) p = p.slice("ipfs/".length);
-    return `${gw}${p}`;
-  }
-
-  if (u.startsWith("/ipfs/")) {
-    return `${gw}${u.slice("/ipfs/".length)}`;
-  }
-
-  // Bare CID
-  if (/^[a-zA-Z0-9]{46,}$/.test(u)) {
-    return `${gw}${u}`;
+  const ipfsPath = extractIpfsPath(u);
+  if (ipfsPath) {
+    return `${normalizeGatewayUrl(gw)}${ipfsPath.replace(/^\/+/, "")}`;
   }
 
   return u;
@@ -119,13 +161,11 @@ export function ipfsToHttp(
 
 // ---------- Fetch helpers ----------
 
-async function fetchJsonOneGw(
-  rawUri: string,
-  gw: string,
+async function fetchJsonUrl(
+  url: string,
   timeoutMs: number,
   signal: AbortSignal
 ): Promise<any> {
-  const url = ipfsToHttp(rawUri, gw);
   if (!url) throw new Error("bad_url");
 
   const ctrl = new AbortController();
@@ -137,7 +177,7 @@ async function fetchJsonOneGw(
   try {
     const r = await fetch(url, {
       signal: ctrl.signal,
-      next: { revalidate: 60 * 60 * 24 * 7 }, // 7d — IPFS content is immutable
+      next: { revalidate: 60 * 60 * 24 * 7 },
       headers: { Accept: "application/json, */*" },
     });
 
@@ -158,6 +198,17 @@ async function fetchJsonOneGw(
   }
 }
 
+async function fetchJsonOneGw(
+  rawUri: string,
+  gw: string,
+  timeoutMs: number,
+  signal: AbortSignal
+): Promise<any> {
+  const url = ipfsToHttp(rawUri, gw);
+  if (!url) throw new Error("bad_url");
+  return fetchJsonUrl(url, timeoutMs, signal);
+}
+
 /**
  * Race multiple IPFS gateways, return first successful JSON response.
  * Never throws — returns null on total failure.
@@ -169,38 +220,16 @@ export async function fetchIpfsJson(
   if (!rawUri) return null;
 
   const timeoutMs = opts.timeoutMs ?? 4500;
-
-  // If already http(s), try direct first (but make sure it's been normalized)
-  if (isHttpUrl(rawUri)) {
-    const fixed = ipfsToHttp(rawUri); // fixes broken gateway URLs
-    if (!fixed) return null;
-    try {
-      const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), timeoutMs);
-      try {
-        const r = await fetch(fixed, {
-          signal: ctrl.signal,
-          next: { revalidate: 60 * 60 * 24 * 7 },
-          headers: { Accept: "application/json, */*" },
-        });
-        if (!r.ok) throw new Error(`http_${r.status}`);
-        const j = await r.json().catch(() => null);
-        if (j && typeof j === "object") return j;
-      } finally {
-        clearTimeout(t);
-      }
-    } catch {
-      return null;
-    }
-    return null;
-  }
-
-  // ipfs:// or bare CID — race gateways
   const outerCtrl = new AbortController();
+  const candidates = ipfsGatewayUrls(rawUri);
 
-  const tasks = IPFS_GATEWAYS.map((gw) =>
-    fetchJsonOneGw(rawUri, gw, timeoutMs, outerCtrl.signal)
-  );
+  const tasks = candidates.map((url) => {
+    if (isHttpUrl(url)) {
+      return fetchJsonUrl(url, timeoutMs, outerCtrl.signal);
+    }
+
+    return fetchJsonOneGw(url, IPFS_GATEWAYS[0], timeoutMs, outerCtrl.signal);
+  });
 
   try {
     const winner = await Promise.any(tasks);
@@ -213,7 +242,6 @@ export async function fetchIpfsJson(
     return null;
   }
 }
-
 // ---------- Metadata shape helpers ----------
 
 export type NftMetaRaw = Record<string, any>;

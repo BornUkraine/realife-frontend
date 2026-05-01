@@ -310,7 +310,7 @@ export default function GalleryGridClient({
             String(x.protectedSubtype || x.fulfillmentType || "").toUpperCase() ===
               "LOCAL_SERVICE" && Boolean(serviceLocationLabel);
           const justListed = freshlyListed[x.id];
-          const priorityMedia = index < 8;
+          const priorityMedia = index < 4;
 
           return (
             <Link
