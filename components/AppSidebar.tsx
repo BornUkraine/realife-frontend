@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -152,19 +153,29 @@ export default function AppSidebar({
           >
             {/* Logo mark */}
             <div className="z-10 shrink-0 relative w-14 h-14 flex items-center justify-center -ml-1.5">
-              <img
+              <Image
                 src="/brand/logo-mark.png"
                 alt="Realife"
-                className="w-full h-full object-contain mix-blend-screen scale-[4.2]"
+                width={240}
+                height={240}
+                priority
+                quality={90}
+                sizes="240px"
+                className="h-full w-full object-contain mix-blend-screen scale-[4.2]"
                 draggable={false}
               />
             </div>
             {/* Wordmark — absolute-positioned so it can overflow */}
             <div className="relative flex-1 h-11 overflow-visible z-0">
-              <img
+              <Image
                 src="/brand/logo-wordmark.png"
                 alt="Realife"
-                className="absolute top-1/2 left-[-64px] -translate-y-1/2 w-[280px] max-w-none object-contain object-left mix-blend-screen"
+                width={560}
+                height={120}
+                priority
+                quality={90}
+                sizes="560px"
+                className="absolute left-[-64px] top-1/2 h-auto w-[280px] max-w-none -translate-y-1/2 object-contain object-left mix-blend-screen"
                 draggable={false}
               />
             </div>

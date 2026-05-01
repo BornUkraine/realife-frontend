@@ -97,6 +97,26 @@ const IPFS_GATEWAYS = [
 
 const PINATA_IPFS = "https://gateway.pinata.cloud/ipfs/";
 
+const METADATA_FETCH_TIMEOUT_MS = 3200;
+
+function withFetchTimeout(ms: number) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timer),
+  };
+}
+
+function normalizeMediaKind(v?: string | null): "image" | "video" | null {
+  const s = String(v || "").trim().toLowerCase();
+  if (!s) return null;
+  if (s.includes("video") || s === "animation" || s === "animated") return "video";
+  if (s.includes("image") || s.includes("photo") || s.includes("poster")) return "image";
+  return null;
+}
+
 // ─── Market classification helpers ────────────────────────────────────────────
 
 function isProtectedFulfillment(v?: string | null) {
@@ -294,7 +314,11 @@ async function loadMetadataFromTokenUri(tokenUri: string) {
     if (!url) continue;
 
     try {
-      const r = await fetch(url, { cache: "no-store" });
+      const timeout = withFetchTimeout(METADATA_FETCH_TIMEOUT_MS);
+      const r = await fetch(url, {
+        signal: timeout.signal,
+        next: { revalidate: 60 * 60 * 12 },
+      }).finally(timeout.clear);
       if (!r.ok) continue;
       const j = await r.json().catch(() => null);
       if (j && typeof j === "object") return j;
@@ -322,7 +346,11 @@ async function loadMetadataFromBackend1155(
           )}`
         : `${base}/metadata1155/${encodeURIComponent(tokenId)}`;
 
-    const r = await fetch(url, { cache: "no-store" });
+    const timeout = withFetchTimeout(METADATA_FETCH_TIMEOUT_MS);
+    const r = await fetch(url, {
+      signal: timeout.signal,
+      next: { revalidate: 60 * 60 * 12 },
+    }).finally(timeout.clear);
     if (!r.ok) return null;
 
     const j = await r.json().catch(() => null);
@@ -580,6 +608,16 @@ export default async function PublicNFTsPage({
             serviceCountry: true,
             serviceCity: true,
             serviceArea: true,
+            metaImage: true,
+            metaAnimation: true,
+            metaMediaKind: true,
+            metaDescription: true,
+            metaCollection: true,
+            metaItem: true,
+            metaRarity: true,
+            metaBrand: true,
+            metaProject: true,
+            metadataCachedAt: true,
           },
         },
       },
@@ -593,56 +631,77 @@ export default async function PublicNFTsPage({
       const isUser1155Nft = USER_1155_CONTRACTS.includes(contract);
       const isDeliveryUserNft =
         !!USER_1155_DELIVERY_CONTRACT && contract === USER_1155_DELIVERY_CONTRACT;
-      const fallbackPoster = ipfsToHttp(x.mint?.image, IPFS_GATEWAYS[0]);
+      const cachedMediaKind = normalizeMediaKind((x.mint as any)?.metaMediaKind);
+      const cachedImageUri = (x.mint as any)?.metaImage || x.mint?.image || null;
+      const cachedAnimationUri = (x.mint as any)?.metaAnimation || null;
 
-      let kind: "image" | "video" = "image";
-      let media: string | null = fallbackPoster;
-      let poster: string | null = null;
+      const fallbackPoster = ipfsToHttp(cachedImageUri, IPFS_GATEWAYS[0]);
+      const fallbackAnimation =
+        ipfsToHttp(cachedAnimationUri, PINATA_IPFS) ||
+        ipfsToHttp(cachedAnimationUri, IPFS_GATEWAYS[0]);
+
+      let kind: "image" | "video" =
+        cachedMediaKind === "video" || fallbackAnimation ? "video" : "image";
+      let media: string | null =
+        kind === "video" ? fallbackAnimation || fallbackPoster : fallbackPoster;
+      let poster: string | null = kind === "video" ? fallbackPoster : null;
       let supply: string | null = null;
 
-      const liveMeta = isUser1155Nft
-        ? await loadMetadataFromBackend1155(String(x.tokenId), contract)
-        : null;
+      // Speed fix: do not block the gallery by fetching metadata for every NFT.
+      // Use DB-cached media first; remote metadata is only a fallback for old mints
+      // that still have no cached image/animation.
+      const shouldFetchRemoteMeta = !media && Boolean(x.mint?.tokenUri);
+
+      const liveMeta =
+        shouldFetchRemoteMeta && isUser1155Nft
+          ? await loadMetadataFromBackend1155(String(x.tokenId), contract)
+          : null;
 
       let meta: any = liveMeta;
-      if (!meta && x.mint?.tokenUri) {
+      if (shouldFetchRemoteMeta && !meta && x.mint?.tokenUri) {
         meta = await loadMetadataFromTokenUri(x.mint.tokenUri);
       }
 
       const metaCategory =
+        x.mint?.category ||
         pickAttrAny(meta, ["Category", "category"]) ||
         pickAny(meta, ["category"]) ||
-        x.mint?.category ||
         null;
 
       const metaSubcategory =
+        x.mint?.subcategory ||
         pickAttrAny(meta, ["Subcategory", "subcategory"]) ||
         pickAny(meta, ["subcategory"]) ||
-        x.mint?.subcategory ||
         null;
 
       const metaFulfillmentType =
+        x.mint?.fulfillmentType ||
         pickAny(meta, ["fulfillmentType"]) ||
         pickAttrAny(meta, ["Fulfillment Type", "Fulfillment"]) ||
-        x.mint?.fulfillmentType ||
         null;
 
       const serviceCountry =
+        x.mint?.serviceCountry ||
         pickAny(meta, ["serviceCountry", "service_country", "country"]) ||
         pickAttrAny(meta, ["Service Country", "Country"]) ||
-        x.mint?.serviceCountry ||
         null;
 
       const serviceCity =
+        x.mint?.serviceCity ||
         pickAny(meta, ["serviceCity", "service_city", "city"]) ||
         pickAttrAny(meta, ["Service City", "City"]) ||
-        x.mint?.serviceCity ||
         null;
 
       const serviceArea =
-        pickAny(meta, ["serviceArea", "service_area", "area", "serviceZone", "service_zone"]) ||
-        pickAttrAny(meta, ["Service Area", "Service Zone", "Area"]) ||
         x.mint?.serviceArea ||
+        pickAny(meta, [
+          "serviceArea",
+          "service_area",
+          "area",
+          "serviceZone",
+          "service_zone",
+        ]) ||
+        pickAttrAny(meta, ["Service Area", "Service Zone", "Area"]) ||
         null;
 
       if (meta) {
@@ -671,7 +730,7 @@ export default async function PublicNFTsPage({
 
         if (isLikelyVideoMeta(meta)) {
           kind = "video";
-          media = animHttp || null;
+          media = animHttp || fallbackAnimation || null;
           poster = imgHttp || fallbackPoster || null;
 
           if (!media) {
