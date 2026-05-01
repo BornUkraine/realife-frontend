@@ -131,11 +131,11 @@ export default function NftMedia({
   sizes?: string;
 }) {
   const objectFit = fit === "contain" ? "object-contain" : "object-cover";
-  const [imageLoaded, setImageLoaded] = useState(priority && kind === "image");
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   useEffect(() => {
-    setImageLoaded(priority && kind === "image");
-  }, [kind, priority, src]);
+    setImageLoaded(false);
+  }, [kind, src]);
 
   if (!src) {
     return (

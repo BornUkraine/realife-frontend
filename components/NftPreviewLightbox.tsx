@@ -19,6 +19,8 @@ export default function NftPreviewLightbox({
   fit = "contain",
   mediaBgClass = "bg-black",
   buttonClassName = "",
+  priority = false,
+  sizes = "(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 720px",
 }: {
   src: string | null;
   kind: "image" | "video";
@@ -30,6 +32,8 @@ export default function NftPreviewLightbox({
   fit?: "contain" | "cover";
   mediaBgClass?: string;
   buttonClassName?: string;
+  priority?: boolean;
+  sizes?: string;
 }) {
   const [mounted, setMounted] = useState(false);
   const [portalMounted, setPortalMounted] = useState(false);
@@ -129,6 +133,8 @@ export default function NftPreviewLightbox({
           showControls={showControls}
           fit={fit}
           mediaBgClass={mediaBgClass}
+          priority={priority}
+          sizes={sizes}
         />
       </div>
     );
@@ -205,6 +211,7 @@ export default function NftPreviewLightbox({
                   fit="contain"
                   mediaBgClass={mediaBgClass}
                   priority
+                  sizes="100vw"
                 />
               </div>
             </div>
@@ -226,6 +233,8 @@ export default function NftPreviewLightbox({
           showControls={showControls}
           fit={fit}
           mediaBgClass={mediaBgClass}
+          priority={priority}
+          sizes={sizes}
         />
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-24 bg-[linear-gradient(to_top,rgba(0,0,0,0.26),transparent)] opacity-0 transition-opacity duration-200 group-hover/nft-preview:opacity-100 group-focus-within/nft-preview:opacity-100" />

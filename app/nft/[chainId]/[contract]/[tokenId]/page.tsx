@@ -1086,6 +1086,15 @@ export default async function NftDetailsPage({
       tokenUri: true,
       name: true,
       image: true,
+      metaImage: true,
+      metaAnimation: true,
+      metaMediaKind: true,
+      metaDescription: true,
+      metaCollection: true,
+      metaItem: true,
+      metaRarity: true,
+      metaBrand: true,
+      metaProject: true,
       deliveryEnabled: true,
       physicalItemIncluded: true,
       officialItem: true,
@@ -1196,16 +1205,48 @@ export default async function NftDetailsPage({
   const txUrl = nft.txHash ? txExplorerUrl(nft.chainId, nft.txHash) : null;
   const contractUrl = contractExplorerUrl(nft.chainId, nft.contract);
 
-  const fallbackPoster = ipfsToHttp(nft.image, IPFS_GATEWAYS[0]);
+  const fallbackPoster =
+    ipfsToHttp(nft.metaImage, IPFS_GATEWAYS[0]) ||
+    ipfsToHttp(nft.image, IPFS_GATEWAYS[0]);
 
-  const shouldUseBackendMetadata = isUserStandard1155Nft || isUserDelivery1155Nft;
+  const cachedMeta = {
+    name: nft.name || null,
+    description: nft.metaDescription || null,
+    image: nft.metaImage || null,
+    animation_url: nft.metaAnimation || null,
+    mediaKind: nft.metaMediaKind || null,
+    collection: nft.metaCollection || null,
+    item: nft.metaItem || null,
+    rarity: nft.metaRarity || null,
+    brand: nft.metaBrand || null,
+    project: nft.metaProject || null,
+  };
+
+  const hasCachedMeta = Boolean(
+    cachedMeta.image ||
+      cachedMeta.animation_url ||
+      cachedMeta.description ||
+      cachedMeta.mediaKind ||
+      cachedMeta.collection ||
+      cachedMeta.item ||
+      cachedMeta.rarity ||
+      cachedMeta.brand ||
+      cachedMeta.project
+  );
+
+  const shouldUseBackendMetadata =
+    !hasCachedMeta && (isUserStandard1155Nft || isUserDelivery1155Nft);
 
   const liveMeta = shouldUseBackendMetadata
     ? await loadMetadataFromBackend1155(tokenId, contract)
     : null;
 
-  const meta =
-    liveMeta || (nft.tokenUri ? await loadMetadataFromTokenUri(nft.tokenUri) : null);
+  const tokenUriMeta =
+    !liveMeta && !hasCachedMeta && nft.tokenUri
+      ? await loadMetadataFromTokenUri(nft.tokenUri)
+      : null;
+
+  const meta = liveMeta || tokenUriMeta || (hasCachedMeta ? cachedMeta : null);
 
   const cafeStore = isCafeNft ? await loadCafeStoreState(contract, tokenId) : null;
   const storeStore = isStoreNft ? await loadStoreStoreState(contract, tokenId) : null;
@@ -1387,12 +1428,19 @@ export default async function NftDetailsPage({
         ? meta.animation
         : null;
 
+    const metaMediaKind =
+      typeof meta?.mediaKind === "string"
+        ? meta.mediaKind.toLowerCase()
+        : typeof meta?.media_kind === "string"
+        ? meta.media_kind.toLowerCase()
+        : null;
+
     const imgHttp = ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || fallbackPoster;
     const animHttp =
       ipfsToHttp(metaAnimation, PINATA_IPFS) ||
       ipfsToHttp(metaAnimation, IPFS_GATEWAYS[0]);
 
-    if (metaAnimation || isLikelyVideoUrl(animHttp)) {
+    if (metaAnimation || metaMediaKind === "video" || isLikelyVideoUrl(animHttp)) {
       kind = "video";
       media = animHttp || null;
       poster = imgHttp || fallbackPoster || null;
@@ -1593,6 +1641,8 @@ export default async function NftDetailsPage({
                       className="h-full w-full"
                       roundedClass="rounded-none"
                       buttonClassName="right-5 top-[4.75rem]"
+                      priority
+                      sizes="(max-width: 1279px) 100vw, 48vw"
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center font-black text-white/25">

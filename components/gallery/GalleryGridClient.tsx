@@ -295,7 +295,7 @@ export default function GalleryGridClient({
       >
         {gridItems.length === 0 ? <EmptyGridState isOwner={isOwner} /> : null}
 
-        {gridItems.map((x) => {
+        {gridItems.map((x, index) => {
           const showProtectedBadge = x.secondaryMarketType === "PROTECTED";
           const showProtectedSubtype =
             showProtectedBadge && Boolean(x.protectedSubtypeLabel);
@@ -310,6 +310,7 @@ export default function GalleryGridClient({
             String(x.protectedSubtype || x.fulfillmentType || "").toUpperCase() ===
               "LOCAL_SERVICE" && Boolean(serviceLocationLabel);
           const justListed = freshlyListed[x.id];
+          const priorityMedia = index < 8;
 
           return (
             <Link
@@ -384,6 +385,8 @@ export default function GalleryGridClient({
                       className="h-full w-full"
                       roundedClass="rounded-none"
                       mediaBgClass="bg-black"
+                      priority={priorityMedia}
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 280px"
                     />
 
                     <div className="absolute left-3 top-3 z-10 flex max-w-[78%] flex-col gap-2">
@@ -594,25 +597,19 @@ export default function GalleryGridClient({
             }}
           >
             <div className="relative flex h-full w-full items-center justify-center">
-              {preview.kind === "image" ? (
-                <img
-                  src={preview.src}
-                  alt={preview.alt || "NFT"}
-                  className="max-h-full max-w-full object-contain"
-                  referrerPolicy="no-referrer"
-                  draggable={false}
-                />
-              ) : (
-                <video
-                  src={preview.src}
-                  poster={preview.poster || undefined}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="max-h-full max-w-full object-contain"
-                  autoPlay
-                />
-              )}
+              <NftMedia
+                src={preview.src}
+                kind={preview.kind}
+                alt={preview.alt || "NFT"}
+                poster={preview.kind === "video" ? preview.poster : null}
+                showControls={true}
+                fit="contain"
+                className="h-full w-full"
+                roundedClass="rounded-none"
+                mediaBgClass="bg-black"
+                priority
+                sizes="100vw"
+              />
             </div>
           </div>
         </div>
