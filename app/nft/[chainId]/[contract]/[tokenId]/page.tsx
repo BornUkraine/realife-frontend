@@ -991,32 +991,58 @@ function AccordionSection({
     <details
       open={defaultOpen}
       className={cx(
-        "overflow-hidden rounded-[28px] p-px",
+        "group/acc overflow-hidden rounded-[28px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
-        "shadow-[0_26px_100px_rgba(0,0,0,0.55)]"
+        "shadow-[0_26px_100px_rgba(0,0,0,0.55)]",
+        "transition-shadow duration-300 hover:shadow-[0_30px_120px_rgba(212,175,55,0.10)]"
       )}
     >
       <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/30 ring-1 ring-black/10 backdrop-blur-2xl">
-        <summary className="list-none cursor-pointer select-none">
-          <div className="flex items-center justify-between gap-4 px-6 py-5 md:px-7">
+        <summary className="list-none cursor-pointer select-none transition-colors duration-200 hover:bg-white/[0.02]">
+          <div className="flex items-center justify-between gap-4 px-6 py-5 md:px-7 md:py-6">
             <div className="min-w-0">
-              <div className="text-[12px] font-bold tracking-tight text-white/90">
+              <div className="text-[13px] font-black tracking-tight text-white/92 md:text-sm">
                 {title}
               </div>
               {subtitle ? (
-                <div className="mt-1 text-[12px] leading-relaxed text-white/40">
+                <div className="mt-1.5 text-[12px] leading-relaxed text-white/45">
                   {subtitle}
                 </div>
               ) : null}
             </div>
 
-            <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/60">
-              Open / Close
+            <div
+              className={cx(
+                "shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-2xl",
+                "border border-white/10 bg-white/[0.05] text-amber-100/85",
+                "transition-all duration-300",
+                "group-hover/acc:bg-white/[0.08] group-hover/acc:text-amber-100",
+                "group-open/acc:rotate-180 group-open/acc:bg-amber-500/10 group-open/acc:border-amber-500/25"
+              )}
+              aria-hidden
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 14 14"
+                fill="none"
+                className="transition-transform duration-300"
+              >
+                <path
+                  d="M3 5l4 4 4-4"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
             </div>
           </div>
         </summary>
 
-        <div className="border-t border-white/10 px-6 py-6 md:px-7">{children}</div>
+        <div className="border-t border-white/10 px-6 py-6 md:px-7 md:py-7">
+          {children}
+        </div>
       </div>
     </details>
   );
@@ -1450,7 +1476,7 @@ export default async function NftDetailsPage({
   const TradingPanelAny = TradingPanel1155 as any;
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#060505] text-white">
+    <main className="min-h-screen overflow-x-hidden bg-[#060505] text-white scroll-smooth">
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(212,175,55,0.10),transparent_55%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_115%,rgba(255,255,255,0.05),transparent_60%)]" />
@@ -1517,7 +1543,7 @@ export default async function NftDetailsPage({
             {backToGalleryHref ? (
               <Link
                 href={backToGalleryHref}
-                className="inline-flex min-w-[190px] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+                className="inline-flex min-w-[190px] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 font-extrabold text-black ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_22px_70px_rgba(212,175,55,0.28)] active:translate-y-0"
               >
                 Back to gallery
               </Link>
@@ -1526,7 +1552,7 @@ export default async function NftDetailsPage({
             {isCafeNft ? (
               <Link
                 href={CAFE_STOREFRONT_HREF}
-                className="inline-flex min-w-[190px] items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 font-bold transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                className="inline-flex min-w-[190px] items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 font-bold shadow-[0_18px_70px_rgba(0,0,0,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/10 active:translate-y-0"
               >
                 Cafe storefront
               </Link>
@@ -1535,7 +1561,7 @@ export default async function NftDetailsPage({
             {isStoreNft ? (
               <Link
                 href={STORE_STOREFRONT_HREF}
-                className="inline-flex min-w-[190px] items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 font-bold transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                className="inline-flex min-w-[190px] items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 font-bold shadow-[0_18px_70px_rgba(0,0,0,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/10 active:translate-y-0"
               >
                 NFT Store
               </Link>
@@ -1547,9 +1573,10 @@ export default async function NftDetailsPage({
           <div className="space-y-6">
             <div
               className={cx(
-                "reveal overflow-hidden rounded-[28px] p-px",
+                "reveal group/media overflow-hidden rounded-[28px] p-px",
                 "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
-                "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
+                "shadow-[0_34px_130px_rgba(0,0,0,0.60)]",
+                "transition-shadow duration-500 hover:shadow-[0_40px_140px_rgba(212,175,55,0.18)]"
               )}
               style={{ animationDelay: "80ms" }}
             >
@@ -1572,6 +1599,8 @@ export default async function NftDetailsPage({
                       No media
                     </div>
                   )}
+
+                  <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover/media:opacity-100 bg-[radial-gradient(circle_at_50%_50%,rgba(212,175,55,0.10),transparent_70%)]" />
 
                   <div className="absolute inset-x-0 top-0 flex items-start justify-between p-5">
                     <div className="pointer-events-none flex flex-wrap gap-2">
@@ -1816,7 +1845,7 @@ export default async function NftDetailsPage({
           )}
         >
           {hasStorefrontPanel ? (
-            <div className="space-y-6">
+            <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
               {isCafeNft ? (
                 <div className="reveal" style={{ animationDelay: "180ms" }}>
                   <StorefrontBuyPanel1155
@@ -1953,7 +1982,7 @@ export default async function NftDetailsPage({
               </div>
             ) : null}
 
-            <div className="reveal" style={{ animationDelay: usesProtectedSecondaryMarket ? "200ms" : "180ms" }}>
+            <div className="reveal" style={{ animationDelay: "180ms" }}>
               <TradingPanelAny
                 chainId={chainId}
                 contract={contract}
@@ -1984,10 +2013,10 @@ export default async function NftDetailsPage({
             Details
           </div>
 
-          <div className="reveal" style={{ animationDelay: "240ms" }}>
+          <div className="reveal" style={{ animationDelay: "180ms" }}>
             <AccordionSection
-              title="About"
-              subtitle="Description, collection, category, item type and premium metadata."
+              title="About this NFT"
+              subtitle="Description, brand, project, collection, category, item type and rarity metadata."
             >
               <div className="grid gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(340px,1.08fr)]">
                 <div>
@@ -2044,10 +2073,10 @@ export default async function NftDetailsPage({
             </AccordionSection>
           </div>
 
-          <div className="reveal" style={{ animationDelay: "260ms" }}>
+          <div className="reveal" style={{ animationDelay: "180ms" }}>
             <AccordionSection
               title="Blockchain details"
-              subtitle="Contract, token, mint time, supply, market type and on-chain links."
+              subtitle="Smart contract, token ID, supply, mint transaction and on-chain explorer links."
             >
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 <StatCard label="Contract" value={shortAddr(nft.contract)} />
@@ -2106,10 +2135,10 @@ export default async function NftDetailsPage({
             </AccordionSection>
           </div>
 
-          <div className="reveal" style={{ animationDelay: "280ms" }}>
+          <div className="reveal" style={{ animationDelay: "180ms" }}>
             <AccordionSection
               title="Ownership & profiles"
-              subtitle="Current owner, creator and holder context."
+              subtitle="Current owner or top holder, original creator, total holders count and creator wallet."
             >
               <div className="grid gap-4 xl:grid-cols-2">
                 <PersonCard
@@ -2143,10 +2172,10 @@ export default async function NftDetailsPage({
             </AccordionSection>
           </div>
 
-          <div className="reveal" style={{ animationDelay: "300ms" }}>
+          <div className="reveal" style={{ animationDelay: "180ms" }}>
             <AccordionSection
               title="Market activity"
-              subtitle="Open listings and recent sales for this NFT."
+              subtitle="Open listings on the secondary market and recent trade history with explorer links."
             >
               {marketError ? (
                 <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">

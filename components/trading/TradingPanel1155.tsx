@@ -132,6 +132,35 @@ type ToastItem = {
   text?: string | null;
 };
 
+/**
+ * Granular tx phase, used to drive the inline progress widget.
+ * - idle           : nothing in flight
+ * - preparing      : building args, ensuring chain, etc.
+ * - awaiting-sig   : wallet is open, user must sign
+ * - confirming     : tx submitted, waiting for receipt
+ * - syncing        : confirmed on-chain, refreshing local state
+ * - done           : success, will fade out shortly
+ * - error          : something failed
+ */
+type TxPhase =
+  | "idle"
+  | "preparing"
+  | "awaiting-sig"
+  | "confirming"
+  | "syncing"
+  | "done"
+  | "error";
+
+type TxKind = "approve" | "list" | "buy" | "cancel";
+
+type TxState = {
+  kind: TxKind;
+  phase: TxPhase;
+  label: string; // human readable label for current step
+  txHash?: string | null;
+  errorText?: string | null;
+};
+
 
 type Eip1193Provider = {
   request: (args: {
@@ -310,6 +339,54 @@ function listingKeyOf(x: {
     x.marketType || "STANDARD",
     String(x.marketplaceListingId || ""),
   ].join(":");
+}
+
+/**
+ * Build an optimistic Listing row that we add to local state right after
+ * the listing tx is confirmed on-chain — but before the indexer has
+ * picked it up. The marketplaceListingId is a pseudo-id (pending-tx-...)
+ * so listingKeyOf() still produces a unique key. Once the real indexer
+ * sync happens, the server payload replaces this row.
+ */
+function buildPendingListing(input: {
+  txHash: string;
+  sellerWallet: string;
+  marketType: MarketType;
+  marketplaceContract: string;
+  pricePerUnitWei: string;
+  amount: string;
+  fulfillmentType?: FulfillmentType | null;
+  category?: string | null;
+  subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  serviceArea?: string | null;
+}): Listing {
+  return {
+    id: `pending-${input.txHash}`,
+    standard: "ERC1155",
+    sellerWallet: input.sellerWallet,
+    seller: null,
+    marketplaceListingId: `pending-${input.txHash}`,
+    pricePerUnitWei: input.pricePerUnitWei,
+    amountTotal: input.amount,
+    amountRemaining: input.amount,
+    createdAt: new Date().toISOString(),
+
+    marketType: input.marketType,
+    marketplaceContract: input.marketplaceContract,
+
+    fulfillmentType: input.fulfillmentType ?? null,
+    category: input.category ?? null,
+    subcategory: input.subcategory ?? null,
+    serviceCountry: input.serviceCountry ?? null,
+    serviceCity: input.serviceCity ?? null,
+    serviceArea: input.serviceArea ?? null,
+  };
+}
+
+function isPendingListingId(id: string | undefined | null) {
+  return typeof id === "string" && id.startsWith("pending-");
 }
 
 async function fetchJSON(url: string) {
@@ -670,6 +747,162 @@ function ToastCard({
   );
 }
 
+/**
+ * Inline transaction progress strip.
+ * Shown under the action area while a tx is in flight or just completed.
+ * Communicates: what step we're on, what to expect, tx link, error.
+ */
+function TxProgress({
+  state,
+  chainId,
+  onDismiss,
+}: {
+  state: TxState | null;
+  chainId: number;
+  onDismiss?: () => void;
+}) {
+  if (!state || state.phase === "idle") return null;
+
+  const steps: Array<{
+    key: TxPhase;
+    label: string;
+  }> = [
+    { key: "preparing", label: "Prepare" },
+    { key: "awaiting-sig", label: "Sign" },
+    { key: "confirming", label: "Confirm" },
+    { key: "syncing", label: "Sync" },
+    { key: "done", label: "Done" },
+  ];
+
+  const order: TxPhase[] = [
+    "preparing",
+    "awaiting-sig",
+    "confirming",
+    "syncing",
+    "done",
+  ];
+
+  const currentIndex =
+    state.phase === "error"
+      ? Math.max(0, order.indexOf("confirming"))
+      : order.indexOf(state.phase);
+
+  const isError = state.phase === "error";
+  const isDone = state.phase === "done";
+
+  const kindLabel =
+    state.kind === "list"
+      ? "Listing"
+      : state.kind === "buy"
+      ? "Purchase"
+      : state.kind === "cancel"
+      ? "Cancel"
+      : "Approval";
+
+  const tone = isError
+    ? "border-rose-500/25 bg-rose-500/10 text-rose-100"
+    : isDone
+    ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-100"
+    : "border-amber-500/25 bg-amber-500/10 text-amber-100";
+
+  const explorer =
+    state.txHash && state.txHash.startsWith("0x")
+      ? explorerTxUrl(chainId, state.txHash)
+      : null;
+
+  return (
+    <div
+      className={cx(
+        "mt-5 overflow-hidden rounded-2xl border p-4 transition-all duration-300",
+        tone
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-black uppercase tracking-[0.2em] opacity-75">
+            {kindLabel} {isError ? "failed" : isDone ? "complete" : "in progress"}
+          </div>
+          <div className="mt-1 text-[13px] font-bold leading-snug">
+            {isError
+              ? state.errorText || "Transaction failed."
+              : state.label}
+          </div>
+        </div>
+
+        {(isDone || isError) && onDismiss ? (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/20 text-white/85 transition hover:bg-black/35"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        ) : !isError && !isDone ? (
+          <div className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/15 bg-black/20">
+            <span className="block h-3 w-3 animate-spin rounded-full border-2 border-current border-r-transparent opacity-80" />
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-3 flex items-center gap-1.5">
+        {steps.map((s, i) => {
+          const reached = i <= currentIndex && !isError;
+          const isActive = i === currentIndex && !isDone && !isError;
+          const isErrorStep = isError && i === currentIndex;
+
+          return (
+            <div key={s.key} className="flex flex-1 items-center gap-1.5">
+              <div
+                className={cx(
+                  "h-1.5 flex-1 rounded-full transition-all duration-300",
+                  isErrorStep
+                    ? "bg-rose-300/80"
+                    : reached
+                    ? "bg-current opacity-90"
+                    : "bg-current opacity-15",
+                  isActive ? "animate-pulse" : ""
+                )}
+              />
+              {i < steps.length - 1 ? null : null}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold opacity-80">
+        <div className="flex flex-wrap gap-x-3 gap-y-1">
+          {steps.map((s, i) => {
+            const reached = i <= currentIndex && !isError;
+            return (
+              <span
+                key={s.key}
+                className={cx(
+                  "uppercase tracking-wider transition-opacity",
+                  reached ? "opacity-100" : "opacity-40"
+                )}
+              >
+                {i + 1}. {s.label}
+              </span>
+            );
+          })}
+        </div>
+
+        {explorer ? (
+          <a
+            href={explorer}
+            target="_blank"
+            rel="noreferrer"
+            className="font-black underline-offset-2 hover:underline"
+          >
+            View tx ↗
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function MarketNotice({
   contractView,
   assetIsProtected,
@@ -879,6 +1112,9 @@ export default function TradingPanel1155({
     return () => {
       if (hintTimerRef.current) {
         window.clearTimeout(hintTimerRef.current);
+      }
+      if (txAutoDismissRef.current) {
+        window.clearTimeout(txAutoDismissRef.current);
       }
       for (const timer of toastTimerRefs.current) {
         window.clearTimeout(timer);
@@ -1219,6 +1455,105 @@ export default function TradingPanel1155({
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const toastTimerRefs = useRef<number[]>([]);
 
+  /**
+   * Inline tx progress state. Drives <TxProgress />. Independent from `busy`
+   * because we want to keep the success/error message visible briefly even
+   * after `busy` has been cleared.
+   */
+  const [txState, setTxState] = useState<TxState | null>(null);
+  const txAutoDismissRef = useRef<number | null>(null);
+
+  const updateTx = useCallback(
+    (next: TxState | null, opts?: { autoDismissMs?: number }) => {
+      if (txAutoDismissRef.current) {
+        window.clearTimeout(txAutoDismissRef.current);
+        txAutoDismissRef.current = null;
+      }
+
+      setTxState(next);
+
+      if (next && opts?.autoDismissMs && opts.autoDismissMs > 0) {
+        txAutoDismissRef.current = window.setTimeout(() => {
+          setTxState((cur) => (cur === next ? null : cur));
+          txAutoDismissRef.current = null;
+        }, opts.autoDismissMs);
+      }
+    },
+    []
+  );
+
+  const dismissTx = useCallback(() => {
+    if (txAutoDismissRef.current) {
+      window.clearTimeout(txAutoDismissRef.current);
+      txAutoDismissRef.current = null;
+    }
+    setTxState(null);
+  }, []);
+
+  /**
+   * Optimistically prepend a freshly-listed row to local state so the user
+   * sees their listing instantly. Once the indexer catches up and refresh()
+   * returns the real row, dedupe by sellerWallet+price+txHash.
+   */
+  const applyOptimisticAddListing = useCallback(
+    (input: {
+      txHash: string;
+      sellerWallet: string;
+      marketType: MarketType;
+      marketplaceContract: string;
+      pricePerUnitWei: string;
+      amount: string;
+      fulfillmentType?: FulfillmentType | null;
+      category?: string | null;
+      subcategory?: string | null;
+      serviceCountry?: string | null;
+      serviceCity?: string | null;
+      serviceArea?: string | null;
+    }) => {
+      const pending = buildPendingListing(input);
+
+      setData((prev) => {
+        if (!prev) {
+          // No baseline data yet — bootstrap a minimal one
+          return {
+            ok: true,
+            mint: {
+              chainId,
+              contract: nftAddr,
+              tokenId,
+              name: null,
+              image: null,
+              tokenUri: null,
+            },
+            stats: recomputeStats(
+              {
+                activeListings: 1,
+                tradesCount: 0,
+                floorWei: pending.pricePerUnitWei,
+                lastSaleWei: null,
+                volumeTotalWei: "0",
+              },
+              [pending]
+            ),
+            listings: [pending],
+            trades: [],
+          } as MarketNftResponse;
+        }
+
+        // de-dup: replace any existing pending row from the same tx
+        const filtered = prev.listings.filter(
+          (row) => row.marketplaceListingId !== pending.marketplaceListingId
+        );
+
+        return withUpdatedListings(prev, [pending, ...filtered]);
+      });
+
+      hasRenderableDataRef.current = true;
+      setSelectedListingKey(listingKeyOf(pending));
+    },
+    [chainId, nftAddr, tokenId]
+  );
+
   useEffect(() => {
     const list = data?.listings || [];
     if (!list.length) {
@@ -1509,10 +1844,20 @@ export default function TradingPanel1155({
     setHint(null);
     setBusy("approve");
 
+    updateTx({
+      kind: "approve",
+      phase: "preparing",
+      label: `Preparing approval for ${marketLabel(sellMarketType)} marketplace…`,
+    });
+
     try {
       await ensureChain();
 
-      pushToast("info", "Wallet opened", `Confirm approval for ${marketLabel(sellMarketType)} market.`);
+      updateTx({
+        kind: "approve",
+        phase: "awaiting-sig",
+        label: "Open your wallet and confirm the approval transaction.",
+      });
 
       const hash = await sendActiveContractTransaction({
         abi: erc1155CoreAbi,
@@ -1521,17 +1866,48 @@ export default function TradingPanel1155({
         args: [sellMarketplaceAddress as `0x${string}`, true],
       });
 
-      setHint(
-        `Approval sent to ${marketLabel(sellMarketType)} market. Waiting for confirmation…`
-      );
-      pushToast("warning", "Transaction pending", "Approval transaction is waiting for on-chain confirmation.", 3200);
+      updateTx({
+        kind: "approve",
+        phase: "confirming",
+        label: "Waiting for on-chain confirmation…",
+        txHash: hash,
+      });
+
       await publicClient?.waitForTransactionReceipt({ hash });
 
+      updateTx({
+        kind: "approve",
+        phase: "syncing",
+        label: "Confirmed. Refreshing approval state…",
+        txHash: hash,
+      });
+
       await refetchApproved();
+
+      updateTx(
+        {
+          kind: "approve",
+          phase: "done",
+          label: `Approved for ${marketLabel(sellMarketType)} marketplace.`,
+          txHash: hash,
+        },
+        { autoDismissMs: 3500 }
+      );
+
       setHint(`Approved for ${marketLabel(sellMarketType)} ✅`);
-      pushToast("success", "Confirmed on-chain", `${marketLabel(sellMarketType)} approval is active now.`);
+      pushToast("success", "Approval confirmed", `${marketLabel(sellMarketType)} approval is active now.`);
     } catch (e: any) {
-      setErr(e?.shortMessage || e?.message || "Approve failed");
+      const msg = e?.shortMessage || e?.message || "Approve failed";
+      setErr(msg);
+      updateTx(
+        {
+          kind: "approve",
+          phase: "error",
+          label: msg,
+          errorText: msg,
+        },
+        { autoDismissMs: 6000 }
+      );
     } finally {
       setBusy(null);
     }
@@ -1548,17 +1924,29 @@ export default function TradingPanel1155({
     setHint(null);
     setBusy("list");
 
+    updateTx({
+      kind: "list",
+      phase: "preparing",
+      label: `Preparing ${marketLabel(sellMarketType).toLowerCase()} listing…`,
+    });
+
     try {
       await ensureChain();
 
       const amt = BigInt(clampInt(sellAmount, 1, Math.max(1, maxSell)));
 
       if (sellPriceWei <= 0n) {
+        const msg = "Enter a valid ETH price greater than zero.";
         setErr("Enter valid price");
-        pushToast(
-          "error",
-          "Invalid price",
-          "Enter a valid ETH price greater than zero."
+        pushToast("error", "Invalid price", msg);
+        updateTx(
+          {
+            kind: "list",
+            phase: "error",
+            label: msg,
+            errorText: msg,
+          },
+          { autoDismissMs: 4500 }
         );
         setBusy(null);
         return;
@@ -1577,7 +1965,16 @@ export default function TradingPanel1155({
             ]
           : [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei];
 
-      pushToast("info", "Wallet opened", "Confirm the listing transaction in your wallet.");
+      updateTx({
+        kind: "list",
+        phase: "awaiting-sig",
+        label:
+          sellMarketType === "PROTECTED"
+            ? `Open wallet and sign the protected listing (${fulfillmentTypeLabel(
+                protectedFulfillmentType
+              )}).`
+            : "Open wallet and sign the listing transaction.",
+      });
 
       const hash = await sendActiveContractTransaction({
         abi: sellMarketplaceAbi as any,
@@ -1586,32 +1983,85 @@ export default function TradingPanel1155({
         args: listArgs as any,
       });
 
-      setHint(
-        sellMarketType === "PROTECTED"
-          ? `${marketLabel(
-              sellMarketType
-            )} listing sent (${fulfillmentTypeLabel(
-              protectedFulfillmentType
-            )}). Waiting for confirmation…`
-          : `${marketLabel(sellMarketType)} listing sent. Waiting for confirmation…`
-      );
+      updateTx({
+        kind: "list",
+        phase: "confirming",
+        label: "Listing submitted. Waiting for on-chain confirmation…",
+        txHash: hash,
+      });
 
-      pushToast("warning", "Transaction pending", "Listing is waiting for on-chain confirmation.", 3200);
       await publicClient?.waitForTransactionReceipt({ hash });
+
+      // ── Optimistic add: show the listing in the UI right now ──────────
+      // The indexer will replace this row with the real one after sync.
+      applyOptimisticAddListing({
+        txHash: hash,
+        sellerWallet: activeAddress || "",
+        marketType: sellMarketType,
+        marketplaceContract: sellMarketplaceAddress,
+        pricePerUnitWei: priceWei.toString(),
+        amount: amt.toString(),
+        fulfillmentType:
+          sellMarketType === "PROTECTED" ? protectedFulfillmentType : null,
+        category: assetCategory,
+        subcategory: assetSubcategory,
+        serviceCountry: data?.mint?.serviceCountry || serviceCountry,
+        serviceCity: data?.mint?.serviceCity || serviceCity,
+        serviceArea: data?.mint?.serviceArea || serviceArea,
+      });
+
+      // Auto-switch to Buy tab so the user sees their fresh listing in
+      // the Active listings list right where buyers will see it.
+      setTab("buy");
+
       void triggerAiVisualEnrich();
 
+      updateTx({
+        kind: "list",
+        phase: "syncing",
+        label: "Confirmed on-chain. Syncing market data…",
+        txHash: hash,
+      });
+
       flashHint(`Listed on ${marketLabel(sellMarketType)} ✅`, 1600);
-      pushToast("success", "Confirmed on-chain", `Listed on ${marketLabel(sellMarketType)} successfully.`);
+      pushToast(
+        "success",
+        "Listing live",
+        `Listed on ${marketLabel(sellMarketType)} successfully.`
+      );
+
+      // Immediately refresh from server so optimistic row gets replaced
+      // by the real one as soon as the indexer is ready.
       await afterMarketTx({
-        immediateMarket: false,
+        immediateMarket: true,
         immediateBalance: true,
         immediateApproved: true,
         delayedMarket: true,
         delayedBalance: true,
         delayedApproved: true,
       });
+
+      updateTx(
+        {
+          kind: "list",
+          phase: "done",
+          label: `Your listing is now visible in the active listings.`,
+          txHash: hash,
+        },
+        { autoDismissMs: 4000 }
+      );
     } catch (e: any) {
-      setErr(e?.shortMessage || e?.message || "Listing failed");
+      const msg = e?.shortMessage || e?.message || "Listing failed";
+      setErr(msg);
+      updateTx(
+        {
+          kind: "list",
+          phase: "error",
+          label: msg,
+          errorText: msg,
+        },
+        { autoDismissMs: 6000 }
+      );
     } finally {
       setBusy(null);
     }
@@ -1621,6 +2071,16 @@ export default function TradingPanel1155({
     if (!walletReady) {
       pushToast("info", "Wallet required", "Connect wallet to cancel your listing.");
       return openConnectModal?.();
+    }
+
+    // pending optimistic listings can't be cancelled — they don't exist on-chain yet
+    if (isPendingListingId(listing.marketplaceListingId)) {
+      pushToast(
+        "info",
+        "Still syncing",
+        "This listing is still syncing with the indexer. Try again in a few seconds."
+      );
+      return;
     }
 
     const listingMarketType = resolveRowMarketType({
@@ -1654,10 +2114,20 @@ export default function TradingPanel1155({
     setHint(null);
     setBusy(busyKey);
 
+    updateTx({
+      kind: "cancel",
+      phase: "preparing",
+      label: `Preparing cancel for listing #${listing.marketplaceListingId}…`,
+    });
+
     try {
       await ensureChain();
 
-      pushToast("info", "Wallet opened", "Confirm listing cancellation in your wallet.");
+      updateTx({
+        kind: "cancel",
+        phase: "awaiting-sig",
+        label: "Open wallet and sign the cancel transaction.",
+      });
 
       const hash = await sendActiveContractTransaction({
         abi: listingMarketplaceAbi as any,
@@ -1666,17 +2136,33 @@ export default function TradingPanel1155({
         args: [BigInt(listing.marketplaceListingId)],
       });
 
-      setHint(
-        `Cancel sent to ${marketLabel(listingMarketType)} market. Waiting for confirmation…`
-      );
-      pushToast("warning", "Transaction pending", "Cancellation is waiting for on-chain confirmation.", 3200);
+      updateTx({
+        kind: "cancel",
+        phase: "confirming",
+        label: "Cancel submitted. Waiting for confirmation…",
+        txHash: hash,
+      });
+
       await publicClient?.waitForTransactionReceipt({ hash });
 
       applyOptimisticCancel(listing);
+
+      updateTx({
+        kind: "cancel",
+        phase: "syncing",
+        label: "Confirmed. Refreshing market…",
+        txHash: hash,
+      });
+
       flashHint("Cancelled ✅", 1700);
-      pushToast("success", "Listing removed instantly", "Your listing disappeared from the UI right after confirmation.");
+      pushToast(
+        "success",
+        "Listing cancelled",
+        "Your listing was removed from the marketplace."
+      );
+
       await afterMarketTx({
-        immediateMarket: false,
+        immediateMarket: true,
         immediateBalance: false,
         immediateApproved: false,
         delayedMarket: true,
@@ -1684,8 +2170,28 @@ export default function TradingPanel1155({
         delayedApproved: false,
         delays: [2200, 5000],
       });
+
+      updateTx(
+        {
+          kind: "cancel",
+          phase: "done",
+          label: "Listing cancelled and removed from active listings.",
+          txHash: hash,
+        },
+        { autoDismissMs: 3500 }
+      );
     } catch (e: any) {
-      setErr(e?.shortMessage || e?.message || "Cancel failed");
+      const msg = e?.shortMessage || e?.message || "Cancel failed";
+      setErr(msg);
+      updateTx(
+        {
+          kind: "cancel",
+          phase: "error",
+          label: msg,
+          errorText: msg,
+        },
+        { autoDismissMs: 6000 }
+      );
     } finally {
       setBusy(null);
     }
@@ -1698,6 +2204,15 @@ export default function TradingPanel1155({
     }
     if (!selectedListing) return;
 
+    if (isPendingListingId(selectedListing.marketplaceListingId)) {
+      pushToast(
+        "info",
+        "Still syncing",
+        "This listing is still syncing with the indexer. Try again in a few seconds."
+      );
+      return;
+    }
+
     if (!hasSelectedListingMarketplace) {
       setErr(
         `Marketplace address missing for ${marketLabel(selectedListingMarketType)} listing`
@@ -1709,6 +2224,12 @@ export default function TradingPanel1155({
     setHint(null);
     setBusy("buy");
 
+    updateTx({
+      kind: "buy",
+      phase: "preparing",
+      label: "Preparing purchase transaction…",
+    });
+
     try {
       await ensureChain();
 
@@ -1716,7 +2237,13 @@ export default function TradingPanel1155({
       const pricePer = BigInt(selectedListing.pricePerUnitWei);
       const total = pricePer * amt;
 
-      pushToast("info", "Wallet opened", "Confirm the purchase transaction in your wallet.");
+      updateTx({
+        kind: "buy",
+        phase: "awaiting-sig",
+        label: `Open wallet and sign the purchase (${fmtEth(
+          total.toString()
+        )} ETH).`,
+      });
 
       const hash = await sendActiveContractTransaction({
         abi: selectedListingMarketplaceAbi as any,
@@ -1726,19 +2253,29 @@ export default function TradingPanel1155({
         value: total,
       });
 
-      setHint(
-        selectedListingCreatesProtectedOrder
-          ? `Buy sent to ${marketLabel(
-              selectedListingMarketType
-            )} market. Waiting for confirmation…`
-          : "Buy sent. Waiting for confirmation…"
-      );
+      updateTx({
+        kind: "buy",
+        phase: "confirming",
+        label: "Purchase submitted. Waiting for confirmation…",
+        txHash: hash,
+      });
 
-      pushToast("warning", "Transaction pending", "Purchase is waiting for on-chain confirmation.", 3200);
       await publicClient?.waitForTransactionReceipt({ hash });
 
       applyOptimisticBuy(selectedListing, amt, hash, selectedListingMarketType);
-      pushToast("success", "Purchase confirmed", "Trade was confirmed on-chain and the market view updated immediately.");
+
+      updateTx({
+        kind: "buy",
+        phase: "syncing",
+        label: "Confirmed. Updating market view…",
+        txHash: hash,
+      });
+
+      pushToast(
+        "success",
+        "Purchase confirmed",
+        "Trade confirmed on-chain. Market view updated immediately."
+      );
       flashHint(
         selectedListingCreatesProtectedOrder
           ? `Bought on ${marketLabel(
@@ -1749,7 +2286,7 @@ export default function TradingPanel1155({
       );
 
       await afterMarketTx({
-        immediateMarket: false,
+        immediateMarket: true,
         immediateBalance: false,
         immediateApproved: false,
         delayedMarket: true,
@@ -1757,8 +2294,30 @@ export default function TradingPanel1155({
         delayedApproved: false,
         delays: [1800, 4200],
       });
+
+      updateTx(
+        {
+          kind: "buy",
+          phase: "done",
+          label: selectedListingCreatesProtectedOrder
+            ? `Purchase complete. Your protected order will appear in Orders after the indexer syncs.`
+            : "Purchase complete.",
+          txHash: hash,
+        },
+        { autoDismissMs: 4500 }
+      );
     } catch (e: any) {
-      setErr(e?.shortMessage || e?.message || "Buy failed");
+      const msg = e?.shortMessage || e?.message || "Buy failed";
+      setErr(msg);
+      updateTx(
+        {
+          kind: "buy",
+          phase: "error",
+          label: msg,
+          errorText: msg,
+        },
+        { autoDismissMs: 6000 }
+      );
     } finally {
       setBusy(null);
     }
@@ -1914,6 +2473,8 @@ export default function TradingPanel1155({
               {hint}
             </div>
           ) : null}
+
+          <TxProgress state={txState} chainId={chainId} onDismiss={dismissTx} />
 
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/75">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2269,6 +2830,7 @@ export default function TradingPanel1155({
                         k === (selectedListing ? listingKeyOf(selectedListing) : "");
                       const isMine = toLower(l.sellerWallet) === me;
                       const isCancelling = busy === `cancel:${k}`;
+                      const isPending = isPendingListingId(l.marketplaceListingId);
 
                       const rowMarketType = resolveRowMarketType({
                         contractView,
@@ -2294,11 +2856,14 @@ export default function TradingPanel1155({
                             }
                           }}
                           className={cx(
-                            "cursor-pointer rounded-2xl border p-4 outline-none transition-all duration-200 transform-gpu",
+                            "cursor-pointer rounded-2xl border p-4 outline-none transition-all duration-300 transform-gpu animate-in fade-in slide-in-from-top-1",
                             active
                               ? "border-white/18 bg-white/[0.10]"
                               : "border-white/10 bg-white/[0.04] hover:bg-white/[0.08]",
-                            isCancelling ? "scale-[0.995] opacity-65" : "opacity-100"
+                            isCancelling ? "scale-[0.995] opacity-65" : "opacity-100",
+                            isPending
+                              ? "ring-2 ring-amber-400/35 ring-offset-0 shadow-[0_0_0_1px_rgba(212,175,55,0.18),0_18px_60px_rgba(212,175,55,0.10)]"
+                              : ""
                           )}
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -2361,30 +2926,51 @@ export default function TradingPanel1155({
                               {isMine ? (
                                 <button
                                   type="button"
-                                  disabled={isCancelling || busy !== null || !walletReady}
+                                  disabled={
+                                    isCancelling ||
+                                    busy !== null ||
+                                    !walletReady ||
+                                    isPending
+                                  }
                                   onClick={(e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     cancelListing(l);
                                   }}
+                                  title={
+                                    isPending
+                                      ? "Listing is still syncing with the indexer"
+                                      : "Cancel this listing"
+                                  }
                                   className={cx(
                                     "inline-flex items-center justify-center rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-[11px] font-black text-white/80 transition hover:bg-white/[0.10]",
-                                    isCancelling || busy !== null
+                                    isCancelling || busy !== null || isPending
                                       ? "cursor-not-allowed opacity-60"
                                       : ""
                                   )}
                                 >
-                                  {isCancelling ? "Cancelling…" : "Cancel"}
+                                  {isCancelling
+                                    ? "Cancelling…"
+                                    : isPending
+                                    ? "Syncing…"
+                                    : "Cancel"}
                                 </button>
                               ) : null}
                             </div>
                           </div>
 
                           {isMine ? (
-                            <div className="mt-2">
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
                               <span className="inline-flex h-5 items-center justify-center rounded-full bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-2 text-[10px] font-black text-black/80 ring-1 ring-black/15">
                                 YOUR LISTING
                               </span>
+
+                              {isPending ? (
+                                <span className="inline-flex h-5 items-center justify-center gap-1.5 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 text-[10px] font-black text-amber-100">
+                                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-300" />
+                                  JUST LISTED • SYNCING
+                                </span>
+                              ) : null}
                             </div>
                           ) : null}
                         </div>

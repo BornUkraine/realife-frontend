@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { createPortal } from "react-dom";
 import {
@@ -18,6 +18,7 @@ import { useWeb3Auth } from "@web3auth/modal/react";
 import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
 import { realifeMarketplaceProtectedEscrow1155Abi } from "@/lib/realifeMarketplaceProtectedEscrow1155Abi";
+import TxProgress, { type TxState } from "./TxProgress";
 
 type MarketType = "STANDARD" | "PROTECTED";
 
@@ -670,6 +671,53 @@ export default function QuickList1155({
   const [ok, setOk] = useState<string | null>(null);
   const [toasts, setToasts] = useState<UiToast[]>([]);
 
+  /**
+   * Inline tx progress state. Drives <TxProgress /> in the modal body.
+   * Independent from `busy` so that "done" / "error" states stay visible
+   * for a moment after the action completes.
+   */
+  const [txState, setTxState] = useState<TxState | null>(null);
+  const txAutoDismissRef = useRef<number | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
+
+  const updateTx = useCallback(
+    (next: TxState | null, opts?: { autoDismissMs?: number }) => {
+      if (txAutoDismissRef.current) {
+        window.clearTimeout(txAutoDismissRef.current);
+        txAutoDismissRef.current = null;
+      }
+
+      setTxState(next);
+
+      if (next && opts?.autoDismissMs && opts.autoDismissMs > 0) {
+        txAutoDismissRef.current = window.setTimeout(() => {
+          setTxState((cur) => (cur === next ? null : cur));
+          txAutoDismissRef.current = null;
+        }, opts.autoDismissMs);
+      }
+    },
+    []
+  );
+
+  const dismissTx = useCallback(() => {
+    if (txAutoDismissRef.current) {
+      window.clearTimeout(txAutoDismissRef.current);
+      txAutoDismissRef.current = null;
+    }
+    setTxState(null);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (txAutoDismissRef.current) {
+        window.clearTimeout(txAutoDismissRef.current);
+      }
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
+
   const priceWei = useMemo(() => parsePriceWeiSafe(priceEth), [priceEth]);
 
   const totalPriceWei = useMemo(() => {
@@ -703,10 +751,19 @@ export default function QuickList1155({
   }, []);
 
   function closeModal() {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    if (txAutoDismissRef.current) {
+      window.clearTimeout(txAutoDismissRef.current);
+      txAutoDismissRef.current = null;
+    }
     setOpen(false);
     setErr(null);
     setOk(null);
     setBusy(null);
+    setTxState(null);
   }
 
   useEffect(() => {
@@ -861,10 +918,21 @@ export default function QuickList1155({
     setErr(null);
     setOk(null);
     setBusy("approve");
-    pushToast("Wallet step", "Confirm approval in your wallet.", "warning");
+
+    updateTx({
+      kind: "approve",
+      phase: "preparing",
+      label: `Preparing approval for ${marketLabel(inferredMarketType)} marketplace…`,
+    });
 
     try {
       await ensureChain();
+
+      updateTx({
+        kind: "approve",
+        phase: "awaiting-sig",
+        label: "Open your wallet and confirm the approval transaction.",
+      });
 
       const hash = await sendActiveContractTransaction({
         abi: erc1155CoreAbi,
@@ -873,17 +941,47 @@ export default function QuickList1155({
         args: [marketplaceAddress as `0x${string}`, true],
       });
 
-      pushToast("Transaction pending", "Approval submitted onchain.", "warning");
+      updateTx({
+        kind: "approve",
+        phase: "confirming",
+        label: "Approval submitted. Waiting for on-chain confirmation…",
+        txHash: hash,
+      });
+
       await publicClient?.waitForTransactionReceipt({ hash });
-      pushToast("Confirmed onchain", "Approval was confirmed. Syncing state…", "success");
+
+      updateTx({
+        kind: "approve",
+        phase: "syncing",
+        label: "Confirmed. Refreshing approval state…",
+        txHash: hash,
+      });
+
       await refetchApproved();
 
+      updateTx(
+        {
+          kind: "approve",
+          phase: "done",
+          label: `${marketLabel(inferredMarketType)} marketplace approved. You can now create the listing.`,
+          txHash: hash,
+        },
+        { autoDismissMs: 3500 }
+      );
+
       setOk(`${marketLabel(inferredMarketType)} approved ✅`);
-      pushToast("Market ready", `${marketLabel(inferredMarketType)} approval synced.`, "success");
     } catch (e: any) {
       const message = e?.shortMessage || e?.message || "Approve failed";
       setErr(message);
-      pushToast("Approve failed", message, "error");
+      updateTx(
+        {
+          kind: "approve",
+          phase: "error",
+          label: message,
+          errorText: message,
+        },
+        { autoDismissMs: 6000 }
+      );
     } finally {
       setBusy(null);
     }
@@ -936,13 +1034,27 @@ export default function QuickList1155({
     if (!hasMarketplace) return;
     if (!priceWei) {
       setErr("Enter valid price");
+      updateTx(
+        {
+          kind: "list",
+          phase: "error",
+          label: "Enter a valid ETH price greater than zero.",
+          errorText: "Enter a valid ETH price greater than zero.",
+        },
+        { autoDismissMs: 4500 }
+      );
       return;
     }
 
     setErr(null);
     setOk(null);
     setBusy("list");
-    pushToast("Wallet step", "Confirm listing in your wallet.", "warning");
+
+    updateTx({
+      kind: "list",
+      phase: "preparing",
+      label: `Preparing ${marketLabel(inferredMarketType).toLowerCase()} listing…`,
+    });
 
     try {
       await ensureChain();
@@ -960,6 +1072,17 @@ export default function QuickList1155({
             ]
           : [nftAddr as `0x${string}`, tokenIdBI, amt, priceWei];
 
+      updateTx({
+        kind: "list",
+        phase: "awaiting-sig",
+        label:
+          inferredMarketType === "PROTECTED"
+            ? `Open wallet and sign the protected listing (${fulfillmentTypeLabel(
+                protectedFulfillmentType
+              )}).`
+            : "Open wallet and sign the listing transaction.",
+      });
+
       const hash = await sendActiveContractTransaction({
         abi: marketplaceAbi as any,
         address: marketplaceAddress as `0x${string}`,
@@ -967,15 +1090,27 @@ export default function QuickList1155({
         args: args as any,
       });
 
-      pushToast("Transaction pending", "Listing submitted onchain.", "warning");
+      updateTx({
+        kind: "list",
+        phase: "confirming",
+        label: "Listing submitted. Waiting for on-chain confirmation…",
+        txHash: hash,
+      });
+
       await publicClient?.waitForTransactionReceipt({ hash });
-      pushToast("Confirmed onchain", "Listing confirmed. Updating market state…", "success");
+
       void triggerAiVisualEnrich();
+
+      updateTx({
+        kind: "list",
+        phase: "syncing",
+        label: "Confirmed on-chain. Syncing market & wallet state…",
+        txHash: hash,
+      });
 
       await revalidateAfterList();
       const walletState = await refreshWalletState();
       schedulePostListRefreshes();
-      pushToast("Listing created", "Quick list was created instantly. Market sync continues in background.", "success");
 
       onListed?.({
         listedAmount: amt.toString(),
@@ -991,13 +1126,41 @@ export default function QuickList1155({
           : `Listed on ${marketLabel(inferredMarketType)} ✅`
       );
 
-      window.setTimeout(() => {
+      updateTx(
+        {
+          kind: "list",
+          phase: "done",
+          label:
+            inferredMarketType === "PROTECTED"
+              ? `Listed on ${marketLabel(
+                  inferredMarketType
+                )} • ${fulfillmentTypeLabel(protectedFulfillmentType)}.`
+              : `Listed on ${marketLabel(inferredMarketType)}.`,
+          txHash: hash,
+        },
+        { autoDismissMs: 4500 }
+      );
+
+      // Show the done state inside the modal for ~1.6s, then close gently.
+      if (closeTimerRef.current) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+      closeTimerRef.current = window.setTimeout(() => {
         closeModal();
-      }, 550);
+        closeTimerRef.current = null;
+      }, 1600);
     } catch (e: any) {
       const message = e?.shortMessage || e?.message || "Listing failed";
       setErr(message);
-      pushToast("Listing failed", message, "error");
+      updateTx(
+        {
+          kind: "list",
+          phase: "error",
+          label: message,
+          errorText: message,
+        },
+        { autoDismissMs: 6000 }
+      );
     } finally {
       setBusy(null);
     }
@@ -1325,45 +1488,97 @@ export default function QuickList1155({
                     Total: {fmtEthWei(totalPriceWei)} ETH
                   </div>
 
-                  <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2 text-center text-[11px] text-white/58">
-                    Wallet → Confirmed → Synced. Quick list updates your gallery first, then market sync follows.
-                  </div>
+                  {/* Inline progress widget. Replaces the previous static
+                      "Wallet → Confirmed → Synced" hint when a tx is active. */}
+                  {txState ? (
+                    <div className="mt-3">
+                      <TxProgress
+                        state={txState}
+                        chainId={chainId}
+                        onDismiss={dismissTx}
+                        onRetry={
+                          txState.kind === "approve"
+                            ? approveAll
+                            : txState.kind === "list"
+                            ? listNow
+                            : undefined
+                        }
+                        compact
+                      />
+                    </div>
+                  ) : (
+                    <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2 text-center text-[11px] text-white/58">
+                      {isApproved
+                        ? "Marketplace approved. Sign one transaction to publish your listing."
+                        : "First time? Approve marketplace once, then publish listings without re-approving."}
+                    </div>
+                  )}
 
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button
-                      disabled={disabledApprove}
-                      onClick={approveAll}
-                      className={cx(
-                        "h-11 rounded-2xl border font-extrabold transition",
-                        isApproved
-                          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
-                          : "border-white/15 bg-white/[0.06] text-white hover:bg-white/10",
-                        disabledApprove ? "cursor-not-allowed opacity-60" : ""
-                      )}
-                    >
-                      {busy === "approve"
-                        ? "Approving..."
-                        : isApproved
-                          ? "Approved"
-                          : "Approve"}
-                    </button>
+                  {/* Action area.
+                      - Not approved: full-width Approve button (primary).
+                      - Approved:     compact ✓ chip + full-width List button.
+                      Spinner replaces button label while busy. */}
+                  {isApproved ? (
+                    <>
+                      <div className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] font-black text-emerald-100">
+                        <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-300" />
+                        Approved for {marketLabel(inferredMarketType).toLowerCase()} marketplace
+                      </div>
 
-                    <button
-                      disabled={disabledList}
-                      onClick={listNow}
-                      className={cx(
-                        "h-11 rounded-2xl font-extrabold text-black transition",
-                        "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] hover:brightness-110",
-                        disabledList ? "cursor-not-allowed opacity-60" : ""
-                      )}
-                    >
-                      {busy === "list"
-                        ? "Listing..."
-                        : refreshing
-                          ? "Syncing..."
-                          : "List"}
-                    </button>
-                  </div>
+                      <button
+                        disabled={disabledList}
+                        onClick={listNow}
+                        className={cx(
+                          "mt-3 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl font-extrabold text-black ring-1 ring-black/15 transition-all duration-200",
+                          "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.22)] hover:-translate-y-0.5 hover:brightness-110 active:translate-y-0",
+                          disabledList ? "cursor-not-allowed opacity-60 hover:translate-y-0" : ""
+                        )}
+                      >
+                        {busy === "list" ? (
+                          <>
+                            <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/70 border-r-transparent" />
+                            <span>Listing…</span>
+                          </>
+                        ) : refreshing ? (
+                          <>
+                            <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/70 border-r-transparent" />
+                            <span>Syncing…</span>
+                          </>
+                        ) : (
+                          <span>List on {marketLabel(inferredMarketType).toLowerCase()} market</span>
+                        )}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        disabled={disabledApprove}
+                        onClick={approveAll}
+                        className={cx(
+                          "mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl border font-extrabold transition-all duration-200",
+                          "border-white/15 bg-white/[0.06] text-white hover:bg-white/10",
+                          disabledApprove ? "cursor-not-allowed opacity-60" : ""
+                        )}
+                      >
+                        {busy === "approve" ? (
+                          <>
+                            <span className="block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-r-transparent" />
+                            <span>Approving…</span>
+                          </>
+                        ) : (
+                          <span>Approve marketplace</span>
+                        )}
+                      </button>
+
+                      <button
+                        disabled
+                        className="mt-2 inline-flex h-11 w-full cursor-not-allowed items-center justify-center rounded-2xl border border-white/10 bg-white/[0.025] text-[12px] font-bold text-white/35"
+                        title="Approve marketplace first"
+                      >
+                        List on {marketLabel(inferredMarketType).toLowerCase()} market
+                      </button>
+                    </>
+                  )}
 
                   <div className="mt-3 text-center text-[11px] text-white/45">
                     {name ? (
