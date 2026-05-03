@@ -26,13 +26,7 @@ function cx(...a: Array<string | false | null | undefined>) {
 }
 
 function getBootstrapAdminWallets() {
-  return (
-    process.env.ADMIN_CREATE_WALLETS ||
-    process.env.ADMIN_WALLETS ||
-    process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
-    process.env.NEXT_PUBLIC_ADMIN_WALLETS ||
-    ""
-  )
+  return (process.env.ADMIN_CREATE_WALLETS || process.env.ADMIN_WALLETS || "")
     .split(",")
     .map((x) => normAddr(x))
     .filter(Boolean);
@@ -168,13 +162,24 @@ function ActionCard({
   title,
   text,
   href,
+  tone = "default",
 }: {
   title: string;
   text: string;
   href?: string;
+  tone?: "default" | "danger" | "gold";
 }) {
   const body = (
-    <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5 transition hover:border-[#d4af37]/30 hover:bg-white/[0.06]">
+    <div
+      className={cx(
+        "rounded-[26px] border p-5 transition",
+        tone === "danger"
+          ? "border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/15"
+          : tone === "gold"
+          ? "border-[#d4af37]/25 bg-[#d4af37]/10 hover:bg-[#d4af37]/14"
+          : "border-white/10 bg-white/[0.04] hover:border-[#d4af37]/30 hover:bg-white/[0.06]"
+      )}
+    >
       <div className="text-base font-semibold text-white">{title}</div>
       <div className="mt-2 text-sm leading-6 text-white/65">{text}</div>
       {href ? (
@@ -197,14 +202,12 @@ export default async function ProtectedEscrowAdminPage() {
       <div className="space-y-6">
         <GoldEdgeWrap>
           <div className="p-7 sm:p-8">
-            <Pill>Protected escrow</Pill>
+            <Pill>Admin Safety Center</Pill>
             <h1 className="mt-4 text-3xl font-semibold text-white">
               Admin access required
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-white/70">
-              Sign in to your normal Realife account first. After that,
-              this page will check your support role and then ask for the
-              extra admin escrow login and password.
+              Sign in to your normal Realife account first. After that, this page checks your support role and asks for the extra escrow/safety unlock.
             </p>
           </div>
         </GoldEdgeWrap>
@@ -219,16 +222,12 @@ export default async function ProtectedEscrowAdminPage() {
       <div className="space-y-6">
         <GoldEdgeWrap>
           <div className="p-7 sm:p-8">
-            <Pill>Protected escrow</Pill>
+            <Pill>Admin Safety Center</Pill>
             <h1 className="mt-4 text-3xl font-semibold text-white">
               Access denied
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-white/70">
-              This page is available only for support users with
-              <span className="mx-1 font-semibold text-white"> MODERATOR </span>
-              or
-              <span className="mx-1 font-semibold text-white"> ADMIN </span>
-              role.
+              This page is available only for users with <span className="font-semibold text-white">MODERATOR</span> or <span className="font-semibold text-white">ADMIN</span> support role, or wallets listed in server-only Railway env variables.
             </p>
           </div>
         </GoldEdgeWrap>
@@ -247,7 +246,7 @@ export default async function ProtectedEscrowAdminPage() {
         <GoldEdgeWrap>
           <div className="p-7 sm:p-8">
             <div className="flex flex-wrap items-center gap-3">
-              <Pill>Protected escrow</Pill>
+              <Pill>Admin Safety Center</Pill>
               <Pill>{panelRole}</Pill>
             </div>
 
@@ -256,9 +255,7 @@ export default async function ProtectedEscrowAdminPage() {
             </h1>
 
             <p className="mt-3 max-w-2xl text-sm leading-7 text-white/70">
-              Your normal session and support role are valid. Enter the
-              extra Railway-stored admin escrow credentials to open the
-              hidden control panel.
+              Your normal session and support role are valid. Enter the extra Railway-stored admin credentials to open escrow review and moderation tools.
             </p>
           </div>
         </GoldEdgeWrap>
@@ -275,20 +272,17 @@ export default async function ProtectedEscrowAdminPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <div className="flex flex-wrap items-center gap-3">
-                <Pill>Protected escrow</Pill>
+                <Pill>Admin Safety Center</Pill>
                 <Pill>{panelRole}</Pill>
                 <Pill>Unlocked</Pill>
               </div>
 
               <h1 className="mt-4 text-3xl font-semibold text-white">
-                Realife Protected Escrow Admin Panel
+                Realife Escrow & Safety Admin Panel
               </h1>
 
-              <p className="mt-3 max-w-3xl text-sm leading-7 text-white/70">
-                Review disputed orders, refund requests, NFT returned cases,
-                and final settlement states in one place. Final protected
-                escrow release or refund should still be executed only by
-                wallets that hold the required on-chain contract role.
+              <p className="mt-3 max-w-4xl text-sm leading-7 text-white/70">
+                Review open NFT orders, escrow disputes, buyer/seller messages, shipping and service evidence. Admins can also remove fake, prohibited, empty or unsafe listings from the marketplace and keep an audit trail.
               </p>
             </div>
 
@@ -306,21 +300,23 @@ export default async function ProtectedEscrowAdminPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <ActionCard
-          title="Orders room"
-          text="Jump into the buyer and seller room, read notes, evidence, shipping info, and service updates."
+          title="Open orders"
+          text="See active purchases, buyer/seller wallets, NFT details, delivery/service status, tx hashes and order room messages."
+          tone="gold"
+        />
+        <ActionCard
+          title="Marketplace safety"
+          text="Remove unsafe listings, disable fake/empty NFTs, and keep moderation reasons attached to each action."
+          tone="danger"
+        />
+        <ActionCard
+          title="Order room"
+          text="Support can read public messages and internal notes. The admin panel can add internal support notes directly."
           href="/app/orders"
         />
         <ActionCard
-          title="Support roles"
-          text="Promote or demote USER, MODERATOR, and ADMIN with your support-access route."
-        />
-        <ActionCard
-          title="Protected buckets"
-          text="This panel loads disputed, refund-requested, NFT-returned, released, and refunded orders directly."
-        />
-        <ActionCard
-          title="On-chain authority"
-          text="Use a proper contract-role wallet or Safe for final protected settlement, not a raw treasury key hidden in routes."
+          title="Server-only admins"
+          text="Use ADMIN_WALLETS / ADMIN_CREATE_WALLETS in Railway. Do not expose admin wallets through NEXT_PUBLIC envs."
         />
       </div>
 

@@ -185,7 +185,7 @@ async function handleListed(parsed, log) {
   const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
   const txHash = log.transactionHash;
 
-  const [product, mint, sellerId] = await Promise.all([
+  const [product, mint, sellerId, existingListing] = await Promise.all([
     prisma.realMarketingProduct.findUnique({
       where: {
         chainId_contract_tokenId: {
@@ -221,10 +221,24 @@ async function handleListed(parsed, log) {
     }),
 
     ensureUserByWallet(seller),
+
+    prisma.listing.findUnique({
+      where: listingWhereUnique(listingId),
+      select: { id: true, adminHidden: true },
+    }),
   ]);
 
   if (!mint?.verified) {
     console.log("[STANDARD_SKIP] mint missing/not verified", { nft, tokenId });
+    return;
+  }
+
+  if (existingListing?.adminHidden) {
+    console.log("[STANDARD_SKIP_ADMIN_HIDDEN_LISTING] listing was hidden by admin", {
+      listingId: listingId.toString(),
+      nft,
+      tokenId,
+    });
     return;
   }
 

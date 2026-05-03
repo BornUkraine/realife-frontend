@@ -296,6 +296,7 @@ export async function GET(req: NextRequest) {
   try {
     const where: any = {
       status,
+      adminHidden: false,
       mint: {
         is: {
           verified: true,

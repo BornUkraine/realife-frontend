@@ -426,6 +426,7 @@ async function loadListings(input: {
     contract: input.contract,
     tokenId: input.tokenId,
     status: "ACTIVE",
+    adminHidden: false,
     mint: {
       is: {
         verified: true,

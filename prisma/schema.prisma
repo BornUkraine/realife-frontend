@@ -542,8 +542,22 @@ model Listing {
   soldOutAt     DateTime?
   createdTxHash String?
 
+  /**
+   * ---------------- Admin safety / moderation ----------------------------
+   * adminHidden protects Realife users from fake, prohibited, empty or unsafe
+   * listings. Keep marketplace APIs/indexers from re-activating rows with this
+   * flag unless an ADMIN explicitly restores them.
+   */
+  adminHidden         Boolean   @default(false)
+  adminHiddenAt       DateTime?
+  adminHiddenByUserId String?
+  adminHiddenByWallet String?
+  adminHiddenReason   String?
+  adminHiddenNote     String?   @db.Text
+
   @@unique([chainId, marketType, marketplaceListingId])
   @@index([status])
+  @@index([adminHidden])
   @@index([sellerWallet])
   @@index([sellerId])
   @@index([chainId, contract, tokenId])
@@ -834,7 +848,8 @@ model StoreOrder {
   noteSeller String?
   adminNote  String?
 
-  deliveryMessages DeliveryMessage[]
+  deliveryMessages   DeliveryMessage[]
+  adminNotifications AdminNotification[]
 
   @@unique([chainId, marketType, marketplaceContract, marketplacePurchaseId])
   @@index([buyerWallet])
@@ -891,6 +906,87 @@ model DeliveryMessage {
 
   @@index([orderId, createdAt])
   @@map("delivery_messages")
+}
+
+
+
+
+/**
+ * ===========================================================================
+ * ADMIN NOTIFICATIONS
+ * ===========================================================================
+ * Persistent inbox for support/moderation alerts.
+ * Example: buyer/seller presses Admin Support inside an order room.
+ */
+model AdminNotification {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  type     String
+  status   String   @default("UNREAD") // UNREAD | READ | RESOLVED
+  priority String   @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+
+  title String
+  body  String @db.Text
+
+  orderId String?
+  order   StoreOrder? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  deliveryMessageId String?
+
+  actorUserId String?
+  actorWallet String?
+  actorRole   DeliveryMessageRole?
+
+  readAt       DateTime?
+  resolvedAt   DateTime?
+  resolvedById String?
+  resolvedByWallet String?
+
+  metadata Json?
+
+  @@index([type])
+  @@index([status])
+  @@index([priority])
+  @@index([orderId])
+  @@index([actorWallet])
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@map("admin_notifications")
+}
+
+/**
+ * ===========================================================================
+ * ADMIN / SAFETY AUDIT LOG
+ * ===========================================================================
+ * Immutable-ish operational log for moderator/admin actions.
+ * Used for escrow decisions, listing removals, NFT safety actions,
+ * support notes and future moderation review.
+ */
+model AdminActionLog {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  adminUserId String?
+  adminWallet String?
+  adminRole   SupportRole?
+
+  action     String
+  targetType String
+  targetId   String?
+
+  reason   String?
+  note     String? @db.Text
+  metadata Json?
+
+  @@index([adminUserId])
+  @@index([adminWallet])
+  @@index([adminRole])
+  @@index([action])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("admin_action_logs")
 }
 
 /**

@@ -314,12 +314,21 @@ async function handleListed(parsed, log) {
 
     prisma.listing.findUnique({
       where: listingWhereUnique(listingId),
-      select: { id: true },
+      select: { id: true, adminHidden: true },
     }),
   ]);
 
   if (!mint?.verified) {
     console.log("[PROTECTED_SKIP] mint missing/not verified", { nft, tokenId });
+    return;
+  }
+
+  if (existingListing?.adminHidden) {
+    console.log("[PROTECTED_SKIP_ADMIN_HIDDEN_LISTING] listing was hidden by admin", {
+      listingId: listingId.toString(),
+      nft,
+      tokenId,
+    });
     return;
   }
 
