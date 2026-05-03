@@ -7,23 +7,35 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const ADMIN_WALLETS = (
-  process.env.ADMIN_CREATE_WALLETS ||
-  process.env.ADMIN_WALLETS ||
-  process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
-  process.env.NEXT_PUBLIC_ADMIN_WALLETS ||
-  ""
-)
-  .split(",")
-  .map((v) => v.trim().toLowerCase())
-  .filter(Boolean);
+function envWallets(...names: string[]) {
+  return names
+    .flatMap((name) => String(process.env[name] || "").split(","))
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+const ADMIN_WALLETS = envWallets(
+  "ADMIN_CREATE_WALLETS",
+  "ADMIN_WALLETS",
+  "NEXT_PUBLIC_ADMIN_CREATE_WALLETS",
+  "NEXT_PUBLIC_ADMIN_WALLETS",
+);
+
+const MODERATOR_WALLETS = envWallets(
+  "MODERATOR_WALLETS",
+  "ADMIN_MODERATOR_WALLETS",
+);
 
 function normAddr(v?: string | null) {
-  return String(v || "").trim().toLowerCase();
+  return String(v || "")
+    .trim()
+    .toLowerCase();
 }
 
 function clean(v: unknown, max = 500) {
-  return String(v || "").trim().slice(0, max);
+  return String(v || "")
+    .trim()
+    .slice(0, max);
 }
 
 function isTxHash(v?: string | null) {
@@ -34,12 +46,16 @@ function isTxHash(v?: string | null) {
 async function requireSupport() {
   const session = await getServerSession(authOptions);
   const wallet = normAddr(
-    (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
+    (session as any)?.user?.walletAddress ||
+      (session as any)?.walletAddress ||
+      "",
   );
   const isAdminSession = Boolean(
-    (session as any)?.user?.isAdmin || (session as any)?.isAdmin
+    (session as any)?.user?.isAdmin || (session as any)?.isAdmin,
   );
-  const isAllowlistedWallet = !!wallet && ADMIN_WALLETS.includes(wallet);
+  const isAllowlistedWallet =
+    !!wallet &&
+    (ADMIN_WALLETS.includes(wallet) || MODERATOR_WALLETS.includes(wallet));
 
   if (isAdminSession || isAllowlistedWallet) return true;
 
@@ -51,18 +67,18 @@ async function requireSupport() {
     select: { supportRole: true },
   });
 
-  return (
-    dbUser?.supportRole === "MODERATOR" || dbUser?.supportRole === "ADMIN"
-  );
+  return dbUser?.supportRole === "MODERATOR" || dbUser?.supportRole === "ADMIN";
 }
 
 function nextDeliveryStatusForRefund(
   deliveryRequired: boolean,
-  current: string
+  current: string,
 ): string {
   if (!deliveryRequired) return "NOT_REQUIRED";
 
-  if (["SHIPPED", "DELIVERED", "CONFIRMED", "RETURN_REQUESTED"].includes(current)) {
+  if (
+    ["SHIPPED", "DELIVERED", "CONFIRMED", "RETURN_REQUESTED"].includes(current)
+  ) {
     return "RETURNED";
   }
 
@@ -72,9 +88,11 @@ function nextDeliveryStatusForRefund(
 
 function nextServiceStatusForRefund(
   fulfillmentType?: string | null,
-  current?: string | null
+  current?: string | null,
 ): string {
-  const ft = String(fulfillmentType || "").trim().toUpperCase();
+  const ft = String(fulfillmentType || "")
+    .trim()
+    .toUpperCase();
 
   const isService =
     ft === "DIGITAL_SERVICE" ||
@@ -100,7 +118,7 @@ function isOnchainEscrowOrder(order: {
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -109,7 +127,7 @@ export async function POST(
     if (!isSupport) {
       return NextResponse.json(
         { ok: false, error: "FORBIDDEN" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -120,7 +138,7 @@ export async function POST(
     if (escrowRefundTxHash && !isTxHash(escrowRefundTxHash)) {
       return NextResponse.json(
         { ok: false, error: "ESCROW_REFUND_TX_INVALID" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -143,11 +161,13 @@ export async function POST(
     if (!order) {
       return NextResponse.json(
         { ok: false, error: "ORDER_NOT_FOUND" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    if (isOnchainEscrowOrder(order)) {
+    const onchainEscrow = isOnchainEscrowOrder(order);
+
+    if (onchainEscrow && !escrowRefundTxHash) {
       return NextResponse.json(
         {
           ok: false,
@@ -159,7 +179,7 @@ export async function POST(
               ? order.marketplacePurchaseId.toString()
               : null,
         },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -170,14 +190,14 @@ export async function POST(
     if (order.escrowStatus === "RELEASED") {
       return NextResponse.json(
         { ok: false, error: "ESCROW_ALREADY_RELEASED" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (order.escrowStatus === "CANCELLED") {
       return NextResponse.json(
         { ok: false, error: "ESCROW_ALREADY_CANCELLED" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -194,11 +214,11 @@ export async function POST(
           escrowRefundTxHash: escrowRefundTxHash || undefined,
           deliveryStatus: nextDeliveryStatusForRefund(
             order.deliveryRequired,
-            order.deliveryStatus
+            order.deliveryStatus,
           ) as any,
           serviceStatus: nextServiceStatusForRefund(
             order.fulfillmentType,
-            order.serviceStatus
+            order.serviceStatus,
           ) as any,
           ...(note ? { adminNote: note } : {}),
         },
@@ -216,8 +236,9 @@ export async function POST(
         data: {
           orderId: order.id,
           senderRole: "SYSTEM",
-          body:
-            nextEscrowStatus === "NOT_REQUIRED"
+          body: onchainEscrow
+            ? "Support synced on-chain refund transaction for this protected escrow order."
+            : nextEscrowStatus === "NOT_REQUIRED"
               ? "Support marked this official store order as refunded."
               : "Support executed final refund for this order.",
           isInternal: false,
@@ -231,14 +252,13 @@ export async function POST(
       ok: true,
       order: {
         ...updated,
-        refundedAt: updated.refundedAt ? updated.refundedAt.toISOString() : null,
+        refundedAt: updated.refundedAt
+          ? updated.refundedAt.toISOString()
+          : null,
       },
     });
   } catch (e) {
     console.error("[API_DELIVERY_ORDER_REFUND_ERROR]", e);
-    return NextResponse.json(
-      { ok: false, error: "INTERNAL" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
   }
 }

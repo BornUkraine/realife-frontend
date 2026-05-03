@@ -6,6 +6,7 @@ import { encodeFunctionData, formatUnits, toHex } from "viem";
 import {
   useAccount,
   useChainId,
+  usePublicClient,
   useSwitchChain,
   useWaitForTransactionReceipt,
   useWriteContract,
@@ -155,6 +156,20 @@ type MessagesResponse = {
   items: DeliveryMessage[];
 };
 
+
+const ERC1155_RETURN_APPROVAL_ABI = [
+  {
+    type: "function",
+    name: "setApprovalForAll",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "operator", type: "address" },
+      { name: "approved", type: "bool" },
+    ],
+    outputs: [],
+  },
+] as const;
+
 const PROTECTED_ESCROW_BUYER_ABI = [
   {
     type: "function",
@@ -249,6 +264,29 @@ async function ensureEmbeddedChain(provider: Eip1193Provider | null, chainId: nu
       params: [{ chainId: chainIdHex }],
     });
   }
+}
+
+
+async function waitForEmbeddedTxReceipt(
+  provider: Eip1193Provider,
+  hash: `0x${string}`,
+  timeoutMs = 120_000
+) {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const receipt = await provider
+      .request({
+        method: "eth_getTransactionReceipt",
+        params: [hash],
+      })
+      .catch(() => null);
+
+    if (receipt && typeof receipt === "object") return receipt;
+    await new Promise((resolve) => setTimeout(resolve, 2_500));
+  }
+
+  throw new Error("Approval transaction was submitted, but receipt was not confirmed yet. Please wait and try again.");
 }
 
 function cx(...a: Array<string | false | null | undefined>) {
@@ -418,6 +456,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
 
   const { address, isConnected } = useAccount();
   const currentChainId = useChainId();
+  const publicClient = usePublicClient();
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
 
@@ -667,6 +706,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
           : "requestRefundAndReturnNft";
       const args = [BigInt(order.marketplacePurchaseId)];
       const marketplaceContract = order.marketplaceContract as `0x${string}`;
+      const nftContract = order.contract as `0x${string}`;
 
       let hash: `0x${string}`;
 
@@ -674,6 +714,32 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
         await ensureEmbeddedChain(embeddedProvider, order.chainId);
         const nextChainId = await readProviderChainId(embeddedProvider);
         setEmbeddedChainId(nextChainId);
+
+        if (action === "refund_return") {
+          const approvalData = encodeFunctionData({
+            abi: ERC1155_RETURN_APPROVAL_ABI,
+            functionName: "setApprovalForAll",
+            args: [marketplaceContract, true],
+          });
+
+          const rawApprovalHash = await embeddedProvider!.request({
+            method: "eth_sendTransaction",
+            params: [
+              {
+                from: activeAddress,
+                to: nftContract,
+                data: approvalData,
+              },
+            ],
+          });
+
+          const approvalHash = normalizeTxHash(rawApprovalHash);
+          if (!approvalHash) {
+            throw new Error("Embedded wallet did not return approval transaction hash.");
+          }
+
+          await waitForEmbeddedTxReceipt(embeddedProvider!, approvalHash);
+        }
 
         const data = encodeFunctionData({
           abi: PROTECTED_ESCROW_BUYER_ABI,
@@ -698,6 +764,21 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
       } else {
         if (currentChainId !== order.chainId) {
           await switchChainAsync?.({ chainId: order.chainId });
+        }
+
+        if (action === "refund_return") {
+          if (!publicClient) {
+            throw new Error("Public client is not ready. Please refresh the page and try again.");
+          }
+
+          const approvalHash = await writeContractAsync({
+            address: nftContract,
+            abi: ERC1155_RETURN_APPROVAL_ABI,
+            functionName: "setApprovalForAll",
+            args: [marketplaceContract, true],
+          } as any);
+
+          await publicClient.waitForTransactionReceipt({ hash: approvalHash });
         }
 
         hash = await writeContractAsync({
@@ -899,6 +980,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
                     <span className="mx-1 font-black">buyerConfirmAndRelease(purchaseId)</span>
                     and
                     <span className="mx-1 font-black">requestRefundAndReturnNft(purchaseId)</span>.
+                    Refund return first approves the NFT contract for the marketplace, then returns the NFT to escrow.
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
                     {order.marketplacePurchaseId ? (
@@ -1226,20 +1308,25 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
                 </button>
 
                 {canStartOnchainRefundReturn ? (
-                  <button
-                    onClick={() => runBuyerOnchainAction("refund_return")}
-                    disabled={txReceipt.isLoading}
-                    className={cx(
-                      "inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-[12px] font-extrabold transition",
-                      txReceipt.isLoading
-                        ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
-                        : "border-sky-500/20 bg-sky-500/10 text-sky-100 hover:bg-sky-500/15"
-                    )}
-                  >
-                    {txReceipt.isLoading && chainActionKind === "refund_return"
-                      ? "Waiting for chain..."
-                      : "Return NFT on-chain"}
-                  </button>
+                  <div className="flex max-w-[420px] flex-col gap-2">
+                    <button
+                      onClick={() => runBuyerOnchainAction("refund_return")}
+                      disabled={txReceipt.isLoading}
+                      className={cx(
+                        "inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-[12px] font-extrabold transition",
+                        txReceipt.isLoading
+                          ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
+                          : "border-sky-500/20 bg-sky-500/10 text-sky-100 hover:bg-sky-500/15"
+                      )}
+                    >
+                      {txReceipt.isLoading && chainActionKind === "refund_return"
+                        ? "Waiting for chain..."
+                        : "Return NFT"}
+                    </button>
+                    <div className="text-[11px] leading-relaxed text-white/55">
+                      To complete a protected refund, the NFT must be returned to escrow first.
+                    </div>
+                  </div>
                 ) : null}
               </div>
             </div>

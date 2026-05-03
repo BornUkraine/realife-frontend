@@ -7,23 +7,35 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const ADMIN_WALLETS = (
-  process.env.ADMIN_CREATE_WALLETS ||
-  process.env.ADMIN_WALLETS ||
-  process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
-  process.env.NEXT_PUBLIC_ADMIN_WALLETS ||
-  ""
-)
-  .split(",")
-  .map((v) => v.trim().toLowerCase())
-  .filter(Boolean);
+function envWallets(...names: string[]) {
+  return names
+    .flatMap((name) => String(process.env[name] || "").split(","))
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+const ADMIN_WALLETS = envWallets(
+  "ADMIN_CREATE_WALLETS",
+  "ADMIN_WALLETS",
+  "NEXT_PUBLIC_ADMIN_CREATE_WALLETS",
+  "NEXT_PUBLIC_ADMIN_WALLETS",
+);
+
+const MODERATOR_WALLETS = envWallets(
+  "MODERATOR_WALLETS",
+  "ADMIN_MODERATOR_WALLETS",
+);
 
 function normAddr(v?: string | null) {
-  return String(v || "").trim().toLowerCase();
+  return String(v || "")
+    .trim()
+    .toLowerCase();
 }
 
 function clean(v: unknown, max = 500) {
-  return String(v || "").trim().slice(0, max);
+  return String(v || "")
+    .trim()
+    .slice(0, max);
 }
 
 function isTxHash(v?: string | null) {
@@ -34,12 +46,16 @@ function isTxHash(v?: string | null) {
 async function requireSupport() {
   const session = await getServerSession(authOptions);
   const wallet = normAddr(
-    (session as any)?.user?.walletAddress || (session as any)?.walletAddress || ""
+    (session as any)?.user?.walletAddress ||
+      (session as any)?.walletAddress ||
+      "",
   );
   const isAdminSession = Boolean(
-    (session as any)?.user?.isAdmin || (session as any)?.isAdmin
+    (session as any)?.user?.isAdmin || (session as any)?.isAdmin,
   );
-  const isAllowlistedWallet = !!wallet && ADMIN_WALLETS.includes(wallet);
+  const isAllowlistedWallet =
+    !!wallet &&
+    (ADMIN_WALLETS.includes(wallet) || MODERATOR_WALLETS.includes(wallet));
 
   if (isAdminSession || isAllowlistedWallet) return true;
 
@@ -51,9 +67,7 @@ async function requireSupport() {
     select: { supportRole: true },
   });
 
-  return (
-    dbUser?.supportRole === "MODERATOR" || dbUser?.supportRole === "ADMIN"
-  );
+  return dbUser?.supportRole === "MODERATOR" || dbUser?.supportRole === "ADMIN";
 }
 
 function isOnchainEscrowOrder(order: {
@@ -69,17 +83,17 @@ function isOnchainEscrowOrder(order: {
 }
 
 function isServiceFulfillment(v?: string | null) {
-  const s = String(v || "").trim().toUpperCase();
+  const s = String(v || "")
+    .trim()
+    .toUpperCase();
   return (
-    s === "DIGITAL_SERVICE" ||
-    s === "ONLINE_SESSION" ||
-    s === "LOCAL_SERVICE"
+    s === "DIGITAL_SERVICE" || s === "ONLINE_SESSION" || s === "LOCAL_SERVICE"
   );
 }
 
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
@@ -88,7 +102,7 @@ export async function POST(
     if (!isSupport) {
       return NextResponse.json(
         { ok: false, error: "FORBIDDEN" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
@@ -99,7 +113,7 @@ export async function POST(
     if (escrowReleaseTxHash && !isTxHash(escrowReleaseTxHash)) {
       return NextResponse.json(
         { ok: false, error: "ESCROW_RELEASE_TX_INVALID" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -122,11 +136,13 @@ export async function POST(
     if (!order) {
       return NextResponse.json(
         { ok: false, error: "ORDER_NOT_FOUND" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
-    if (isOnchainEscrowOrder(order)) {
+    const onchainEscrow = isOnchainEscrowOrder(order);
+
+    if (onchainEscrow && !escrowReleaseTxHash) {
       return NextResponse.json(
         {
           ok: false,
@@ -138,14 +154,14 @@ export async function POST(
               ? order.marketplacePurchaseId.toString()
               : null,
         },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
     if (order.escrowStatus === "NOT_REQUIRED") {
       return NextResponse.json(
         { ok: false, error: "ESCROW_NOT_REQUIRED" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -153,27 +169,39 @@ export async function POST(
       return NextResponse.json({ ok: true, alreadyReleased: true });
     }
 
-    if (order.escrowStatus === "REFUNDED" || order.escrowStatus === "CANCELLED") {
+    if (
+      order.escrowStatus === "REFUNDED" ||
+      order.escrowStatus === "CANCELLED"
+    ) {
       return NextResponse.json(
         { ok: false, error: "ESCROW_ALREADY_FINALIZED" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     const isPhysical = order.deliveryRequired;
-    const isService = !isPhysical && isServiceFulfillment(order.fulfillmentType);
+    const isService =
+      !isPhysical && isServiceFulfillment(order.fulfillmentType);
 
-    if (isPhysical && !["CONFIRMED", "DELIVERED"].includes(order.deliveryStatus)) {
+    if (
+      !onchainEscrow &&
+      isPhysical &&
+      !["CONFIRMED", "DELIVERED"].includes(order.deliveryStatus)
+    ) {
       return NextResponse.json(
         { ok: false, error: "DELIVERY_NOT_CONFIRMED" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
-    if (isService && !["COMPLETED", "CONFIRMED"].includes(String(order.serviceStatus || ""))) {
+    if (
+      !onchainEscrow &&
+      isService &&
+      !["COMPLETED", "CONFIRMED"].includes(String(order.serviceStatus || ""))
+    ) {
       return NextResponse.json(
         { ok: false, error: "SERVICE_NOT_COMPLETED" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -215,7 +243,9 @@ export async function POST(
         data: {
           orderId: order.id,
           senderRole: "SYSTEM",
-          body: "Support released escrow for this order.",
+          body: onchainEscrow
+            ? "Support synced on-chain release transaction for this protected escrow order."
+            : "Support released escrow for this order.",
           isInternal: false,
         },
       });
@@ -227,15 +257,16 @@ export async function POST(
       ok: true,
       order: {
         ...updated,
-        releasedAt: updated.releasedAt ? updated.releasedAt.toISOString() : null,
-        confirmedAt: updated.confirmedAt ? updated.confirmedAt.toISOString() : null,
+        releasedAt: updated.releasedAt
+          ? updated.releasedAt.toISOString()
+          : null,
+        confirmedAt: updated.confirmedAt
+          ? updated.confirmedAt.toISOString()
+          : null,
       },
     });
   } catch (e) {
     console.error("[API_DELIVERY_ORDER_RELEASE_ERROR]", e);
-    return NextResponse.json(
-      { ok: false, error: "INTERNAL" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: "INTERNAL" }, { status: 500 });
   }
 }
