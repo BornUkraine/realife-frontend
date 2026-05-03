@@ -116,12 +116,15 @@ function buildImageCandidates(src: string | null) {
 
   if (!path) return [original];
 
-  return Array.from(
-    new Set([
-      original,
-      ...IPFS_IMAGE_GATEWAYS.map((gateway) => ipfsPathToGatewayUrl(path, gateway)),
-    ])
+  // Important: try normalized /ipfs/ gateway URLs first.
+  // Legacy cached URLs like https://nftstorage.link/Qm... can return 403
+  // through Next's image optimizer. Keeping the raw URL last prevents noisy
+  // server logs and black cards while still preserving it as a final fallback.
+  const normalized = IPFS_IMAGE_GATEWAYS.map((gateway) =>
+    ipfsPathToGatewayUrl(path, gateway)
   );
+
+  return Array.from(new Set([...normalized, original]));
 }
 
 function useInViewport<T extends Element>(rootMargin = "200px") {
@@ -242,9 +245,12 @@ export default function NftMedia({
     const activeSrc = imageCandidates[imageIndex] || src;
     const hasMoreGateways = imageIndex < imageCandidates.length - 1;
 
-    // First try Next optimizer for supported URLs. If that request returns 403,
-    // retry fallback gateways as direct <img> requests to avoid black cards.
-    const useOptimized = isOptimizable(activeSrc) && imageIndex === 0;
+    // First try Next optimizer only for normalized IPFS gateway URLs.
+    // Bare legacy gateway URLs such as https://nftstorage.link/Qm... should not
+    // be optimized because they often return 403 upstream.
+    const activeIpfsPath = extractIpfsPath(activeSrc);
+    const normalizedForIpfs = Boolean(activeIpfsPath && activeSrc.includes('/ipfs/'));
+    const useOptimized = isOptimizable(activeSrc) && normalizedForIpfs && imageIndex === 0;
 
     const handleError = () => {
       if (hasMoreGateways) {
