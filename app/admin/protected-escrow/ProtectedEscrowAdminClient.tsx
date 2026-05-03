@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import NftMedia from "@/components/NftMedia";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { formatUnits } from "viem";
 
@@ -1002,7 +1003,10 @@ export default function ProtectedEscrowAdminClient() {
             <div className="space-y-4">
               {orders.map((order) => {
                 const isOpen = openOrderId === order.id;
-                const image = ipfsToHttp(order.nft?.image || null);
+                const mediaKind = String(order.nft?.mediaKind || "").toLowerCase();
+                const isVideo = mediaKind === "video" || Boolean(order.nft?.animation);
+                const mediaSrc = ipfsToHttp(isVideo ? order.nft?.animation || order.nft?.image || null : order.nft?.image || null);
+                const posterSrc = ipfsToHttp(order.nft?.image || null);
                 const serviceLocation = [order.serviceCity, order.serviceCountry].filter(Boolean).join(", ");
 
                 return (
@@ -1010,12 +1014,18 @@ export default function ProtectedEscrowAdminClient() {
                     <div className="flex flex-col gap-5 xl:flex-row">
                       <div className="flex min-w-0 flex-1 gap-4">
                         <div className="h-24 w-24 shrink-0 overflow-hidden rounded-3xl border border-white/10 bg-black/30">
-                          {image ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={image} alt="NFT" className="h-full w-full object-cover" />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-xs text-white/35">NFT</div>
-                          )}
+                          <NftMedia
+                            src={mediaSrc}
+                            kind={isVideo ? "video" : "image"}
+                            poster={posterSrc}
+                            alt={order.nft?.name || "NFT"}
+                            className="h-full w-full"
+                            roundedClass="rounded-3xl"
+                            fit="cover"
+                            showControls={false}
+                            mediaBgClass="bg-black/30"
+                            sizes="96px"
+                          />
                         </div>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -1426,21 +1436,30 @@ export default function ProtectedEscrowAdminClient() {
           ) : (
             <div className="space-y-4">
               {listings.map((listing) => {
-                const image = ipfsToHttp(listing.nft?.image || null);
+                const mediaKind = String(listing.nft?.mediaKind || "").toLowerCase();
+                const isVideo = mediaKind === "video" || Boolean(listing.nft?.animation);
+                const mediaSrc = ipfsToHttp(isVideo ? listing.nft?.animation || listing.nft?.image || null : listing.nft?.image || null);
+                const posterSrc = ipfsToHttp(listing.nft?.image || null);
                 const seller = listing.seller?.handle ? `@${listing.seller.handle}` : shortAddr(listing.sellerWallet);
-                const canRestore = role === "ADMIN";
+                const canRestore = role === "ADMIN" || role === "MODERATOR";
 
                 return (
                   <div key={listing.id} className="rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_20px_80px_rgba(0,0,0,0.35)]">
                     <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
                       <div className="flex min-w-0 flex-1 gap-4">
                         <div className="h-24 w-24 shrink-0 overflow-hidden rounded-3xl border border-white/10 bg-black/30">
-                          {image ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={image} alt="NFT" className="h-full w-full object-cover" />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-xs text-white/35">NFT</div>
-                          )}
+                          <NftMedia
+                            src={mediaSrc}
+                            kind={isVideo ? "video" : "image"}
+                            poster={posterSrc}
+                            alt={order.nft?.name || "NFT"}
+                            className="h-full w-full"
+                            roundedClass="rounded-3xl"
+                            fit="cover"
+                            showControls={false}
+                            mediaBgClass="bg-black/30"
+                            sizes="96px"
+                          />
                         </div>
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">

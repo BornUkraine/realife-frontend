@@ -31,11 +31,24 @@ function clean(v?: string | null, max = 200) {
   return String(v || "").trim().slice(0, max);
 }
 
-function getBootstrapAdminWallets() {
-  return (process.env.ADMIN_CREATE_WALLETS || process.env.ADMIN_WALLETS || "")
-    .split(",")
+function getEnvWallets(...names: string[]) {
+  return names
+    .flatMap((name) => String(process.env[name] || "").split(","))
     .map((x) => normAddr(x))
     .filter(Boolean);
+}
+
+function getBootstrapAdminWallets() {
+  return getEnvWallets(
+    "ADMIN_CREATE_WALLETS",
+    "ADMIN_WALLETS",
+    "NEXT_PUBLIC_ADMIN_CREATE_WALLETS",
+    "NEXT_PUBLIC_ADMIN_WALLETS"
+  );
+}
+
+function getBootstrapModeratorWallets() {
+  return getEnvWallets("MODERATOR_WALLETS", "ADMIN_MODERATOR_WALLETS");
 }
 
 async function getActor() {
@@ -92,6 +105,13 @@ async function getEscrowPanelRole(actor: {
     getBootstrapAdminWallets().includes(actor.walletAddress)
   ) {
     return "ADMIN";
+  }
+
+  if (
+    actor.walletAddress &&
+    getBootstrapModeratorWallets().includes(actor.walletAddress)
+  ) {
+    return "MODERATOR";
   }
 
   const actorRole = await getActorSupportRole(actor);
