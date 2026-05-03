@@ -1452,7 +1452,7 @@ export default function ProtectedEscrowAdminClient() {
                             src={mediaSrc}
                             kind={isVideo ? "video" : "image"}
                             poster={posterSrc}
-                            alt={order.nft?.name || "NFT"}
+                            alt={listing.nft?.name || "NFT"}
                             className="h-full w-full"
                             roundedClass="rounded-3xl"
                             fit="cover"
