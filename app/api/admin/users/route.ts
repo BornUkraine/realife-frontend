@@ -15,6 +15,7 @@ export const revalidate = 0;
 type SupportRoleValue = "USER" | "MODERATOR" | "ADMIN";
 
 const SUPPORT_ROLES = new Set<SupportRoleValue>(["USER", "MODERATOR", "ADMIN"]);
+const INSENSITIVE = "insensitive" as const;
 
 function normAddr(v?: string | null) {
   return String(v || "").trim().toLowerCase();
@@ -78,7 +79,7 @@ async function getActorSupportRole(actor: {
       where: {
         walletAddress: {
           equals: actor.walletAddress,
-          mode: "insensitive",
+          mode: INSENSITIVE,
         },
       },
       select: { supportRole: true },
@@ -193,27 +194,27 @@ function userSearchWhere(q: string): Prisma.UserWhereInput {
 
   return {
     OR: [
-      { id: { contains: query, mode: "insensitive" } },
-      { handle: { contains: query, mode: "insensitive" } },
-      { publicId: { contains: query, mode: "insensitive" } },
-      { walletAddress: { contains: qLower, mode: "insensitive" } },
-      { googleEmail: { contains: query, mode: "insensitive" } },
-      { googleName: { contains: query, mode: "insensitive" } },
-      { twitterUser: { contains: query, mode: "insensitive" } },
-      { discordUser: { contains: query, mode: "insensitive" } },
-      { firstIp: { contains: query, mode: "insensitive" } },
-      { lastIp: { contains: query, mode: "insensitive" } },
-      { lastCountry: { contains: query, mode: "insensitive" } },
-      { lastCity: { contains: query, mode: "insensitive" } },
-      { mints: { some: { tokenId: { contains: query, mode: "insensitive" } } } },
-      { mints: { some: { txHash: { contains: query, mode: "insensitive" } } } },
-      { listings: { some: { sellerWallet: { contains: qLower, mode: "insensitive" } } } },
-      { storeOrdersBought: { some: { sellerWallet: { contains: qLower, mode: "insensitive" } } } },
-      { storeOrdersSold: { some: { buyerWallet: { contains: qLower, mode: "insensitive" } } } },
-      { wallets: { some: { address: { contains: qLower, mode: "insensitive" } } } },
-      { loginEvents: { some: { ip: { contains: query, mode: "insensitive" } } } },
-      { loginEvents: { some: { googleEmail: { contains: query, mode: "insensitive" } } } },
-      { loginEvents: { some: { walletAddress: { contains: qLower, mode: "insensitive" } } } },
+      { id: { contains: query, mode: INSENSITIVE } },
+      { handle: { contains: query, mode: INSENSITIVE } },
+      { publicId: { contains: query, mode: INSENSITIVE } },
+      { walletAddress: { contains: qLower, mode: INSENSITIVE } },
+      { googleEmail: { contains: query, mode: INSENSITIVE } },
+      { googleName: { contains: query, mode: INSENSITIVE } },
+      { twitterUser: { contains: query, mode: INSENSITIVE } },
+      { discordUser: { contains: query, mode: INSENSITIVE } },
+      { firstIp: { contains: query, mode: INSENSITIVE } },
+      { lastIp: { contains: query, mode: INSENSITIVE } },
+      { lastCountry: { contains: query, mode: INSENSITIVE } },
+      { lastCity: { contains: query, mode: INSENSITIVE } },
+      { mints: { some: { tokenId: { contains: query, mode: INSENSITIVE } } } },
+      { mints: { some: { txHash: { contains: query, mode: INSENSITIVE } } } },
+      { listings: { some: { sellerWallet: { contains: qLower, mode: INSENSITIVE } } } },
+      { storeOrdersBought: { some: { sellerWallet: { contains: qLower, mode: INSENSITIVE } } } },
+      { storeOrdersSold: { some: { buyerWallet: { contains: qLower, mode: INSENSITIVE } } } },
+      { wallets: { some: { address: { contains: qLower, mode: INSENSITIVE } } } },
+      { loginEvents: { some: { ip: { contains: query, mode: INSENSITIVE } } } },
+      { loginEvents: { some: { googleEmail: { contains: query, mode: INSENSITIVE } } } },
+      { loginEvents: { some: { walletAddress: { contains: qLower, mode: INSENSITIVE } } } },
     ],
   };
 }
@@ -482,32 +483,34 @@ export async function GET(req: Request) {
                 ? { OR: [{ tradesSold: { some: {} } }, { tradesBought: { some: {} } }] }
                 : {};
 
+    const whereClauses: Prisma.UserWhereInput[] = [
+      userSearchWhere(q),
+      SUPPORT_ROLES.has(roleFilter as SupportRoleValue)
+        ? { supportRole: roleFilter as SupportRoleValue }
+        : {},
+      authFilter === "GOOGLE" || authFilter === "WALLET"
+        ? { authMethod: authFilter as any }
+        : {},
+      walletFilter === "EMBEDDED" || walletFilter === "EXTERNAL"
+        ? { walletKind: walletFilter as any }
+        : {},
+      providerFilter
+        ? { embeddedWalletProvider: providerFilter as any }
+        : {},
+      ipFilter
+        ? {
+            OR: [
+              { firstIp: { contains: ipFilter, mode: INSENSITIVE } },
+              { lastIp: { contains: ipFilter, mode: INSENSITIVE } },
+              { loginEvents: { some: { ip: { contains: ipFilter, mode: INSENSITIVE } } } },
+            ],
+          }
+        : {},
+      activityWhere,
+    ].filter((x) => Object.keys(x).length > 0);
+
     const where: Prisma.UserWhereInput = {
-      AND: [
-        userSearchWhere(q),
-        SUPPORT_ROLES.has(roleFilter as SupportRoleValue)
-          ? { supportRole: roleFilter as SupportRoleValue }
-          : {},
-        authFilter === "GOOGLE" || authFilter === "WALLET"
-          ? { authMethod: authFilter as any }
-          : {},
-        walletFilter === "EMBEDDED" || walletFilter === "EXTERNAL"
-          ? { walletKind: walletFilter as any }
-          : {},
-        providerFilter
-          ? { embeddedWalletProvider: providerFilter as any }
-          : {},
-        ipFilter
-          ? {
-              OR: [
-                { firstIp: { contains: ipFilter, mode: "insensitive" } },
-                { lastIp: { contains: ipFilter, mode: "insensitive" } },
-                { loginEvents: { some: { ip: { contains: ipFilter, mode: "insensitive" } } } },
-              ],
-            }
-          : {},
-        activityWhere,
-      ].filter((x) => Object.keys(x).length > 0),
+      AND: whereClauses,
     };
 
     const [items, total, summary, recentIps] = await prisma.$transaction([
