@@ -830,7 +830,7 @@ export async function GET(req: Request) {
         usersWithListings,
         usersWithSoldOrders,
         usersWithBoughtOrders,
-        topIps30d: recentIps.map((r) => ({ ip: r.ip, count: r._count.ip })),
+        topIps30d: recentIps.map((r) => ({ ip: r.ip, count: r._count?.ip ?? 0 })),
       },
       filters: {
         q,
