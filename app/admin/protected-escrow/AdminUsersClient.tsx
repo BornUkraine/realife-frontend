@@ -16,6 +16,17 @@ type UserActivityItem = {
   tokenId?: string | null;
   txHash?: string | null;
   buyTxHash?: string | null;
+  side?: string | null;
+  vertical?: string | null;
+  sourceType?: string | null;
+  orderKind?: string | null;
+  amount?: string | null;
+  unitPrice?: string | null;
+  releasedAt?: string | null;
+  refundedAt?: string | null;
+  disputedAt?: string | null;
+  confirmedAt?: string | null;
+  buyerConfirmedAt?: string | null;
   name?: string | null;
   nftName?: string | null;
   status?: string | null;
@@ -329,7 +340,7 @@ function OrderRows({ items, empty }: { items: UserActivityItem[]; empty: string 
           </div>
           <div className="mt-2 grid gap-1 text-xs text-white/60">
             <MiniLine label="Order" value={o.id.slice(0, 12)} />
-            <MiniLine label="Token" value={`#${o.tokenId} · ${titleCase(o.vertical)}`} />
+            <MiniLine label="Token" value={`#${o.tokenId} · ${titleCase(o.vertical || o.fulfillmentType || o.category)}`} />
             <MiniLine label="Amount" value={formatPaymentAmount(o.totalPrice, o.paymentToken)} />
             <MiniLine label="Buyer wallet" value={<span className="break-all">{o.buyerWallet || "—"}</span>} />
             <MiniLine label="Seller wallet" value={<span className="break-all">{o.sellerWallet || "—"}</span>} />
