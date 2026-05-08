@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import AdminEscrowGateClient from "./AdminEscrowGateClient";
 import ProtectedEscrowAdminClient from "./ProtectedEscrowAdminClient";
+import AdminUsersClient from "./AdminUsersClient";
 import {
   ADMIN_ESCROW_COOKIE_NAME,
   verifyAdminEscrowToken,
@@ -302,7 +303,7 @@ export default async function ProtectedEscrowAdminPage() {
               </h1>
 
               <p className="mt-3 max-w-4xl text-sm leading-7 text-white/70">
-                Review open NFT orders, escrow disputes, buyer/seller messages, shipping and service evidence. Admins can also remove fake, prohibited, empty or unsafe listings from the marketplace and keep an audit trail.
+                Review users, connected wallets, Google/Web2 embedded users, mint activity, listings, purchases, seller orders, escrow disputes, buyer/seller messages and safety actions. Admins can see the full wallet address and country/IP signal for anti-fraud review.
               </p>
             </div>
 
@@ -320,8 +321,8 @@ export default async function ProtectedEscrowAdminPage() {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <ActionCard
-          title="Open orders"
-          text="See active purchases, buyer/seller wallets, NFT details, delivery/service status, tx hashes and order room messages."
+          title="User intelligence"
+          text="See who minted NFTs, full wallet address, country/IP signal, whether they listed, bought, or sold goods and services."
           tone="gold"
         />
         <ActionCard
@@ -339,6 +340,8 @@ export default async function ProtectedEscrowAdminPage() {
           text="Use ADMIN_WALLETS / ADMIN_CREATE_WALLETS in Railway. Do not expose admin wallets through NEXT_PUBLIC envs."
         />
       </div>
+
+      <AdminUsersClient />
 
       <ProtectedEscrowAdminClient />
     </div>

@@ -135,6 +135,8 @@ enum WalletKind {
 
 enum EmbeddedWalletProvider {
   WEB3AUTH
+  METAMASK_EMBEDDED
+  TURNKEY
   OPENFORT
 }
 
@@ -198,7 +200,7 @@ model User {
    * Web2 users:
    * - authMethod = GOOGLE
    * - walletKind = EMBEDDED
-   * - embeddedWalletProvider = WEB3AUTH or OPENFORT
+   * - embeddedWalletProvider = WEB3AUTH, METAMASK_EMBEDDED, TURNKEY or OPENFORT
    * - walletAddress = generated embedded wallet address
    *
    * Realife never stores seed phrases or private keys.
@@ -210,6 +212,30 @@ model User {
   walletChainId Int?
 
   embeddedWalletProvider EmbeddedWalletProvider?
+
+  /**
+   * ---------------- Login / security telemetry ----------------
+   * IP is NOT the primary user identifier.
+   * It is only an anti-fraud / admin-risk signal.
+   */
+  firstLoginAt DateTime?
+  lastLoginAt  DateTime?
+
+  firstIp        String?
+  lastIp         String?
+  firstUserAgent String? @db.Text
+  lastUserAgent  String? @db.Text
+
+  firstCountry String?
+  lastCountry  String?
+  firstRegion  String?
+  lastRegion   String?
+  firstCity    String?
+  lastCity     String?
+
+  lastAuthMethod             AuthMethod?
+  lastWalletKind             WalletKind?
+  lastEmbeddedWalletProvider EmbeddedWalletProvider?
 
   /**
    * Optional display metadata from a social/embedded wallet provider.
@@ -292,6 +318,12 @@ model User {
    */
   aiGenerations AiGeneration[]
 
+  /**
+   * ---------------- Identity/security relations ----------------
+   */
+  wallets     UserWallet[]
+  loginEvents UserLoginEvent[]
+
   @@index([authMethod])
   @@index([walletKind])
   @@index([embeddedWalletProvider])
@@ -302,6 +334,98 @@ model User {
   @@index([referredById])
   @@index([approvedPhysicalSeller])
   @@index([supportRole])
+  @@index([firstIp])
+  @@index([lastIp])
+  @@index([lastLoginAt])
+  @@index([lastCountry])
+}
+
+/**
+ * ==========================================================================
+ * USER LINKED WALLETS
+ * ==========================================================================
+ * Keeps the old User.walletAddress as the primary address, while allowing
+ * Realife to add/swap embedded wallet providers later. This is important for
+ * MetaMask Embedded -> Turnkey migration or for users who link an external
+ * wallet after Google login.
+ */
+model UserWallet {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  address String
+  chainId Int?
+
+  kind                   WalletKind @default(EXTERNAL)
+  embeddedWalletProvider EmbeddedWalletProvider?
+
+  isPrimary Boolean @default(false)
+  label     String?
+
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+
+  lastIp        String?
+  lastUserAgent String? @db.Text
+
+  @@unique([userId, address])
+  @@index([address])
+  @@index([userId])
+  @@index([kind])
+  @@index([embeddedWalletProvider])
+  @@index([isPrimary])
+  @@index([lastSeenAt])
+}
+
+/**
+ * ==========================================================================
+ * USER LOGIN / SESSION EVENTS
+ * ==========================================================================
+ * Admin/security history for Google/Web2 embedded wallet users and Web3 users.
+ * IP + userAgent are signals only; never use them as the primary identity.
+ */
+model UserLoginEvent {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  eventType String @default("SESSION_CHECK")
+
+  walletAddress String?
+  walletChainId  Int?
+
+  authMethod             AuthMethod?
+  walletKind             WalletKind?
+  embeddedWalletProvider EmbeddedWalletProvider?
+
+  googleId    String?
+  googleEmail String?
+
+  ip        String?
+  userAgent String? @db.Text
+
+  country String?
+  region  String?
+  city    String?
+
+  referrer String? @db.Text
+  path     String? @db.Text
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([eventType])
+  @@index([walletAddress])
+  @@index([googleEmail])
+  @@index([ip])
+  @@index([country])
+  @@index([userId, createdAt])
+  @@index([ip, createdAt])
 }
 
 /**

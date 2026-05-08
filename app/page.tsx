@@ -274,6 +274,152 @@ function VideoCard({
   );
 }
 
+
+const SHORT_FAQS = [
+  {
+    q: "What is Realife?",
+    a: "Realife is a stablecoin escrow marketplace for real-world goods and services. Buyers can pay through protected commerce flows, while sellers deliver products, services, or work before funds are released.",
+  },
+  {
+    q: "Is Realife only an NFT marketplace?",
+    a: "No. Realife uses NFTs as receipts and tokenized transaction rights connected to real products, services, orders, delivery, and outcomes — not only as speculative collectibles.",
+  },
+  {
+    q: "Why does Realife use NFT receipts?",
+    a: "An NFT receipt can represent what was purchased, who owns the transaction right, what needs to be fulfilled, and what evidence or order state is connected to the deal.",
+  },
+  {
+    q: "How does escrow protect buyers and sellers?",
+    a: "Buyer funds can stay in escrow until delivery or service completion is confirmed. Sellers get a clearer payment path, and buyers are not forced to trust direct transfers blindly.",
+  },
+  {
+    q: "What happens if there is a dispute?",
+    a: "The funds stay in escrow while Realife reviews order state, delivery proof, service evidence, deadlines, messages, and buyer/seller confirmation before release, refund, or another resolution path.",
+  },
+  {
+    q: "Is Realife live on mainnet?",
+    a: "Realife is currently a live MVP on Base Sepolia testnet. Mainnet stablecoin commerce requires further security hardening, legal/compliance review, and production escrow readiness.",
+  },
+] as const;
+
+const FOOTER_GROUPS = [
+  {
+    title: "Product",
+    links: [
+      { label: "Marketplace", href: "/app/trading" },
+      { label: "Create NFT listing", href: "/app/create" },
+      { label: "Real Marketing", href: REAL_MARKETING_HREF },
+      { label: "FAQ", href: "/faq" },
+    ],
+  },
+  {
+    title: "Trust & Safety",
+    links: [
+      { label: "Dispute Policy", href: "/dispute-policy" },
+      { label: "Terms & Conditions", href: "/terms" },
+      { label: "Privacy Policy", href: "/privacy" },
+    ],
+  },
+  {
+    title: "Community",
+    links: [
+      { label: "X / Twitter", href: "https://x.com/Born__Voyage", external: true },
+      { label: "GitHub", href: "https://github.com/BornUkraine", external: true },
+      { label: "Live MVP", href: "https://realife.live", external: true },
+    ],
+  },
+] as const;
+
+function ShortFaqSection() {
+  return (
+    <Reveal className="mt-24">
+      <section>
+        <div className="grid gap-8 lg:grid-cols-12 lg:items-start">
+          <div className="lg:col-span-4">
+            <SectionHeading
+              label="FAQ"
+              title="Questions buyers, sellers, and investors ask first"
+              text="A short trust layer before users enter the app. The full FAQ explains escrow, NFT receipts, services, delivery, fees, testnet status, and dispute flows."
+            />
+            <div className="mt-6 flex flex-wrap gap-3">
+              <GoldButton href="/faq">Read full FAQ</GoldButton>
+              <GhostButton href="/dispute-policy">Dispute policy</GhostButton>
+            </div>
+          </div>
+
+          <div className="grid gap-4 lg:col-span-8 md:grid-cols-2">
+            {SHORT_FAQS.map((item) => (
+              <GlassCard key={item.q}>
+                <div className="p-5">
+                  <div className="text-base font-black tracking-tight text-white">{item.q}</div>
+                  <p className="mt-3 text-sm leading-relaxed text-white/60">{item.a}</p>
+                </div>
+              </GlassCard>
+            ))}
+          </div>
+        </div>
+      </section>
+    </Reveal>
+  );
+}
+
+function SiteFooter({ year }: { year: number }) {
+  return (
+    <footer className="mt-16 pb-10">
+      <GlassCard className="rounded-[32px] before:rounded-[32px]">
+        <div className="grid gap-8 p-6 md:p-8 lg:grid-cols-12">
+          <div className="lg:col-span-4">
+            <div className="text-2xl font-black tracking-tight">REALIFE</div>
+            <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/55">
+              The trust layer for stablecoin commerce: tokenized real-world goods,
+              services, NFT receipts, protected orders, and escrow-backed settlement.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {["Base Sepolia MVP", "Escrow", "NFT receipts", "USDC-ready"].map((x) => (
+                <Pill key={x} className="bg-black/35">
+                  {x}
+                </Pill>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-6 sm:grid-cols-3 lg:col-span-8">
+            {FOOTER_GROUPS.map((group) => (
+              <div key={group.title}>
+                <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#d4af37]">
+                  {group.title}
+                </div>
+                <div className="mt-4 grid gap-3">
+                  {group.links.map((link) => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      target={"external" in link && link.external ? "_blank" : undefined}
+                      rel={"external" in link && link.external ? "noreferrer" : undefined}
+                      className="text-sm text-white/55 transition hover:text-white"
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </GlassCard>
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-4 text-xs text-white/35">
+        <div>© {year} Realife. All rights reserved.</div>
+        <div className="max-w-3xl leading-relaxed">
+          Realife is currently a testnet MVP. This website is not financial, legal, tax, or
+          investment advice. Mainnet commerce, escrow, custody, and compliance flows may
+          require additional review, restrictions, partners, and user verification.
+        </div>
+      </div>
+    </footer>
+  );
+}
+
 export default function HomePage() {
   const year = useMemo(() => new Date().getFullYear(), []);
 
@@ -683,6 +829,8 @@ export default function HomePage() {
           </section>
         </Reveal>
 
+        <ShortFaqSection />
+
         <Reveal className="mt-24">
           <section>
             <GlassCard className="rounded-[36px] before:rounded-[36px]">
@@ -712,18 +860,7 @@ export default function HomePage() {
           </section>
         </Reveal>
 
-        <footer className="mt-16 flex flex-wrap items-center justify-between gap-4 pb-10 text-xs text-white/40">
-          <div>© {year} Realife</div>
-          <div className="flex flex-wrap items-center gap-4 opacity-60">
-            <span>Stablecoin commerce</span>
-            <span>Tokenized goods & services</span>
-            <span>NFT-linked rights</span>
-            <span>AI assistance</span>
-            <span>Service escrow</span>
-            <span>Delivery escrow</span>
-            <span>Real-world value</span>
-          </div>
-        </footer>
+        <SiteFooter year={year} />
       </div>
     </main>
   );

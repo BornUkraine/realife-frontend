@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { recordUserLoginEvent } from "@/lib/userTracking";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -44,7 +45,7 @@ function shortAddr(addr?: string | null) {
   return `${s.slice(0, 6)}...${s.slice(-4)}`;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   const uid = (session as any)?.userId || (session as any)?.user?.id;
 
@@ -137,6 +138,22 @@ export async function GET() {
         },
       };
     });
+
+    if (result.status === 200 && (result.body as any)?.user?.id) {
+      const u = (result.body as any).user;
+      await recordUserLoginEvent(req, {
+        userId: u.id,
+        walletAddress: u.walletAddress,
+        walletChainId: u.walletChainId,
+        authMethod: u.authMethod,
+        walletKind: u.walletKind,
+        embeddedWalletProvider: u.embeddedWalletProvider,
+        googleId: u.googleId,
+        googleEmail: u.googleEmail,
+        eventType: "SESSION_CHECK",
+        path: "/api/me",
+      }).catch((e) => console.error("[API_ME_TRACKING_ERROR]", e));
+    }
 
     return NextResponse.json(result.body, { status: result.status });
   } catch (e) {

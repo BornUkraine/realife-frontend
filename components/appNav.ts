@@ -13,6 +13,7 @@ export const APP_NAV: AppNavItem[] = [
   { label: "Real Marketing", href: "/app/real-marketing", enabled: true },
   { label: "Social Learning", href: "/app/social", enabled: true },
   { label: "Profile", href: "/app/profile", enabled: true },
+  { label: "FAQ / Help", href: "/faq", enabled: true },
   { label: "Contact", href: "/app/contacts", enabled: true },
 ];
 
