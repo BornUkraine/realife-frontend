@@ -52,7 +52,7 @@ const IMAGE_MODEL_HINT = "gpt-image-2";
 const VIDEO_MODEL_HINT: VideoModel = "sora-2-pro";
 
 const PRODUCT_TEMPLATE =
-  "Create a premium NFT-style product card image for fresh Spanish pineapples. Show ripe golden pineapples and juicy slices, luxury commercial quality, clean premium background, elegant black gold and cream mood, realistic food photography, Andalusia Spain feeling, delicious and expensive look. Include clean readable sales text: “PREMIUM PINEAPPLES”, “Juicy & Delicious”, “Spain • Andalusia”, “Phone: +34096554581”, and a small elegant “NFT PRODUCT” badge.";
+  "Create a premium NFT-style product card image for {PRODUCT_NAME}. Show the product clearly as the main focus with luxury commercial quality, clean premium background, elegant black, gold, and cream mood, realistic high-end product photography, and an expensive premium look. Add visually appealing details that match the product category and origin. Include clean readable sales text: “{PRODUCT_NAME_UPPER}”, “{TAGLINE}”, “{ORIGIN}”, “Phone: {PHONE}”, and a small elegant “NFT PRODUCT” badge. The final result should feel like a premium marketplace product card, stylish, trustworthy, and visually rich.";
 
 const SERVICE_TEMPLATE =
   "Create a premium promotional image for a website design service for small businesses. Show a modern elegant workspace, laptop, professional creative atmosphere, black and gold premium style, clean trustworthy commercial quality, realistic lighting, high-end service marketplace cover, NFT service offer feeling.";
