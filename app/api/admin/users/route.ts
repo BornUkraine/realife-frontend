@@ -25,6 +25,14 @@ function clean(v: unknown, max = 200) {
   return String(v || "").trim().slice(0, max);
 }
 
+function readGroupCount(row: { _count?: unknown }, key: string) {
+  const count = row._count;
+  if (!count || typeof count !== "object") return 0;
+
+  const value = (count as Record<string, unknown>)[key];
+  return typeof value === "number" ? value : Number(value || 0);
+}
+
 function getEnvWallets(...names: string[]) {
   return names
     .flatMap((name) => String(process.env[name] || "").split(","))
@@ -830,7 +838,7 @@ export async function GET(req: Request) {
         usersWithListings,
         usersWithSoldOrders,
         usersWithBoughtOrders,
-        topIps30d: recentIps.map((r) => ({ ip: r.ip, count: r._count?.ip ?? 0 })),
+        topIps30d: recentIps.map((r) => ({ ip: r.ip || "unknown", count: readGroupCount(r, "ip") })),
       },
       filters: {
         q,
