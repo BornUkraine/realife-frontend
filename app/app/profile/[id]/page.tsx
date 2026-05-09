@@ -292,7 +292,7 @@ export default async function SmartProfilePage({
         mint: { verified: true },
       },
       orderBy: { updatedAt: "desc" },
-      take: 4,
+      take: 8,
       select: {
         amount: true,
         tokenId: true,
@@ -390,7 +390,7 @@ export default async function SmartProfilePage({
         </div>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
         <Card>
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>

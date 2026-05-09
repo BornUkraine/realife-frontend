@@ -608,12 +608,14 @@ function SocialRow({
         </div>
       </div>
 
-      <RewardStrip
-        connected={connected}
-        claimed={claimed}
-        reward={reward}
-        label={kind === "x" ? "Connect X and earn" : "Connect Discord and earn"}
-      />
+      {!connected && !claimed && (
+        <RewardStrip
+          connected={connected}
+          claimed={claimed}
+          reward={reward}
+          label={kind === "x" ? "Connect X and earn" : "Connect Discord and earn"}
+        />
+      )}
 
       {!connected && (
         <div className="mt-4 text-[11px] text-white/55">
@@ -1331,7 +1333,7 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
       </Reveal>
 
       <Reveal delayMs={70}>
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid items-start gap-6 lg:grid-cols-2">
           {authed && (
             <div className="grid gap-4">
               <div className="flex items-center justify-between gap-4 px-1">
