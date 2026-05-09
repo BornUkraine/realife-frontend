@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Reveal from "@/components/Reveal";
 import { signOut, useSession } from "next-auth/react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
 
 /* -------------------------------------------------------------------------- */
@@ -588,6 +588,7 @@ function SocialRow({
 
 export default function ProfileClient({ ownerProfile = null }: ProfileClientProps = {}) {
   const pathname = usePathname();
+  const router = useRouter();
   const { status } = useSession();
   const authed = status === "authenticated";
 
@@ -879,14 +880,30 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
         setLinkError(j?.error || "DISCONNECT_FAILED");
         return;
       }
+
+      // Optimistic local update so owner UI changes immediately.
+      setMe((prev) =>
+        prev
+          ? {
+              ...prev,
+              twitterId: null,
+              twitterUser: null,
+              twitterName: null,
+              twitterImage: null,
+              twitterRewarded: false,
+            }
+          : prev
+      );
+
       await loadMe();
+      router.refresh();
     } catch {
       setLinkError("DISCONNECT_FAILED");
     } finally {
       setBusyX(false);
       busyGuardRef.current = null;
     }
-  }, [authed, busyX, loadMe]);
+  }, [authed, busyX, loadMe, router]);
 
   const disconnectDiscord = useCallback(async () => {
     if (!authed || busyDiscord) return;
@@ -900,14 +917,30 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
         setLinkError(j?.error || "DISCONNECT_FAILED");
         return;
       }
+
+      // Optimistic local update so owner UI changes immediately.
+      setMe((prev) =>
+        prev
+          ? {
+              ...prev,
+              discordId: null,
+              discordUser: null,
+              discordName: null,
+              discordImage: null,
+              discordRewarded: false,
+            }
+          : prev
+      );
+
       await loadMe();
+      router.refresh();
     } catch {
       setLinkError("DISCONNECT_FAILED");
     } finally {
       setBusyDiscord(false);
       busyGuardRef.current = null;
     }
-  }, [authed, busyDiscord, loadMe]);
+  }, [authed, busyDiscord, loadMe, router]);
 
   const walletPillText = serverWalletAddress
     ? isEmbeddedWallet
@@ -1167,75 +1200,75 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
       </Reveal>
 
       <Reveal delayMs={80}>
-        <Card>
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <div>
-              <div className="text-lg font-black text-white">NFTs held by your profile</div>
-              <div className="mt-1 text-sm text-white/55">
-                This is how your public NFT holdings look to other users.
+        <div className="grid gap-6 lg:grid-cols-2">
+          {authed && (
+            <div className="grid gap-6">
+              <SocialRow
+                kind="x"
+                title="X (Twitter)"
+                subtitle="Name • @username • avatar"
+                connected={twitterConnected}
+                claimed={twitterClaimed}
+                avatarSrc={me?.twitterImage ?? ownerProfile?.twitterImage ?? null}
+                name={me?.twitterName ?? ownerProfile?.twitterName ?? null}
+                username={me?.twitterUser ?? ownerProfile?.twitterUser ?? null}
+                busy={busyX}
+                onConnect={connectTwitter}
+                onDisconnect={disconnectTwitter}
+                reward={REWARD_X}
+              />
+
+              <SocialRow
+                kind="discord"
+                title="Discord"
+                subtitle="Name • @username • avatar"
+                connected={discordConnected}
+                claimed={discordClaimed}
+                avatarSrc={me?.discordImage ?? ownerProfile?.discordImage ?? null}
+                name={me?.discordName ?? ownerProfile?.discordName ?? null}
+                username={me?.discordUser ?? ownerProfile?.discordUser ?? null}
+                busy={busyDiscord}
+                onConnect={connectDiscord}
+                onDisconnect={disconnectDiscord}
+                reward={REWARD_DISCORD}
+              />
+            </div>
+          )}
+
+          <Card>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-lg font-black text-white">NFTs held by your profile</div>
+                <div className="mt-1 text-sm text-white/55">
+                  This is how your public NFT holdings look to other users.
+                </div>
               </div>
+              <Pill tone={(ownerNftCount ?? 0) > 0 ? "gold" : "muted"}>{ownerNftCount ?? 0} NFTs</Pill>
             </div>
-            <Pill tone={(ownerNftCount ?? 0) > 0 ? "gold" : "muted"}>{ownerNftCount ?? 0} NFTs</Pill>
-          </div>
 
-          {ownerNftPreview.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {ownerNftPreview.map((nft) => (
-                <OwnerNftPreviewCard key={nft.mintId} nft={nft} />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm text-white/55">
-              Your profile has no public verified NFT holdings yet.
-            </div>
-          )}
+            {ownerNftPreview.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
+                {ownerNftPreview.map((nft) => (
+                  <OwnerNftPreviewCard key={nft.mintId} nft={nft} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm text-white/55">
+                Your profile has no public verified NFT holdings yet.
+              </div>
+            )}
 
-          {publicNftsUrl && (
-            <a
-              href={publicNftsUrl}
-              className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
-            >
-              Open full NFT gallery →
-            </a>
-          )}
-        </Card>
+            {publicNftsUrl && (
+              <a
+                href={publicNftsUrl}
+                className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+              >
+                Open full NFT gallery →
+              </a>
+            )}
+          </Card>
+        </div>
       </Reveal>
-
-      {authed && (
-        <Reveal delayMs={120}>
-          <div className="grid md:grid-cols-2 gap-6">
-            <SocialRow
-              kind="x"
-              title="X (Twitter)"
-              subtitle="Name • @username • avatar"
-              connected={twitterConnected}
-              claimed={twitterClaimed}
-              avatarSrc={me?.twitterImage ?? ownerProfile?.twitterImage ?? null}
-              name={me?.twitterName ?? ownerProfile?.twitterName ?? null}
-              username={me?.twitterUser ?? ownerProfile?.twitterUser ?? null}
-              busy={busyX}
-              onConnect={connectTwitter}
-              onDisconnect={disconnectTwitter}
-              reward={REWARD_X}
-            />
-
-            <SocialRow
-              kind="discord"
-              title="Discord"
-              subtitle="Name • @username • avatar"
-              connected={discordConnected}
-              claimed={discordClaimed}
-              avatarSrc={me?.discordImage ?? ownerProfile?.discordImage ?? null}
-              name={me?.discordName ?? ownerProfile?.discordName ?? null}
-              username={me?.discordUser ?? ownerProfile?.discordUser ?? null}
-              busy={busyDiscord}
-              onConnect={connectDiscord}
-              onDisconnect={disconnectDiscord}
-              reward={REWARD_DISCORD}
-            />
-          </div>
-        </Reveal>
-      )}
 
       <Reveal delayMs={200}>
         <div className="text-[11px] text-white/40 text-center">
