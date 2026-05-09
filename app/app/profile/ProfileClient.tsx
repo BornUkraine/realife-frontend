@@ -741,6 +741,14 @@ export default function ProfileClient() {
     }, 20_000);
   }, []);
 
+  const profileReturnPath = useMemo(() => {
+    // Social links are profile settings. After OAuth, always return to the owner's
+    // canonical app profile URL when possible: /app/profile/rl_XXXX.
+    if (publicUrl && publicUrl.startsWith("/app/profile/")) return publicUrl;
+    if (pathname && pathname.startsWith("/app/profile/")) return pathname;
+    return "/app/profile";
+  }, [pathname, publicUrl]);
+
   const connectTwitter = useCallback(() => {
     if (!authed || !serverWalletAddress) {
       setLinkError("NO_SERVER_WALLET");
@@ -754,9 +762,9 @@ export default function ProfileClient() {
     setBusyX(true);
     startGuard("x");
 
-    const returnTo = encodeURIComponent(`${pathname || "/app/profile"}?linked=twitter`);
+    const returnTo = encodeURIComponent(`${profileReturnPath}?linked=twitter`);
     window.location.href = `/api/x/start?returnTo=${returnTo}`;
-  }, [authed, serverWalletAddress, startGuard]);
+  }, [authed, serverWalletAddress, startGuard, profileReturnPath]);
 
   const connectDiscord = useCallback(() => {
     if (!authed || !serverWalletAddress) {
@@ -771,9 +779,9 @@ export default function ProfileClient() {
     setBusyDiscord(true);
     startGuard("discord");
 
-    const returnTo = encodeURIComponent(`${pathname || "/app/profile"}?linked=discord`);
+    const returnTo = encodeURIComponent(`${profileReturnPath}?linked=discord`);
     window.location.href = `/api/discord/start?returnTo=${returnTo}`;
-  }, [authed, serverWalletAddress, startGuard]);
+  }, [authed, serverWalletAddress, startGuard, profileReturnPath]);
 
   const disconnectTwitter = useCallback(async () => {
     if (!authed || busyX) return;
