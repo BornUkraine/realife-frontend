@@ -93,9 +93,14 @@ function Pill({ children, tone = "muted" }: { children: ReactNode; tone?: "muted
   return <span className={cx("inline-flex rounded-full border px-3 py-1.5 text-[11px] font-semibold", cls)}>{children}</span>;
 }
 
-function Avatar({ src, fallback }: { src?: string | null; fallback: string }) {
+function Avatar({ src, fallback, className = "" }: { src?: string | null; fallback: string; className?: string }) {
   return (
-    <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.06] shadow-[0_20px_80px_rgba(0,0,0,0.35)] ring-1 ring-black/15">
+    <div
+      className={cx(
+        "flex h-20 w-20 items-center justify-center overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.06] shadow-[0_20px_80px_rgba(0,0,0,0.35)] ring-1 ring-black/15",
+        className,
+      )}
+    >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={src} alt={fallback} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
@@ -103,6 +108,28 @@ function Avatar({ src, fallback }: { src?: string | null; fallback: string }) {
         <span className="text-sm font-black text-white/40">{fallback}</span>
       )}
     </div>
+  );
+}
+
+function SocialIcon({ kind }: { kind: "x" | "discord" }) {
+  if (kind === "x") {
+    return (
+      <svg width="17" height="17" viewBox="0 0 1200 1227" fill="none" aria-hidden="true">
+        <path
+          d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.802 750.218L842.672 1226.37H1200L714.163 519.284ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.828Z"
+          fill="currentColor"
+        />
+      </svg>
+    );
+  }
+
+  return (
+    <svg width="19" height="19" viewBox="0 0 256 199" fill="none" aria-hidden="true">
+      <path
+        d="M216.856 16.597A208.502 208.502 0 0 0 164.042 0c-2.204 3.97-4.81 9.289-6.59 13.506a193.512 193.512 0 0 0-58.902 0C96.77 9.289 94.13 3.97 91.93 0a207.853 207.853 0 0 0-52.818 16.597C5.615 67.028-3.49 116.113 1.052 164.49c22.274 16.52 43.834 26.58 65.027 33.17 5.27-7.185 9.95-14.81 13.98-22.822-7.66-2.9-14.97-6.46-21.95-10.61 1.84-1.35 3.64-2.76 5.4-4.2 42.34 19.77 88.26 19.77 130.1 0 1.78 1.46 3.6 2.86 5.43 4.2-6.99 4.16-14.32 7.72-21.99 10.63 4.03 7.99 8.72 15.62 13.98 22.8 21.21-6.59 42.78-16.65 65.05-33.19 5.32-56.11-9.1-104.74-38.76-147.893ZM85.5 135.1c-12.5 0-22.9-11.5-22.9-25.6 0-14.1 10.1-25.6 22.9-25.6 12.8 0 23.2 11.6 22.9 25.6 0 14.1-10.1 25.6-22.9 25.6Zm85 0c-12.5 0-22.9-11.5-22.9-25.6 0-14.1 10.1-25.6 22.9-25.6 12.8 0 23.2 11.6 22.9 25.6 0 14.1-10.1 25.6-22.9 25.6Z"
+        fill="currentColor"
+      />
+    </svg>
   );
 }
 
@@ -116,6 +143,7 @@ function Field({ label, value, mono = false }: { label: string; value: ReactNode
 }
 
 function SocialCard({
+  kind,
   title,
   subtitle,
   avatar,
@@ -123,6 +151,7 @@ function SocialCard({
   href,
   connected,
 }: {
+  kind: "x" | "discord";
   title: string;
   subtitle: string;
   avatar?: string | null;
@@ -131,24 +160,37 @@ function SocialCard({
   connected: boolean;
 }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-white/[0.045] p-4">
-      <div className="flex items-center gap-3">
-        <Avatar src={avatar} fallback={title.slice(0, 1)} />
+    <div className="rounded-[26px] border border-white/10 bg-white/[0.052] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.24)] ring-1 ring-black/10 md:p-6">
+      <div className="flex items-center gap-4 md:gap-5">
+        <div className="relative shrink-0">
+          <Avatar
+            src={avatar}
+            fallback={title.slice(0, 1)}
+            className="h-[92px] w-[92px] rounded-[26px] md:h-[104px] md:w-[104px]"
+          />
+          <div className="absolute -right-2 -bottom-2 flex h-10 w-10 items-center justify-center rounded-2xl border border-white/15 bg-[#1b170d]/95 text-white shadow-[0_14px_45px_rgba(0,0,0,0.45)] ring-1 ring-amber-400/10">
+            <SocialIcon kind={kind} />
+          </div>
+        </div>
+
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="truncate text-sm font-black text-white/90">{title}</div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="truncate text-base font-black text-white/90">{title}</div>
             <Pill tone={connected ? "ok" : "muted"}>{connected ? "Connected" : "Not linked"}</Pill>
           </div>
-          <div className="mt-1 truncate text-xs text-white/55">{connected ? subtitle : "No public social account linked yet."}</div>
-          {username && <div className="mt-2 truncate font-mono text-xs font-bold text-amber-100/90">@{cleanHandle(username)}</div>}
+          <div className="mt-2 truncate text-sm text-white/55">
+            {connected ? subtitle : "No public social account linked yet."}
+          </div>
+          {username && <div className="mt-2 truncate font-mono text-sm font-black text-amber-100/95">@{cleanHandle(username)}</div>}
         </div>
       </div>
+
       {href && connected && (
         <Link
           href={href}
           target="_blank"
           rel="noreferrer"
-          className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-xs font-black text-white transition hover:bg-white/10"
+          className="mt-5 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.065] px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
         >
           Open profile ↗
         </Link>
@@ -391,8 +433,8 @@ export default async function SmartProfilePage({
       </Card>
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
-        <Card>
-          <div className="mb-4 flex items-center justify-between gap-4">
+        <Card className="lg:min-h-[470px]">
+          <div className="mb-5 flex items-center justify-between gap-4">
             <div>
               <div className="text-lg font-black text-white">Social identity</div>
               <div className="mt-1 text-sm text-white/55">Public trust signals linked by the profile owner.</div>
@@ -400,8 +442,9 @@ export default async function SmartProfilePage({
             <Pill tone={twitterUser || discordUser ? "ok" : "muted"}>{twitterUser || discordUser ? "Verified socials" : "No socials yet"}</Pill>
           </div>
 
-          <div className="grid gap-3">
+          <div className="grid gap-4">
             <SocialCard
+              kind="x"
               title="X / Twitter"
               subtitle={targetUser.twitterName || (twitterUser ? `@${twitterUser}` : "Linked X account")}
               avatar={targetUser.twitterImage}
@@ -410,6 +453,7 @@ export default async function SmartProfilePage({
               connected={Boolean(twitterUser || targetUser.twitterId)}
             />
             <SocialCard
+              kind="discord"
               title="Discord"
               subtitle={targetUser.discordName || (discordUser ? `@${discordUser}` : "Linked Discord account")}
               avatar={targetUser.discordImage}

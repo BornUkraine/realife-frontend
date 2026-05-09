@@ -562,11 +562,11 @@ function SocialRow({
   return (
     <Card
       className={cx(
-        "min-h-[230px] bg-amber-500/[0.025] ring-1 ring-amber-500/10",
+        "min-h-[205px] bg-amber-500/[0.025] ring-1 ring-amber-500/10",
         connected ? "ring-amber-400/25 bg-amber-500/[0.04]" : ""
       )}
     >
-      <div className="mb-7 flex items-center justify-between gap-5">
+      <div className="mb-5 flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-[20px] border border-white/12 bg-white/[0.07] shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10 backdrop-blur-2xl">
             <SocialIcon kind={kind} />
@@ -584,7 +584,7 @@ function SocialRow({
               variant="ghost"
               onClick={onDisconnect}
               disabled={busy}
-              className="w-auto rounded-[18px] px-6 py-3 text-[13px]"
+              className="w-auto rounded-[18px] px-5 py-2.5 text-[13px]"
             >
               {busy ? "Working…" : "Disconnect"}
             </Btn>
@@ -594,15 +594,15 @@ function SocialRow({
             variant="gold"
             onClick={onConnect}
             disabled={busy}
-            className="w-auto rounded-[18px] px-6 py-3 text-[13px]"
+            className="w-auto rounded-[18px] px-5 py-2.5 text-[13px]"
           >
             {busy ? "Redirecting…" : connectLabel}
           </Btn>
         )}
       </div>
 
-      <div className="flex min-h-[112px] items-center gap-5 rounded-[24px] border border-white/[0.08] bg-white/[0.035] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-        <Avatar src={avatarSrc ?? null} fallback={kind === "x" ? "X" : "D"} size="xl" />
+      <div className="flex min-h-[96px] items-center gap-4 rounded-[24px] border border-white/[0.08] bg-white/[0.035] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <Avatar src={avatarSrc ?? null} fallback={kind === "x" ? "X" : "D"} size="lg" />
         <div className="min-w-0 flex-1">
           <div className="truncate text-[15px] font-black text-white/90">
             {connected ? name || "Connected" : "Not Connected"}
@@ -1340,8 +1340,8 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
       <Reveal delayMs={70}>
         <div className="grid items-start gap-6 lg:grid-cols-2">
           {authed && (
-            <Card className="min-h-[620px] bg-amber-500/[0.035] ring-1 ring-amber-400/15 shadow-[0_34px_120px_rgba(0,0,0,0.68)]">
-              <div className="grid gap-5">
+            <Card className="w-full max-w-[570px] justify-self-end min-h-[560px] bg-amber-500/[0.035] ring-1 ring-amber-400/15 shadow-[0_34px_120px_rgba(0,0,0,0.68)]">
+              <div className="grid gap-4">
                 <div className="flex items-start justify-between gap-5 px-0.5 pb-1">
                   <div>
                     <div className="text-xl font-black text-white">Social settings</div>
