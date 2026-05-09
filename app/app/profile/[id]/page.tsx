@@ -69,12 +69,12 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
         className,
       )}
     >
-      <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
+      <div className="relative h-full overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
         </div>
-        <div className="relative z-10 p-6 md:p-7">{children}</div>
+        <div className="relative z-10 h-full p-6 md:p-7">{children}</div>
       </div>
     </div>
   );
@@ -160,7 +160,7 @@ function SocialCard({
   connected: boolean;
 }) {
   return (
-    <div className="rounded-[26px] border border-white/10 bg-white/[0.052] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.24)] ring-1 ring-black/10 md:p-6">
+    <div className="flex h-full flex-col justify-center rounded-[26px] border border-white/10 bg-white/[0.052] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.24)] ring-1 ring-black/10 md:p-6">
       <div className="flex items-center gap-4 md:gap-5">
         <div className="relative shrink-0">
           <Avatar
@@ -432,38 +432,40 @@ export default async function SmartProfilePage({
         </div>
       </Card>
 
-      <div className="grid items-start gap-6 lg:grid-cols-2">
-        <Card className="lg:min-h-[470px]">
-          <div className="mb-5 flex items-center justify-between gap-4">
-            <div>
-              <div className="text-lg font-black text-white">Social identity</div>
-              <div className="mt-1 text-sm text-white/55">Public trust signals linked by the profile owner.</div>
+      <div className="grid items-stretch gap-6 lg:grid-cols-2">
+        <Card className="h-full">
+          <div className="flex h-full flex-col">
+            <div className="mb-5 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-lg font-black text-white">Social identity</div>
+                <div className="mt-1 text-sm text-white/55">Public trust signals linked by the profile owner.</div>
+              </div>
+              <Pill tone={twitterUser || discordUser ? "ok" : "muted"}>{twitterUser || discordUser ? "Verified socials" : "No socials yet"}</Pill>
             </div>
-            <Pill tone={twitterUser || discordUser ? "ok" : "muted"}>{twitterUser || discordUser ? "Verified socials" : "No socials yet"}</Pill>
-          </div>
 
-          <div className="grid gap-4">
-            <SocialCard
-              kind="x"
-              title="X / Twitter"
-              subtitle={targetUser.twitterName || (twitterUser ? `@${twitterUser}` : "Linked X account")}
-              avatar={targetUser.twitterImage}
-              username={twitterUser}
-              href={twitterUser ? `https://x.com/${twitterUser}` : null}
-              connected={Boolean(twitterUser || targetUser.twitterId)}
-            />
-            <SocialCard
-              kind="discord"
-              title="Discord"
-              subtitle={targetUser.discordName || (discordUser ? `@${discordUser}` : "Linked Discord account")}
-              avatar={targetUser.discordImage}
-              username={discordUser}
-              connected={Boolean(discordUser || targetUser.discordId)}
-            />
+            <div className="grid flex-1 gap-4 lg:grid-rows-2">
+              <SocialCard
+                kind="x"
+                title="X / Twitter"
+                subtitle={targetUser.twitterName || (twitterUser ? `@${twitterUser}` : "Linked X account")}
+                avatar={targetUser.twitterImage}
+                username={twitterUser}
+                href={twitterUser ? `https://x.com/${twitterUser}` : null}
+                connected={Boolean(twitterUser || targetUser.twitterId)}
+              />
+              <SocialCard
+                kind="discord"
+                title="Discord"
+                subtitle={targetUser.discordName || (discordUser ? `@${discordUser}` : "Linked Discord account")}
+                avatar={targetUser.discordImage}
+                username={discordUser}
+                connected={Boolean(discordUser || targetUser.discordId)}
+              />
+            </div>
           </div>
         </Card>
 
-        <Card>
+        <Card className="h-full">
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>
               <div className="text-lg font-black text-white">NFTs held by this profile</div>

@@ -1338,9 +1338,9 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
       </Reveal>
 
       <Reveal delayMs={70}>
-        <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           {authed && (
-            <Card className="w-full max-w-[570px] justify-self-end min-h-[560px] bg-amber-500/[0.035] ring-1 ring-amber-400/15 shadow-[0_34px_120px_rgba(0,0,0,0.68)]">
+            <Card className="w-full min-w-0 min-h-[560px] bg-amber-500/[0.035] ring-1 ring-amber-400/15 shadow-[0_34px_120px_rgba(0,0,0,0.68)]">
               <div className="grid gap-4">
                 <div className="flex items-start justify-between gap-5 px-0.5 pb-1">
                   <div>
