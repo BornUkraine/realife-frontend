@@ -254,7 +254,7 @@ export default async function SmartProfilePage({
   const profileKey = targetUser.handle || targetUser.publicId || key;
   const encodedProfileKey = encodeURIComponent(profileKey);
   const appProfileUrl = `/app/profile/${encodedProfileKey}`;
-  const nftsUrl = `/u/${encodedProfileKey}/nfts`;
+  const nftsUrl = `/app/profile/${encodedProfileKey}/nfts`;
 
   const twitterUser = cleanHandle(targetUser.twitterUser);
   const discordUser = cleanHandle(targetUser.discordUser);
@@ -331,6 +331,7 @@ export default async function SmartProfilePage({
           points: targetUser.points ?? 0,
           walletAddress: targetUser.walletAddress,
           joinedLabel: formatDate(targetUser.createdAt),
+          nftPreview,
           twitterUser: twitterUser || null,
           twitterName: targetUser.twitterName,
           twitterImage: targetUser.twitterImage,

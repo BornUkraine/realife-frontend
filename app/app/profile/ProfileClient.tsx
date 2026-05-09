@@ -63,6 +63,14 @@ type MeResponse = {
   linkError?: string | null;
 };
 
+type PublicNftPreview = {
+  mintId: string;
+  tokenId: string;
+  name: string | null;
+  image: string | null;
+  amount: string;
+};
+
 type OwnerProfileSnapshot = {
   profileKey: string;
   publicUrl: string;
@@ -74,6 +82,7 @@ type OwnerProfileSnapshot = {
   points: number;
   walletAddress?: string | null;
   joinedLabel: string;
+  nftPreview?: PublicNftPreview[];
   twitterUser?: string | null;
   twitterName?: string | null;
   twitterImage?: string | null;
@@ -113,6 +122,13 @@ function shortAddr(addr?: string | null) {
   if (!addr) return "—";
   if (addr.length <= 12) return addr;
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+function resolveMediaUrl(src?: string | null) {
+  const v = String(src || "").trim();
+  if (!v) return null;
+  if (v.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${v.replace("ipfs://", "")}`;
+  return v;
 }
 
 // UTC to match server daily boundaries
@@ -352,6 +368,36 @@ function Field({
         {value}
       </div>
     </div>
+  );
+}
+
+function OwnerNftPreviewCard({ nft }: { nft: PublicNftPreview }) {
+  const img = resolveMediaUrl(nft.image);
+  return (
+    <a
+      href={`/app/trading/${encodeURIComponent(nft.mintId)}`}
+      className="group overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.045] transition hover:-translate-y-0.5 hover:bg-white/[0.07]"
+    >
+      <div className="aspect-square bg-white/[0.04]">
+        {img ? (
+          <img
+            src={img}
+            alt={nft.name || `NFT #${nft.tokenId}`}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-xs font-black text-white/35">NFT</div>
+        )}
+      </div>
+      <div className="p-3">
+        <div className="truncate text-sm font-black text-white/85">{nft.name || `NFT #${nft.tokenId}`}</div>
+        <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-white/50">
+          <span className="truncate">Token #{nft.tokenId}</span>
+          <span className="font-mono">x{nft.amount}</span>
+        </div>
+      </div>
+    </a>
   );
 }
 
@@ -597,7 +643,7 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
   }, [me, profileKey]);
 
   const publicNftsUrl = useMemo(() => {
-    if (profileKey) return `/u/${profileKey}/nfts`;
+    if (profileKey) return `/app/profile/${profileKey}/nfts`;
     return ownerProfile?.nftsUrl ?? null;
   }, [profileKey, ownerProfile?.nftsUrl]);
 
@@ -631,6 +677,7 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
   const ownerDisplayName = ownerProfile?.displayName || topDisplayName;
   const ownerAvatar = ownerProfile?.avatar || heroAvatar;
   const ownerNftCount = typeof ownerProfile?.nftCount === "number" ? ownerProfile.nftCount : null;
+  const ownerNftPreview = ownerProfile?.nftPreview ?? [];
   const ownerActiveListingsCount =
     typeof ownerProfile?.activeListingsCount === "number" ? ownerProfile.activeListingsCount : null;
   const ownerJoinedLabel = ownerProfile?.joinedLabel || "—";
@@ -1116,6 +1163,41 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
               </a>
             )}
           </div>
+        </Card>
+      </Reveal>
+
+      <Reveal delayMs={80}>
+        <Card>
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-lg font-black text-white">NFTs held by your profile</div>
+              <div className="mt-1 text-sm text-white/55">
+                This is how your public NFT holdings look to other users.
+              </div>
+            </div>
+            <Pill tone={(ownerNftCount ?? 0) > 0 ? "gold" : "muted"}>{ownerNftCount ?? 0} NFTs</Pill>
+          </div>
+
+          {ownerNftPreview.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {ownerNftPreview.map((nft) => (
+                <OwnerNftPreviewCard key={nft.mintId} nft={nft} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm text-white/55">
+              Your profile has no public verified NFT holdings yet.
+            </div>
+          )}
+
+          {publicNftsUrl && (
+            <a
+              href={publicNftsUrl}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+            >
+              Open full NFT gallery →
+            </a>
+          )}
         </Card>
       </Reveal>
 
