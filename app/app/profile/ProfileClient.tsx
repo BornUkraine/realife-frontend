@@ -560,26 +560,31 @@ function SocialRow({
     : `Connect Discord (+${reward})`;
 
   return (
-    <Card className={cx(connected ? "ring-1 ring-amber-500/20 bg-amber-500/[0.02]" : "")}>
-      <div className="flex items-center justify-between gap-4 mb-6">
-        <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-2xl flex items-center justify-center border border-white/12 bg-white/[0.06] backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10">
+    <Card
+      className={cx(
+        "min-h-[230px] bg-amber-500/[0.025] ring-1 ring-amber-500/10",
+        connected ? "ring-amber-400/25 bg-amber-500/[0.04]" : ""
+      )}
+    >
+      <div className="mb-7 flex items-center justify-between gap-5">
+        <div className="flex items-center gap-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-[20px] border border-white/12 bg-white/[0.07] shadow-[0_18px_70px_rgba(0,0,0,0.28)] ring-1 ring-black/10 backdrop-blur-2xl">
             <SocialIcon kind={kind} />
           </div>
           <div>
-            <div className="text-sm font-extrabold">{title}</div>
-            <div className="text-xs text-white/60 mt-0.5">{subtitle}</div>
+            <div className="text-[15px] font-black text-white">{title}</div>
+            <div className="mt-1 text-[13px] text-white/60">{subtitle}</div>
           </div>
         </div>
 
         {connected ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Pill tone="ok">Connected</Pill>
             <Btn
               variant="ghost"
               onClick={onDisconnect}
               disabled={busy}
-              className="w-auto px-4 py-2 text-[13px]"
+              className="w-auto rounded-[18px] px-6 py-3 text-[13px]"
             >
               {busy ? "Working…" : "Disconnect"}
             </Btn>
@@ -589,20 +594,20 @@ function SocialRow({
             variant="gold"
             onClick={onConnect}
             disabled={busy}
-            className="w-auto px-5 py-2 text-[13px]"
+            className="w-auto rounded-[18px] px-6 py-3 text-[13px]"
           >
             {busy ? "Redirecting…" : connectLabel}
           </Btn>
         )}
       </div>
 
-      <div className="flex items-center gap-4 bg-white/[0.03] p-4 rounded-2xl border border-white/5">
-        <Avatar src={avatarSrc ?? null} fallback={kind === "x" ? "X" : "D"} size="lg" />
+      <div className="flex min-h-[112px] items-center gap-5 rounded-[24px] border border-white/[0.08] bg-white/[0.035] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <Avatar src={avatarSrc ?? null} fallback={kind === "x" ? "X" : "D"} size="xl" />
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-extrabold truncate">
+          <div className="truncate text-[15px] font-black text-white/90">
             {connected ? name || "Connected" : "Not Connected"}
           </div>
-          <div className="text-xs text-white/60 font-mono truncate">
+          <div className="mt-1 truncate font-mono text-[13px] font-semibold text-white/60">
             {connected ? (username ? `@${username}` : "—") : "—"}
           </div>
         </div>
@@ -1335,49 +1340,51 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
       <Reveal delayMs={70}>
         <div className="grid items-start gap-6 lg:grid-cols-2">
           {authed && (
-            <div className="grid gap-4">
-              <div className="flex items-center justify-between gap-4 px-1">
-                <div>
-                  <div className="text-lg font-black text-white">Social settings</div>
-                  <div className="mt-1 text-sm text-white/55">
-                    X and Discord stay public profile links only. Login remains Wallet or Google embedded wallet.
+            <Card className="min-h-[620px] bg-amber-500/[0.035] ring-1 ring-amber-400/15 shadow-[0_34px_120px_rgba(0,0,0,0.68)]">
+              <div className="grid gap-5">
+                <div className="flex items-start justify-between gap-5 px-0.5 pb-1">
+                  <div>
+                    <div className="text-xl font-black text-white">Social settings</div>
+                    <div className="mt-1.5 max-w-[560px] text-sm leading-relaxed text-white/60">
+                      X and Discord stay public profile links only. Login remains Wallet or Google embedded wallet.
+                    </div>
                   </div>
+                  <Pill tone={twitterConnected || discordConnected ? "ok" : "muted"}>
+                    {twitterConnected || discordConnected ? "Verified socials" : "No socials yet"}
+                  </Pill>
                 </div>
-                <Pill tone={twitterConnected || discordConnected ? "ok" : "muted"}>
-                  {twitterConnected || discordConnected ? "Verified socials" : "No socials yet"}
-                </Pill>
+
+                <SocialRow
+                  kind="x"
+                  title="X (Twitter)"
+                  subtitle="Name • @username • avatar"
+                  connected={twitterConnected}
+                  claimed={twitterClaimed}
+                  avatarSrc={liveTwitterImage}
+                  name={liveTwitterName}
+                  username={liveTwitterUser}
+                  busy={busyX}
+                  onConnect={connectTwitter}
+                  onDisconnect={disconnectTwitter}
+                  reward={REWARD_X}
+                />
+
+                <SocialRow
+                  kind="discord"
+                  title="Discord"
+                  subtitle="Name • @username • avatar"
+                  connected={discordConnected}
+                  claimed={discordClaimed}
+                  avatarSrc={liveDiscordImage}
+                  name={liveDiscordName}
+                  username={liveDiscordUser}
+                  busy={busyDiscord}
+                  onConnect={connectDiscord}
+                  onDisconnect={disconnectDiscord}
+                  reward={REWARD_DISCORD}
+                />
               </div>
-
-              <SocialRow
-                kind="x"
-                title="X (Twitter)"
-                subtitle="Name • @username • avatar"
-                connected={twitterConnected}
-                claimed={twitterClaimed}
-                avatarSrc={liveTwitterImage}
-                name={liveTwitterName}
-                username={liveTwitterUser}
-                busy={busyX}
-                onConnect={connectTwitter}
-                onDisconnect={disconnectTwitter}
-                reward={REWARD_X}
-              />
-
-              <SocialRow
-                kind="discord"
-                title="Discord"
-                subtitle="Name • @username • avatar"
-                connected={discordConnected}
-                claimed={discordClaimed}
-                avatarSrc={liveDiscordImage}
-                name={liveDiscordName}
-                username={liveDiscordUser}
-                busy={busyDiscord}
-                onConnect={connectDiscord}
-                onDisconnect={disconnectDiscord}
-                reward={REWARD_DISCORD}
-              />
-            </div>
+            </Card>
           )}
 
           <Card>
