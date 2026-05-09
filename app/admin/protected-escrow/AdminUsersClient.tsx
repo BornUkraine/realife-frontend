@@ -225,6 +225,20 @@ function userLabel(u: AdminUserRow) {
   return shortAddr(u.walletAddress);
 }
 
+function profileKey(u: Pick<AdminUserRow, "handle" | "publicId">) {
+  return String(u.handle || u.publicId || "").trim();
+}
+
+function profileHref(u: Pick<AdminUserRow, "handle" | "publicId">) {
+  const key = profileKey(u);
+  return key ? `/app/profile/${encodeURIComponent(key)}` : null;
+}
+
+function profileNftsHref(u: Pick<AdminUserRow, "handle" | "publicId">) {
+  const key = profileKey(u);
+  return key ? `/app/profile/${encodeURIComponent(key)}/nfts` : null;
+}
+
 function locationLabel(u: AdminUserRow) {
   const country = u.lastCountry || u.firstCountry;
   const city = u.lastCity || u.firstCity;
@@ -527,7 +541,7 @@ export default function AdminUsersClient() {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search wallet, email, IP, country, token id, tx hash..."
+          placeholder="Search handle, profile ID, wallet, email, IP, country, token id, tx hash..."
           className="min-h-[46px] rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-[#d4af37]/40"
         />
         <div className="flex flex-wrap gap-2">
@@ -576,6 +590,8 @@ export default function AdminUsersClient() {
                 lastIp: u.lastIp,
               },
             ];
+            const publicProfileHref = profileHref(u);
+            const publicProfileNftsHref = profileNftsHref(u);
 
             return (
               <div key={u.id} className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5">
@@ -594,17 +610,44 @@ export default function AdminUsersClient() {
                       User ID: <span className="font-mono text-white/75">{u.id}</span>
                     </div>
                     <div className="mt-1 text-sm text-white/55">
+                      Profile: <span className="font-mono text-white/75">{u.handle ? `@${u.handle}` : "—"}</span>
+                      <span className="mx-2 text-white/25">/</span>
+                      Public ID: <span className="font-mono text-white/75">{u.publicId || "—"}</span>
+                    </div>
+                    <div className="mt-1 text-sm text-white/55">
                       Google: <span className="text-white/75">{u.googleEmail || "—"}</span>
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setExpanded(isOpen ? null : u.id)}
-                    className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white/80 transition hover:border-white/20 hover:bg-white/[0.08]"
-                  >
-                    {isOpen ? "Hide details" : "Open details"}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {publicProfileHref ? (
+                      <a
+                        href={publicProfileHref}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-2xl border border-[#d4af37]/25 bg-[#d4af37]/10 px-4 py-2.5 text-sm font-semibold text-[#f5d76e] transition hover:bg-[#d4af37]/15"
+                      >
+                        Open profile ↗
+                      </a>
+                    ) : null}
+                    {publicProfileNftsHref ? (
+                      <a
+                        href={publicProfileNftsHref}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white/80 transition hover:border-white/20 hover:bg-white/[0.08]"
+                      >
+                        NFTs ↗
+                      </a>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(isOpen ? null : u.id)}
+                      className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white/80 transition hover:border-white/20 hover:bg-white/[0.08]"
+                    >
+                      {isOpen ? "Hide details" : "Open details"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -618,6 +661,16 @@ export default function AdminUsersClient() {
                       {u.walletAddress || "—"}
                     </button>
                     <div className="mt-1 text-xs text-white/45">{copied === `${u.id}-wallet` ? "Copied" : "Click wallet to copy"}</div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-white/45">Profile handle / ID</div>
+                    <div className="mt-2 break-all font-mono text-sm font-medium text-white">{u.handle ? `@${u.handle}` : "—"}</div>
+                    <div className="mt-1 break-all font-mono text-xs text-white/55">{u.publicId || "—"}</div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {publicProfileHref ? <a href={publicProfileHref} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#f5d76e] hover:underline">Profile ↗</a> : null}
+                      {publicProfileNftsHref ? <a href={publicProfileNftsHref} target="_blank" rel="noreferrer" className="text-xs font-semibold text-white/70 hover:text-white hover:underline">NFTs ↗</a> : null}
+                    </div>
                   </div>
 
                   <div className="rounded-2xl border border-white/10 bg-black/20 p-3">

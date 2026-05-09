@@ -171,6 +171,13 @@ function personLabel(
   return shortAddr(wallet);
 }
 
+function personProfileHref(
+  p: { id: string; handle: string | null; publicId: string | null } | null,
+) {
+  const key = String(p?.handle || p?.publicId || "").trim();
+  return key ? `/app/profile/${encodeURIComponent(key)}` : null;
+}
+
 function isFinalEscrowStatus(v?: string | null) {
   const s = String(v || "").toUpperCase();
   return s === "RELEASED" || s === "REFUNDED" || s === "CANCELLED";
@@ -587,9 +594,18 @@ export default function ProtectedEscrowAdminClient() {
                       <div className="text-[11px] uppercase tracking-[0.18em] text-white/45">
                         Buyer
                       </div>
-                      <div className="mt-2 text-sm font-medium text-white">
-                        {personLabel(order.buyer, order.buyerWallet)}
-                      </div>
+                      {personProfileHref(order.buyer) ? (
+                        <Link
+                          href={personProfileHref(order.buyer)!}
+                          className="mt-2 block text-sm font-medium text-[#f5d76e] hover:underline"
+                        >
+                          {personLabel(order.buyer, order.buyerWallet)} ↗
+                        </Link>
+                      ) : (
+                        <div className="mt-2 text-sm font-medium text-white">
+                          {personLabel(order.buyer, order.buyerWallet)}
+                        </div>
+                      )}
                       <div className="mt-1 text-xs text-white/50">
                         {shortAddr(order.buyerWallet)}
                       </div>
@@ -599,9 +615,18 @@ export default function ProtectedEscrowAdminClient() {
                       <div className="text-[11px] uppercase tracking-[0.18em] text-white/45">
                         Seller
                       </div>
-                      <div className="mt-2 text-sm font-medium text-white">
-                        {personLabel(order.seller, order.sellerWallet)}
-                      </div>
+                      {personProfileHref(order.seller) ? (
+                        <Link
+                          href={personProfileHref(order.seller)!}
+                          className="mt-2 block text-sm font-medium text-[#f5d76e] hover:underline"
+                        >
+                          {personLabel(order.seller, order.sellerWallet)} ↗
+                        </Link>
+                      ) : (
+                        <div className="mt-2 text-sm font-medium text-white">
+                          {personLabel(order.seller, order.sellerWallet)}
+                        </div>
+                      )}
                       <div className="mt-1 text-xs text-white/50">
                         {shortAddr(order.sellerWallet)}
                       </div>
