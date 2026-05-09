@@ -251,7 +251,7 @@ function Card({
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
         </div>
-        <div className="relative z-10 p-6 md:p-7">{children}</div>
+        <div className="relative z-10 h-full p-6 md:p-7">{children}</div>
       </div>
     </div>
   );
