@@ -63,6 +63,31 @@ type MeResponse = {
   linkError?: string | null;
 };
 
+type OwnerProfileSnapshot = {
+  profileKey: string;
+  publicUrl: string;
+  nftsUrl: string;
+  displayName: string;
+  avatar?: string | null;
+  nftCount: number;
+  activeListingsCount: number;
+  points: number;
+  walletAddress?: string | null;
+  joinedLabel: string;
+  twitterUser?: string | null;
+  twitterName?: string | null;
+  twitterImage?: string | null;
+  discordUser?: string | null;
+  discordName?: string | null;
+  discordImage?: string | null;
+  googleName?: string | null;
+  googleImage?: string | null;
+};
+
+type ProfileClientProps = {
+  ownerProfile?: OwnerProfileSnapshot | null;
+};
+
 type DailyResponse =
   | { ok: true; add: number; points: number }
   | { ok: false; message?: string; points?: number };
@@ -515,7 +540,7 @@ function SocialRow({
 
 /* --------------------------------- Page ---------------------------------- */
 
-export default function ProfileClient() {
+export default function ProfileClient({ ownerProfile = null }: ProfileClientProps = {}) {
   const pathname = usePathname();
   const { status } = useSession();
   const authed = status === "authenticated";
@@ -538,13 +563,13 @@ export default function ProfileClient() {
   const busyGuardRef = useRef<null | "x" | "discord">(null);
   const busyTimerRef = useRef<number | null>(null);
 
-  const serverWalletAddress = me?.walletAddress ?? null;
+  const serverWalletAddress = me?.walletAddress ?? ownerProfile?.walletAddress ?? null;
   const authMethod = String(me?.authMethod || "WALLET").toUpperCase();
   const walletKind = String(me?.walletKind || "EXTERNAL").toUpperCase();
   const isEmbeddedWallet = walletKind === "EMBEDDED";
 
-  const twitterConnected = Boolean(me?.twitterId);
-  const discordConnected = Boolean(me?.discordId);
+  const twitterConnected = Boolean(me?.twitterId || ownerProfile?.twitterUser);
+  const discordConnected = Boolean(me?.discordId || ownerProfile?.discordUser);
 
   const twitterClaimed = Boolean(me?.twitterRewarded);
   const discordClaimed = Boolean(me?.discordRewarded);
@@ -572,13 +597,18 @@ export default function ProfileClient() {
   }, [me, profileKey]);
 
   const publicNftsUrl = useMemo(() => {
-    return profileKey ? `/u/${profileKey}/nfts` : null;
-  }, [profileKey]);
+    if (profileKey) return `/u/${profileKey}/nfts`;
+    return ownerProfile?.nftsUrl ?? null;
+  }, [profileKey, ownerProfile?.nftsUrl]);
+
+  const shareProfileUrl = useMemo(() => {
+    return publicUrl || ownerProfile?.publicUrl || null;
+  }, [publicUrl, ownerProfile?.publicUrl]);
 
   const publicFullUrl = useMemo(() => {
-    if (!publicUrl || typeof window === "undefined") return null;
-    return `${window.location.origin}${publicUrl}`;
-  }, [publicUrl]);
+    if (!shareProfileUrl || typeof window === "undefined") return null;
+    return `${window.location.origin}${shareProfileUrl}`;
+  }, [shareProfileUrl]);
 
   const topDisplayName = useMemo(() => {
     if (!me) return "Loading…";
@@ -595,8 +625,15 @@ export default function ProfileClient() {
   }, [me, serverWalletAddress]);
 
   const heroAvatar = useMemo(() => {
-    return me?.mainAvatar || me?.googleImage || me?.twitterImage || me?.discordImage || null;
+    return me?.mainAvatar || me?.twitterImage || me?.discordImage || me?.googleImage || null;
   }, [me]);
+
+  const ownerDisplayName = ownerProfile?.displayName || topDisplayName;
+  const ownerAvatar = ownerProfile?.avatar || heroAvatar;
+  const ownerNftCount = typeof ownerProfile?.nftCount === "number" ? ownerProfile.nftCount : null;
+  const ownerActiveListingsCount =
+    typeof ownerProfile?.activeListingsCount === "number" ? ownerProfile.activeListingsCount : null;
+  const ownerJoinedLabel = ownerProfile?.joinedLabel || "—";
 
   const dailyStatus = useMemo(() => {
     const last = me?.lastDailyAt ?? null;
@@ -744,10 +781,10 @@ export default function ProfileClient() {
   const profileReturnPath = useMemo(() => {
     // Social links are profile settings. After OAuth, always return to the owner's
     // canonical app profile URL when possible: /app/profile/rl_XXXX.
-    if (publicUrl && publicUrl.startsWith("/app/profile/")) return publicUrl;
+    if (shareProfileUrl && shareProfileUrl.startsWith("/app/profile/")) return shareProfileUrl;
     if (pathname && pathname.startsWith("/app/profile/")) return pathname;
     return "/app/profile";
-  }, [pathname, publicUrl]);
+  }, [pathname, shareProfileUrl]);
 
   const connectTwitter = useCallback(() => {
     if (!authed || !serverWalletAddress) {
@@ -867,11 +904,11 @@ export default function ProfileClient() {
         <Card>
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div className="flex items-center gap-5 min-w-0">
-              <Avatar src={heroAvatar} fallback="RL" size="hero" />
+              <Avatar src={ownerAvatar} fallback="RL" size="hero" />
               <div className="min-w-0">
-                <div className="text-xs font-semibold text-white/60">Unified profile</div>
+                <div className="text-xs font-semibold text-white/60">My Realife profile</div>
                 <div className="mt-1 text-3xl md:text-4xl font-black tracking-tight truncate">
-                  {authed ? topDisplayName : "—"}
+                  {authed ? ownerDisplayName : "—"}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Pill tone={serverWalletAddress ? "ok" : walletIsConnected ? "warn" : "muted"}>
@@ -885,6 +922,8 @@ export default function ProfileClient() {
                     </Pill>
                   )}
 
+                  <Pill tone="ok">Owner view</Pill>
+
                   <Pill tone={dailyStatus.canClaim ? "gold" : "ok"}>
                     {dailyStatus.canClaim ? "Daily available" : "Claimed today"}
                   </Pill>
@@ -892,8 +931,12 @@ export default function ProfileClient() {
                   {twitterConnected && <Pill tone="ok">X connected</Pill>}
                   {discordConnected && <Pill tone="ok">Discord connected</Pill>}
 
-                  {me?.twitterUser && <Pill tone="gold">@{me.twitterUser}</Pill>}
-                  {me?.discordUser && <Pill tone="gold">@{me.discordUser}</Pill>}
+                  {(me?.twitterUser || ownerProfile?.twitterUser) && (
+                    <Pill tone="gold">@{me?.twitterUser || ownerProfile?.twitterUser}</Pill>
+                  )}
+                  {(me?.discordUser || ownerProfile?.discordUser) && (
+                    <Pill tone="gold">@{me?.discordUser || ownerProfile?.discordUser}</Pill>
+                  )}
 
                   {me?.handle && <Pill>handle: @{me.handle}</Pill>}
                 </div>
@@ -919,8 +962,10 @@ export default function ProfileClient() {
             </div>
           </div>
 
-          <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Field label="Points" value={me?.points ?? 0} />
+          <div className="mt-6 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-7 gap-3">
+            <Field label="NFTs" value={ownerNftCount ?? "—"} />
+            <Field label="Active listings" value={ownerActiveListingsCount ?? "—"} />
+            <Field label="Points" value={me?.points ?? ownerProfile?.points ?? 0} />
 
             <Field
               label="Daily"
@@ -962,15 +1007,17 @@ export default function ProfileClient() {
                   ? shortAddr(serverWalletAddress)
                   : walletIsConnected && liveAddress
                   ? shortAddr(liveAddress)
-                  : "—"
+                  : shortAddr(ownerProfile?.walletAddress)
               }
               mono
             />
 
+            <Field label="Joined" value={ownerJoinedLabel} />
+
             <Field
               label="Public link"
               value={
-                publicUrl ? (
+                shareProfileUrl ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -983,7 +1030,7 @@ export default function ProfileClient() {
                     }}
                     className="text-left hover:underline font-mono"
                   >
-                    {publicUrl}{" "}
+                    {shareProfileUrl}{" "}
                     <span className="text-[11px] text-white/60">{copied ? "copied" : "copy"}</span>
                   </button>
                 ) : (
@@ -1010,12 +1057,12 @@ export default function ProfileClient() {
               {walletCopied ? "Wallet copied" : "Copy wallet"}
             </Btn>
 
-            {publicUrl && (
+            {shareProfileUrl && (
               <a
-                href={publicUrl}
+                href={shareProfileUrl}
                 className="inline-flex items-center justify-center px-3 py-2 rounded-xl text-[12px] font-extrabold text-white border border-white/15 bg-white/[0.06] hover:bg-white/10"
               >
-                Open public profile →
+                Open profile link →
               </a>
             )}
 
@@ -1081,9 +1128,9 @@ export default function ProfileClient() {
               subtitle="Name • @username • avatar"
               connected={twitterConnected}
               claimed={twitterClaimed}
-              avatarSrc={me?.twitterImage ?? null}
-              name={me?.twitterName ?? null}
-              username={me?.twitterUser ?? null}
+              avatarSrc={me?.twitterImage ?? ownerProfile?.twitterImage ?? null}
+              name={me?.twitterName ?? ownerProfile?.twitterName ?? null}
+              username={me?.twitterUser ?? ownerProfile?.twitterUser ?? null}
               busy={busyX}
               onConnect={connectTwitter}
               onDisconnect={disconnectTwitter}
@@ -1096,9 +1143,9 @@ export default function ProfileClient() {
               subtitle="Name • @username • avatar"
               connected={discordConnected}
               claimed={discordClaimed}
-              avatarSrc={me?.discordImage ?? null}
-              name={me?.discordName ?? null}
-              username={me?.discordUser ?? null}
+              avatarSrc={me?.discordImage ?? ownerProfile?.discordImage ?? null}
+              name={me?.discordName ?? ownerProfile?.discordName ?? null}
+              username={me?.discordUser ?? ownerProfile?.discordUser ?? null}
               busy={busyDiscord}
               onConnect={connectDiscord}
               onDisconnect={disconnectDiscord}

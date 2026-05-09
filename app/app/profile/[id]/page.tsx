@@ -251,12 +251,9 @@ export default async function SmartProfilePage({
         (normAddr(currentUser.walletAddress) && normAddr(currentUser.walletAddress) === normAddr(targetUser.walletAddress))),
   );
 
-  if (isOwner) {
-    return <ProfileClient />;
-  }
-
   const profileKey = targetUser.handle || targetUser.publicId || key;
   const encodedProfileKey = encodeURIComponent(profileKey);
+  const appProfileUrl = `/app/profile/${encodedProfileKey}`;
   const nftsUrl = `/u/${encodedProfileKey}/nfts`;
 
   const twitterUser = cleanHandle(targetUser.twitterUser);
@@ -320,6 +317,33 @@ export default async function SmartProfilePage({
     amount: h.amount.toString(),
   }));
 
+  if (isOwner) {
+    return (
+      <ProfileClient
+        ownerProfile={{
+          profileKey,
+          publicUrl: appProfileUrl,
+          nftsUrl,
+          displayName,
+          avatar,
+          nftCount,
+          activeListingsCount,
+          points: targetUser.points ?? 0,
+          walletAddress: targetUser.walletAddress,
+          joinedLabel: formatDate(targetUser.createdAt),
+          twitterUser: twitterUser || null,
+          twitterName: targetUser.twitterName,
+          twitterImage: targetUser.twitterImage,
+          discordUser: discordUser || null,
+          discordName: targetUser.discordName,
+          discordImage: targetUser.discordImage,
+          googleName: targetUser.googleName,
+          googleImage: targetUser.googleImage,
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -343,14 +367,16 @@ export default async function SmartProfilePage({
               href={nftsUrl}
               className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-5 py-3 text-sm font-black text-black shadow-[0_18px_60px_rgba(212,175,55,0.18)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
             >
-              View NFTs →
+              View this profile’s NFTs →
             </Link>
-            <Link
-              href="/app/profile"
-              className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-black text-white transition hover:bg-white/10"
-            >
-              Open my profile
-            </Link>
+            {currentUser ? (
+              <Link
+                href="/app/profile"
+                className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-5 py-3 text-sm font-black text-white transition hover:bg-white/10"
+              >
+                Back to my profile
+              </Link>
+            ) : null}
           </div>
         </div>
 
