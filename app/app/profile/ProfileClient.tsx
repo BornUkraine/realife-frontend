@@ -1330,8 +1330,91 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
         </Card>
       </Reveal>
 
+      <Reveal delayMs={70}>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {authed && (
+            <div className="grid gap-4">
+              <div className="flex items-center justify-between gap-4 px-1">
+                <div>
+                  <div className="text-lg font-black text-white">Social settings</div>
+                  <div className="mt-1 text-sm text-white/55">
+                    X and Discord stay public profile links only. Login remains Wallet or Google embedded wallet.
+                  </div>
+                </div>
+                <Pill tone={twitterConnected || discordConnected ? "ok" : "muted"}>
+                  {twitterConnected || discordConnected ? "Verified socials" : "No socials yet"}
+                </Pill>
+              </div>
+
+              <SocialRow
+                kind="x"
+                title="X (Twitter)"
+                subtitle="Name • @username • avatar"
+                connected={twitterConnected}
+                claimed={twitterClaimed}
+                avatarSrc={liveTwitterImage}
+                name={liveTwitterName}
+                username={liveTwitterUser}
+                busy={busyX}
+                onConnect={connectTwitter}
+                onDisconnect={disconnectTwitter}
+                reward={REWARD_X}
+              />
+
+              <SocialRow
+                kind="discord"
+                title="Discord"
+                subtitle="Name • @username • avatar"
+                connected={discordConnected}
+                claimed={discordClaimed}
+                avatarSrc={liveDiscordImage}
+                name={liveDiscordName}
+                username={liveDiscordUser}
+                busy={busyDiscord}
+                onConnect={connectDiscord}
+                onDisconnect={disconnectDiscord}
+                reward={REWARD_DISCORD}
+              />
+            </div>
+          )}
+
+          <Card>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div>
+                <div className="text-lg font-black text-white">NFTs held by your profile</div>
+                <div className="mt-1 text-sm text-white/55">
+                  Public NFT holdings connected to your Realife account.
+                </div>
+              </div>
+              <Pill tone={(ownerNftCount ?? 0) > 0 ? "gold" : "muted"}>{ownerNftCount ?? 0} NFTs</Pill>
+            </div>
+
+            {ownerNftPreview.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {ownerNftPreview.map((nft) => (
+                  <OwnerNftPreviewCard key={nft.mintId} nft={nft} />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm text-white/55">
+                Your profile has no public verified NFT holdings yet.
+              </div>
+            )}
+
+            {publicNftsUrl && (
+              <a
+                href={publicNftsUrl}
+                className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+              >
+                Open full NFT gallery →
+              </a>
+            )}
+          </Card>
+        </div>
+      </Reveal>
+
       {authed && (
-        <Reveal delayMs={60}>
+        <Reveal delayMs={120}>
           <Card>
             <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 flex-1">
@@ -1340,7 +1423,7 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
                   Choose a clean profile URL. Your stable Realife ID still works as backup.
                 </div>
 
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-start">
                   <div className="min-w-0 flex-1">
                     <input
                       value={handleValue}
@@ -1356,7 +1439,12 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
                     </div>
                   </div>
 
-                  <Btn variant="gold" onClick={saveHandle} disabled={handleBusy || !normalizedHandleInput}>
+                  <Btn
+                    variant="gold"
+                    onClick={saveHandle}
+                    disabled={handleBusy || !normalizedHandleInput}
+                    className="sm:w-[170px]"
+                  >
                     {handleBusy ? "Saving…" : "Save name"}
                   </Btn>
                 </div>
@@ -1388,77 +1476,6 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
               </div>
             </div>
           </Card>
-        </Reveal>
-      )}
-
-      <Reveal delayMs={80}>
-        <Card>
-          <div className="mb-4 flex items-center justify-between gap-4">
-            <div>
-              <div className="text-lg font-black text-white">NFTs held by your profile</div>
-              <div className="mt-1 text-sm text-white/55">
-                This is how your public NFT holdings look to other users.
-              </div>
-            </div>
-            <Pill tone={(ownerNftCount ?? 0) > 0 ? "gold" : "muted"}>{ownerNftCount ?? 0} NFTs</Pill>
-          </div>
-
-          {ownerNftPreview.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {ownerNftPreview.map((nft) => (
-                <OwnerNftPreviewCard key={nft.mintId} nft={nft} />
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm text-white/55">
-              Your profile has no public verified NFT holdings yet.
-            </div>
-          )}
-
-          {publicNftsUrl && (
-            <a
-              href={publicNftsUrl}
-              className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
-            >
-              Open full NFT gallery →
-            </a>
-          )}
-        </Card>
-      </Reveal>
-
-      {authed && (
-        <Reveal delayMs={120}>
-          <div className="grid md:grid-cols-2 gap-6">
-            <SocialRow
-              kind="x"
-              title="X (Twitter)"
-              subtitle="Name • @username • avatar"
-              connected={twitterConnected}
-              claimed={twitterClaimed}
-              avatarSrc={liveTwitterImage}
-              name={liveTwitterName}
-              username={liveTwitterUser}
-              busy={busyX}
-              onConnect={connectTwitter}
-              onDisconnect={disconnectTwitter}
-              reward={REWARD_X}
-            />
-
-            <SocialRow
-              kind="discord"
-              title="Discord"
-              subtitle="Name • @username • avatar"
-              connected={discordConnected}
-              claimed={discordClaimed}
-              avatarSrc={liveDiscordImage}
-              name={liveDiscordName}
-              username={liveDiscordUser}
-              busy={busyDiscord}
-              onConnect={connectDiscord}
-              onDisconnect={disconnectDiscord}
-              reward={REWARD_DISCORD}
-            />
-          </div>
         </Reveal>
       )}
 
