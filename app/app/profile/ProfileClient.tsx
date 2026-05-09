@@ -246,7 +246,7 @@ function Card({
         className
       )}
     >
-      <div className="relative overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
+      <div className="relative h-full overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
@@ -1338,9 +1338,9 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
       </Reveal>
 
       <Reveal delayMs={70}>
-        <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <div className="grid min-w-0 items-stretch gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
           {authed && (
-            <Card className="w-full min-w-0 min-h-[560px] bg-amber-500/[0.035] ring-1 ring-amber-400/15 shadow-[0_34px_120px_rgba(0,0,0,0.68)]">
+            <Card className="h-full w-full min-w-0 bg-amber-500/[0.035] ring-1 ring-amber-400/15 shadow-[0_34px_120px_rgba(0,0,0,0.68)]">
               <div className="grid gap-4">
                 <div className="flex items-start justify-between gap-5 px-0.5 pb-1">
                   <div>
@@ -1387,37 +1387,39 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
             </Card>
           )}
 
-          <Card>
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <div className="text-lg font-black text-white">NFTs held by your profile</div>
-                <div className="mt-1 text-sm text-white/55">
-                  Public NFT holdings connected to your Realife account.
+          <Card className="h-full">
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="mb-4 flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-lg font-black text-white">NFTs held by your profile</div>
+                  <div className="mt-1 text-sm text-white/55">
+                    Public NFT holdings connected to your Realife account.
+                  </div>
                 </div>
+                <Pill tone={(ownerNftCount ?? 0) > 0 ? "gold" : "muted"}>{ownerNftCount ?? 0} NFTs</Pill>
               </div>
-              <Pill tone={(ownerNftCount ?? 0) > 0 ? "gold" : "muted"}>{ownerNftCount ?? 0} NFTs</Pill>
+
+              {ownerNftPreview.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {ownerNftPreview.map((nft) => (
+                    <OwnerNftPreviewCard key={nft.mintId} nft={nft} />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm text-white/55">
+                  Your profile has no public verified NFT holdings yet.
+                </div>
+              )}
+
+              {publicNftsUrl && (
+                <a
+                  href={publicNftsUrl}
+                  className="mt-auto inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+                >
+                  Open full NFT gallery →
+                </a>
+              )}
             </div>
-
-            {ownerNftPreview.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {ownerNftPreview.map((nft) => (
-                  <OwnerNftPreviewCard key={nft.mintId} nft={nft} />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm text-white/55">
-                Your profile has no public verified NFT holdings yet.
-              </div>
-            )}
-
-            {publicNftsUrl && (
-              <a
-                href={publicNftsUrl}
-                className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
-              >
-                Open full NFT gallery →
-              </a>
-            )}
           </Card>
         </div>
       </Reveal>
