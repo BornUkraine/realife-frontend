@@ -132,6 +132,38 @@ function shortAddr(addr?: string | null) {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
+
+function makeHandleCandidate(raw?: string | null) {
+  const handle = String(raw || "")
+    .trim()
+    .replace(/^@+/, "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/[-_]{2,}/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+
+  if (handle.length < 3) return "";
+  if (handle.length > 24) return handle.slice(0, 24).replace(/[-_]+$/g, "");
+  return handle;
+}
+
+function uniqueHandleCandidates(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const value of values) {
+    const candidate = makeHandleCandidate(value);
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+    out.push(candidate);
+    if (out.length >= 5) break;
+  }
+
+  return out;
+}
+
 function resolveMediaUrl(src?: string | null) {
   const v = String(src || "").trim();
   if (!v) return null;
