@@ -451,7 +451,7 @@ export default function ReferralsPage() {
 
       if (r.ok && j?.ok) {
         setApplyCode(code);
-        setNotice({ tone: "ok", text: `Applied. +${j.joinerAdd ?? 50} points` });
+        setNotice({ tone: "ok", text: `Applied. +${j.joinerAdd ?? 20} points` });
         try {
           localStorage.removeItem("rl_ref_pending");
         } catch {}
@@ -480,7 +480,7 @@ export default function ReferralsPage() {
             <h1 className="mt-5 text-4xl md:text-5xl font-black leading-[1.05] tracking-[-0.02em]">
               Invite friends —{" "}
               <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
-                get +50 points
+                get +20 points
               </span>
             </h1>
 
@@ -509,8 +509,8 @@ export default function ReferralsPage() {
                   <span className="text-amber-200">{pendingRef}</span>?
                 </div>
                 <div className="mt-1 text-xs text-amber-100/80">
-                  You get <span className="font-extrabold">+50</span>, and the
-                  inviter gets <span className="font-extrabold">+50</span>.
+                  You get <span className="font-extrabold">+20</span>, and the
+                  inviter gets <span className="font-extrabold">+20</span>.
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-3">
@@ -523,7 +523,7 @@ export default function ReferralsPage() {
                       void onApply(pendingRef);
                     }}
                   >
-                    {applying ? "Applying…" : "Apply +50"}
+                    {applying ? "Applying…" : "Apply +20"}
                   </Btn>
 
                   <Btn
@@ -659,7 +659,7 @@ export default function ReferralsPage() {
           <GoldEdgeWrap>
             <Card
               title="Enter friend’s code"
-              subtitle="You get +50, and the inviter gets +50. One-time only."
+              subtitle="You get +20, and the inviter gets +20. One-time only."
             >
               <div className="space-y-4">
                 <Input
@@ -693,9 +693,9 @@ export default function ReferralsPage() {
                   <div className="font-extrabold text-white/85">Reward</div>
                   <div className="mt-1">
                     You:{" "}
-                    <span className="text-amber-200 font-extrabold">+50</span>{" "}
+                    <span className="text-amber-200 font-extrabold">+20</span>{" "}
                     • Inviter:{" "}
-                    <span className="text-amber-200 font-extrabold">+50</span>
+                    <span className="text-amber-200 font-extrabold">+20</span>
                   </div>
                   <div className="mt-2 text-[11px] text-white/55">
                     Requires wallet signature (no transaction).

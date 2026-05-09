@@ -7,7 +7,7 @@ import { verifyMessage } from "viem";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const REWARD = 50;
+const REWARD = 20;
 
 function normalizeCode(raw: string) {
   return String(raw || "").trim().toUpperCase().replace(/\s+/g, "");

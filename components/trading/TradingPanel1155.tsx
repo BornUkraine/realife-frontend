@@ -268,6 +268,20 @@ function fmtEth(weiStr?: string | null) {
   }
 }
 
+
+function profileHref(user?: { handle?: string | null; publicId?: string | null } | null) {
+  const key = String(user?.handle || user?.publicId || "").trim();
+  return key ? `/app/profile/${encodeURIComponent(key)}` : null;
+}
+
+function profileLabel(user: { handle?: string | null; publicId?: string | null } | null | undefined, wallet?: string | null) {
+  const handle = String(user?.handle || "").trim();
+  if (handle) return `@${handle}`;
+  const publicId = String(user?.publicId || "").trim();
+  if (publicId) return publicId;
+  return shortAddr(wallet);
+}
+
 function toLower(a?: string | null) {
   return String(a || "").trim().toLowerCase();
 }
@@ -2829,6 +2843,8 @@ export default function TradingPanel1155({
                       const active =
                         k === (selectedListing ? listingKeyOf(selectedListing) : "");
                       const isMine = toLower(l.sellerWallet) === me;
+                              const sellerProfileHref = profileHref(l.seller);
+                              const sellerLabel = profileLabel(l.seller, l.sellerWallet);
                       const isCancelling = busy === `cancel:${k}`;
                       const isPending = isPendingListingId(l.marketplaceListingId);
 
@@ -2876,9 +2892,18 @@ export default function TradingPanel1155({
                               </div>
                               <div className="mt-1 text-[12px] text-white/55">
                                 Seller:{" "}
-                                <span className="font-mono text-white/82">
-                                  {shortAddr(l.sellerWallet)}
-                                </span>
+                                {sellerProfileHref ? (
+                                  <Link
+                                    href={sellerProfileHref}
+                                    className="font-mono font-black text-amber-100/90 hover:underline"
+                                  >
+                                    {sellerLabel}
+                                  </Link>
+                                ) : (
+                                  <span className="font-mono text-white/82">
+                                    {shortAddr(l.sellerWallet)}
+                                  </span>
+                                )}
                               </div>
 
                               <div className="mt-2 flex flex-wrap gap-2">
@@ -3004,9 +3029,18 @@ export default function TradingPanel1155({
                       </div>
                       <div className="mt-2 text-[12px] text-white/55">
                         Seller:{" "}
-                        <span className="font-mono text-white/82">
-                          {shortAddr(selectedListing.sellerWallet)}
-                        </span>
+                        {profileHref(selectedListing.seller) ? (
+                          <Link
+                            href={profileHref(selectedListing.seller) || "#"}
+                            className="font-mono font-black text-amber-100/90 hover:underline"
+                          >
+                            {profileLabel(selectedListing.seller, selectedListing.sellerWallet)}
+                          </Link>
+                        ) : (
+                          <span className="font-mono text-white/82">
+                            {shortAddr(selectedListing.sellerWallet)}
+                          </span>
+                        )}
                       </div>
                       <div className="mt-2 text-[12px] text-white/55">
                         Remaining:{" "}

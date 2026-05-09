@@ -63,6 +63,14 @@ type MeResponse = {
   linkError?: string | null;
 };
 
+type HandleResponse = {
+  ok: boolean;
+  handle?: string | null;
+  publicUrl?: string | null;
+  error?: string;
+  message?: string;
+};
+
 type PublicNftPreview = {
   mintId: string;
   tokenId: string;
@@ -607,6 +615,10 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
 
   const [linkError, setLinkError] = useState<string | null>(null);
 
+  const [handleValue, setHandleValue] = useState("");
+  const [handleBusy, setHandleBusy] = useState(false);
+  const [handleMsg, setHandleMsg] = useState<string | null>(null);
+
   const busyGuardRef = useRef<null | "x" | "discord">(null);
   const busyTimerRef = useRef<number | null>(null);
 
@@ -615,8 +627,19 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
   const walletKind = String(me?.walletKind || "EXTERNAL").toUpperCase();
   const isEmbeddedWallet = walletKind === "EMBEDDED";
 
-  const twitterConnected = Boolean(me?.twitterId || ownerProfile?.twitterUser);
-  const discordConnected = Boolean(me?.discordId || ownerProfile?.discordUser);
+  const hasLoadedMe = Boolean(me);
+  const liveTwitterUser = hasLoadedMe ? me?.twitterUser ?? null : ownerProfile?.twitterUser ?? null;
+  const liveTwitterName = hasLoadedMe ? me?.twitterName ?? null : ownerProfile?.twitterName ?? null;
+  const liveTwitterImage = hasLoadedMe ? me?.twitterImage ?? null : ownerProfile?.twitterImage ?? null;
+  const liveTwitterId = hasLoadedMe ? me?.twitterId ?? null : ownerProfile?.twitterUser ?? null;
+
+  const liveDiscordUser = hasLoadedMe ? me?.discordUser ?? null : ownerProfile?.discordUser ?? null;
+  const liveDiscordName = hasLoadedMe ? me?.discordName ?? null : ownerProfile?.discordName ?? null;
+  const liveDiscordImage = hasLoadedMe ? me?.discordImage ?? null : ownerProfile?.discordImage ?? null;
+  const liveDiscordId = hasLoadedMe ? me?.discordId ?? null : ownerProfile?.discordUser ?? null;
+
+  const twitterConnected = Boolean(liveTwitterId || liveTwitterUser);
+  const discordConnected = Boolean(liveDiscordId || liveDiscordUser);
 
   const twitterClaimed = Boolean(me?.twitterRewarded);
   const discordClaimed = Boolean(me?.discordRewarded);
@@ -656,6 +679,44 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
     if (!shareProfileUrl || typeof window === "undefined") return null;
     return `${window.location.origin}${shareProfileUrl}`;
   }, [shareProfileUrl]);
+
+  useEffect(() => {
+    if (!authed) {
+      setHandleValue("");
+      setHandleMsg(null);
+      return;
+    }
+    setHandleValue(String(me?.handle || ""));
+  }, [authed, me?.handle]);
+
+  const handleSuggestions = useMemo(() => {
+    return uniqueHandleCandidates([
+      me?.twitterUser,
+      ownerProfile?.twitterUser,
+      me?.discordUser,
+      ownerProfile?.discordUser,
+      me?.googleName,
+      ownerProfile?.googleName,
+      me?.displayName,
+      ownerProfile?.displayName,
+    ]);
+  }, [
+    me?.twitterUser,
+    ownerProfile?.twitterUser,
+    me?.discordUser,
+    ownerProfile?.discordUser,
+    me?.googleName,
+    ownerProfile?.googleName,
+    me?.displayName,
+    ownerProfile?.displayName,
+  ]);
+
+  const normalizedHandleInput = useMemo(() => makeHandleCandidate(handleValue), [handleValue]);
+  const handlePreviewPath = normalizedHandleInput
+    ? `/app/profile/${normalizedHandleInput}`
+    : safePublicId
+      ? `/app/profile/${safePublicId}`
+      : shareProfileUrl || "/app/profile";
 
   const topDisplayName = useMemo(() => {
     if (!me) return "Loading…";
@@ -779,6 +840,52 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
     };
   }, []);
 
+  const saveHandle = useCallback(async () => {
+    if (!authed || handleBusy) return;
+    const nextHandle = makeHandleCandidate(handleValue);
+    if (!nextHandle) {
+      setHandleMsg("Use 3–24 letters, numbers, dash, or underscore.");
+      return;
+    }
+
+    setHandleBusy(true);
+    setHandleMsg(null);
+
+    try {
+      const res = await fetch("/api/profile/handle", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ handle: nextHandle }),
+      });
+      const json = (await res.json().catch(() => ({}))) as HandleResponse;
+
+      if (!res.ok || !json?.ok) {
+        setHandleMsg(json?.message || json?.error || "Could not save profile name.");
+        return;
+      }
+
+      setHandleValue(json.handle || nextHandle);
+      setMe((prev) =>
+        prev
+          ? {
+              ...prev,
+              handle: json.handle || nextHandle,
+              publicUrl: json.publicUrl || `/app/profile/${json.handle || nextHandle}`,
+            }
+          : prev
+      );
+      setHandleMsg("Profile name saved.");
+      router.refresh();
+      if (json.publicUrl && typeof window !== "undefined" && window.location.pathname !== json.publicUrl) {
+        window.history.replaceState({}, "", json.publicUrl);
+      }
+    } catch {
+      setHandleMsg("Network error. Try again.");
+    } finally {
+      setHandleBusy(false);
+    }
+  }, [authed, handleBusy, handleValue, router]);
+
   const claimDaily = useCallback(async () => {
     if (!authed || dailyBusy) return;
     setDailyBusy(true);
@@ -880,8 +987,6 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
         setLinkError(j?.error || "DISCONNECT_FAILED");
         return;
       }
-
-      // Optimistic local update so owner UI changes immediately.
       setMe((prev) =>
         prev
           ? {
@@ -890,11 +995,9 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
               twitterUser: null,
               twitterName: null,
               twitterImage: null,
-              twitterRewarded: false,
             }
           : prev
       );
-
       await loadMe();
       router.refresh();
     } catch {
@@ -917,8 +1020,6 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
         setLinkError(j?.error || "DISCONNECT_FAILED");
         return;
       }
-
-      // Optimistic local update so owner UI changes immediately.
       setMe((prev) =>
         prev
           ? {
@@ -927,11 +1028,9 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
               discordUser: null,
               discordName: null,
               discordImage: null,
-              discordRewarded: false,
             }
           : prev
       );
-
       await loadMe();
       router.refresh();
     } catch {
@@ -1012,10 +1111,10 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
                   {discordConnected && <Pill tone="ok">Discord connected</Pill>}
 
                   {(me?.twitterUser || ownerProfile?.twitterUser) && (
-                    <Pill tone="gold">@{me?.twitterUser || ownerProfile?.twitterUser}</Pill>
+                    <Pill tone="gold">@{liveTwitterUser}</Pill>
                   )}
                   {(me?.discordUser || ownerProfile?.discordUser) && (
-                    <Pill tone="gold">@{me?.discordUser || ownerProfile?.discordUser}</Pill>
+                    <Pill tone="gold">@{liveDiscordUser}</Pill>
                   )}
 
                   {me?.handle && <Pill>handle: @{me.handle}</Pill>}
@@ -1190,7 +1289,7 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
               >
                 Referrals
                 <span className="inline-flex items-center justify-center h-5 px-2 rounded-full text-[10px] font-black text-black/80 bg-black/10 ring-1 ring-black/10">
-                  +50
+                  +20
                 </span>
                 ↗
               </a>
@@ -1199,76 +1298,137 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
         </Card>
       </Reveal>
 
-      <Reveal delayMs={80}>
-        <div className="grid gap-6 lg:grid-cols-2">
-          {authed && (
-            <div className="grid gap-6">
-              <SocialRow
-                kind="x"
-                title="X (Twitter)"
-                subtitle="Name • @username • avatar"
-                connected={twitterConnected}
-                claimed={twitterClaimed}
-                avatarSrc={me?.twitterImage ?? ownerProfile?.twitterImage ?? null}
-                name={me?.twitterName ?? ownerProfile?.twitterName ?? null}
-                username={me?.twitterUser ?? ownerProfile?.twitterUser ?? null}
-                busy={busyX}
-                onConnect={connectTwitter}
-                onDisconnect={disconnectTwitter}
-                reward={REWARD_X}
-              />
+      {authed && (
+        <Reveal delayMs={60}>
+          <Card>
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="text-lg font-black text-white">Profile name</div>
+                <div className="mt-1 text-sm text-white/55">
+                  Choose a clean profile URL. Your stable Realife ID still works as backup.
+                </div>
 
-              <SocialRow
-                kind="discord"
-                title="Discord"
-                subtitle="Name • @username • avatar"
-                connected={discordConnected}
-                claimed={discordClaimed}
-                avatarSrc={me?.discordImage ?? ownerProfile?.discordImage ?? null}
-                name={me?.discordName ?? ownerProfile?.discordName ?? null}
-                username={me?.discordUser ?? ownerProfile?.discordUser ?? null}
-                busy={busyDiscord}
-                onConnect={connectDiscord}
-                onDisconnect={disconnectDiscord}
-                reward={REWARD_DISCORD}
-              />
+                <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                  <div className="min-w-0 flex-1">
+                    <input
+                      value={handleValue}
+                      onChange={(e) => {
+                        setHandleValue(e.target.value);
+                        setHandleMsg(null);
+                      }}
+                      placeholder="borntravel"
+                      className="w-full rounded-2xl border border-white/10 bg-black/25 px-4 py-3 font-mono text-sm font-bold text-white outline-none transition placeholder:text-white/25 focus:border-amber-400/35 focus:bg-black/35"
+                    />
+                    <div className="mt-2 truncate text-[12px] text-white/45">
+                      Preview: <span className="font-mono text-amber-100/85">{handlePreviewPath}</span>
+                    </div>
+                  </div>
+
+                  <Btn variant="gold" onClick={saveHandle} disabled={handleBusy || !normalizedHandleInput}>
+                    {handleBusy ? "Saving…" : "Save name"}
+                  </Btn>
+                </div>
+
+                {handleSuggestions.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="px-3 py-1.5 text-[11px] font-bold text-white/42">Suggestions</span>
+                    {handleSuggestions.map((candidate) => (
+                      <button
+                        key={candidate}
+                        type="button"
+                        onClick={() => {
+                          setHandleValue(candidate);
+                          setHandleMsg(null);
+                        }}
+                        className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 font-mono text-[11px] font-black text-white/72 transition hover:border-amber-400/25 hover:bg-amber-400/10 hover:text-amber-100"
+                      >
+                        {candidate}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {handleMsg && (
+                  <div className={cx("mt-3 text-sm font-semibold", handleMsg.toLowerCase().includes("saved") ? "text-emerald-200" : "text-amber-100")}>
+                    {handleMsg}
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+        </Reveal>
+      )}
+
+      <Reveal delayMs={80}>
+        <Card>
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <div>
+              <div className="text-lg font-black text-white">NFTs held by your profile</div>
+              <div className="mt-1 text-sm text-white/55">
+                This is how your public NFT holdings look to other users.
+              </div>
+            </div>
+            <Pill tone={(ownerNftCount ?? 0) > 0 ? "gold" : "muted"}>{ownerNftCount ?? 0} NFTs</Pill>
+          </div>
+
+          {ownerNftPreview.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {ownerNftPreview.map((nft) => (
+                <OwnerNftPreviewCard key={nft.mintId} nft={nft} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm text-white/55">
+              Your profile has no public verified NFT holdings yet.
             </div>
           )}
 
-          <Card>
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <div className="text-lg font-black text-white">NFTs held by your profile</div>
-                <div className="mt-1 text-sm text-white/55">
-                  This is how your public NFT holdings look to other users.
-                </div>
-              </div>
-              <Pill tone={(ownerNftCount ?? 0) > 0 ? "gold" : "muted"}>{ownerNftCount ?? 0} NFTs</Pill>
-            </div>
-
-            {ownerNftPreview.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
-                {ownerNftPreview.map((nft) => (
-                  <OwnerNftPreviewCard key={nft.mintId} nft={nft} />
-                ))}
-              </div>
-            ) : (
-              <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm text-white/55">
-                Your profile has no public verified NFT holdings yet.
-              </div>
-            )}
-
-            {publicNftsUrl && (
-              <a
-                href={publicNftsUrl}
-                className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
-              >
-                Open full NFT gallery →
-              </a>
-            )}
-          </Card>
-        </div>
+          {publicNftsUrl && (
+            <a
+              href={publicNftsUrl}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3 text-sm font-black text-white transition hover:bg-white/10"
+            >
+              Open full NFT gallery →
+            </a>
+          )}
+        </Card>
       </Reveal>
+
+      {authed && (
+        <Reveal delayMs={120}>
+          <div className="grid md:grid-cols-2 gap-6">
+            <SocialRow
+              kind="x"
+              title="X (Twitter)"
+              subtitle="Name • @username • avatar"
+              connected={twitterConnected}
+              claimed={twitterClaimed}
+              avatarSrc={liveTwitterImage}
+              name={liveTwitterName}
+              username={liveTwitterUser}
+              busy={busyX}
+              onConnect={connectTwitter}
+              onDisconnect={disconnectTwitter}
+              reward={REWARD_X}
+            />
+
+            <SocialRow
+              kind="discord"
+              title="Discord"
+              subtitle="Name • @username • avatar"
+              connected={discordConnected}
+              claimed={discordClaimed}
+              avatarSrc={liveDiscordImage}
+              name={liveDiscordName}
+              username={liveDiscordUser}
+              busy={busyDiscord}
+              onConnect={connectDiscord}
+              onDisconnect={disconnectDiscord}
+              reward={REWARD_DISCORD}
+            />
+          </div>
+        </Reveal>
+      )}
 
       <Reveal delayMs={200}>
         <div className="text-[11px] text-white/40 text-center">

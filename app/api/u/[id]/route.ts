@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const PUBLIC_PREFIX = "/u";
+const PUBLIC_PREFIX = "/app/profile";
 
 const userSelect = {
   id: true,
@@ -14,6 +14,9 @@ const userSelect = {
   points: true,
   walletAddress: true,
   walletChainId: true,
+
+  googleName: true,
+  googleImage: true,
 
   twitterId: true,
   twitterUser: true,
@@ -85,6 +88,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
     const twitterConnected = Boolean(user.twitterId);
     const discordConnected = Boolean(user.discordId);
+    const googleConnected = Boolean(user.googleName || user.googleImage);
 
     const xHandle = user.twitterUser ? `@${user.twitterUser}` : null;
     const dcHandle = user.discordUser ? `@${user.discordUser}` : null;
@@ -92,13 +96,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const displayName =
       user.twitterName ||
       user.discordName ||
+      user.googleName ||
       xHandle ||
       dcHandle ||
       (user.handle ? `@${user.handle}` : null) ||
       shortAddr(user.walletAddress);
 
-    // Avatar priority: X -> Discord
-    const mainAvatar = user.twitterImage || user.discordImage || null;
+    // Avatar priority: X -> Discord -> Google
+    const mainAvatar = user.twitterImage || user.discordImage || user.googleImage || null;
 
     const publicKey = user.handle || user.publicId || null;
     const publicUrl = publicKey && publicKey !== "tmp" ? `${PUBLIC_PREFIX}/${publicKey}` : null;
@@ -112,6 +117,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         ...user,
         twitterConnected,
         discordConnected,
+        googleConnected,
         xHandle,
         dcHandle,
         displayName,

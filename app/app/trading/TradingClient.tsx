@@ -197,6 +197,15 @@ function normAddr(v?: string | null) {
   return x ? x.toLowerCase() : "";
 }
 
+
+function profileLabel(user: { handle?: string | null; publicId?: string | null } | null | undefined, wallet?: string | null) {
+  const handle = String(user?.handle || "").trim();
+  if (handle) return `@${handle}`;
+  const publicId = String(user?.publicId || "").trim();
+  if (publicId) return publicId;
+  return shortAddr(wallet);
+}
+
 function normText(v?: string | null) {
   return String(v || "").trim().toLowerCase();
 }
@@ -1648,6 +1657,7 @@ export default function TradingClient({
                   )}/${encodeURIComponent(String(x.tokenId))}`;
 
                   const isMine = Boolean(wallet && normAddr(x.sellerWallet) === wallet);
+                  const sellerLabel = profileLabel(x.seller, x.sellerWallet);
 
                   const contractLc = normAddr(x.contract);
                   const isCafe =
@@ -1914,8 +1924,8 @@ export default function TradingClient({
 
                           <div className="mt-2 flex items-center justify-between gap-2 text-[12px]">
                             <span className="text-white/45">Seller</span>
-                            <span className="font-mono font-black text-white/75">
-                              {shortAddr(x.sellerWallet)}
+                            <span className="truncate font-mono font-black text-white/75">
+                              {sellerLabel}
                             </span>
                           </div>
                         </div>

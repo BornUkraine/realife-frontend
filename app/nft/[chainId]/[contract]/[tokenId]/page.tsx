@@ -383,6 +383,10 @@ async function getPreferredGalleryHref(
 
   if (origin && referer.startsWith(origin)) {
     const path = referer.slice(origin.length);
+    if (/^\/app\/profile\/[^/?#]+\/nfts(?:\?[^#]*)?$/.test(path)) {
+      return path;
+    }
+
     if (/^\/u\/[^/?#]+\/nfts(?:\?[^#]*)?$/.test(path)) {
       return path;
     }
@@ -1114,6 +1118,8 @@ export default async function NftDetailsPage({
           discordName: true,
           discordUser: true,
           discordImage: true,
+          googleName: true,
+          googleImage: true,
           walletAddress: true,
         },
       },
@@ -1127,19 +1133,21 @@ export default async function NftDetailsPage({
   const creatorPublicKey = creator?.handle || creator?.publicId || null;
   const creatorUrl =
     creatorPublicKey && creatorPublicKey !== "tmp"
-      ? `/u/${creatorPublicKey}`
+      ? `/app/profile/${creatorPublicKey}`
       : null;
   const creatorNftsUrl = creatorUrl ? `${creatorUrl}/nfts` : null;
 
   const creatorName =
     creator?.twitterName ||
     creator?.discordName ||
+    creator?.googleName ||
     (creator?.twitterUser ? `@${creator.twitterUser}` : null) ||
     (creator?.discordUser ? `@${creator.discordUser}` : null) ||
     (creator?.handle ? `@${creator.handle}` : null) ||
     shortAddr(creator?.walletAddress || null);
 
-  const creatorAvatar = creator?.twitterImage || creator?.discordImage || null;
+  const creatorAvatar =
+    creator?.twitterImage || creator?.discordImage || creator?.googleImage || null;
 
   const holdersCount = await prisma.holding.count({
     where: {
@@ -1170,6 +1178,8 @@ export default async function NftDetailsPage({
           discordName: true,
           discordUser: true,
           discordImage: true,
+          googleName: true,
+          googleImage: true,
           walletAddress: true,
         },
       },
@@ -1182,20 +1192,24 @@ export default async function NftDetailsPage({
     currentOwnerUser?.handle || currentOwnerUser?.publicId || null;
   const currentOwnerUrl =
     currentOwnerPublicKey && currentOwnerPublicKey !== "tmp"
-      ? `/u/${currentOwnerPublicKey}`
+      ? `/app/profile/${currentOwnerPublicKey}`
       : null;
   const currentOwnerNftsUrl = currentOwnerUrl ? `${currentOwnerUrl}/nfts` : null;
 
   const currentOwnerName =
     currentOwnerUser?.twitterName ||
     currentOwnerUser?.discordName ||
+    currentOwnerUser?.googleName ||
     (currentOwnerUser?.twitterUser ? `@${currentOwnerUser.twitterUser}` : null) ||
     (currentOwnerUser?.discordUser ? `@${currentOwnerUser.discordUser}` : null) ||
     (currentOwnerUser?.handle ? `@${currentOwnerUser.handle}` : null) ||
     shortAddr(currentOwnerUser?.walletAddress || null);
 
   const currentOwnerAvatar =
-    currentOwnerUser?.twitterImage || currentOwnerUser?.discordImage || null;
+    currentOwnerUser?.twitterImage ||
+    currentOwnerUser?.discordImage ||
+    currentOwnerUser?.googleImage ||
+    null;
 
   const ownershipLabel = holdersCount > 1 ? "Top holder" : "Current owner";
 
