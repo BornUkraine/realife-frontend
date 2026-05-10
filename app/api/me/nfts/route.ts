@@ -40,11 +40,6 @@ const PUBLIC_STANDARD_CONTRACT = normAddr(
     process.env.REALIFE_1155_NEW_CONTRACT ||
     null
 );
-const PUBLIC_DELIVERY_CONTRACT = normAddr(
-  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
-    process.env.REALIFE_1155_DELIVERY_CONTRACT ||
-    null
-);
 
 type FixedMarketType = "STANDARD" | "PROTECTED";
 
@@ -55,9 +50,6 @@ function fixedMarketTypeByContract(
   if (!c) return null;
   if (CAFE_CONTRACT && c === CAFE_CONTRACT) return "STANDARD";
   if (STORE_CONTRACT && c === STORE_CONTRACT) return "STANDARD";
-  if (PUBLIC_DELIVERY_CONTRACT && c === PUBLIC_DELIVERY_CONTRACT) {
-    return "PROTECTED";
-  }
   if (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) return null;
   return null;
 }
@@ -271,9 +263,6 @@ export async function GET(req: Request) {
         isStoreContract: Boolean(STORE_CONTRACT && contract === STORE_CONTRACT),
         isPublicStandardContract: Boolean(
           PUBLIC_STANDARD_CONTRACT && contract === PUBLIC_STANDARD_CONTRACT
-        ),
-        isPublicDeliveryContract: Boolean(
-          PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT
         ),
 
         media: {

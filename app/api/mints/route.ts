@@ -6,7 +6,6 @@ import { createPublicClient, decodeEventLog, http } from "viem";
 import { base, baseSepolia } from "viem/chains";
 
 import { realife1155Abi } from "@/lib/realife1155Abi";
-import { realife1155DeliveryAbi } from "@/lib/realife1155DeliveryAbi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,7 +54,6 @@ type FulfillmentType =
 
 type ContractKind =
   | "PUBLIC_STANDARD"
-  | "PUBLIC_DELIVERY"
   | "CATALOG_CAFE"
   | "CATALOG_STORE";
 
@@ -159,11 +157,6 @@ function getContractSets() {
     process.env.REALIFE_1155_NEW_CONTRACT,
   ]);
 
-  const DELIVERY_USER_CONTRACTS = uniqueStrings([
-    process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT,
-    process.env.REALIFE_1155_DELIVERY_CONTRACT,
-  ]);
-
   const CATALOG_CAFE_CONTRACTS = uniqueStrings([
     process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT,
     process.env.REALIFE_CAFE_STORE_CONTRACT,
@@ -180,10 +173,8 @@ function getContractSets() {
     ...CATALOG_STORE_CONTRACTS,
   ]);
 
-  const PUBLIC_USER_CONTRACTS = uniqueStrings([
-    ...STANDARD_USER_CONTRACTS,
-    ...DELIVERY_USER_CONTRACTS,
-  ]);
+  // Public mint flow now uses ONE contract (the legacy delivery contract is removed).
+  const PUBLIC_USER_CONTRACTS = uniqueStrings([...STANDARD_USER_CONTRACTS]);
 
   const ALL_ALLOWED_CONTRACTS = uniqueStrings([
     ...PUBLIC_USER_CONTRACTS,
@@ -192,7 +183,6 @@ function getContractSets() {
 
   return {
     STANDARD_USER_CONTRACTS,
-    DELIVERY_USER_CONTRACTS,
     CATALOG_CAFE_CONTRACTS,
     CATALOG_STORE_CONTRACTS,
     CATALOG_CONTRACTS,
@@ -205,7 +195,6 @@ function deriveMintFlags(params: {
   isCatalogOnly: boolean;
   isCatalogCafeContract: boolean;
   isCatalogStoreContract: boolean;
-  isDeliveryUserContract: boolean;
   rawFulfillmentType: FulfillmentType | null;
   rawDeliveryEnabled: boolean | undefined;
   rawPhysicalItemIncluded: boolean | undefined;
@@ -215,7 +204,6 @@ function deriveMintFlags(params: {
     isCatalogOnly,
     isCatalogCafeContract,
     isCatalogStoreContract,
-    isDeliveryUserContract,
     rawFulfillmentType,
     rawDeliveryEnabled,
     rawPhysicalItemIncluded,
@@ -223,18 +211,6 @@ function deriveMintFlags(params: {
   } = params;
 
   let fulfillmentType = rawFulfillmentType;
-
-  if (isDeliveryUserContract) {
-    if (fulfillmentType && fulfillmentType !== "PHYSICAL_GOOD") {
-      return {
-        ok: false as const,
-        error: "DELIVERY_CONTRACT_REQUIRES_PHYSICAL_GOOD",
-        message:
-          "Delivery mint contract can only be used for PHYSICAL_GOOD NFTs.",
-      };
-    }
-    fulfillmentType = "PHYSICAL_GOOD";
-  }
 
   if (!fulfillmentType && (rawDeliveryEnabled || rawPhysicalItemIncluded)) {
     fulfillmentType = "PHYSICAL_GOOD";
@@ -356,22 +332,6 @@ function extractTokenIdFromLog(log: any, kind: ContractKind): string | null {
       }) as { eventName?: string; args?: any };
 
       if (decoded?.eventName !== "EditionCreated") return null;
-
-      const tokenId = decoded?.args?.tokenId ?? decoded?.args?.[0];
-      if (typeof tokenId === "bigint") return tokenId.toString();
-      if (typeof tokenId === "number") return String(tokenId);
-      if (typeof tokenId === "string") return tokenId;
-      return null;
-    }
-
-    if (kind === "PUBLIC_DELIVERY") {
-      const decoded = decodeEventLog({
-        abi: realife1155DeliveryAbi,
-        data: log.data,
-        topics: log.topics,
-      }) as { eventName?: string; args?: any };
-
-      if (decoded?.eventName !== "ProductCreated") return null;
 
       const tokenId = decoded?.args?.tokenId ?? decoded?.args?.[0];
       if (typeof tokenId === "bigint") return tokenId.toString();
@@ -528,7 +488,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     hint:
-      "Use POST /api/mints to save a public mint or a catalog-only cafe/store entry. Public standard mint is open to authenticated users. Products, services, delivery offers, and standard NFTs are routed by metadata/fulfillmentType. catalogOnly requires admin, txHash is verified on-chain, and fulfillmentType/category/subcategory/serviceCountry/serviceCity/serviceArea are supported.",
+      "Use POST /api/mints to save a public mint or a catalog-only cafe/store entry. Public standard mint is open to authenticated users on the unified ERC-1155 contract. Goods, services, delivery offers, and standard NFTs are routed by metadata/fulfillmentType. catalogOnly requires admin, txHash is verified on-chain, and fulfillmentType/category/subcategory/serviceCountry/serviceCity/serviceArea are supported.",
   });
 }
 
@@ -648,7 +608,6 @@ export async function POST(req: Request) {
 
   const {
     STANDARD_USER_CONTRACTS,
-    DELIVERY_USER_CONTRACTS,
     CATALOG_CAFE_CONTRACTS,
     CATALOG_STORE_CONTRACTS,
     CATALOG_CONTRACTS,
@@ -704,7 +663,6 @@ export async function POST(req: Request) {
   }
 
   const isStandardUserContract = STANDARD_USER_CONTRACTS.includes(cContract);
-  const isDeliveryUserContract = DELIVERY_USER_CONTRACTS.includes(cContract);
   const isCatalogCafeContract = CATALOG_CAFE_CONTRACTS.includes(cContract);
   const isCatalogStoreContract = CATALOG_STORE_CONTRACTS.includes(cContract);
   const isCatalogContract = CATALOG_CONTRACTS.includes(cContract);
@@ -721,13 +679,13 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!isCatalogOnly && !isStandardUserContract && !isDeliveryUserContract) {
+  if (!isCatalogOnly && !isStandardUserContract) {
     return NextResponse.json(
       {
         ok: false,
         error: "PUBLIC_MINT_INVALID_CONTRACT",
         message:
-          "Public mint flow supports only standard user contract or delivery user contract.",
+          "Public mint flow uses the unified standard user contract only.",
       },
       { status: 400 }
     );
@@ -754,7 +712,6 @@ export async function POST(req: Request) {
     isCatalogOnly,
     isCatalogCafeContract,
     isCatalogStoreContract,
-    isDeliveryUserContract,
     rawFulfillmentType,
     rawDeliveryEnabled,
     rawPhysicalItemIncluded,
@@ -801,8 +758,6 @@ export async function POST(req: Request) {
     contractKind = "CATALOG_CAFE";
   } else if (isCatalogOnly && isCatalogStoreContract) {
     contractKind = "CATALOG_STORE";
-  } else if (isDeliveryUserContract) {
-    contractKind = "PUBLIC_DELIVERY";
   } else {
     contractKind = "PUBLIC_STANDARD";
   }

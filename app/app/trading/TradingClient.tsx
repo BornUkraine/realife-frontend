@@ -298,12 +298,6 @@ const PUBLIC_STANDARD_CONTRACT = String(
   .trim()
   .toLowerCase();
 
-const PUBLIC_DELIVERY_CONTRACT = String(
-  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT || ""
-)
-  .trim()
-  .toLowerCase();
-
 function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
@@ -435,12 +429,6 @@ function inferProtectedSubtype(input: {
     return ft as FulfillmentType;
   }
 
-  const contract = normAddr(input.contract);
-
-  if (PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT) {
-    return "PHYSICAL_GOOD";
-  }
-
   if (input.deliveryEnabled || input.physicalItemIncluded) {
     return "PHYSICAL_GOOD";
   }
@@ -497,9 +485,6 @@ function resolveRowMarketType(item: MarketListing): MarketType {
 
   if (CAFE_CONTRACT && contract === CAFE_CONTRACT) return "STANDARD";
   if (STORE_CONTRACT && contract === STORE_CONTRACT) return "STANDARD";
-  if (PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT) {
-    return "PROTECTED";
-  }
 
   if (item.marketType === "PROTECTED") return "PROTECTED";
   if (item.suggestedMarketType === "PROTECTED") return "PROTECTED";
@@ -545,10 +530,10 @@ function getMarketViewConfig(view: MarketView) {
 
     case "publicDelivery":
       return {
-        label: "Products • Protected",
-        title: "Products Protected NFT Trading",
+        label: "Goods • Protected",
+        title: "Goods Protected NFT Trading",
         subtitle:
-          "Product NFTs minted through the unified public mint contract and listed through the PROTECTED escrow flow for physical goods, delivery, fulfillment and buyer confirmation.",
+          "Goods NFTs minted through the unified public mint contract and listed through the PROTECTED escrow flow for physical goods, delivery, fulfillment and buyer confirmation.",
         contract: PUBLIC_STANDARD_CONTRACT || null,
         marketType: "PROTECTED" as MarketType,
         fulfillmentGroup: "product" as "product" | "service" | "standard" | null,
@@ -571,7 +556,7 @@ function getMarketViewConfig(view: MarketView) {
         label: "All Trading NFTs",
         title: "NFT Trading",
         subtitle:
-          "All verified Realife NFTs available for secondary trading, with the main focus on Service Protected, Products Protected and Public Standard flows before Cafe and Store resale.",
+          "All verified Realife NFTs available for secondary trading, with the main focus on Service Protected, Goods Protected and Public Standard flows before Cafe and Store resale.",
         contract: null,
         marketType: null as MarketType | null,
         fulfillmentGroup: null as "product" | "service" | "standard" | null,
@@ -606,7 +591,7 @@ function getMarketViewNote(view: MarketView) {
       return {
         tone: "border-amber-500/20 bg-amber-500/10 text-amber-100",
         text:
-          "Products Protected shows NFTs from the unified public mint contract listed through the PROTECTED escrow flow. This is the main product direction for physical goods, delivery, fulfillment and buyer confirmation.",
+          "Goods Protected shows NFTs from the unified public mint contract listed through the PROTECTED escrow flow. This is the main goods direction for physical goods, delivery, fulfillment and buyer confirmation.",
       };
 
     case "publicStandard":
@@ -1264,7 +1249,7 @@ export default function TradingClient({
                       [
                         ["all", "All Trading NFTs"],
                         ["publicProtected", "Service • Protected"],
-                        ["publicDelivery", "Products • Protected"],
+                        ["publicDelivery", "Goods • Protected"],
                         ["publicStandard", "Public Mint • Standard"],
                         ["cafe", "Realife Cafe NFT"],
                         ["store", "Realife Store NFT"],
@@ -1677,16 +1662,13 @@ export default function TradingClient({
                   const isPublicStandardContract =
                     Boolean(PUBLIC_STANDARD_CONTRACT) &&
                     contractLc === PUBLIC_STANDARD_CONTRACT;
-                  const isPublicDeliveryContract =
-                    Boolean(PUBLIC_DELIVERY_CONTRACT) &&
-                    contractLc === PUBLIC_DELIVERY_CONTRACT;
 
                   const rowMarketType: MarketType = x.resolvedMarketType;
                   const isProtected = rowMarketType === "PROTECTED";
                   const rowFulfillmentType = String(
                     x.fulfillmentType || x.mint?.fulfillmentType || ""
                   ).toUpperCase();
-                  const isProductProtected =
+                  const isGoodsProtected =
                     isProtected &&
                     (rowFulfillmentType === "PHYSICAL_GOOD" ||
                       Boolean(x.deliveryEnabled || x.mint?.deliveryEnabled) ||
@@ -1698,7 +1680,6 @@ export default function TradingClient({
                   const showNoDeliveryBadge = isStore;
                   const showNoRedemptionBadge = isCafe;
                   const showProtectedBadge = isProtected;
-                  const showDeliveryContractBadge = isPublicDeliveryContract;
                   const showProtectedSubtypeBadge =
                     isProtected && Boolean(x.protectedSubtypeLabel);
 
@@ -1706,8 +1687,8 @@ export default function TradingClient({
                     ? x.collection || "CAFE"
                     : isStore
                     ? x.collection || "STORE"
-                    : isProductProtected
-                    ? "PRODUCTS PROTECTED"
+                    : isGoodsProtected
+                    ? "GOODS PROTECTED"
                     : isProtected && isPublicStandardContract
                     ? "SERVICE PROTECTED"
                     : isProtected
@@ -1720,7 +1701,7 @@ export default function TradingClient({
                     ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
                     : isStore
                     ? "border-sky-500/20 bg-sky-500/10 text-sky-100"
-                    : isProductProtected
+                    : isGoodsProtected
                     ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
                     : isProtected
                     ? "border-violet-500/20 bg-violet-500/10 text-violet-100"
@@ -1854,12 +1835,6 @@ export default function TradingClient({
                           {showProtectedBadge ? (
                             <span className="inline-flex items-center rounded-full border border-violet-500/20 bg-violet-500/10 px-2.5 py-1 text-[10px] font-bold text-violet-100">
                               PROTECTED
-                            </span>
-                          ) : null}
-
-                          {showDeliveryContractBadge ? (
-                            <span className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-100">
-                              DELIVERY PROTECTED
                             </span>
                           ) : null}
 

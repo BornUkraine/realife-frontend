@@ -79,12 +79,6 @@ const PUBLIC_STANDARD_CONTRACT = normAddr(
     null
 );
 
-const PUBLIC_DELIVERY_CONTRACT = normAddr(
-  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
-    process.env.REALIFE_1155_DELIVERY_CONTRACT ||
-    null
-);
-
 function orderByForSort(sort: SortMode) {
   if (sort === "priceAsc") {
     return [{ pricePerUnitWei: "asc" as const }, { createdAt: "desc" as const }];
@@ -107,10 +101,6 @@ function suggestedMarketTypeFromSimple(input: {
   subcategory?: string | null;
 }): MarketType {
   const contract = normAddr(input.contract);
-
-  if (PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT) {
-    return "PROTECTED";
-  }
 
   if (CAFE_CONTRACT && contract === CAFE_CONTRACT) return "STANDARD";
   if (STORE_CONTRACT && contract === STORE_CONTRACT) return "STANDARD";
@@ -371,9 +361,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (requestedMarketType && contract) {
-      if (PUBLIC_DELIVERY_CONTRACT && contract === PUBLIC_DELIVERY_CONTRACT) {
-        // Delivery contract is protected by product logic, do not force DB marketType.
-      } else if (CAFE_CONTRACT && contract === CAFE_CONTRACT) {
+      if (CAFE_CONTRACT && contract === CAFE_CONTRACT) {
         // Cafe is standard by product logic.
       } else if (STORE_CONTRACT && contract === STORE_CONTRACT) {
         // Store is standard by product logic.

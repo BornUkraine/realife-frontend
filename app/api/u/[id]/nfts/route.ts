@@ -48,8 +48,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const USER_1155_CONTRACTS = uniqueStrings([
     process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT,
     process.env.REALIFE_1155_NEW_CONTRACT,
-    process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT,
-    process.env.REALIFE_1155_DELIVERY_CONTRACT,
   ]);
 
   try {

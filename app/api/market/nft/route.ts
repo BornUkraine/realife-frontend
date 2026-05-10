@@ -97,12 +97,6 @@ const PUBLIC_STANDARD_CONTRACT = normAddr(
     null
 );
 
-const PUBLIC_DELIVERY_CONTRACT = normAddr(
-  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
-    process.env.REALIFE_1155_DELIVERY_CONTRACT ||
-    null
-);
-
 function fixedMarketTypeByContract(
   contract: string | null | undefined
 ): ForcedMarketType | null {
@@ -111,10 +105,6 @@ function fixedMarketTypeByContract(
 
   if (CAFE_CONTRACT && c === CAFE_CONTRACT) return "STANDARD";
   if (STORE_CONTRACT && c === STORE_CONTRACT) return "STANDARD";
-
-  if (PUBLIC_DELIVERY_CONTRACT && c === PUBLIC_DELIVERY_CONTRACT) {
-    return "PROTECTED";
-  }
 
   if (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) {
     return null;

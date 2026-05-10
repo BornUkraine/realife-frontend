@@ -154,7 +154,7 @@ export default async function TradingPage() {
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    Service + Products Protected
+                    Service + Goods Protected
                   </span>
                 </Pill>
 
@@ -174,7 +174,7 @@ export default async function TradingPage() {
 
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
                 Discover and trade Realife NFTs with a clear structure: Service
-                Protected for services, Products Protected for physical goods
+                Protected for services, Goods Protected for physical goods
                 and delivery offers, Public Standard for normal NFTs, and
                 Cafe/Store resale at the end. Everything new is minted through
                 the unified public ERC-1155 contract and routed by metadata.
@@ -198,7 +198,7 @@ export default async function TradingPage() {
                 </ActionLink>
 
                 <ActionLink href="/app/trading/public-delivery">
-                  Products Protected
+                  Goods Protected
                 </ActionLink>
 
                 <ActionLink href="/app/trading/public-standard">
@@ -217,8 +217,8 @@ export default async function TradingPage() {
                   tone="gold"
                 />
                 <StatCard
-                  label="Products flow"
-                  value="Products Protected"
+                  label="Goods flow"
+                  value="Goods Protected"
                   tone="violet"
                 />
                 <StatCard
@@ -248,7 +248,7 @@ export default async function TradingPage() {
             <span className="opacity-60">AI search</span>
             <span className="opacity-60">Secondary market</span>
             <span className="opacity-60">Service Protected</span>
-            <span className="opacity-60">Products Protected</span>
+            <span className="opacity-60">Goods Protected</span>
             <span className="opacity-60">Public Standard</span>
             <span className="opacity-60">Cafe resale</span>
             <span className="opacity-60">Store resale</span>

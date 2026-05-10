@@ -45,14 +45,14 @@ const CATEGORIES = [
   "Sports & Outdoor",
   "Automotive",
   "Pet Products & Services",
-  "Collectible Product",
-  "Other Product",
+  "Collectible Good",
+  "Other Good",
   "Other Service",
   "Other",
 ] as const;
 
 const ITEM_TYPE_SUGGESTIONS = [
-  "Product",
+  "Good",
   "T-shirt",
   "Hoodie",
   "Merch",
@@ -357,7 +357,7 @@ function humanFulfillmentType(v: FulfillmentType) {
 }
 
 function humanOfferType(v: OfferType) {
-  if (v === "physical_product") return "Product / item";
+  if (v === "physical_product") return "Good / item";
   if (v === "digital_service") return "Digital service";
   if (v === "online_session") return "Online session";
   if (v === "local_service") return "Local / offline service";
@@ -398,7 +398,7 @@ function humanSuggestedMarketType(v: SuggestedMarketType) {
 }
 
 function humanAiPath(v: AiSuggestedPath) {
-  if (v === "physical_product") return "Physical product";
+  if (v === "physical_product") return "Physical good";
   if (v === "service") return "Service";
   if (v === "collectible") return "Collectible";
   return "Unknown";
@@ -466,8 +466,8 @@ function isPhysicalCategory(category: string) {
     "beauty & personal care",
     "sports & outdoor",
     "automotive",
-    "collectible product",
-    "other product",
+    "collectible good",
+    "other good",
   ].includes(s);
 }
 
@@ -616,8 +616,22 @@ function normalizeCategoryValue(v?: string | null): MintCategory {
     return "Pet Products & Services";
   }
 
-  if (s === "collectible product") return "Collectible Product";
-  if (s === "other product" || s === "product") return "Other Product";
+  if (
+    s === "collectible product" ||
+    s === "collectible good" ||
+    s === "collectible goods"
+  ) {
+    return "Collectible Good";
+  }
+  if (
+    s === "other product" ||
+    s === "product" ||
+    s === "other good" ||
+    s === "good" ||
+    s === "goods"
+  ) {
+    return "Other Good";
+  }
   if (s === "other service" || s === "service") return "Other Service";
 
   return "Other";
@@ -805,23 +819,6 @@ function ipfsToHttp(u?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   }
 
   return s;
-}
-
-async function loadMetadataFromTokenUri(tokenUri: string): Promise<any | null> {
-  for (const gw of IPFS_GATEWAYS) {
-    const url = ipfsToHttp(tokenUri, gw);
-    if (!url) continue;
-
-    try {
-      const r = await fetch(url, { cache: "no-store" });
-      if (!r.ok) continue;
-      const j = await r.json().catch(() => null);
-      if (j && typeof j === "object") return j;
-    } catch {
-      //
-    }
-  }
-  return null;
 }
 
 function normalizeTokenIdValue(v: unknown): string | null {
@@ -1029,7 +1026,7 @@ function Stepper({
           </div>
 
           <div className="mt-2 text-[11px] leading-relaxed text-white/55">
-            Realife uses one public mint contract and writes product / service / delivery classification into metadata.
+            Realife uses one public mint contract and writes good / service / delivery classification into metadata.
             <span className="text-white/45">
               {" "}
               Marketplace routing is handled later by the platform when you list
@@ -1429,14 +1426,10 @@ export default function MintForm() {
     setPreviewCategory("Other");
   }
 
-  useEffect(() => {
-    if (!isLocalService && (serviceCountry || serviceCity || serviceArea)) {
-      setServiceCountry("");
-      setServiceCity("");
-      setServiceArea("");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLocalService]);
+  // Note: we intentionally DO NOT clear serviceCountry/serviceCity/serviceArea
+  // when isLocalService becomes false. The fields are still hidden / ignored
+  // on prepare and on save (see isLocalService gates below), but keeping the
+  // values lets the seller toggle offer types without losing typed input.
 
   function onPickFile(f: File | null) {
     setError("");
@@ -1868,26 +1861,9 @@ export default function MintForm() {
       setPreparedMedia(pMedia || filePreviewUrl);
       setPreparedPoster(pKind === "video" ? pPoster : null);
 
-      const meta = await loadMetadataFromTokenUri(uri);
-      const metaImage = typeof meta?.image === "string" ? meta.image : null;
-      const metaAnim =
-        typeof meta?.animation_url === "string" ? meta.animation_url : null;
-
-      if (metaAnim) {
-        setPreparedKind("video");
-        setPreparedMedia(
-          ipfsToHttp(metaAnim, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl
-        );
-        setPreparedPoster(
-          ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pPoster || null
-        );
-      } else if (metaImage) {
-        setPreparedKind("image");
-        setPreparedMedia(
-          ipfsToHttp(metaImage, IPFS_GATEWAYS[0]) || pMedia || filePreviewUrl
-        );
-        setPreparedPoster(null);
-      }
+      // NOTE: backend already returns final media URLs in data.preview.
+      // We deliberately skip an IPFS round-trip on the freshly pinned CID
+      // here (it can take 5-15s on a cold gateway) so mint stays fast.
 
       setPreviewCategory(data?.preview?.category || category);
       setStep("idle");
@@ -2476,8 +2452,8 @@ export default function MintForm() {
               },
               {
                 key: "physical_product" as const,
-                title: "Product / item",
-                text: "Physical product, merch, food, accessory, ticket, or item with delivery/pickup.",
+                title: "Good / item",
+                text: "Physical good, merch, food, accessory, ticket, or item with delivery/pickup.",
               },
               {
                 key: "digital_service" as const,
@@ -2525,85 +2501,110 @@ export default function MintForm() {
           </div>
 
           <div className="mt-4 rounded-2xl border border-amber-500/15 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-50/80">
-            One public mint contract is used for everything. Products and services become protected candidates through metadata; collectibles stay standard unless you choose a real product/service type.
+            One public mint contract is used for everything. Goods and services become protected candidates through metadata; collectibles stay standard unless you choose a real good/service type.
           </div>
         </Card>
 
-        {isLocalService ? (
-          <Card>
-            <div className="mb-4 flex items-end justify-between">
-              <div>
-                <div className="text-sm font-extrabold tracking-tight">
-                  Local / offline service location
-                </div>
-                <div className="mt-1 text-[11px] text-white/55">
-                  Where this service can be provided in real life.
-                </div>
+        <Card>
+          <div className="mb-4 flex items-end justify-between">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Local / offline service location
               </div>
-              <Pill>
-                <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
-                Local service
-              </Pill>
+              <div className="mt-1 text-[11px] text-white/55">
+                Country, city, area / street where this service can be provided in real life.
+              </div>
             </div>
-
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              <input
-                type="text"
-                placeholder="Country, example: United States"
-                value={serviceCountry}
-                onChange={(e) => {
-                  resetPreparedState();
-                  setServiceCountry(e.target.value);
-                }}
-                className={[
-                  "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
-                  "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
-                ].join(" ")}
+            <Pill>
+              <span
+                className={cx(
+                  "h-2 w-2 rounded-full",
+                  isLocalService ? "bg-[#d4af37]" : "bg-white/30"
+                )}
               />
+              {isLocalService ? "Local service" : "Local only"}
+            </Pill>
+          </div>
 
-              <input
-                type="text"
-                placeholder="City, example: Los Angeles"
-                value={serviceCity}
-                onChange={(e) => {
-                  resetPreparedState();
-                  setServiceCity(e.target.value);
-                }}
-                className={[
-                  "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
-                  "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
-                ].join(" ")}
-              />
+          {!isLocalService ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-[11px] leading-relaxed text-white/55">
+              Country, city, area / street fields appear when{" "}
+              <span className="font-semibold text-white/80">Offer type → Local service</span>{" "}
+              is selected. They are saved into IPFS metadata so buyers can discover
+              real-world offline services.
             </div>
+          ) : null}
 
+          <div
+            className={cx(
+              "grid grid-cols-1 gap-3 md:grid-cols-2",
+              !isLocalService && "pointer-events-none mt-3 opacity-50"
+            )}
+          >
             <input
               type="text"
-              placeholder="Area / district / service zone, example: West Hollywood, Beverly Hills, Kyiv center"
-              value={serviceArea}
+              placeholder="Country, example: United States"
+              value={serviceCountry}
+              disabled={!isLocalService}
               onChange={(e) => {
                 resetPreparedState();
-                setServiceArea(e.target.value);
+                setServiceCountry(e.target.value);
               }}
               className={[
-                "mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+                "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
                 "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
               ].join(" ")}
             />
 
-            <div className="mt-3 text-[11px] leading-relaxed text-white/55">
-              This is not a buyer shipping address. This is a public discovery
-              location for offline services. Exact meeting details can be shared
-              later inside the protected order room.
-            </div>
+            <input
+              type="text"
+              placeholder="City, example: Los Angeles"
+              value={serviceCity}
+              disabled={!isLocalService}
+              onChange={(e) => {
+                resetPreparedState();
+                setServiceCity(e.target.value);
+              }}
+              className={[
+                "w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+                "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
+              ].join(" ")}
+            />
+          </div>
 
-            <div className="mt-3 text-[11px] leading-relaxed text-white/55">
-              Example:{" "}
-              <span className="font-semibold text-white">
-                Offline fitness session • United States • Los Angeles • West Hollywood
-              </span>
-            </div>
-          </Card>
-        ) : null}
+          <input
+            type="text"
+            placeholder="Area / street / district / service zone, example: West Hollywood, Sunset Blvd, Kyiv center"
+            value={serviceArea}
+            disabled={!isLocalService}
+            onChange={(e) => {
+              resetPreparedState();
+              setServiceArea(e.target.value);
+            }}
+            className={cx(
+              "mt-3 w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white",
+              "placeholder:text-white/35 focus:border-white/20 focus:outline-none focus:ring-2 focus:ring-[#d4af37]/40",
+              !isLocalService && "pointer-events-none opacity-50"
+            )}
+          />
+
+          {isLocalService ? (
+            <>
+              <div className="mt-3 text-[11px] leading-relaxed text-white/55">
+                This is not a buyer shipping address. This is a public discovery
+                location for offline services. Exact meeting details can be shared
+                later inside the protected order room.
+              </div>
+
+              <div className="mt-3 text-[11px] leading-relaxed text-white/55">
+                Example:{" "}
+                <span className="font-semibold text-white">
+                  Offline fitness session • United States • Los Angeles • West Hollywood
+                </span>
+              </div>
+            </>
+          ) : null}
+        </Card>
 
         <Card>
           <div className="mb-3 flex items-end justify-between">
