@@ -1,10 +1,22 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits } from "viem";
 
 type ActivityFilter = "all" | "minted" | "listed" | "sold" | "bought" | "traded" | "referred" | "qualified";
+
+type SortMode =
+  | "default"
+  | "top_referrals"
+  | "top_mints"
+  | "top_listings"
+  | "top_sold"
+  | "top_bought"
+  | "top_trades"
+  | "top_points"
+  | "newest"
+  | "last_login";
 
 type UserActivityItem = {
   id: string;
@@ -446,6 +458,7 @@ export default function AdminUsersClient() {
   const [role, setRole] = useState<"MODERATOR" | "ADMIN" | null>(null);
   const [q, setQ] = useState("");
   const [activity, setActivity] = useState<ActivityFilter>("all");
+  const [sort, setSort] = useState<SortMode>("default");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -490,6 +503,31 @@ export default function AdminUsersClient() {
       // noop
     }
   }
+
+  const sortedItems = useMemo(() => {
+    const toTime = (v?: string | null) => {
+      if (!v) return 0;
+      const n = new Date(v).getTime();
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const score = (u: AdminUserRow) => {
+      if (sort === "top_referrals") return u.counts.referrals;
+      if (sort === "top_mints") return u.counts.mints;
+      if (sort === "top_listings") return u.counts.listings;
+      if (sort === "top_sold") return u.counts.ordersSold + u.counts.tradesSold;
+      if (sort === "top_bought") return u.counts.ordersBought + u.counts.tradesBought;
+      if (sort === "top_trades") return u.counts.tradesBought + u.counts.tradesSold;
+      if (sort === "top_points") return u.points || 0;
+      if (sort === "newest") return toTime(u.createdAt);
+      if (sort === "last_login") return toTime(u.lastLoginAt);
+      return 0;
+    };
+
+    if (sort === "default") return items;
+    return [...items].sort((a, b) => score(b) - score(a));
+  }, [items, sort]);
+
 
   return (
     <div className="space-y-4 rounded-[28px] border border-white/10 bg-[#0b0a09]/60 p-4 backdrop-blur-2xl xl:p-5">
@@ -552,7 +590,26 @@ export default function AdminUsersClient() {
           placeholder="Search handle, wallet, email, IP, country, token id, tx..."
           className="min-h-[42px] rounded-xl border border-white/10 bg-black/25 px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-[#d4af37]/40"
         />
-        <div className="flex flex-wrap gap-1.5">
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          <select
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortMode)}
+            className="min-h-[38px] rounded-xl border border-[#d4af37]/25 bg-black/40 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#f5d76e] outline-none"
+            title="Sort users"
+          >
+            <option value="default">Default</option>
+            <option value="top_referrals">Top referrals</option>
+            <option value="top_mints">Top mints</option>
+            <option value="top_listings">Top listings</option>
+            <option value="top_sold">Top sold</option>
+            <option value="top_bought">Top bought</option>
+            <option value="top_trades">Top trades</option>
+            <option value="top_points">Top points</option>
+            <option value="newest">Newest</option>
+            <option value="last_login">Last login</option>
+          </select>
+
           {(["all", "qualified", "referred", "minted", "listed", "sold", "bought", "traded"] as ActivityFilter[]).map((x) => (
             <button
               key={x}
@@ -593,7 +650,7 @@ export default function AdminUsersClient() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((u) => {
+                {sortedItems.map((u) => {
                   const isOpen = expanded === u.id;
                   const publicProfileHref = profileHref(u);
                   const publicProfileNftsHref = profileNftsHref(u);
@@ -608,7 +665,7 @@ export default function AdminUsersClient() {
                   ].filter(Boolean);
 
                   return (
-                    <>
+                    <Fragment key={u.id}>
                       <tr key={u.id} className="border-t border-white/8 align-top hover:bg-white/[0.025]">
                         <td className="px-3 py-3">
                           <div className="flex items-start gap-3">
@@ -780,14 +837,14 @@ export default function AdminUsersClient() {
                           </td>
                         </tr>
                       ) : null}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
 
-          <div className="text-xs text-white/45">Showing up to {items.length} users in current filter. Total matched: {total}.</div>
+          <div className="text-xs text-white/45">Showing {sortedItems.length} users in current filter. Total matched: {total}. Sort: {sort.replace(/_/g, " ")}.</div>
         </>
       )}
     </div>
