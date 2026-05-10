@@ -175,8 +175,8 @@ const CATEGORY_OPTIONS = [
   "Sports & Outdoor",
   "Automotive",
   "Pet Products & Services",
-  "Collectible Product",
-  "Other Product",
+  "Collectible Good",
+  "Other Good",
   "Other Service",
   "Other",
 ] as const;

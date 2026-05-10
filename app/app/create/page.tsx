@@ -235,13 +235,13 @@ export default function CreatePage() {
 
                 <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
                   <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Product / item flow
+                    Good / item flow
                   </div>
                   <div className="mt-2 text-sm font-extrabold text-white">
                     Mint via unified contract
                   </div>
                   <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Any testnet user can create product offers. Product / delivery behavior is stored in metadata and can later route into protected trust flow.
+                    Any testnet user can create good offers. Good / delivery behavior is stored in metadata and can later route into protected trust flow.
                   </div>
                 </div>
               </div>
