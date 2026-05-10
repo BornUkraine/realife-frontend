@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { formatUnits } from "viem";
 
-type ActivityFilter = "all" | "minted" | "listed" | "sold" | "bought" | "traded";
+type ActivityFilter = "all" | "minted" | "listed" | "sold" | "bought" | "traded" | "referred" | "qualified";
 
 type UserActivityItem = {
   id: string;
@@ -91,6 +91,8 @@ type AdminUserRow = {
   updatedAt: string | null;
   handle: string | null;
   publicId: string | null;
+  displayName: string | null;
+  mainAvatar: string | null;
   supportRole: "USER" | "MODERATOR" | "ADMIN";
   authMethod: string;
   walletKind: string;
@@ -101,8 +103,13 @@ type AdminUserRow = {
   googleId: string | null;
   googleEmail: string | null;
   googleName: string | null;
+  googleImage: string | null;
   twitterUser: string | null;
+  twitterName: string | null;
+  twitterImage: string | null;
   discordUser: string | null;
+  discordName: string | null;
+  discordImage: string | null;
   firstLoginAt: string | null;
   lastLoginAt: string | null;
   firstIp: string | null;
@@ -115,6 +122,20 @@ type AdminUserRow = {
   lastCity: string | null;
   approvedPhysicalSeller: boolean;
   points: number;
+  referralCode: string | null;
+  referredById: string | null;
+  referredAt: string | null;
+  referredBy: {
+    id: string;
+    handle: string | null;
+    publicId: string | null;
+    walletAddress: string | null;
+    walletShort: string | null;
+    referralCode: string | null;
+    label: string | null;
+    avatar: string | null;
+  } | null;
+  qualified: boolean;
   counts: {
     mints: number;
     listings: number;
@@ -124,6 +145,7 @@ type AdminUserRow = {
     tradesSold: number;
     wallets: number;
     loginEvents: number;
+    referrals: number;
   };
   hasMintedNfts: boolean;
   hasCreatedListings: boolean;
@@ -158,6 +180,9 @@ type AdminUsersResponse = {
     usersWithListings: number;
     usersWithSoldOrders: number;
     usersWithBoughtOrders: number;
+    usersWithReferrals: number;
+    usersReferred: number;
+    qualifiedUsers: number;
     topIps30d: Array<{ ip: string | null; count: number }>;
   };
   items: AdminUserRow[];
@@ -218,7 +243,10 @@ function formatPaymentAmount(raw?: string | null, paymentToken?: string | null) 
 }
 
 function userLabel(u: AdminUserRow) {
+  if (u.displayName) return u.displayName;
   if (u.handle) return `@${u.handle}`;
+  if (u.twitterName) return u.twitterName;
+  if (u.discordName) return u.discordName;
   if (u.googleName) return u.googleName;
   if (u.googleEmail) return u.googleEmail;
   if (u.publicId) return u.publicId;
@@ -276,6 +304,27 @@ function StatCard({ label, value, hint }: { label: string; value: number | strin
       <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/45">{label}</div>
       <div className="mt-2 text-2xl font-semibold text-white">{value}</div>
       {hint ? <div className="mt-1 text-xs text-white/50">{hint}</div> : null}
+    </div>
+  );
+}
+
+function UserAvatar({ src, label, size = "md" }: { src?: string | null; label?: string | null; size?: "sm" | "md" }) {
+  const initials = String(label || "R")
+    .replace(/^@/, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((x) => x.charAt(0).toUpperCase())
+    .join("") || "R";
+  const box = size === "sm" ? "h-8 w-8 text-[11px]" : "h-11 w-11 text-sm";
+
+  return (
+    <div className={cx("shrink-0 overflow-hidden rounded-full border border-[#d4af37]/25 bg-[#d4af37]/10", box)}>
+      {src ? (
+        <img src={src} alt={label || "User avatar"} className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center font-bold text-[#f5d76e]">{initials}</div>
+      )}
     </div>
   );
 }
@@ -545,7 +594,7 @@ export default function AdminUsersClient() {
           className="min-h-[46px] rounded-2xl border border-white/10 bg-black/25 px-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-[#d4af37]/40"
         />
         <div className="flex flex-wrap gap-2">
-          {(["all", "minted", "listed", "sold", "bought", "traded"] as ActivityFilter[]).map((x) => (
+          {(["all", "qualified", "referred", "minted", "listed", "sold", "bought", "traded"] as ActivityFilter[]).map((x) => (
             <button
               key={x}
               type="button"
@@ -598,12 +647,16 @@ export default function AdminUsersClient() {
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
+                      <UserAvatar src={u.mainAvatar} label={userLabel(u)} />
                       <div className="min-w-0 truncate text-lg font-semibold text-white">{userLabel(u)}</div>
                       <Badge tone={u.supportRole}>{u.supportRole}</Badge>
                       <Badge tone={u.authMethod}>{u.authMethod}</Badge>
                       <Badge tone={u.walletKind}>{u.walletKind}</Badge>
                       {u.embeddedWalletProvider ? <Badge tone={u.embeddedWalletProvider}>{u.embeddedWalletProvider}</Badge> : null}
                       {u.approvedPhysicalSeller ? <Badge tone="RELEASED">Approved seller</Badge> : null}
+                      {u.qualified ? <Badge tone="RELEASED">Qualified</Badge> : <Badge tone="PENDING">Not qualified</Badge>}
+                      {u.referralCode ? <Badge tone="ADMIN">Code {u.referralCode}</Badge> : null}
+                      {u.referredBy ? <Badge tone="GOLD">Referred</Badge> : null}
                     </div>
 
                     <div className="mt-2 text-sm text-white/55">
@@ -616,6 +669,11 @@ export default function AdminUsersClient() {
                     </div>
                     <div className="mt-1 text-sm text-white/55">
                       Google: <span className="text-white/75">{u.googleEmail || "—"}</span>
+                    </div>
+                    <div className="mt-1 text-sm text-white/55">
+                      X: <span className="text-white/75">{u.twitterUser ? `@${u.twitterUser}` : u.twitterName || "—"}</span>
+                      <span className="mx-2 text-white/25">/</span>
+                      Discord: <span className="text-white/75">{u.discordUser ? `@${u.discordUser}` : u.discordName || "—"}</span>
                     </div>
                   </div>
 
@@ -670,6 +728,22 @@ export default function AdminUsersClient() {
                     <div className="mt-2 flex flex-wrap gap-2">
                       {publicProfileHref ? <a href={publicProfileHref} target="_blank" rel="noreferrer" className="text-xs font-semibold text-[#f5d76e] hover:underline">Profile ↗</a> : null}
                       {publicProfileNftsHref ? <a href={publicProfileNftsHref} target="_blank" rel="noreferrer" className="text-xs font-semibold text-white/70 hover:text-white hover:underline">NFTs ↗</a> : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-white/45">Referral source</div>
+                    <div className="mt-2 flex items-center gap-2">
+                      {u.referredBy?.avatar ? <UserAvatar src={u.referredBy.avatar} label={u.referredBy.label} size="sm" /> : null}
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-white">{u.referredBy?.label || "No referral"}</div>
+                        <div className="mt-1 font-mono text-xs text-white/55">{u.referredBy?.referralCode || "—"}</div>
+                      </div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-white/60">
+                      <div>Own code: <span className="font-mono text-white/80">{u.referralCode || "—"}</span></div>
+                      <div>Invited: <span className="font-semibold text-white">{u.counts.referrals}</span></div>
+                      <div className="col-span-2">Referred at: {fmtDate(u.referredAt)}</div>
                     </div>
                   </div>
 

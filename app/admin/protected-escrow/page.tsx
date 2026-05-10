@@ -319,10 +319,16 @@ export default async function ProtectedEscrowAdminPage() {
         </div>
       </GoldEdgeWrap>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <ActionCard
           title="User intelligence"
           text="See who minted NFTs, full wallet address, country/IP signal, whether they listed, bought, or sold goods and services."
+          tone="gold"
+        />
+        <ActionCard
+          title="Referral ranking"
+          text="See who invited whom, qualified testnet users, listings, orders and referral performance by code."
+          href="/app/admin/referrals"
           tone="gold"
         />
         <ActionCard
