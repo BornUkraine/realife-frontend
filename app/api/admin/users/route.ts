@@ -205,6 +205,8 @@ function userSearchWhere(q: string): Prisma.UserWhereInput {
       { id: { contains: query, mode: INSENSITIVE } },
       { handle: { contains: query, mode: INSENSITIVE } },
       { publicId: { contains: query, mode: INSENSITIVE } },
+      { referralCode: { contains: query, mode: INSENSITIVE } },
+      { referredBy: { is: { referralCode: { contains: query, mode: INSENSITIVE } } } },
       { walletAddress: { contains: qLower, mode: INSENSITIVE } },
       { googleEmail: { contains: query, mode: INSENSITIVE } },
       { googleName: { contains: query, mode: INSENSITIVE } },
@@ -388,6 +390,48 @@ function serializeUser(row: any) {
   const recentTradesSold = (row.tradesSold || []).map((t: any) => serializeTrade(t, "SOLD"));
   const recentTradesBought = (row.tradesBought || []).map((t: any) => serializeTrade(t, "BOUGHT"));
 
+  const displayName =
+    row.twitterName ||
+    row.discordName ||
+    row.googleName ||
+    (row.twitterUser ? `@${row.twitterUser}` : null) ||
+    (row.discordUser ? `@${row.discordUser}` : null) ||
+    (row.handle ? `@${row.handle}` : null) ||
+    row.publicId ||
+    short(row.walletAddress);
+
+  const mainAvatar = row.twitterImage || row.discordImage || row.googleImage || null;
+
+  const referredBy = row.referredBy
+    ? {
+        id: row.referredBy.id,
+        handle: row.referredBy.handle || null,
+        publicId: row.referredBy.publicId || null,
+        walletAddress: row.referredBy.walletAddress || null,
+        walletShort: short(row.referredBy.walletAddress),
+        referralCode: row.referredBy.referralCode || null,
+        label:
+          row.referredBy.twitterName ||
+          row.referredBy.discordName ||
+          row.referredBy.googleName ||
+          (row.referredBy.twitterUser ? `@${row.referredBy.twitterUser}` : null) ||
+          (row.referredBy.discordUser ? `@${row.referredBy.discordUser}` : null) ||
+          (row.referredBy.handle ? `@${row.referredBy.handle}` : null) ||
+          row.referredBy.publicId ||
+          short(row.referredBy.walletAddress),
+        avatar: row.referredBy.twitterImage || row.referredBy.discordImage || row.referredBy.googleImage || null,
+      }
+    : null;
+
+  const qualified =
+    (row._count?.mints || 0) > 0 ||
+    (row._count?.listings || 0) > 0 ||
+    (row._count?.storeOrdersBought || 0) > 0 ||
+    (row._count?.storeOrdersSold || 0) > 0 ||
+    (row._count?.tradesBought || 0) > 0 ||
+    (row._count?.tradesSold || 0) > 0 ||
+    Boolean(row.twitterUser || row.discordUser);
+
   const linkedAccountCount =
     wallets.length +
     (row.googleEmail ? 1 : 0) +
@@ -400,6 +444,8 @@ function serializeUser(row: any) {
     updatedAt: iso(row.updatedAt),
     handle: row.handle || null,
     publicId: row.publicId || null,
+    displayName,
+    mainAvatar,
     supportRole: row.supportRole,
 
     authMethod: row.authMethod,
@@ -415,7 +461,11 @@ function serializeUser(row: any) {
     googleImage: row.googleImage || null,
 
     twitterUser: row.twitterUser || null,
+    twitterName: row.twitterName || null,
+    twitterImage: row.twitterImage || null,
     discordUser: row.discordUser || null,
+    discordName: row.discordName || null,
+    discordImage: row.discordImage || null,
 
     firstLoginAt: iso(row.firstLoginAt),
     lastLoginAt: iso(row.lastLoginAt),
@@ -434,6 +484,12 @@ function serializeUser(row: any) {
     approvedPhysicalSeller: Boolean(row.approvedPhysicalSeller),
     points: row.points || 0,
 
+    referralCode: row.referralCode || null,
+    referredById: row.referredById || null,
+    referredAt: iso(row.referredAt),
+    referredBy,
+    qualified,
+
     counts: {
       mints: row._count?.mints || 0,
       listings: row._count?.listings || 0,
@@ -443,6 +499,7 @@ function serializeUser(row: any) {
       tradesSold: row._count?.tradesSold || 0,
       wallets: row._count?.wallets || 0,
       loginEvents: row._count?.loginEvents || 0,
+      referrals: row._count?.referrals || 0,
     },
 
     hasMintedNfts: (row._count?.mints || 0) > 0,
@@ -489,7 +546,22 @@ export async function GET(req: Request) {
               ? { storeOrdersBought: { some: {} } }
               : activityFilter === "traded"
                 ? { OR: [{ tradesSold: { some: {} } }, { tradesBought: { some: {} } }] }
-                : {};
+                : activityFilter === "referred"
+                  ? { referredById: { not: null } }
+                  : activityFilter === "qualified"
+                    ? {
+                        OR: [
+                          { mints: { some: {} } },
+                          { listings: { some: {} } },
+                          { storeOrdersSold: { some: {} } },
+                          { storeOrdersBought: { some: {} } },
+                          { tradesSold: { some: {} } },
+                          { tradesBought: { some: {} } },
+                          { twitterUser: { not: null } },
+                          { discordUser: { not: null } },
+                        ],
+                      }
+                    : {};
 
     const whereClauses: Prisma.UserWhereInput[] = [
       userSearchWhere(q),
@@ -533,6 +605,26 @@ export async function GET(req: Request) {
           updatedAt: true,
           handle: true,
           publicId: true,
+          referralCode: true,
+          referredById: true,
+          referredAt: true,
+          referredBy: {
+            select: {
+              id: true,
+              handle: true,
+              publicId: true,
+              walletAddress: true,
+              referralCode: true,
+              googleName: true,
+              googleImage: true,
+              twitterUser: true,
+              twitterName: true,
+              twitterImage: true,
+              discordUser: true,
+              discordName: true,
+              discordImage: true,
+            },
+          },
           supportRole: true,
           authMethod: true,
           walletKind: true,
@@ -544,7 +636,11 @@ export async function GET(req: Request) {
           googleName: true,
           googleImage: true,
           twitterUser: true,
+          twitterName: true,
+          twitterImage: true,
           discordUser: true,
+          discordName: true,
+          discordImage: true,
           firstLoginAt: true,
           lastLoginAt: true,
           firstIp: true,
@@ -778,6 +874,7 @@ export async function GET(req: Request) {
               tradesSold: true,
               wallets: true,
               loginEvents: true,
+              referrals: true,
             },
           },
         },
@@ -807,6 +904,9 @@ export async function GET(req: Request) {
       usersWithListings,
       usersWithSoldOrders,
       usersWithBoughtOrders,
+      usersWithReferrals,
+      usersReferred,
+      qualifiedUsers,
     ] = await prisma.$transaction([
       prisma.user.count({ where: { authMethod: "GOOGLE" } }),
       prisma.user.count({ where: { authMethod: "WALLET" } }),
@@ -818,6 +918,22 @@ export async function GET(req: Request) {
       prisma.user.count({ where: { listings: { some: {} } } }),
       prisma.user.count({ where: { storeOrdersSold: { some: {} } } }),
       prisma.user.count({ where: { storeOrdersBought: { some: {} } } }),
+      prisma.user.count({ where: { referrals: { some: {} } } }),
+      prisma.user.count({ where: { referredById: { not: null } } }),
+      prisma.user.count({
+        where: {
+          OR: [
+            { mints: { some: {} } },
+            { listings: { some: {} } },
+            { storeOrdersSold: { some: {} } },
+            { storeOrdersBought: { some: {} } },
+            { tradesSold: { some: {} } },
+            { tradesBought: { some: {} } },
+            { twitterUser: { not: null } },
+            { discordUser: { not: null } },
+          ],
+        },
+      }),
     ]);
 
     return NextResponse.json({
@@ -838,6 +954,9 @@ export async function GET(req: Request) {
         usersWithListings,
         usersWithSoldOrders,
         usersWithBoughtOrders,
+        usersWithReferrals,
+        usersReferred,
+        qualifiedUsers,
         topIps30d: recentIps.map((r) => ({ ip: r.ip || "unknown", count: readGroupCount(r, "ip") })),
       },
       filters: {

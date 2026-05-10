@@ -44,9 +44,54 @@ function validateIssuedAt(issuedAt: string) {
   return drift <= 15 * 60 * 1000; // 15 min
 }
 
+async function awardReferralPoints(tx: any, params: { referrerId: string; joinerId: string; code: string }) {
+  const { referrerId, joinerId, code } = params;
+
+  const inviterEvent = await tx.pointEvent.createMany({
+    data: [
+      {
+        userId: referrerId,
+        type: "REFERRAL_INVITER",
+        points: REWARD,
+        refUserId: joinerId,
+        meta: { code, source: "manual_apply" },
+      },
+    ],
+    skipDuplicates: true,
+  });
+
+  const joinerEvent = await tx.pointEvent.createMany({
+    data: [
+      {
+        userId: joinerId,
+        type: "REFERRAL_JOINER",
+        points: REWARD,
+        refUserId: referrerId,
+        meta: { code, source: "manual_apply" },
+      },
+    ],
+    skipDuplicates: true,
+  });
+
+  const writes: Promise<unknown>[] = [];
+  if ((inviterEvent?.count || 0) > 0) {
+    writes.push(tx.user.update({ where: { id: referrerId }, data: { points: { increment: REWARD } } }));
+  }
+  if ((joinerEvent?.count || 0) > 0) {
+    writes.push(tx.user.update({ where: { id: joinerId }, data: { points: { increment: REWARD } } }));
+  }
+
+  if (writes.length) await Promise.all(writes);
+
+  return {
+    inviterAdded: (inviterEvent?.count || 0) > 0 ? REWARD : 0,
+    joinerAdded: (joinerEvent?.count || 0) > 0 ? REWARD : 0,
+  };
+}
+
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
-  const userId = (session as any)?.userId as string | undefined;
+  const userId = ((session as any)?.userId || (session as any)?.user?.id) as string | undefined;
   if (!userId) return NextResponse.json({ ok: false }, { status: 401 });
 
   const body = (await req.json().catch(() => ({}))) as {
@@ -54,7 +99,7 @@ export async function POST(req: Request) {
     nonce?: string;
     signature?: string;
     issuedAt?: string;
-    origin?: string; // игнорируем
+    origin?: string; // ignored
   };
 
   const code = normalizeCode(body.code || "");
@@ -82,7 +127,7 @@ export async function POST(req: Request) {
     const result = await prisma.$transaction(async (tx) => {
       const me = await tx.user.findUnique({
         where: { id: userId },
-        select: { id: true, walletAddress: true, referredById: true, referredAt: true },
+        select: { id: true, walletAddress: true, referredById: true, referredAt: true, referralCode: true },
       });
       if (!me) return { status: 404 as const, body: { ok: false } };
 
@@ -90,8 +135,8 @@ export async function POST(req: Request) {
         return { status: 400 as const, body: { ok: false, message: "Verify wallet first (top bar signature)." } };
       }
 
-      if (me.referredById || me.referredAt) {
-        return { status: 400 as const, body: { ok: false, message: "Referral already applied" } };
+      if (me.referralCode && normalizeCode(me.referralCode) === code) {
+        return { status: 400 as const, body: { ok: false, message: "Self referral is not allowed" } };
       }
 
       const referrer = await tx.user.findUnique({
@@ -102,6 +147,10 @@ export async function POST(req: Request) {
       if (!referrer) return { status: 404 as const, body: { ok: false, message: "Invalid code" } };
       if (referrer.id === me.id) {
         return { status: 400 as const, body: { ok: false, message: "Self referral is not allowed" } };
+      }
+
+      if (me.referredById && me.referredById !== referrer.id) {
+        return { status: 400 as const, body: { ok: false, message: "Referral already applied to another code" } };
       }
 
       const k = keyFor(userId, "APPLY", code);
@@ -120,52 +169,42 @@ export async function POST(req: Request) {
 
       if (!ok) return { status: 401 as const, body: { ok: false, message: "Bad signature" } };
 
-      // одноразовый nonce
       await tx.walletNonce.delete({ where: { address: k } });
 
-      // фиксируем кто кого пригласил (one-time)
-      await tx.user.update({
-        where: { id: me.id },
-        data: { referredById: referrer.id, referredAt: new Date() },
-      });
+      if (!me.referredById) {
+        await tx.user.update({
+          where: { id: me.id },
+          data: { referredById: referrer.id, referredAt: new Date() },
+        });
+      }
 
-      // начисление обоим — idempotent по @@unique([userId,type,refUserId])
-      await tx.pointEvent.create({
-        data: { userId: referrer.id, type: "REFERRAL_INVITER", points: REWARD, refUserId: me.id, meta: { code } },
-      });
-
-      await tx.pointEvent.create({
-        data: { userId: me.id, type: "REFERRAL_JOINER", points: REWARD, refUserId: referrer.id, meta: { code } },
+      const reward = await awardReferralPoints(tx, {
+        referrerId: referrer.id,
+        joinerId: me.id,
+        code,
       });
 
       const [refUpdated, meUpdated] = await Promise.all([
-        tx.user.update({
-          where: { id: referrer.id },
-          data: { points: { increment: REWARD } },
-          select: { points: true },
-        }),
-        tx.user.update({
-          where: { id: me.id },
-          data: { points: { increment: REWARD } },
-          select: { points: true },
-        }),
+        tx.user.findUnique({ where: { id: referrer.id }, select: { points: true } }),
+        tx.user.findUnique({ where: { id: me.id }, select: { points: true } }),
       ]);
 
       return {
         status: 200 as const,
         body: {
           ok: true,
-          inviterAdd: REWARD,
-          joinerAdd: REWARD,
-          inviterPoints: refUpdated.points ?? 0,
-          joinerPoints: meUpdated.points ?? 0,
+          alreadyApplied: Boolean(me.referredById),
+          inviterAdd: reward.inviterAdded,
+          joinerAdd: reward.joinerAdded,
+          inviterPoints: refUpdated?.points ?? 0,
+          joinerPoints: meUpdated?.points ?? 0,
         },
       };
     });
 
     return NextResponse.json(result.body, { status: result.status });
   } catch (e: any) {
-    // P2002 = unique constraint (например повторное начисление)
+    console.error("[REFERRAL_APPLY_ERROR]", e);
     if (e?.code === "P2002") {
       return NextResponse.json({ ok: false, message: "Already rewarded / duplicate request" }, { status: 409 });
     }

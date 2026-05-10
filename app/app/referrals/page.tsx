@@ -185,6 +185,24 @@ function isValidCode(raw: string) {
   return /^[A-Z0-9_]{3,16}$/.test(raw);
 }
 
+function storePendingRef(code: string) {
+  try {
+    localStorage.setItem("rl_ref_pending", code);
+  } catch {}
+  try {
+    document.cookie = `rl_ref_pending=${encodeURIComponent(code)}; Path=/; Max-Age=${60 * 60 * 24 * 90}; SameSite=Lax`;
+  } catch {}
+}
+
+function clearPendingRef() {
+  try {
+    localStorage.removeItem("rl_ref_pending");
+  } catch {}
+  try {
+    document.cookie = "rl_ref_pending=; Path=/; Max-Age=0; SameSite=Lax";
+  } catch {}
+}
+
 function buildMsg(params: {
   action: "SET_CODE" | "APPLY";
   code: string;
@@ -291,9 +309,7 @@ export default function ReferralsPage() {
 
     if (ref) {
       const code = normalizeCode(ref);
-      try {
-        localStorage.setItem("rl_ref_pending", code);
-      } catch {}
+      storePendingRef(code);
       setApplyCode(code);
       setPendingRef(code);
 
@@ -315,6 +331,14 @@ export default function ReferralsPage() {
     }
 
     void load();
+
+    const onClaimed = () => {
+      clearPendingRef();
+      setPendingRef(null);
+      void load();
+    };
+    window.addEventListener("realife:referral-claimed", onClaimed);
+    return () => window.removeEventListener("realife:referral-claimed", onClaimed);
   }, []);
 
   async function getNonce(action: "SET_CODE" | "APPLY", code: string) {
@@ -452,9 +476,7 @@ export default function ReferralsPage() {
       if (r.ok && j?.ok) {
         setApplyCode(code);
         setNotice({ tone: "ok", text: `Applied. +${j.joinerAdd ?? 20} points` });
-        try {
-          localStorage.removeItem("rl_ref_pending");
-        } catch {}
+        clearPendingRef();
         setPendingRef(null);
         await load();
       } else {
@@ -485,8 +507,8 @@ export default function ReferralsPage() {
             </h1>
 
             <p className="mt-3 text-sm md:text-base text-white/70 max-w-2xl leading-relaxed">
-              Creating a code and applying a code requires a wallet{" "}
-              <b>signature</b> (no transaction).
+              Creating your own code requires a wallet{" "}
+              <b>signature</b>. Referral links are captured automatically when possible.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-2">
@@ -530,9 +552,7 @@ export default function ReferralsPage() {
                     variant="ghost"
                     onClick={() => {
                       setPendingRef(null);
-                      try {
-                        localStorage.removeItem("rl_ref_pending");
-                      } catch {}
+                      clearPendingRef();
                     }}
                   >
                     Dismiss

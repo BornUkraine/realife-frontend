@@ -5,6 +5,7 @@ import "@rainbow-me/rainbowkit/styles.css";
 
 import Providers from "./providers";
 import TopBar from "@/components/TopBar";
+import ReferralCapture from "@/components/ReferralCapture";
 
 import { GeistSans, GeistMono } from "geist/font";
 
@@ -33,6 +34,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         ].join(" ")}
       >
         <Providers>
+          <ReferralCapture />
+
           <div className="sticky top-0 z-50">
             <TopBar />
             <div className="h-px bg-white/10" />
