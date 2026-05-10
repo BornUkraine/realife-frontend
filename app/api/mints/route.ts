@@ -258,7 +258,6 @@ function deriveMintFlags(params: {
   }
 
   return {
-    ok: true as const,
     fulfillmentType,
     deliveryEnabled: deliveryEnabledFinal,
     physicalItemIncluded: physicalItemIncludedFinal,
@@ -717,17 +716,6 @@ export async function POST(req: Request) {
     rawPhysicalItemIncluded,
     rawOfficialItem,
   });
-
-  if (!derived.ok) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: derived.error,
-        message: derived.message,
-      },
-      { status: 400 }
-    );
-  }
 
   const finalFulfillmentType = derived.fulfillmentType;
   const finalDeliveryEnabled = derived.deliveryEnabled;
