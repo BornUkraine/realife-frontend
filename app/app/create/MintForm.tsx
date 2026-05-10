@@ -1874,7 +1874,13 @@ export default function MintForm() {
   }
 
   async function handleOnchainCreate() {
-    if (mintSubmitRef.current || step === "signing" || step === "mining" || isWalletPromptOpen || isMining) {
+    if (
+      mintSubmitRef.current ||
+      step === "signing" ||
+      step === "mining" ||
+      isWalletPromptOpen ||
+      isMining
+    ) {
       return;
     }
 
@@ -1890,25 +1896,34 @@ export default function MintForm() {
       return;
     }
 
+    if (!connected || !activeAddress) {
+      openConnectModal?.();
+      setError("Connect wallet first.");
+      return;
+    }
+
+    // Do not refetch balance here. That extra RPC call can delay MetaMask / wallet
+    // popup by many seconds on testnet. If the cached balance is already known to
+    // be zero, block early; otherwise open the wallet immediately and let the
+    // wallet/RPC surface the gas error if the balance changed.
+    if (!isBalanceLoading && balanceData?.value === 0n) {
+      setError(
+        "No gas on Base Sepolia. Open Faucet, get test ETH, then create."
+      );
+      return;
+    }
+
     mintSubmitRef.current = true;
+    pushedRef.current = false;
+    setSubmittedTxHash(undefined);
+    setSubmittedMintMode(activeMintMode);
+    setSubmittedMintContract(activeMintContract);
+    setStep("signing");
 
     try {
-      await ensureCorrectNetwork();
-
-      const freshBalance = await refetchBalance();
-      if (freshBalance.data?.value === 0n) {
-        mintSubmitRef.current = false;
-        setError(
-          "No gas on Base Sepolia. Open Faucet, get test ETH, then create."
-        );
-        return;
+      if (wrongNetwork) {
+        await ensureCorrectNetwork();
       }
-
-      pushedRef.current = false;
-      setSubmittedTxHash(undefined);
-      setSubmittedMintMode(activeMintMode);
-      setSubmittedMintContract(activeMintContract);
-      setStep("signing");
 
       const amount = BigInt(clampSupply(supply));
 
@@ -1926,6 +1941,7 @@ export default function MintForm() {
       if (hash) {
         setSubmittedTxHash(hash as `0x${string}`);
         setStep("mining");
+        void refetchBalance();
       } else {
         mintSubmitRef.current = false;
         setStep("idle");
