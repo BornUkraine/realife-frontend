@@ -1515,6 +1515,7 @@ export default function MintForm() {
       const finalCategory = previewCategory || category;
       const targetMode = submittedMintMode;
       const targetContract = submittedMintContract;
+      const targetIsDelivery = deliveryMode === "delivery";
 
       const finalServiceCountry = isLocalService ? serviceCountry.trim() : "";
       const finalServiceCity = isLocalService ? serviceCity.trim() : "";
@@ -1551,8 +1552,8 @@ export default function MintForm() {
               standard: "ERC1155",
               supply: clampSupply(supply),
               catalogOnly: false,
-              deliveryEnabled: targetMode === "delivery",
-              physicalItemIncluded: targetMode === "delivery",
+              deliveryEnabled: targetIsDelivery,
+              physicalItemIncluded: targetIsDelivery,
               officialItem: false,
               category: finalCategory,
               subcategory: subcategory.trim() || null,
@@ -1584,7 +1585,7 @@ export default function MintForm() {
       qp.set("itemType", itemType.trim());
       qp.set("item", itemLabel.trim());
       qp.set("brand", brand.trim());
-      qp.set("delivery", targetMode === "delivery" ? "1" : "0");
+      qp.set("delivery", targetIsDelivery ? "1" : "0");
       qp.set("market", suggestedMarketType);
       qp.set("fulfillmentType", fulfillmentType || "");
       qp.set("serviceCountry", finalServiceCountry);
