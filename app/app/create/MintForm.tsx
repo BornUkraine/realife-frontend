@@ -19,17 +19,9 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { decodeEventLog, encodeFunctionData, formatUnits, toHex } from "viem";
 
 import { realife1155Abi } from "@/lib/realife1155Abi";
-import { realife1155DeliveryAbi } from "@/lib/realife1155DeliveryAbi";
 import NftMedia from "@/components/NftMedia";
 
-const PROJECTS = [
-  "Sentient",
-  "Billions",
-  "Rialo",
-  "Neura",
-  "Realife",
-  "Other",
-] as const;
+const REALIFE_PROJECT = "Realife" as const;
 
 const CATEGORIES = [
   "Art / Collectible",
@@ -90,8 +82,14 @@ const ITEM_TYPE_SUGGESTIONS = [
 ] as const;
 
 type MintCategory = (typeof CATEGORIES)[number];
+type OfferType =
+  | "collectible"
+  | "physical_product"
+  | "digital_service"
+  | "online_session"
+  | "local_service";
 type DeliveryMode = "none" | "delivery";
-type ActiveMintMode = "standard" | "delivery";
+type ActiveMintMode = "standard";
 type FulfillmentType =
   | "PHYSICAL_GOOD"
   | "DIGITAL_SERVICE"
@@ -109,14 +107,13 @@ type AiSuggestion = {
   subcategory: string | null;
   title: string | null;
   brand: string | null;
+  description: string | null;
   fulfillmentType: FulfillmentType;
   suggestedMarketType: SuggestedMarketType;
   reasoning: string | null;
   searchTags: string[];
 } | null;
 
-const ZERO_ADDRESS =
-  "0x0000000000000000000000000000000000000000" as const;
 
 type Eip1193Provider = {
   request: (args: {
@@ -359,6 +356,43 @@ function humanFulfillmentType(v: FulfillmentType) {
   return "Collectible / standard NFT";
 }
 
+function humanOfferType(v: OfferType) {
+  if (v === "physical_product") return "Product / item";
+  if (v === "digital_service") return "Digital service";
+  if (v === "online_session") return "Online session";
+  if (v === "local_service") return "Local / offline service";
+  return "Collectible / standard NFT";
+}
+
+function offerTypeToFulfillmentType(v: OfferType): FulfillmentType {
+  if (v === "physical_product") return "PHYSICAL_GOOD";
+  if (v === "digital_service") return "DIGITAL_SERVICE";
+  if (v === "online_session") return "ONLINE_SESSION";
+  if (v === "local_service") return "LOCAL_SERVICE";
+  return null;
+}
+
+function offerTypeToDeliveryMode(v: OfferType): DeliveryMode {
+  return v === "physical_product" ? "delivery" : "none";
+}
+
+function offerTypeFromAiSuggestion(s: AiSuggestion): OfferType | null {
+  if (!s) return null;
+
+  if (s.fulfillmentType === "PHYSICAL_GOOD" || s.path === "physical_product") {
+    return "physical_product";
+  }
+
+  if (s.fulfillmentType === "LOCAL_SERVICE") return "local_service";
+  if (s.fulfillmentType === "ONLINE_SESSION") return "online_session";
+  if (s.fulfillmentType === "DIGITAL_SERVICE" || s.path === "service") {
+    return "digital_service";
+  }
+
+  if (s.path === "collectible") return "collectible";
+  return null;
+}
+
 function humanSuggestedMarketType(v: SuggestedMarketType) {
   return v === "protected" ? "Protected marketplace" : "Standard marketplace";
 }
@@ -590,71 +624,17 @@ function normalizeCategoryValue(v?: string | null): MintCategory {
 }
 
 function inferFulfillmentType(params: {
-  deliveryMode: DeliveryMode;
+  offerType: OfferType;
   category: string;
   itemType: string;
   itemLabel: string;
   subcategory: string;
 }): FulfillmentType {
-  const { deliveryMode, category, itemType, itemLabel, subcategory } = params;
+  const { offerType } = params;
 
-  if (deliveryMode === "delivery") return "PHYSICAL_GOOD";
-
-  const categoryNorm = normText(category);
-  const merged = [
-    normText(category),
-    normText(itemType),
-    normText(itemLabel),
-    normText(subcategory),
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  if (
-    categoryNorm === "home & repair" ||
-    categoryNorm === "events & tickets" ||
-    categoryNorm === "logistics & delivery" ||
-    LOCAL_SERVICE_HINTS.some((x) => merged.includes(x)) ||
-    (categoryNorm === "travel & tours" &&
-      !DIGITAL_SERVICE_HINTS.some((x) => merged.includes(x)))
-  ) {
-    return "LOCAL_SERVICE";
-  }
-
-  if (
-    categoryNorm === "education & coaching" ||
-    categoryNorm === "health & wellness" ||
-    ONLINE_SESSION_HINTS.some((x) => merged.includes(x))
-  ) {
-    return "ONLINE_SESSION";
-  }
-
-  if (
-    [
-      "creative & design",
-      "marketing",
-      "ai & automation",
-      "development & tech",
-      "business & professional services",
-      "other service",
-    ].includes(categoryNorm) ||
-    (categoryNorm === "travel & tours" &&
-      DIGITAL_SERVICE_HINTS.some((x) => merged.includes(x))) ||
-    DIGITAL_SERVICE_HINTS.some((x) => merged.includes(x))
-  ) {
-    return "DIGITAL_SERVICE";
-  }
-
-  if (
-    isPhysicalCategory(category) ||
-    (categoryNorm === "pet products & services" &&
-      !LOCAL_SERVICE_HINTS.some((x) => merged.includes(x))) ||
-    PHYSICAL_HINTS.some((x) => merged.includes(x))
-  ) {
-    return "PHYSICAL_GOOD";
-  }
-
-  return null;
+  // Manual offer type is the source of truth. AI/category can help fill fields,
+  // but the seller decides whether this is a collectible, product, or service.
+  return offerTypeToFulfillmentType(offerType);
 }
 
 function inferSuggestedMarketType(
@@ -678,10 +658,6 @@ const CONTRACT_1155_STANDARD =
     | `0x${string}`
     | undefined;
 
-const CONTRACT_1155_DELIVERY =
-  process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT as
-    | `0x${string}`
-    | undefined;
 
 /* ---------------- UI kit ---------------- */
 
@@ -857,7 +833,7 @@ function normalizeTokenIdValue(v: unknown): string | null {
 
 function extractMintTokenIdFromReceipt(
   receipt: any,
-  mode: ActiveMintMode,
+  _mode: ActiveMintMode,
   contract?: `0x${string}`
 ): string | null {
   const logs = receipt?.logs ?? [];
@@ -868,42 +844,20 @@ function extractMintTokenIdFromReceipt(
         continue;
       }
 
-      if (mode === "delivery") {
-        const decoded = decodeEventLog({
-          abi: realife1155DeliveryAbi,
-          data: log.data,
-          topics: log.topics,
-        }) as { eventName?: string; args?: any };
+      const decoded = decodeEventLog({
+        abi: realife1155Abi,
+        data: log.data,
+        topics: log.topics,
+      }) as { eventName?: string; args?: any };
 
-        if (
-          decoded.eventName === "ProductCreated" ||
-          decoded.eventName === "EditionCreated" ||
-          decoded.eventName === "DeliveryEditionCreated"
-        ) {
-          const args = decoded.args;
-          return (
-            normalizeTokenIdValue(args?.tokenId) ||
-            normalizeTokenIdValue(args?.id) ||
-            normalizeTokenIdValue(args?.editionId) ||
-            normalizeTokenIdValue(args?.[0])
-          );
-        }
-      } else {
-        const decoded = decodeEventLog({
-          abi: realife1155Abi,
-          data: log.data,
-          topics: log.topics,
-        }) as { eventName?: string; args?: any };
-
-        if (decoded.eventName === "EditionCreated") {
-          const args = decoded.args;
-          return (
-            normalizeTokenIdValue(args?.tokenId) ||
-            normalizeTokenIdValue(args?.id) ||
-            normalizeTokenIdValue(args?.editionId) ||
-            normalizeTokenIdValue(args?.[0])
-          );
-        }
+      if (decoded.eventName === "EditionCreated") {
+        const args = decoded.args;
+        return (
+          normalizeTokenIdValue(args?.tokenId) ||
+          normalizeTokenIdValue(args?.id) ||
+          normalizeTokenIdValue(args?.editionId) ||
+          normalizeTokenIdValue(args?.[0])
+        );
       }
     } catch {
       //
@@ -924,11 +878,8 @@ function Stepper({
   isMining,
   isSuccess,
   mintFeeWei,
-  approvedPhysicalSeller,
+  offerType,
   deliveryMode,
-  activeMintMode,
-  deliveryOnchainApproved,
-  deliveryAccessLoading,
   fulfillmentType,
   suggestedMarketType,
 }: {
@@ -942,11 +893,8 @@ function Stepper({
   isMining: boolean;
   isSuccess: boolean;
   mintFeeWei: bigint;
-  approvedPhysicalSeller: boolean;
+  offerType: OfferType;
   deliveryMode: DeliveryMode;
-  activeMintMode: ActiveMintMode;
-  deliveryOnchainApproved: boolean;
-  deliveryAccessLoading: boolean;
   fulfillmentType: FulfillmentType;
   suggestedMarketType: SuggestedMarketType;
 }) {
@@ -1016,19 +964,15 @@ function Stepper({
             </Pill>
 
             <Pill>
-              <span className="text-white/70">Mode:</span>
+              <span className="text-white/70">Offer:</span>
               <span className="text-white font-extrabold">
-                {deliveryMode === "delivery"
-                  ? "With delivery"
-                  : "Without delivery"}
+                {humanOfferType(offerType)}
               </span>
             </Pill>
 
             <Pill>
               <span className="text-white/70">Mint contract:</span>
-              <span className="text-white font-extrabold">
-                {activeMintMode === "delivery" ? "Delivery" : "Standard"}
-              </span>
+              <span className="text-white font-extrabold">Standard</span>
             </Pill>
 
             <Pill>
@@ -1044,40 +988,6 @@ function Stepper({
                 {humanFulfillmentType(fulfillmentType)}
               </span>
             </Pill>
-
-            <Pill>
-              <span className="text-white/70">Delivery DB access:</span>
-              <span
-                className={
-                  approvedPhysicalSeller
-                    ? "text-emerald-200 font-extrabold"
-                    : "text-white/70 font-extrabold"
-                }
-              >
-                {approvedPhysicalSeller ? "Approved" : "Standard"}
-              </span>
-            </Pill>
-
-            {deliveryMode === "delivery" ? (
-              <Pill>
-                <span className="text-white/70">On-chain allowlist:</span>
-                <span
-                  className={
-                    deliveryAccessLoading
-                      ? "text-white font-extrabold"
-                      : deliveryOnchainApproved
-                      ? "text-emerald-200 font-extrabold"
-                      : "text-rose-200 font-extrabold"
-                  }
-                >
-                  {deliveryAccessLoading
-                    ? "Checking"
-                    : deliveryOnchainApproved
-                    ? "Granted"
-                    : "Missing"}
-                </span>
-              </Pill>
-            ) : null}
 
             <Pill>
               <span className="text-white/70">Fee:</span>
@@ -1119,9 +1029,7 @@ function Stepper({
           </div>
 
           <div className="mt-2 text-[11px] leading-relaxed text-white/55">
-            This page chooses the{" "}
-            <span className="font-semibold text-white/75">mint contract</span>{" "}
-            and writes NFT classification into metadata.
+            Realife uses one public mint contract and writes product / service / delivery classification into metadata.
             <span className="text-white/45">
               {" "}
               Marketplace routing is handled later by the platform when you list
@@ -1130,46 +1038,20 @@ function Stepper({
           </div>
 
           <div className="mt-2 text-[11px] leading-relaxed text-white/55">
-            {deliveryMode === "delivery" ? (
-              approvedPhysicalSeller ? (
-                deliveryAccessLoading ? (
-                  <>Delivery wallet access is being checked on-chain…</>
-                ) : deliveryOnchainApproved ? (
-                  <>
-                    Delivery mode is enabled for this wallet. The NFT will be
-                    minted through the restricted delivery mint contract and
-                    later should use protected delivery/trust flow.
-                  </>
-                ) : (
-                  <>
-                    Your app profile is approved, but the wallet is not yet
-                    allowlisted on-chain for the delivery mint contract.
-                  </>
-                )
-              ) : (
-                <>
-                  Delivery mode is reserved for approved seller wallets. Switch
-                  to <span className="font-semibold text-white/75">Without delivery</span>.
-                </>
-              )
-            ) : suggestedMarketType === "protected" ? (
+            {suggestedMarketType === "protected" ? (
               <>
                 This NFT is classified as{" "}
                 <span className="font-semibold text-white/75">
                   {humanFulfillmentType(fulfillmentType)}
                 </span>
-                . It still mints through the standard public mint contract, but
-                later the platform can route it to the{" "}
-                <span className="font-semibold text-white/75">
-                  Protected marketplace
-                </span>
-                .
+                . It mints through the standard public NFT contract, while Realife
+                metadata marks it for a later protected listing / escrow flow.
               </>
             ) : (
               <>
                 Standard collectible/public NFT flow is active. This edition
-                will mint through the standard public mint contract and later
-                fits the normal standard marketplace flow.
+                mints through the standard public mint contract and later fits the
+                normal standard marketplace flow.
               </>
             )}
           </div>
@@ -1389,68 +1271,19 @@ export default function MintForm() {
       : effectiveChainId !== baseSepolia.id);
   const hasGas = connected && !wrongNetwork && balanceEth > 0;
 
-  const [approvedPhysicalSeller, setApprovedPhysicalSeller] = useState(false);
-  const [approvedPhysicalAt, setApprovedPhysicalAt] = useState<string | null>(
-    null
-  );
-  const [approvedPhysicalNote, setApprovedPhysicalNote] = useState("");
-  const [meLoaded, setMeLoaded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadMe() {
-      setMeLoaded(false);
-
-      try {
-        const res = await fetch("/api/me", { cache: "no-store" });
-        const data = await res.json().catch(() => null);
-
-        if (cancelled) return;
-
-        if (res.ok && data?.ok && data?.user) {
-          setApprovedPhysicalSeller(Boolean(data.user.approvedPhysicalSeller));
-          setApprovedPhysicalAt(
-            data.user.approvedPhysicalAt
-              ? String(data.user.approvedPhysicalAt)
-              : null
-          );
-          setApprovedPhysicalNote(String(data.user.approvedPhysicalNote || ""));
-        } else {
-          setApprovedPhysicalSeller(false);
-          setApprovedPhysicalAt(null);
-          setApprovedPhysicalNote("");
-        }
-      } catch {
-        if (!cancelled) {
-          setApprovedPhysicalSeller(false);
-          setApprovedPhysicalAt(null);
-          setApprovedPhysicalNote("");
-        }
-      } finally {
-        if (!cancelled) setMeLoaded(true);
-      }
-    }
-
-    if (mounted) loadMe();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [mounted, activeAddress]);
-
   const [file, setFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
   const [posterFile, setPosterFile] = useState<File | null>(null);
   const [posterPreviewUrl, setPosterPreviewUrl] = useState<string | null>(null);
 
-  const [project, setProject] = useState<(typeof PROJECTS)[number]>("Realife");
+  const project = REALIFE_PROJECT;
   const [category, setCategory] = useState<MintCategory>("Other");
   const [subcategory, setSubcategory] = useState("");
   const [itemType, setItemType] = useState("");
   const [itemLabel, setItemLabel] = useState("");
-  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>("none");
+  const [offerType, setOfferType] = useState<OfferType>("collectible");
+  const deliveryMode = offerTypeToDeliveryMode(offerType);
 
   const [name, setName] = useState("");
   const [brand, setBrand] = useState("");
@@ -1486,13 +1319,13 @@ export default function MintForm() {
   const fulfillmentType = useMemo<FulfillmentType>(
     () =>
       inferFulfillmentType({
-        deliveryMode,
+        offerType,
         category,
         itemType,
         itemLabel,
         subcategory,
       }),
-    [deliveryMode, category, itemType, itemLabel, subcategory]
+    [offerType, category, itemType, itemLabel, subcategory]
   );
 
   const isLocalService = fulfillmentType === "LOCAL_SERVICE";
@@ -1521,7 +1354,7 @@ export default function MintForm() {
       itemLabel.trim(),
       subcategory.trim(),
       brand.trim(),
-      deliveryMode === "delivery" ? "delivery" : "standard",
+      humanOfferType(offerType),
       suggestedMarketType === "protected" ? "protected flow" : "standard flow",
       isLocalService ? serviceCountry.trim() : "",
       isLocalService ? serviceCity.trim() : "",
@@ -1538,7 +1371,7 @@ export default function MintForm() {
     itemLabel,
     subcategory,
     brand,
-    deliveryMode,
+    offerType,
     suggestedMarketType,
     isLocalService,
     serviceCountry,
@@ -1547,15 +1380,10 @@ export default function MintForm() {
   ]);
 
   const isDeliveryMode = deliveryMode === "delivery";
-  const activeMintMode: ActiveMintMode = isDeliveryMode ? "delivery" : "standard";
-  const activeMintContract =
-    activeMintMode === "delivery" ? CONTRACT_1155_DELIVERY : CONTRACT_1155_STANDARD;
-  const activeMintAbi =
-    activeMintMode === "delivery" ? realife1155DeliveryAbi : realife1155Abi;
-  const activeMintEnvName =
-    activeMintMode === "delivery"
-      ? "NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT"
-      : "NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT";
+  const activeMintMode: ActiveMintMode = "standard";
+  const activeMintContract = CONTRACT_1155_STANDARD;
+  const activeMintAbi = realife1155Abi;
+  const activeMintEnvName = "NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT";
 
   const { data: mintFeeWeiRaw } = useReadContract({
     address: activeMintContract,
@@ -1567,31 +1395,6 @@ export default function MintForm() {
   const mintFeeWei = (typeof mintFeeWeiRaw === "bigint"
     ? mintFeeWeiRaw
     : 0n) as bigint;
-
-  const {
-    data: deliveryOnchainApprovedRaw,
-    isLoading: isDeliveryAccessLoading,
-    isFetching: isDeliveryAccessFetching,
-    refetch: refetchDeliveryOnchainAccess,
-  } = useReadContract({
-    address: CONTRACT_1155_DELIVERY,
-    abi: realife1155DeliveryAbi as any,
-    functionName: "allowedDeliveryMinters" as any,
-    args: [((activeAddress || ZERO_ADDRESS) as `0x${string}`)],
-    query: { enabled: Boolean(CONTRACT_1155_DELIVERY && activeAddress) },
-  });
-
-  const deliveryOnchainApproved = Boolean(deliveryOnchainApprovedRaw);
-
-  const deliveryDbBlocked = isDeliveryMode && !approvedPhysicalSeller;
-  const deliveryChainBlocked =
-    isDeliveryMode &&
-    Boolean(CONTRACT_1155_DELIVERY) &&
-    Boolean(activeAddress) &&
-    !isDeliveryAccessLoading &&
-    !deliveryOnchainApproved;
-
-  const deliveryBlocked = deliveryDbBlocked || deliveryChainBlocked;
 
   function resetPreparedState() {
     setTokenURI(null);
@@ -1624,14 +1427,6 @@ export default function MintForm() {
     setServiceArea("");
     setPreviewCategory("Other");
   }
-
-  useEffect(() => {
-    if (!approvedPhysicalSeller && deliveryMode === "delivery") {
-      setDeliveryMode("none");
-      resetPreparedState();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [approvedPhysicalSeller]);
 
   useEffect(() => {
     if (!isLocalService && (serviceCountry || serviceCity || serviceArea)) {
@@ -1839,11 +1634,8 @@ export default function MintForm() {
     }
 
     const data = encodeFunctionData({
-      abi: activeMintAbi as any,
-      functionName:
-        activeMintMode === "delivery"
-          ? ("createDeliveryEdition" as any)
-          : ("createEdition" as any),
+      abi: realife1155Abi as any,
+      functionName: "createEdition" as any,
       args: [amount, uri],
     });
 
@@ -1895,6 +1687,7 @@ export default function MintForm() {
       formData.append("description", description.trim());
       formData.append("project", project);
       formData.append("brand", brand.trim());
+      formData.append("offerType", offerType);
       formData.append("deliveryMode", deliveryMode);
 
       const res = await fetch(AI_SUGGEST_URL, {
@@ -1922,6 +1715,9 @@ export default function MintForm() {
           : null,
         title: suggestionRaw.title ? String(suggestionRaw.title) : null,
         brand: suggestionRaw.brand ? String(suggestionRaw.brand) : null,
+        description: suggestionRaw.description
+          ? String(suggestionRaw.description)
+          : null,
         fulfillmentType: normalizeFulfillmentType(suggestionRaw.fulfillmentType),
         suggestedMarketType:
           normalizeSuggestedMarketType(suggestionRaw.suggestedMarketType) ||
@@ -1950,6 +1746,11 @@ export default function MintForm() {
 
     resetPreparedState();
 
+    const suggestedOfferType = offerTypeFromAiSuggestion(aiSuggestion);
+    if (suggestedOfferType) {
+      setOfferType(suggestedOfferType);
+    }
+
     if (aiSuggestion.category) {
       setCategory(normalizeCategoryValue(aiSuggestion.category));
     }
@@ -1973,12 +1774,15 @@ export default function MintForm() {
     if (aiSuggestion.title !== null) {
       setName(aiSuggestion.title);
     }
+
+    if (aiSuggestion.description !== null) {
+      setDescription(aiSuggestion.description);
+    }
   }
 
   const requiredContractOk = Boolean(activeMintContract);
-  const canPrepare =
-    Boolean(file) && Boolean(name.trim()) && requiredContractOk && !deliveryBlocked;
-  const canMint = Boolean(tokenURI) && requiredContractOk && !deliveryBlocked;
+  const canPrepare = Boolean(file) && Boolean(name.trim()) && requiredContractOk;
+  const canMint = Boolean(tokenURI) && requiredContractOk;
   const busy = step !== "idle" || isWalletPromptOpen || isMining || isSwitching;
 
   async function handlePrepare() {
@@ -1986,18 +1790,6 @@ export default function MintForm() {
 
     if (!activeMintContract) {
       setError(`Missing ${activeMintEnvName} in Railway/ENV`);
-      return;
-    }
-
-    if (deliveryDbBlocked) {
-      setError("Delivery mode is available only for approved seller wallets.");
-      return;
-    }
-
-    if (deliveryChainBlocked) {
-      setError(
-        "This wallet is not allowlisted on-chain for the delivery mint contract."
-      );
       return;
     }
 
@@ -2029,6 +1821,7 @@ export default function MintForm() {
       formData.append("itemType", itemType.trim());
       formData.append("item", itemLabel.trim());
       formData.append("brand", brand.trim());
+      formData.append("offerType", offerType);
       formData.append("deliveryMode", deliveryMode);
       formData.append("deliveryEnabled", isDeliveryMode ? "true" : "false");
       formData.append(
@@ -2114,22 +1907,6 @@ export default function MintForm() {
       setError(`Missing ${activeMintEnvName} in Railway/ENV`);
       return;
     }
-
-    if (activeMintMode === "delivery") {
-      if (!approvedPhysicalSeller) {
-        setError("Delivery mode is available only for approved seller wallets.");
-        return;
-      }
-
-      const freshAllowed = await refetchDeliveryOnchainAccess();
-      if (!freshAllowed.data) {
-        setError(
-          "This wallet is not allowlisted on-chain for the delivery mint contract."
-        );
-        return;
-      }
-    }
-
     try {
       await ensureCorrectNetwork();
 
@@ -2152,14 +1929,6 @@ export default function MintForm() {
       const hash =
         activeWalletKind === "EMBEDDED"
           ? await sendEmbeddedMintTransaction(amount, tokenURI)
-          : activeMintMode === "delivery"
-          ? await writeContractAsync({
-              address: activeMintContract,
-              abi: realife1155DeliveryAbi as any,
-              functionName: "createDeliveryEdition" as any,
-              args: [amount, tokenURI],
-              value: mintFeeWei > 0n ? mintFeeWei : undefined,
-            })
           : await writeContractAsync({
               address: activeMintContract,
               abi: realife1155Abi as any,
@@ -2196,60 +1965,13 @@ export default function MintForm() {
         isMining={isMining}
         isSuccess={isSuccess}
         mintFeeWei={mintFeeWei}
-        approvedPhysicalSeller={approvedPhysicalSeller}
+        offerType={offerType}
         deliveryMode={deliveryMode}
-        activeMintMode={activeMintMode}
-        deliveryOnchainApproved={deliveryOnchainApproved}
-        deliveryAccessLoading={
-          isDeliveryAccessLoading || isDeliveryAccessFetching
-        }
         fulfillmentType={fulfillmentType}
         suggestedMarketType={suggestedMarketType}
       />
 
       <div className="space-y-8">
-        <Card>
-          <div className="mb-4 flex items-end justify-between">
-            <div>
-              <div className="text-sm font-extrabold tracking-tight">
-                Select project
-              </div>
-              <div className="mt-1 text-[11px] text-white/55">
-                Choose the context for your mint.
-              </div>
-            </div>
-            <Pill>
-              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
-              Required
-            </Pill>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-            {PROJECTS.map((p) => {
-              const active = project === p;
-              return (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => {
-                    resetPreparedState();
-                    setProject(p);
-                  }}
-                  className={[
-                    "rounded-2xl border px-4 py-2.5 text-sm font-extrabold transition",
-                    "shadow-[0_16px_40px_rgba(0,0,0,0.35)]",
-                    active
-                      ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                      : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
-                  ].join(" ")}
-                >
-                  {p}
-                </button>
-              );
-            })}
-          </div>
-        </Card>
-
         <Card>
           <div className="mb-4 flex items-end justify-between">
             <div>
@@ -2511,6 +2233,17 @@ export default function MintForm() {
                 </div>
               </div>
 
+              {aiSuggestion.description ? (
+                <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
+                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
+                    Description
+                  </div>
+                  <div className="mt-2 text-xs leading-relaxed text-white/70">
+                    {aiSuggestion.description}
+                  </div>
+                </div>
+              ) : null}
+
               {aiSuggestion.reasoning ? (
                 <div className="mt-4 text-[12px] leading-relaxed text-white/65">
                   {aiSuggestion.reasoning}
@@ -2705,10 +2438,10 @@ export default function MintForm() {
           <div className="mb-4 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
-                Delivery option
+                Offer type
               </div>
               <div className="mt-1 text-[11px] text-white/55">
-                Choose whether this edition is standard or delivery-enabled.
+                Choose what you are creating. This manual choice controls standard vs protected routing.
               </div>
             </div>
             <Pill>
@@ -2717,133 +2450,65 @@ export default function MintForm() {
             </Pill>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => {
-                setError("");
-                resetPreparedState();
-                setDeliveryMode("none");
-              }}
-              className={[
-                "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
-                deliveryMode === "none"
-                  ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                  : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
-              ].join(" ")}
-            >
-              <div className="text-sm font-extrabold">Without delivery</div>
-              <div
-                className={
-                  deliveryMode === "none"
-                    ? "mt-1 text-xs text-black/70"
-                    : "mt-1 text-xs text-white/55"
-                }
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {[
+              {
+                key: "collectible" as const,
+                title: "Collectible / NFT",
+                text: "Art, meme, digital collectible, or experimental NFT. Usually standard marketplace.",
+              },
+              {
+                key: "physical_product" as const,
+                title: "Product / item",
+                text: "Physical product, merch, food, accessory, ticket, or item with delivery/pickup.",
+              },
+              {
+                key: "digital_service" as const,
+                title: "Digital service",
+                text: "Website, design, marketing, automation, research, or other remote work.",
+              },
+              {
+                key: "online_session" as const,
+                title: "Online session",
+                text: "Consultation, coaching, lesson, training, call, or remote meeting.",
+              },
+              {
+                key: "local_service" as const,
+                title: "Local service",
+                text: "Offline service, repair, tour, beauty, fitness, photo, cleaning, or in-person work.",
+              },
+            ].map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => {
+                  setError("");
+                  resetPreparedState();
+                  setOfferType(option.key);
+                }}
+                className={[
+                  "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
+                  offerType === option.key
+                    ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                    : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
+                ].join(" ")}
               >
-                Standard public mint. Good for collectible NFTs and also
-                service-style NFTs that can later route to Protected flow.
-              </div>
-            </button>
-
-            <button
-              type="button"
-              disabled={!approvedPhysicalSeller}
-              onClick={() => {
-                if (!approvedPhysicalSeller) return;
-                setError("");
-                resetPreparedState();
-                setDeliveryMode("delivery");
-              }}
-              className={[
-                "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
-                !approvedPhysicalSeller
-                  ? "cursor-not-allowed border-white/10 bg-white/[0.03] text-white/45"
-                  : deliveryMode === "delivery"
-                  ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                  : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
-              ].join(" ")}
-            >
-              <div className="text-sm font-extrabold">With delivery</div>
-              <div
-                className={
-                  !approvedPhysicalSeller
-                    ? "mt-1 text-xs text-white/40"
-                    : deliveryMode === "delivery"
-                    ? "mt-1 text-xs text-black/70"
-                    : "mt-1 text-xs text-white/55"
-                }
-              >
-                Delivery-enabled physical item flow. Available only for approved
-                seller wallets.
-              </div>
-            </button>
+                <div className="text-sm font-extrabold">{option.title}</div>
+                <div
+                  className={
+                    offerType === option.key
+                      ? "mt-1 text-xs text-black/70"
+                      : "mt-1 text-xs text-white/55"
+                  }
+                >
+                  {option.text}
+                </div>
+              </button>
+            ))}
           </div>
 
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/65">
-            {meLoaded ? (
-              <>
-                <div>
-                  Delivery DB access:{" "}
-                  <span
-                    className={
-                      approvedPhysicalSeller
-                        ? "font-extrabold text-emerald-200"
-                        : "font-extrabold text-white"
-                    }
-                  >
-                    {approvedPhysicalSeller ? "approved" : "standard wallet"}
-                  </span>
-                  {approvedPhysicalAt ? (
-                    <>
-                      {" "}
-                      • enabled at{" "}
-                      <span className="text-white">
-                        {new Date(approvedPhysicalAt).toLocaleString()}
-                      </span>
-                    </>
-                  ) : null}
-                  {approvedPhysicalNote ? (
-                    <>
-                      {" "}
-                      • note:{" "}
-                      <span className="text-white">{approvedPhysicalNote}</span>
-                    </>
-                  ) : null}
-                </div>
-
-                <div className="mt-2">
-                  Delivery contract allowlist:{" "}
-                  <span
-                    className={
-                      isDeliveryAccessLoading || isDeliveryAccessFetching
-                        ? "font-extrabold text-white"
-                        : deliveryOnchainApproved
-                        ? "font-extrabold text-emerald-200"
-                        : "font-extrabold text-rose-200"
-                    }
-                  >
-                    {isDeliveryAccessLoading || isDeliveryAccessFetching
-                      ? "checking…"
-                      : deliveryOnchainApproved
-                      ? "granted"
-                      : "missing"}
-                  </span>
-                </div>
-
-                {!approvedPhysicalSeller ? (
-                  <div className="mt-2">
-                    Mint with delivery is disabled until admin approval.
-                  </div>
-                ) : !deliveryOnchainApproved ? (
-                  <div className="mt-2 text-rose-200">
-                    Your profile is approved, but the wallet still needs on-chain
-                    allowlist access for the delivery mint contract.
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <>Checking delivery access…</>
-            )}
+          <div className="mt-4 rounded-2xl border border-amber-500/15 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-50/80">
+            One public mint contract is used for everything. Products and services become protected candidates through metadata; collectibles stay standard unless you choose a real product/service type.
           </div>
         </Card>
 
@@ -2946,9 +2611,7 @@ export default function MintForm() {
                 Mint contract
               </div>
               <div className="mt-2 text-sm font-extrabold text-white">
-                {activeMintMode === "delivery"
-                  ? "Delivery mint contract"
-                  : "Standard mint contract"}
+                Standard public mint contract
               </div>
             </div>
 
@@ -3098,7 +2761,6 @@ export default function MintForm() {
                 type="button"
                 onClick={() => {
                   void refetchBalance();
-                  void refetchDeliveryOnchainAccess();
                 }}
                 disabled={!mounted || !connected || isBalanceFetching}
                 className="h-10 rounded-2xl border border-white/10 bg-white/[0.06] px-4 text-xs font-extrabold transition hover:bg-white/10 disabled:opacity-40 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
@@ -3169,7 +2831,7 @@ export default function MintForm() {
           <div className="mb-3 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
-                Brand / maker
+                Brand / seller name
               </div>
               <div className="mt-1 text-[11px] text-white/55">
                 Brand, studio, creator mark or collection name.
@@ -3183,7 +2845,7 @@ export default function MintForm() {
 
           <input
             type="text"
-            placeholder="Example: Atelier Realife / Veronica Martineli / Custom Studio"
+            placeholder="Example: Realife / Kyiv Custom Studio / Anna Design / My Coffee Shop"
             value={brand}
             onChange={(e) => {
               resetPreparedState();
@@ -3235,7 +2897,7 @@ export default function MintForm() {
                 Description
               </div>
               <div className="mt-1 text-[11px] text-white/55">
-                Story builds credibility.
+                AI can help write this after upload.
               </div>
             </div>
             <Pill>
@@ -3245,7 +2907,7 @@ export default function MintForm() {
           </div>
 
           <textarea
-            placeholder="Tell the story of your work..."
+            placeholder="Describe what the buyer gets, delivery/service details, and any proof or conditions..."
             value={description}
             onChange={(e) => {
               resetPreparedState();
@@ -3308,8 +2970,6 @@ export default function MintForm() {
                 ? "Waiting for wallet signature…"
                 : step === "mining" || isMining
                 ? "Creating on-chain (mining)…"
-                : activeMintMode === "delivery"
-                ? "2) Mint via delivery contract"
                 : "2) Mint"}
             </GoldButton>
           </div>
@@ -3324,17 +2984,13 @@ export default function MintForm() {
           ) : null}
 
           <div className="mt-3 text-[11px] leading-relaxed text-white/55">
-            Current mode:{" "}
+            Offer type:{" "}
             <span className="font-semibold text-white">
-              {deliveryMode === "delivery"
-                ? "With delivery"
-                : "Without delivery"}
+              {humanOfferType(offerType)}
             </span>
             {" · "}
             Mint contract:{" "}
-            <span className="font-semibold text-white">
-              {activeMintMode === "delivery" ? "Delivery" : "Standard"}
-            </span>
+            <span className="font-semibold text-white">Standard</span>
             {" · "}
             NFT class:{" "}
             <span className="font-semibold text-white">
@@ -3470,10 +3126,10 @@ export default function MintForm() {
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                Delivery mode
+                Offer type
               </div>
               <div className="mt-2 text-sm font-extrabold text-white">
-                {deliveryMode === "delivery" ? "With delivery" : "Without delivery"}
+                {humanOfferType(offerType)}
               </div>
             </div>
 

@@ -63,8 +63,6 @@ export default function CreatePage() {
   const publicStandardMintContract =
     process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "not-set";
 
-  const publicDeliveryMintContract =
-    process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT || "not-set";
 
   return (
     <div className="space-y-6">
@@ -94,7 +92,7 @@ export default function CreatePage() {
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    Standard + delivery mint contracts
+                    One public mint contract
                   </span>
                 </Pill>
 
@@ -140,21 +138,16 @@ export default function CreatePage() {
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                This page does{" "}
-                <span className="font-semibold text-white">
-                  not choose a marketplace directly
-                </span>
-                . It creates the NFT and stores enough metadata so the platform
-                can later decide the correct listing flow.
+                This page does not expose separate mint contracts. It creates the NFT with one public contract and stores enough metadata so the platform can route collectibles to standard listings and real products/services to protected flow.
               </div>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
                 The mint form uses a real-world structure:
                 <span className="font-semibold text-white">
                   {" "}
-                  main category → item type → specific item / offer → subcategory
+                  offer type → main category → item type → specific item / offer
                 </span>
-                . For offline services, it also stores{" "}
+                . The seller manually chooses whether this is a collectible, product, digital service, online session, or local service. For offline services, it also stores{" "}
                 <span className="font-semibold text-white">
                   country, city, and service area
                 </span>
@@ -165,7 +158,7 @@ export default function CreatePage() {
                 You can also use{" "}
                 <span className="font-semibold text-white">AI Suggest</span> to
                 inspect the uploaded image and propose category, item type,
-                item label, subcategory, brand, and title.
+                item label, subcategory, brand, title, and description.
               </div>
 
               <div className="mt-4 flex max-w-5xl flex-wrap gap-2">
@@ -191,21 +184,11 @@ export default function CreatePage() {
                   </span>
                 ))}
               </div>
-
-              <div className="mt-4 grid max-w-4xl grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
-                  Public standard mint contract:{" "}
-                  <span className="break-all font-semibold text-white">
-                    {publicStandardMintContract}
-                  </span>
-                </div>
-
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
-                  Public delivery mint contract:{" "}
-                  <span className="break-all font-semibold text-white">
-                    {publicDeliveryMintContract}
-                  </span>
-                </div>
+              <div className="mt-4 max-w-4xl rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
+                Unified public mint contract: {" "}
+                <span className="break-all font-semibold text-white">
+                  {publicStandardMintContract}
+                </span>
               </div>
 
               <div className="mt-4 grid max-w-6xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -252,14 +235,13 @@ export default function CreatePage() {
 
                 <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
                   <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Physical delivery flow
+                    Product / item flow
                   </div>
                   <div className="mt-2 text-sm font-extrabold text-white">
-                    Mint via delivery contract
+                    Mint via unified contract
                   </div>
                   <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Only for approved seller wallets. Used for delivery-enabled
-                    physical items and protected trust flow.
+                    Any testnet user can create product offers. Product / delivery behavior is stored in metadata and can later route into protected trust flow.
                   </div>
                 </div>
               </div>
@@ -287,7 +269,7 @@ export default function CreatePage() {
                   </div>
                   <div className="mt-2 text-xs leading-relaxed text-white/60">
                     AI can suggest category, item type, item label, niche,
-                    title, and brand from the uploaded image.
+                    title, brand, and description from the uploaded image.
                   </div>
                 </div>
               </div>
@@ -336,7 +318,7 @@ export default function CreatePage() {
             <span className="opacity-60">ERC-1155</span>
             <span className="opacity-60">IPFS</span>
             <span className="opacity-60">Public mint</span>
-            <span className="opacity-60">Standard + delivery</span>
+            <span className="opacity-60">Unified mint</span>
             <span className="opacity-60">Protected services</span>
             <span className="opacity-60">Local / offline</span>
             <span className="opacity-60">AI suggest</span>
