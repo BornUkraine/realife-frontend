@@ -518,6 +518,7 @@ function getMarketViewConfig(view: MarketView) {
           "Secondary NFT trading page for Realife Cafe NFTs that were bought through the official cafe flow and later listed by holders.",
         contract: CAFE_CONTRACT || null,
         marketType: null as MarketType | null,
+        fulfillmentGroup: null as "product" | "service" | "standard" | null,
       };
 
     case "store":
@@ -528,28 +529,29 @@ function getMarketViewConfig(view: MarketView) {
           "Secondary NFT trading page for official Realife Store NFTs later listed by holders.",
         contract: STORE_CONTRACT || null,
         marketType: null as MarketType | null,
+        fulfillmentGroup: null as "product" | "service" | "standard" | null,
       };
 
     case "publicProtected":
       return {
-        label: "Services • Protected",
-        title: "Protected Services Trading",
+        label: "Service • Protected",
+        title: "Service Protected NFT Trading",
         subtitle:
-          "Service NFTs minted through the unified public mint contract and listed through the PROTECTED escrow flow. This view is for digital services, online sessions and local/offline services.",
+          "Service NFTs minted through the standard public mint contract and listed through the PROTECTED escrow flow. This view is for digital services, online sessions and local/offline services.",
         contract: PUBLIC_STANDARD_CONTRACT || null,
         marketType: "PROTECTED" as MarketType,
-        fulfillmentGroup: "service" as const,
+        fulfillmentGroup: "service" as "product" | "service" | "standard" | null,
       };
 
     case "publicDelivery":
       return {
         label: "Products • Protected",
-        title: "Protected Product Trading",
+        title: "Products Protected NFT Trading",
         subtitle:
-          "Product and delivery-offer NFTs minted through the unified public mint contract and listed through the PROTECTED escrow flow for physical goods, fulfillment and buyer confirmation.",
+          "Product NFTs minted through the unified public mint contract and listed through the PROTECTED escrow flow for physical goods, delivery, fulfillment and buyer confirmation.",
         contract: PUBLIC_STANDARD_CONTRACT || null,
         marketType: "PROTECTED" as MarketType,
-        fulfillmentGroup: "product" as const,
+        fulfillmentGroup: "product" as "product" | "service" | "standard" | null,
       };
 
     case "publicStandard":
@@ -557,9 +559,10 @@ function getMarketViewConfig(view: MarketView) {
         label: "Public Mint • Standard",
         title: "Public Standard NFT Trading",
         subtitle:
-          "User-created collectible NFTs minted through the unified public mint contract and listed in the STANDARD market flow without protected escrow.",
+          "User-created NFTs minted through the standard public mint contract and listed in the STANDARD market flow without protected escrow or delivery flow.",
         contract: PUBLIC_STANDARD_CONTRACT || null,
         marketType: "STANDARD" as MarketType,
+        fulfillmentGroup: "standard" as "product" | "service" | "standard" | null,
       };
 
     case "all":
@@ -568,9 +571,10 @@ function getMarketViewConfig(view: MarketView) {
         label: "All Trading NFTs",
         title: "NFT Trading",
         subtitle:
-          "All verified Realife NFTs available for secondary trading, with protected products/services and public standard NFTs before Cafe and Store resale.",
+          "All verified Realife NFTs available for secondary trading, with the main focus on Service Protected, Products Protected and Public Standard flows before Cafe and Store resale.",
         contract: null,
         marketType: null as MarketType | null,
+        fulfillmentGroup: null as "product" | "service" | "standard" | null,
       };
   }
 }
@@ -595,21 +599,21 @@ function getMarketViewNote(view: MarketView) {
       return {
         tone: "border-violet-500/20 bg-violet-500/10 text-violet-100",
         text:
-          "Protected Services shows NFTs from the unified public mint contract listed through the PROTECTED escrow flow. This is the main service direction for digital services, online sessions and local/offline services with buyer confirmation.",
+          "Service Protected shows NFTs from the standard public mint contract listed through the PROTECTED escrow flow. This is the main service direction for digital services, online sessions and local/offline services with buyer confirmation.",
       };
 
     case "publicDelivery":
       return {
         tone: "border-amber-500/20 bg-amber-500/10 text-amber-100",
         text:
-          "Protected Products shows product and delivery-offer NFTs from the unified public mint contract listed through the PROTECTED escrow flow. This is the main direction for physical products, fulfillment, shipping coordination and buyer confirmation.",
+          "Products Protected shows NFTs from the unified public mint contract listed through the PROTECTED escrow flow. This is the main product direction for physical goods, delivery, fulfillment and buyer confirmation.",
       };
 
     case "publicStandard":
       return {
         tone: "border-emerald-500/20 bg-emerald-500/10 text-emerald-100",
         text:
-          "Public Standard shows collectible NFTs from the unified public mint contract listed through the STANDARD market flow, without protected escrow.",
+          "Public Standard shows NFTs from the standard public mint contract listed through the STANDARD market flow, without protected escrow and without delivery flow.",
       };
 
     default:
@@ -883,8 +887,8 @@ export default function TradingClient({
         params.set("marketType", cfg.marketType);
       }
 
-      if ((cfg as any).fulfillmentGroup) {
-        params.set("fulfillmentGroup", String((cfg as any).fulfillmentGroup));
+      if (cfg.fulfillmentGroup) {
+        params.set("fulfillmentGroup", cfg.fulfillmentGroup);
       }
 
       const activeFilters = compactFilters(filterOverride || filters);
@@ -1259,7 +1263,7 @@ export default function TradingClient({
                     {(
                       [
                         ["all", "All Trading NFTs"],
-                        ["publicProtected", "Services • Protected"],
+                        ["publicProtected", "Service • Protected"],
                         ["publicDelivery", "Products • Protected"],
                         ["publicStandard", "Public Mint • Standard"],
                         ["cafe", "Realife Cafe NFT"],
@@ -1425,7 +1429,7 @@ export default function TradingClient({
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                     />
                     <div className="mt-2 text-[11px] leading-relaxed text-white/35">
-                      Searches metadata + AI visual index from unified public mint, legacy delivery, cafe, store, images, posters and visible text.
+                      Searches metadata + AI visual index from any NFT contract: standard mint, delivery mint, cafe, store, images, posters and visible text.
                     </div>
                   </div>
 
@@ -1679,6 +1683,16 @@ export default function TradingClient({
 
                   const rowMarketType: MarketType = x.resolvedMarketType;
                   const isProtected = rowMarketType === "PROTECTED";
+                  const rowFulfillmentType = String(
+                    x.fulfillmentType || x.mint?.fulfillmentType || ""
+                  ).toUpperCase();
+                  const isProductProtected =
+                    isProtected &&
+                    (rowFulfillmentType === "PHYSICAL_GOOD" ||
+                      Boolean(x.deliveryEnabled || x.mint?.deliveryEnabled) ||
+                      Boolean(
+                        x.physicalItemIncluded || x.mint?.physicalItemIncluded
+                      ));
 
                   const showTradingOnlyBadge = isStore || isCafe;
                   const showNoDeliveryBadge = isStore;
@@ -1692,10 +1706,8 @@ export default function TradingClient({
                     ? x.collection || "CAFE"
                     : isStore
                     ? x.collection || "STORE"
-                    : isPublicDeliveryContract
-                    ? "LEGACY DELIVERY"
-                    : isProtected && x.protectedSubtype === "PHYSICAL_GOOD"
-                    ? "PRODUCT PROTECTED"
+                    : isProductProtected
+                    ? "PRODUCTS PROTECTED"
                     : isProtected && isPublicStandardContract
                     ? "SERVICE PROTECTED"
                     : isProtected
@@ -1708,7 +1720,7 @@ export default function TradingClient({
                     ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
                     : isStore
                     ? "border-sky-500/20 bg-sky-500/10 text-sky-100"
-                    : isPublicDeliveryContract
+                    : isProductProtected
                     ? "border-amber-500/20 bg-amber-500/10 text-amber-100"
                     : isProtected
                     ? "border-violet-500/20 bg-violet-500/10 text-violet-100"
@@ -1847,7 +1859,7 @@ export default function TradingClient({
 
                           {showDeliveryContractBadge ? (
                             <span className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-[10px] font-bold text-amber-100">
-                              LEGACY DELIVERY
+                              DELIVERY PROTECTED
                             </span>
                           ) : null}
 

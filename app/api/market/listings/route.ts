@@ -173,6 +173,56 @@ function mediaFromMint(m: any) {
   };
 }
 
+
+function fulfillmentGroupFromSimple(input: {
+  contract?: string | null;
+  marketType?: string | null;
+  fulfillmentType?: string | null;
+  deliveryEnabled?: boolean | null;
+  physicalItemIncluded?: boolean | null;
+  category?: string | null;
+  subcategory?: string | null;
+}): "product" | "service" | "standard" {
+  const resolved = suggestedMarketTypeFromSimple(input);
+  if (resolved !== "PROTECTED") return "standard";
+
+  const ft = String(input.fulfillmentType || "").toUpperCase();
+
+  if (
+    ft === "PHYSICAL_GOOD" ||
+    input.deliveryEnabled ||
+    input.physicalItemIncluded
+  ) {
+    return "product";
+  }
+
+  if (
+    ft === "DIGITAL_SERVICE" ||
+    ft === "ONLINE_SESSION" ||
+    ft === "LOCAL_SERVICE"
+  ) {
+    return "service";
+  }
+
+  const text = `${input.category || ""} ${input.subcategory || ""}`.toLowerCase();
+
+  if (
+    text.includes("service") ||
+    text.includes("website") ||
+    text.includes("design") ||
+    text.includes("development") ||
+    text.includes("consult") ||
+    text.includes("coaching") ||
+    text.includes("session") ||
+    text.includes("tour") ||
+    text.includes("repair")
+  ) {
+    return "service";
+  }
+
+  return "product";
+}
+
 function textMatch(value: unknown, q: string) {
   return String(value || "").toLowerCase().includes(q.toLowerCase());
 }
@@ -284,6 +334,13 @@ export async function GET(req: NextRequest) {
   const serviceCity = cleanText(url.searchParams.get("serviceCity"), 120);
   const serviceArea = cleanText(url.searchParams.get("serviceArea"), 120);
   const fulfillmentType = cleanText(url.searchParams.get("fulfillmentType"), 80);
+  const fulfillmentGroupRaw = cleanText(url.searchParams.get("fulfillmentGroup"), 40);
+  const fulfillmentGroup =
+    fulfillmentGroupRaw === "product" ||
+    fulfillmentGroupRaw === "service" ||
+    fulfillmentGroupRaw === "standard"
+      ? fulfillmentGroupRaw
+      : null;
 
   const minPriceWei = parseWei(url.searchParams.get("minPriceWei"));
   const maxPriceWei = parseWei(url.searchParams.get("maxPriceWei"));
@@ -437,6 +494,23 @@ export async function GET(req: NextRequest) {
         });
 
         return resolved === requestedMarketType;
+      });
+    }
+
+    if (fulfillmentGroup) {
+      rows = rows.filter((r) => {
+        const resolvedGroup = fulfillmentGroupFromSimple({
+          contract: r.contract,
+          marketType: r.marketType,
+          fulfillmentType: r.fulfillmentType ?? r.mint?.fulfillmentType,
+          deliveryEnabled: r.deliveryEnabled ?? r.mint?.deliveryEnabled,
+          physicalItemIncluded:
+            r.physicalItemIncluded ?? r.mint?.physicalItemIncluded,
+          category: r.category ?? r.mint?.category,
+          subcategory: r.subcategory ?? r.mint?.subcategory,
+        });
+
+        return resolvedGroup === fulfillmentGroup;
       });
     }
 
@@ -643,6 +717,7 @@ export async function GET(req: NextRequest) {
         category,
         subcategory,
         fulfillmentType,
+        fulfillmentGroup,
         serviceCountry,
         serviceCity,
         serviceArea,

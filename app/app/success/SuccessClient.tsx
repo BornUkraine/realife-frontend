@@ -327,7 +327,7 @@ export default function SuccessClient({
       ? `/nft/${fullChainId}/${contract}/${encodeURIComponent(tokenId)}`
       : "/app/trading";
   const galleryHref = resolvedViewerKey
-    ? `/app/profile/${encodeURIComponent(resolvedViewerKey)}/nfts`
+    ? `/app/profile/${resolvedViewerKey}/nfts`
     : "/app/profile";
 
   const walletProofLabel = useMemo(() => {

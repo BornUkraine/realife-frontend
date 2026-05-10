@@ -154,7 +154,7 @@ export default async function TradingPage() {
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    Products + Services Protected
+                    Service + Products Protected
                   </span>
                 </Pill>
 
@@ -173,10 +173,11 @@ export default async function TradingPage() {
               </h1>
 
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
-                Discover and trade Realife NFTs with a clear structure: Protected
-                Services and Protected Products are minted through the same public
-                ERC-1155 contract and routed by metadata, while Public Standard is
-                for normal NFTs and Cafe/Store resale stays separate.
+                Discover and trade Realife NFTs with a clear structure: Service
+                Protected for services, Products Protected for physical goods
+                and delivery offers, Public Standard for normal NFTs, and
+                Cafe/Store resale at the end. Everything new is minted through
+                the unified public ERC-1155 contract and routed by metadata.
               </p>
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
@@ -187,13 +188,13 @@ export default async function TradingPage() {
                 for listed NFTs. Real Marketing remains the primary storefront
                 flow for official product purchase, delivery and redemption.
                 The main protected focus is split into two directions: services
-                and products. Both use the unified public mint contract; metadata
-                decides whether the listing goes to protected escrow or standard trading.
+                and products, both created through the unified public mint
+                contract and routed by metadata.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <ActionLink href="/app/trading/service-protected" primary>
-                  Services Protected
+                  Service Protected
                 </ActionLink>
 
                 <ActionLink href="/app/trading/public-delivery">
@@ -212,11 +213,11 @@ export default async function TradingPage() {
               <div className="mt-7 grid grid-cols-1 gap-4 md:grid-cols-3">
                 <StatCard
                   label="Main flow"
-                  value="Services Protected"
+                  value="Service Protected"
                   tone="gold"
                 />
                 <StatCard
-                  label="Delivery flow"
+                  label="Products flow"
                   value="Products Protected"
                   tone="violet"
                 />
@@ -246,7 +247,7 @@ export default async function TradingPage() {
           <div className="flex flex-wrap items-center gap-4">
             <span className="opacity-60">AI search</span>
             <span className="opacity-60">Secondary market</span>
-            <span className="opacity-60">Services Protected</span>
+            <span className="opacity-60">Service Protected</span>
             <span className="opacity-60">Products Protected</span>
             <span className="opacity-60">Public Standard</span>
             <span className="opacity-60">Cafe resale</span>
