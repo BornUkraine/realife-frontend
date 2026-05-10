@@ -1225,7 +1225,7 @@ export default function QuickList1155({
                 "border border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-100",
               text: (
                 <>
-                  This asset should use{" "}
+                  This asset should use the{" "}
                   <span className="font-black">PROTECTED</span> market.
                 </>
               ),

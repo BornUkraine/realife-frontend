@@ -974,7 +974,7 @@ function MarketNotice({
   if (contractView === "publicDelivery") {
     return (
       <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] leading-relaxed text-violet-100">
-        <div className="mb-1 font-black">Public Delivery NFT</div>
+        <div className="mb-1 font-black">Legacy Delivery NFT</div>
         <div>
           This NFT uses the <span className="font-black">PROTECTED marketplace</span>.
           Escrow / refund / protected order flow is enabled for this asset.
@@ -991,11 +991,11 @@ function MarketNotice({
       <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-4 text-[12px] leading-relaxed text-fuchsia-100">
         <div className="mb-1 font-black">Public Standard Contract • Protected Asset</div>
         <div>
-          This NFT is stored in the standard mint contract, but it should trade on the{" "}
+          This NFT is stored in the unified public mint contract, but it should trade on the{" "}
           <span className="font-black">PROTECTED marketplace</span>.
         </div>
         <div className="mt-2 text-fuchsia-100/80">
-          This is used for protected goods / services / sessions.
+          This is used for protected products / services / sessions.
         </div>
       </div>
     );
@@ -2698,7 +2698,7 @@ export default function TradingPanel1155({
                 <div className="mt-4 rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-4 text-[12px] text-fuchsia-100">
                   This asset should use the{" "}
                   <span className="font-black">PROTECTED marketplace</span> because it
-                  behaves like a protected good / service / session.
+                  behaves like a protected product / service / session.
                 </div>
               ) : contractView === "publicStandard" ? (
                 <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100">
@@ -3145,7 +3145,7 @@ export default function TradingPanel1155({
                       <div className="mt-4 rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-4 text-[12px] text-fuchsia-100">
                         This asset is traded through the{" "}
                         <span className="font-black">PROTECTED marketplace</span>.
-                        Protected flow is used for goods / services / sessions.
+                        Protected flow is used for products / services / sessions.
                       </div>
                     ) : contractView === "publicStandard" ? (
                       <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100">

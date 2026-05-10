@@ -327,7 +327,7 @@ export default function SuccessClient({
       ? `/nft/${fullChainId}/${contract}/${encodeURIComponent(tokenId)}`
       : "/app/trading";
   const galleryHref = resolvedViewerKey
-    ? `/u/${resolvedViewerKey}/nfts`
+    ? `/app/profile/${encodeURIComponent(resolvedViewerKey)}/nfts`
     : "/app/profile";
 
   const walletProofLabel = useMemo(() => {
@@ -784,7 +784,7 @@ export default function SuccessClient({
                     <div className="mt-6 flex flex-wrap gap-3">
                       <GoldButton href={nftHref}>Open NFT page</GoldButton>
                       <GhostButton href={galleryHref}>My NFT gallery</GhostButton>
-                      <GhostButton href="/app/create">Mint another</GhostButton>
+                      <GhostButton href="/app/create-nft">Mint another</GhostButton>
 
                       {basescanTx ? (
                         <a

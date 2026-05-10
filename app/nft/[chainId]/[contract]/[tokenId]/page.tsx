@@ -1476,9 +1476,9 @@ export default async function NftDetailsPage({
     : isStoreNft
     ? "ERC-1155 • STORE"
     : isUserDelivery1155Nft
-    ? "ERC-1155 • DELIVERY CONTRACT"
+    ? "ERC-1155 • LEGACY DELIVERY CONTRACT"
     : isUserStandard1155Nft
-    ? "ERC-1155 • STANDARD CONTRACT"
+    ? "ERC-1155 • UNIFIED PUBLIC CONTRACT"
     : "ERC-1155";
 
   const origin = await getOrigin();

@@ -105,7 +105,7 @@ export default async function ServiceProtectedTradingPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_0_6px_rgba(139,92,246,0.12)]" />
-                  Service Protected
+                  Services Protected
                 </Pill>
 
                 <Pill>
@@ -129,7 +129,7 @@ export default async function ServiceProtectedTradingPage() {
               </h1>
 
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
-                Service NFTs minted through the standard public mint contract and listed through the PROTECTED escrow flow. This page is focused on digital services, online sessions, local/offline services and buyer confirmation.
+                Service NFTs minted through the unified public mint contract and listed through the PROTECTED escrow flow. This page is focused on digital services, online sessions, local/offline services and buyer confirmation.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">

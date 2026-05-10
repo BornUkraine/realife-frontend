@@ -105,7 +105,7 @@ export default async function DeliveryProtectedTradingPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Pill>
                   <span className="h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_0_6px_rgba(245,158,11,0.12)]" />
-                  Delivery Protected
+                  Products Protected
                 </Pill>
 
                 <Pill>
@@ -122,14 +122,14 @@ export default async function DeliveryProtectedTradingPage() {
               </div>
 
               <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
-                Delivery{" "}
+                Products{" "}
                 <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#fcd34d,#f59e0b,#d97706)]">
                   Protected
                 </span>
               </h1>
 
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
-                Physical product NFTs minted through the delivery public mint contract and listed through the PROTECTED delivery/escrow flow. This page is focused on delivery, fulfillment, shipping coordination and buyer confirmation.
+                Physical product and delivery-offer NFTs minted through the unified public mint contract and listed through the PROTECTED escrow flow. This page is focused on products, fulfillment, shipping coordination and buyer confirmation.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">

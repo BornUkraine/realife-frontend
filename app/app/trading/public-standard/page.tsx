@@ -129,7 +129,7 @@ export default async function PublicStandardTradingPage() {
               </h1>
 
               <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
-                User-created NFTs minted through the standard public mint contract and listed through the STANDARD market flow. This section is for normal secondary trading without protected escrow and without delivery flow.
+                User-created collectible NFTs minted through the unified public mint contract and listed through the STANDARD market flow. This section is for normal secondary trading without protected escrow.
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">

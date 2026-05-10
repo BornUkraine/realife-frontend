@@ -528,7 +528,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     hint:
-      "Use POST /api/mints to save a public mint or a catalog-only cafe/store entry. Public standard mint is open to authenticated users, physical goods require approvedPhysicalSeller, catalogOnly requires admin, txHash is verified on-chain, and fulfillmentType/category/subcategory/serviceCountry/serviceCity/serviceArea are supported.",
+      "Use POST /api/mints to save a public mint or a catalog-only cafe/store entry. Public standard mint is open to authenticated users. Products, services, delivery offers, and standard NFTs are routed by metadata/fulfillmentType. catalogOnly requires admin, txHash is verified on-chain, and fulfillmentType/category/subcategory/serviceCountry/serviceCity/serviceArea are supported.",
   });
 }
 
@@ -887,21 +887,8 @@ export async function POST(req: Request) {
         };
       }
 
-      if (
-        !isCatalogOnly &&
-        isPhysicalFulfillment(finalFulfillmentType) &&
-        !u.approvedPhysicalSeller
-      ) {
-        return {
-          status: 403 as const,
-          body: {
-            ok: false,
-            error: "PHYSICAL_GOOD_NOT_ALLOWED",
-            message:
-              "Physical goods mint is available only for approved seller wallets.",
-          },
-        };
-      }
+      // Unified public mint: physical goods/products are allowed for public users.
+      // Trust is handled later by protected listing, escrow, seller limits and admin moderation.
 
       const whereKey = {
         chainId_contract_tokenId: {
