@@ -1403,7 +1403,8 @@ export default function MintForm() {
     setPreviewCategory("Other");
     setSubmittedMintMode("standard");
     setSubmittedMintContract(undefined);
-    setEmbeddedTxHash(undefined);
+    setSubmittedTxHash(undefined);
+    mintSubmitRef.current = false;
     pushedRef.current = false;
     if (step !== "idle") setStep("idle");
   }
@@ -1491,12 +1492,12 @@ export default function MintForm() {
     posterInputRef.current?.click();
   }
 
-  const [embeddedTxHash, setEmbeddedTxHash] = useState<`0x${string}` | undefined>(undefined);
+  const [submittedTxHash, setSubmittedTxHash] = useState<`0x${string}` | undefined>(undefined);
+  const mintSubmitRef = useRef(false);
 
-  const { data: txHash, writeContractAsync, isPending: isWalletPromptOpen } =
-    useWriteContract();
+  const { writeContractAsync, isPending: isWalletPromptOpen } = useWriteContract();
 
-  const activeTxHash = (embeddedTxHash || txHash) as `0x${string}` | undefined;
+  const activeTxHash = submittedTxHash;
 
   const { isLoading: isMining, isSuccess, data: receipt } =
     useWaitForTransactionReceipt({
@@ -1515,7 +1516,6 @@ export default function MintForm() {
       const finalCategory = previewCategory || category;
       const targetMode = submittedMintMode;
       const targetContract = submittedMintContract;
-      const targetIsDelivery = deliveryMode === "delivery";
 
       const finalServiceCountry = isLocalService ? serviceCountry.trim() : "";
       const finalServiceCity = isLocalService ? serviceCity.trim() : "";
@@ -1552,8 +1552,8 @@ export default function MintForm() {
               standard: "ERC1155",
               supply: clampSupply(supply),
               catalogOnly: false,
-              deliveryEnabled: targetIsDelivery,
-              physicalItemIncluded: targetIsDelivery,
+              deliveryEnabled: targetMode === "delivery",
+              physicalItemIncluded: targetMode === "delivery",
               officialItem: false,
               category: finalCategory,
               subcategory: subcategory.trim() || null,
@@ -1585,7 +1585,7 @@ export default function MintForm() {
       qp.set("itemType", itemType.trim());
       qp.set("item", itemLabel.trim());
       qp.set("brand", brand.trim());
-      qp.set("delivery", targetIsDelivery ? "1" : "0");
+      qp.set("delivery", targetMode === "delivery" ? "1" : "0");
       qp.set("market", suggestedMarketType);
       qp.set("fulfillmentType", fulfillmentType || "");
       qp.set("serviceCountry", finalServiceCountry);
@@ -1656,7 +1656,7 @@ export default function MintForm() {
     const hash = normalizeTxHash(rawHash);
     if (!hash) throw new Error("Embedded wallet did not return transaction hash.");
 
-    setEmbeddedTxHash(hash);
+    setSubmittedTxHash(hash);
     return hash;
   }
 
@@ -1897,6 +1897,10 @@ export default function MintForm() {
   }
 
   async function handleOnchainCreate() {
+    if (mintSubmitRef.current || step === "signing" || step === "mining" || isWalletPromptOpen || isMining) {
+      return;
+    }
+
     setError("");
 
     if (!tokenURI) {
@@ -1908,11 +1912,15 @@ export default function MintForm() {
       setError(`Missing ${activeMintEnvName} in Railway/ENV`);
       return;
     }
+
+    mintSubmitRef.current = true;
+
     try {
       await ensureCorrectNetwork();
 
       const freshBalance = await refetchBalance();
       if (freshBalance.data?.value === 0n) {
+        mintSubmitRef.current = false;
         setError(
           "No gas on Base Sepolia. Open Faucet, get test ETH, then create."
         );
@@ -1920,7 +1928,7 @@ export default function MintForm() {
       }
 
       pushedRef.current = false;
-      setEmbeddedTxHash(undefined);
+      setSubmittedTxHash(undefined);
       setSubmittedMintMode(activeMintMode);
       setSubmittedMintContract(activeMintContract);
       setStep("signing");
@@ -1938,8 +1946,15 @@ export default function MintForm() {
               value: mintFeeWei > 0n ? mintFeeWei : undefined,
             });
 
-      if (hash) setStep("mining");
+      if (hash) {
+        setSubmittedTxHash(hash as `0x${string}`);
+        setStep("mining");
+      } else {
+        mintSubmitRef.current = false;
+        setStep("idle");
+      }
     } catch (e: any) {
+      mintSubmitRef.current = false;
       setError(prettyError(e));
       setSubmittedMintMode("standard");
       setSubmittedMintContract(undefined);
