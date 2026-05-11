@@ -238,34 +238,33 @@ export default function AppSidebar({
           {/* ── Logo ──────────────────────────────────────────────── */}
           <Link
             href="/app"
-            className="mb-3 flex items-center relative overflow-visible"
+            className="group mb-3 flex items-center gap-2.5"
           >
-            <div className="z-10 shrink-0 relative w-10 h-10 flex items-center justify-center -ml-1">
+            <span
+              className={cx(
+                "relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full",
+                "border border-[#d4af37]/25 bg-black",
+                "shadow-[0_8px_30px_rgba(212,175,55,0.18)]",
+              )}
+            >
               <Image
                 src="/brand/logo-mark.png"
                 alt="Realife"
-                width={240}
-                height={240}
+                width={40}
+                height={40}
                 priority
                 quality={90}
-                sizes="240px"
-                className="h-full w-full object-contain mix-blend-screen scale-[3.2]"
+                sizes="40px"
+                className="pointer-events-none h-full w-full object-cover"
                 draggable={false}
               />
-            </div>
-            <div className="relative flex-1 h-8 overflow-visible z-0">
-              <Image
-                src="/brand/logo-wordmark.png"
-                alt="Realife"
-                width={560}
-                height={120}
-                priority
-                quality={90}
-                sizes="560px"
-                className="absolute left-[-48px] top-1/2 h-auto w-[200px] max-w-none -translate-y-1/2 object-contain object-left mix-blend-screen"
-                draggable={false}
-              />
-            </div>
+            </span>
+            <span
+              className="text-[18px] font-light italic tracking-[0.14em] text-[#E8D5A0] transition group-hover:text-[#F0E4BF]"
+              style={{ fontFamily: "var(--font-display, Georgia, serif)" }}
+            >
+              REALIFE
+            </span>
           </Link>
 
           {/* ── Section label ─────────────────────────────────────── */}

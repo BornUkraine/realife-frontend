@@ -320,38 +320,54 @@ function NetworkStatusContent({
 
 function BrandLink() {
   return (
-    <Link href="/" className="group inline-flex min-w-0 items-center gap-3">
-      {/* Mobile: mark only */}
+    <Link href="/" className="group inline-flex min-w-0 items-center gap-2.5">
+      {/* Mobile: round icon only (36×36) */}
       <span
         className={cn(
-          "relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full",
-          "border border-white/10 bg-black",
-          "shadow-[0_12px_50px_rgba(0,0,0,0.3)]",
+          "relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full",
+          "border border-[#d4af37]/25 bg-black",
+          "shadow-[0_8px_30px_rgba(212,175,55,0.18)]",
           "sm:hidden",
         )}
       >
         <Image
           src="/brand/logo-mark.png"
           alt="Realife"
-          fill
+          width={36}
+          height={36}
           priority
-          sizes="40px"
-          className="pointer-events-none scale-[3.2] object-cover mix-blend-screen"
+          sizes="36px"
+          className="pointer-events-none h-full w-full object-cover"
           draggable={false}
         />
       </span>
 
-      {/* Desktop: wordmark */}
-      <span className="relative hidden h-12 w-[220px] items-center overflow-visible sm:flex">
-        <Image
-          src="/brand/logo-wordmark.png"
-          alt="Realife"
-          fill
-          priority
-          sizes="220px"
-          className="pointer-events-none origin-left scale-[5.0] object-contain object-left mix-blend-screen"
-          draggable={false}
-        />
+      {/* Desktop: round icon + REALIFE wordmark beside it */}
+      <span className="hidden items-center gap-2.5 sm:inline-flex">
+        <span
+          className={cn(
+            "relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full",
+            "border border-[#d4af37]/25 bg-black",
+            "shadow-[0_8px_30px_rgba(212,175,55,0.18)]",
+          )}
+        >
+          <Image
+            src="/brand/logo-mark.png"
+            alt="Realife"
+            width={36}
+            height={36}
+            priority
+            sizes="36px"
+            className="pointer-events-none h-full w-full object-cover"
+            draggable={false}
+          />
+        </span>
+        <span
+          className="text-[18px] font-light italic tracking-[0.14em] text-[#E8D5A0] transition group-hover:text-[#F0E4BF]"
+          style={{ fontFamily: "var(--font-display, Georgia, serif)" }}
+        >
+          REALIFE
+        </span>
       </span>
     </Link>
   );

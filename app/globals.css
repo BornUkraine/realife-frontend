@@ -32,6 +32,18 @@
 
 html, body {
   height: 100%;
+  /* Block any accidental horizontal scroll on mobile.
+     If anything inside overflows, we clip rather than letting it shift the
+     viewport left/right. */
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+body {
+  /* Long words like "Stablecoin" / "Marketplace" must break instead of pushing
+     parent containers wider than the viewport. */
+  overflow-wrap: break-word;
+  word-wrap: break-word;
 }
 
 html {
