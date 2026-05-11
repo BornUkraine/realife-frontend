@@ -1,3 +1,4 @@
+// PATH: app/app/social/page.tsx — Social Learning page inside new AppShell
 import Link from "next/link";
 import type { ReactNode } from "react";
 import Reveal from "@/components/Reveal";
@@ -34,15 +35,15 @@ function GoldEdgeWrap({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[34px] p-px",
+        "relative overflow-hidden rounded-[22px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.35),rgba(212,175,55,0.16),rgba(184,135,10,0.10))]",
-        "shadow-[0_34px_130px_rgba(0,0,0,0.60)]",
+        "shadow-[0_24px_90px_rgba(0,0,0,0.52)]",
         className
       )}
     >
       <div
         className={cx(
-          "relative overflow-hidden rounded-[34px]",
+          "relative overflow-hidden rounded-[22px]",
           "border border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
@@ -71,7 +72,7 @@ function ActionLink({
     return (
       <Link
         href={href}
-        className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+        className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2.5 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
       >
         {children}
       </Link>
@@ -81,7 +82,7 @@ function ActionLink({
   return (
     <Link
       href={href}
-      className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold text-white/90 transition hover:bg-white/10 backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+      className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-semibold text-white/90 transition hover:bg-white/10 backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
     >
       {children}
     </Link>
@@ -103,11 +104,11 @@ function SectionTitle({
         {eyebrow}
       </div>
 
-      <div className="mt-3 text-2xl font-black tracking-tight text-white/95 md:text-4xl">
+      <div className="mt-2 text-xl font-black tracking-tight text-white/95 md:text-2xl">
         {title}
       </div>
 
-      <div className="mt-4 max-w-2xl text-sm leading-relaxed text-white/60 md:text-base">
+      <div className="mt-3 max-w-2xl text-sm leading-relaxed text-white/60 md:text-[15px]">
         {text}
       </div>
     </div>
@@ -124,8 +125,8 @@ function VideoShell({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[28px] border border-white/10 bg-black/30",
-        "shadow-[0_24px_90px_rgba(0,0,0,0.45)]",
+        "relative overflow-hidden rounded-[20px] border border-white/10 bg-black/30",
+        "shadow-[0_18px_70px_rgba(0,0,0,0.42)]",
         className
       )}
     >
@@ -179,7 +180,7 @@ function PromoVideo({
           Video Preview
         </div>
 
-        <div className="mt-3 text-lg font-black text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.45)] md:text-2xl">
+        <div className="mt-2 text-base font-black text-white drop-shadow-[0_10px_30px_rgba(0,0,0,0.45)] md:text-xl">
           {title}
         </div>
 
@@ -195,11 +196,11 @@ function PromoVideo({
 
 function FeatureList({ items }: { items: string[] }) {
   return (
-    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+    <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
       {items.map((item) => (
         <div
           key={item}
-          className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/75"
+          className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm font-semibold text-white/75"
         >
           {item}
         </div>
@@ -218,16 +219,16 @@ function InfoCard({
   text: string;
 }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 md:p-6">
+    <div className="rounded-[18px] border border-white/10 bg-white/[0.04] p-4">
       <div className="text-[11px] font-black uppercase tracking-[0.20em] text-white/45">
         {eyebrow}
       </div>
 
-      <div className="mt-3 text-xl font-black leading-tight text-white/92 md:text-2xl">
+      <div className="mt-2 text-lg font-black leading-tight text-white/92 md:text-xl">
         {title}
       </div>
 
-      <div className="mt-3 text-sm leading-relaxed text-white/58">
+      <div className="mt-2 text-sm leading-relaxed text-white/58">
         {text}
       </div>
     </div>
@@ -257,9 +258,9 @@ export default function SocialLearningPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Reveal>
-        <GoldEdgeWrap className="rounded-[40px]">
+        <GoldEdgeWrap className="rounded-[22px]">
           <div className="relative overflow-hidden p-7 md:p-10">
             <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/14 blur-3xl" />
             <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
@@ -288,14 +289,14 @@ export default function SocialLearningPage() {
                 </Pill>
               </div>
 
-              <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
+              <h1 className="mt-4 max-w-4xl text-2xl font-black leading-[1.06] tracking-[-0.02em] sm:text-3xl md:text-[2rem]">
                 Realife{" "}
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
                   Social Learning
                 </span>
               </h1>
 
-              <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
+              <p className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70 md:text-[15px]">
                 Realife Social Learning connects{" "}
                 <span className="font-extrabold text-amber-100">
                   crypto education
@@ -311,7 +312,7 @@ export default function SocialLearningPage() {
                 .
               </p>
 
-              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
+              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-[15px]">
                 It helps people move from zero understanding to practical use:
                 wallets, payments, transactions, Web3 tools, exchange
                 navigation, DEX and CEX orientation, and broader guidance across
@@ -319,7 +320,7 @@ export default function SocialLearningPage() {
                 and real estate directions.
               </div>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-wrap gap-2.5">
                 <ActionLink href="#learning-stories" primary>
                   Explore Stories
                 </ActionLink>
@@ -336,8 +337,8 @@ export default function SocialLearningPage() {
       </Reveal>
 
       <Reveal delayMs={100}>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="grid gap-6 p-6 md:grid-cols-[1.05fr_1fr] md:p-8 xl:p-10">
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="grid gap-4 p-4 md:grid-cols-[1.05fr_1fr] md:p-5">
             <div className="flex flex-col justify-center">
               <SectionTitle
                 eyebrow="Featured direction"
@@ -371,7 +372,7 @@ export default function SocialLearningPage() {
                 ]}
               />
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-wrap gap-2.5">
                 <ActionLink href="#learning-stories" primary>
                   Watch Stories
                 </ActionLink>
@@ -380,7 +381,7 @@ export default function SocialLearningPage() {
               </div>
             </div>
 
-            <div className="grid gap-4">
+            <div className="grid gap-3">
               <InfoCard
                 eyebrow="Mission"
                 title="Education before adoption"
@@ -404,8 +405,8 @@ export default function SocialLearningPage() {
       </Reveal>
 
       <Reveal delayMs={160}>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="p-6 md:p-8 xl:p-10" id="learning-stories">
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="p-4 md:p-5" id="learning-stories">
             <SectionTitle
               eyebrow="Learning stories"
               title={
@@ -424,7 +425,7 @@ export default function SocialLearningPage() {
               }
             />
 
-            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
               {learningCards.map((item, index) => (
                 <PromoVideo
                   key={item.title}
@@ -437,7 +438,7 @@ export default function SocialLearningPage() {
               ))}
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-4 flex flex-wrap gap-2.5">
               <ActionLink href="/app/trading" primary>
                 Open Trading
               </ActionLink>
@@ -451,14 +452,14 @@ export default function SocialLearningPage() {
       </Reveal>
 
       <Reveal delayMs={220}>
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           <GoldEdgeWrap className="xl:col-span-2">
-            <div className="p-6 md:p-8">
+            <div className="p-4 md:p-5">
               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/45">
                 What it covers
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                 <InfoCard
                   eyebrow="Education"
                   title="Practical crypto usage"
@@ -475,12 +476,12 @@ export default function SocialLearningPage() {
           </GoldEdgeWrap>
 
           <GoldEdgeWrap>
-            <div className="p-6 md:p-8">
+            <div className="p-4 md:p-5">
               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/45">
                 Roadmap
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="mt-3 space-y-2.5">
                 {[
                   { label: "Realife Social Learning", live: true },
                   { label: "Realife Crypto Cafe", live: true },
@@ -491,7 +492,7 @@ export default function SocialLearningPage() {
                 ].map((item) => (
                   <div
                     key={item.label}
-                    className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-4"
+                    className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-sm font-extrabold text-white/90">
@@ -518,7 +519,7 @@ export default function SocialLearningPage() {
       </Reveal>
 
       <Reveal delayMs={280}>
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-6 pt-2 text-xs text-white/45">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 pt-1 text-xs text-white/45">
           <div>Realife Ecosystem</div>
 
           <div className="flex items-center gap-4">

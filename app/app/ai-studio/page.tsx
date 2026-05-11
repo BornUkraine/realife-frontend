@@ -36,7 +36,7 @@ function GoldEdgeWrap({
   return (
     <div
       className={[
-        "relative overflow-hidden rounded-[34px] p-px",
+        "relative overflow-hidden rounded-[22px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.38),rgba(212,175,55,0.18),rgba(184,135,10,0.10))]",
         "shadow-[0_34px_130px_rgba(0,0,0,0.60)]",
         className,
@@ -44,7 +44,7 @@ function GoldEdgeWrap({
     >
       <div
         className={[
-          "relative overflow-hidden rounded-[34px]",
+          "relative overflow-hidden rounded-[22px]",
           "border border-white/10 bg-[#0b0a09]/62 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
@@ -64,226 +64,127 @@ export default function AiStudioPage() {
   const aiApiBase = process.env.NEXT_PUBLIC_AI_API_BASE || "same app routes";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Reveal>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="relative overflow-hidden p-7 md:p-10">
-            <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/16 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="relative overflow-hidden p-4 md:p-5">
+            <div className="pointer-events-none absolute -top-32 -right-32 h-[320px] w-[320px] rounded-full bg-[#d4af37]/16 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-32 -left-32 h-[320px] w-[320px] rounded-full bg-white/[0.06] blur-3xl" />
             <div className="pointer-events-none absolute left-1/2 top-0 h-px w-[70%] -translate-x-1/2 bg-gradient-to-r from-transparent via-[#f7e7a7]/45 to-transparent" />
 
             <div className="relative">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <Pill>
-                  <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                  Create with AI • GPT Image 2 & Sora 2 Pro
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#d4af37] shadow-[0_0_0_4px_rgba(212,175,55,0.12)]" />
+                  GPT Image 2 • Sora 2 Pro
                 </Pill>
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    Premium media workflow
+                    Premium visuals
                   </span>
                 </Pill>
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    Product + service visuals
-                  </span>
-                </Pill>
-
-                <Pill>
-                  <span className="font-extrabold text-white/80">
-                    NFT-ready covers
-                  </span>
-                </Pill>
-
-                <Pill>
-                  <span className="font-extrabold text-white/80">
-                    Sora commercial videos
+                    NFT-ready
                   </span>
                 </Pill>
               </div>
 
-              <h1 className="mt-5 max-w-5xl text-4xl font-black leading-[1.02] tracking-[-0.035em] md:text-6xl">
-                Create premium AI visuals and videos for{" "}
+              <h1 className="mt-3 max-w-5xl text-2xl font-black leading-[1.1] tracking-[-0.025em] sm:text-3xl md:text-[2rem]">
+                Create premium AI visuals for{" "}
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
                   Realife listings
                 </span>
               </h1>
 
-              <p className="mt-5 max-w-4xl text-sm leading-relaxed text-white/72 md:text-base">
-                Generate luxury product images, NFT-style product cards, service
-                promotion covers, local offline service visuals, and cinematic
-                Sora videos for real-world goods, services, delivery items,
-                online sessions, and marketplace offers.
+              <p className="mt-2 max-w-4xl text-xs leading-relaxed text-white/65 md:text-sm">
+                Generate luxury product images, NFT-style cards, service covers, and cinematic Sora videos for real-world goods, services, delivery items, and marketplace offers.
               </p>
 
-              <div className="mt-4 max-w-4xl text-sm leading-relaxed text-white/66">
-                This studio is designed for sellers and creators. Write what you
-                want to sell, choose a premium preset, upload a reference image if
-                needed, and create polished media that can later be used in Realife
-                NFT and marketplace workflows.
-              </div>
-
-              <div className="mt-4 grid max-w-5xl grid-cols-1 gap-3 md:grid-cols-3">
-                <div className="rounded-[24px] border border-[#d4af37]/18 bg-[#d4af37]/8 px-4 py-3 text-xs leading-relaxed text-white/68">
-                  <span className="font-extrabold text-white">
-                    GPT Image 2:
-                  </span>{" "}
-                  premium product cards, service covers, local visuals, NFT
-                  posters, and marketplace-ready listing media.
+              <div className="mt-3 grid max-w-5xl grid-cols-1 gap-2 md:grid-cols-3">
+                <div className="rounded-lg border border-[#d4af37]/18 bg-[#d4af37]/8 px-3 py-2 text-[11px] leading-relaxed text-white/68">
+                  <span className="font-extrabold text-white">GPT Image 2:</span>{" "}
+                  product cards, service covers, NFT posters.
                 </div>
 
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-relaxed text-white/62">
-                  <span className="font-extrabold text-white">
-                    Sora 2 Pro:
-                  </span>{" "}
-                  cinematic 12-second commercial videos with premium camera
-                  movement, lighting, and final hero shots.
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] leading-relaxed text-white/62">
+                  <span className="font-extrabold text-white">Sora 2 Pro:</span>{" "}
+                  cinematic 12-second commercial videos.
                 </div>
 
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-relaxed text-white/62">
-                  <span className="font-extrabold text-white">
-                    Realife use:
-                  </span>{" "}
-                  save generated media for NFT creation, service offers, product
-                  listings, and Web3 marketplace presentation.
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] leading-relaxed text-white/62">
+                  <span className="font-extrabold text-white">Realife use:</span>{" "}
+                  save for NFT creation and marketplace listings.
                 </div>
               </div>
 
-              <div className="mt-5 flex max-w-5xl flex-wrap gap-2">
+              <div className="mt-3 flex max-w-5xl flex-wrap gap-1">
                 {[
                   "GPT Image 2",
                   "Sora 2 Pro",
-                  "Premium product image",
-                  "NFT product card",
+                  "Product image",
+                  "NFT card",
                   "Service cover",
-                  "Local service visual",
-                  "Luxury commercial video",
-                  "Reference product upload",
-                  "Reference face upload",
+                  "Local service",
+                  "Commercial video",
+                  "Reference upload",
                   "Prompt templates",
-                  "Seller tutorial",
-                  "High quality default",
-                  "12 sec video mode",
+                  "12 sec video",
                 ].map((x) => (
                   <span
                     key={x}
-                    className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-semibold text-white/75"
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-white/70"
                   >
                     {x}
                   </span>
                 ))}
               </div>
 
-              <div className="mt-6 grid max-w-6xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Step 1
-                  </div>
-                  <div className="mt-2 text-sm font-extrabold text-white">
-                    Choose premium preset
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Product, service, local service, or luxury NFT poster style.
-                  </div>
-                </div>
-
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Step 2
-                  </div>
-                  <div className="mt-2 text-sm font-extrabold text-white">
-                    Write clear selling prompt
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Describe what you sell, who it is for, style, mood, city, and
-                    exact text if needed.
-                  </div>
-                </div>
-
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Step 3
-                  </div>
-                  <div className="mt-2 text-sm font-extrabold text-white">
-                    Add reference image
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Use product photos, logos, faces, or brand references for
-                    more accurate image and video direction.
-                  </div>
-                </div>
-
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Step 4
-                  </div>
-                  <div className="mt-2 text-sm font-extrabold text-white">
-                    Use in Realife
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Save the generated media for NFT creation, listings, service
-                    offers, or marketplace visuals.
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <Link
                   href="/app/create"
-                  className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+                  className="rounded-lg bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-3.5 py-2 text-xs font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_10px_36px_rgba(212,175,55,0.20)]"
                 >
                   Open Create NFT
                 </Link>
 
                 <Link
                   href="/app"
-                  className="rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                  className="rounded-lg border border-white/15 bg-white/[0.06] px-3.5 py-2 text-xs font-semibold backdrop-blur-2xl transition hover:bg-white/10"
                 >
                   Back to App →
                 </Link>
               </div>
 
-              <div className="mt-4 grid max-w-4xl grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
-                  AI API base:{" "}
-                  <span className="break-all font-semibold text-white">
-                    {aiApiBase}
-                  </span>
-                </div>
-
-                <div className="rounded-[24px] border border-[#d4af37]/15 bg-[#d4af37]/8 px-4 py-3 text-xs text-white/60">
-                  Recommended setup:{" "}
-                  <span className="font-semibold text-white">
-                    GPT Image 2 • 1:1 • High quality • Sora 2 Pro • 12 sec
-                  </span>
-                </div>
+              <div className="mt-3 rounded-lg border border-[#d4af37]/15 bg-[#d4af37]/8 px-3 py-2 text-[10px] text-white/60">
+                Recommended:{" "}
+                <span className="font-semibold text-white">
+                  GPT Image 2 • 1:1 • High quality • Sora 2 Pro • 12 sec
+                </span>
               </div>
             </div>
           </div>
         </GoldEdgeWrap>
       </Reveal>
 
-      <Reveal delayMs={120}>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="p-6 md:p-10">
+      <Reveal delayMs={100}>
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="p-4 md:p-5">
             <AiStudioClient />
           </div>
         </GoldEdgeWrap>
       </Reveal>
 
-      <Reveal delayMs={200}>
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-6 pt-2 text-xs text-white/45">
+      <Reveal delayMs={180}>
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 pt-1 text-[11px] text-white/45">
           <div>© {year} Realife</div>
 
-          <div className="flex flex-wrap items-center gap-4">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="opacity-60">AI Studio</span>
             <span className="opacity-60">GPT Image 2</span>
             <span className="opacity-60">Sora 2 Pro</span>
-            <span className="opacity-60">Premium Images</span>
-            <span className="opacity-60">Prompt tutorial</span>
-            <span className="opacity-60">Reference upload</span>
           </div>
         </div>
       </Reveal>

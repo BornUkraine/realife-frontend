@@ -1,5 +1,7 @@
 "use client";
 
+// PATH: app/app/referrals/page.tsx — Referrals / invite points page inside new AppShell
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Reveal from "@/components/Reveal";
 import { useSession } from "next-auth/react";
@@ -40,15 +42,15 @@ function GoldEdgeWrap({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[34px] p-px",
+        "relative overflow-hidden rounded-[22px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.35),rgba(212,175,55,0.16),rgba(184,135,10,0.10))]",
-        "shadow-[0_34px_130px_rgba(0,0,0,0.60)]",
+        "shadow-[0_24px_90px_rgba(0,0,0,0.52)]",
         className
       )}
     >
       <div
         className={cx(
-          "relative overflow-hidden rounded-[34px]",
+          "relative overflow-hidden rounded-[22px]",
           "border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
@@ -73,7 +75,7 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <div className="p-7 md:p-9">
+    <div className="p-4 md:p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="text-sm md:text-base font-extrabold">{title}</div>
@@ -82,7 +84,7 @@ function Card({
           ) : null}
         </div>
       </div>
-      <div className="mt-6">{children}</div>
+      <div className="mt-4">{children}</div>
     </div>
   );
 }
@@ -105,7 +107,7 @@ function Input({
       disabled={disabled}
       placeholder={placeholder}
       className={cx(
-        "w-full h-11 rounded-2xl px-4",
+        "w-full h-10 rounded-xl px-3",
         "border border-white/10 bg-white/[0.06] backdrop-blur-2xl",
         "text-sm font-extrabold text-white placeholder:text-white/35",
         "outline-none focus:ring-2 focus:ring-amber-400/20",
@@ -133,9 +135,9 @@ function Btn({
   const base =
     "min-w-0 inline-flex items-center justify-center gap-2 font-extrabold transition disabled:opacity-60 disabled:cursor-not-allowed";
   const gold =
-    "h-11 px-6 rounded-2xl text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_22px_70px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 hover:-translate-y-px active:translate-y-0";
+    "h-10 px-4 rounded-xl text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_22px_70px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 hover:-translate-y-px active:translate-y-0";
   const ghost =
-    "h-11 px-6 rounded-2xl text-white border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px active:translate-y-0";
+    "h-10 px-4 rounded-xl text-white border border-white/15 bg-white/[0.06] backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)] hover:bg-white/10 hover:-translate-y-px active:translate-y-0";
 
   return (
     <button
@@ -493,25 +495,25 @@ export default function ReferralsPage() {
   const inviteLink = me?.inviteLink ?? null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Reveal>
-        <GoldEdgeWrap className="rounded-[44px]">
-          <div className="p-7 md:p-10">
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="p-4 md:p-5">
             <Pill tone="gold">Referrals • Earn points</Pill>
 
-            <h1 className="mt-5 text-4xl md:text-5xl font-black leading-[1.05] tracking-[-0.02em]">
+            <h1 className="mt-4 max-w-3xl text-2xl font-black leading-[1.06] tracking-[-0.02em] sm:text-3xl md:text-[2rem]">
               Invite friends —{" "}
               <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
                 get +20 points
               </span>
             </h1>
 
-            <p className="mt-3 text-sm md:text-base text-white/70 max-w-2xl leading-relaxed">
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/68 md:text-[15px]">
               Creating your own code requires a wallet{" "}
               <b>signature</b>. Referral links are captured automatically when possible.
             </p>
 
-            <div className="mt-6 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-2">
               <Pill tone="ok">Your points: {me?.points ?? 0}</Pill>
               <Pill tone="gold">Invited: {me?.invitedCount ?? 0}</Pill>
               {alreadyApplied ? (
@@ -525,7 +527,7 @@ export default function ReferralsPage() {
             </div>
 
             {pendingRef && !alreadyApplied ? (
-              <div className="mt-6 rounded-[22px] border border-amber-500/25 bg-amber-500/10 px-4 py-3 backdrop-blur-md">
+              <div className="mt-4 rounded-[18px] border border-amber-500/25 bg-amber-500/10 px-4 py-3 backdrop-blur-md">
                 <div className="text-sm font-extrabold text-amber-50">
                   Apply referral code{" "}
                   <span className="text-amber-200">{pendingRef}</span>?
@@ -570,7 +572,7 @@ export default function ReferralsPage() {
             {notice ? (
               <div
                 className={cx(
-                  "mt-6 rounded-[22px] border px-4 py-3 backdrop-blur-md",
+                  "mt-4 rounded-[18px] border px-4 py-3 backdrop-blur-md",
                   notice.tone === "ok"
                     ? "border-emerald-500/25 bg-emerald-500/10"
                     : "border-rose-500/25 bg-rose-500/10"
@@ -598,13 +600,13 @@ export default function ReferralsPage() {
             ) : null}
 
             {loading ? (
-              <div className="mt-6 text-sm text-white/60">Loading…</div>
+              <div className="mt-4 text-sm text-white/60">Loading…</div>
             ) : null}
           </div>
         </GoldEdgeWrap>
       </Reveal>
 
-      <div className="grid lg:grid-cols-3 gap-6">
+      <div className="grid gap-4 lg:grid-cols-3">
         <Reveal delayMs={80}>
           <GoldEdgeWrap>
             <Card
@@ -612,12 +614,12 @@ export default function ReferralsPage() {
               subtitle="3–16 chars. A–Z / 0–9 / _ . No spaces. One-time setup."
             >
               {me?.referralCode ? (
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
                     <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                       Your code
                     </div>
-                    <div className="mt-1 text-2xl font-black tracking-tight text-amber-200">
+                    <div className="mt-1 text-xl font-black tracking-tight text-amber-200">
                       {me.referralCode}
                     </div>
                   </div>
@@ -645,7 +647,7 @@ export default function ReferralsPage() {
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <Input
                     value={newCode}
                     onChange={(v) => setNewCode(v.toUpperCase())}
@@ -681,7 +683,7 @@ export default function ReferralsPage() {
               title="Enter friend’s code"
               subtitle="You get +20, and the inviter gets +20. One-time only."
             >
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <Input
                   value={applyCode}
                   onChange={(v) => setApplyCode(v.toUpperCase())}
@@ -709,7 +711,7 @@ export default function ReferralsPage() {
                   </Btn>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/65">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3 text-[12px] text-white/65">
                   <div className="font-extrabold text-white/85">Reward</div>
                   <div className="mt-1">
                     You:{" "}
@@ -732,12 +734,12 @@ export default function ReferralsPage() {
               title="Invite link"
               subtitle="Share it anywhere. We’ll track invites safely."
             >
-              <div className="space-y-4">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="space-y-3">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
                   <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                     Invited
                   </div>
-                  <div className="mt-1 text-2xl font-black tracking-tight text-white/90">
+                  <div className="mt-1 text-xl font-black tracking-tight text-white/90">
                     {me?.invitedCount ?? 0}
                   </div>
                   <div className="mt-2 text-[11px] text-white/55">
@@ -745,7 +747,7 @@ export default function ReferralsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
                   <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                     Link
                   </div>

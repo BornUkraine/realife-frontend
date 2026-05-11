@@ -2,6 +2,7 @@
 
 import React from "react";
 import AppSidebar from "@/components/AppSidebar";
+import MobileBottomNav from "@/components/MobileBottomNav";
 
 export default function AppShell({
   title,
@@ -44,10 +45,10 @@ export default function AppShell({
       </div>
 
       {/* ── Layout ────────────────────────────────────────────── */}
-      <div className="relative z-10 mx-auto w-full max-w-[1760px] px-4 sm:px-6 lg:px-8 2xl:px-10 pt-8 pb-12">
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-8 xl:grid-cols-[320px_minmax(0,1fr)] xl:gap-10">
+      <div className="relative z-10 mx-auto w-full max-w-[1480px] px-3 pt-4 pb-8 sm:px-5 md:pt-6 md:pb-10 lg:px-6 2xl:px-8">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[200px_minmax(0,1fr)] lg:gap-6 xl:grid-cols-[210px_minmax(0,1fr)] xl:gap-7">
 
-          <aside className="min-w-0">
+          <aside className="hidden min-w-0 lg:block">
             <AppSidebar
               title={title}
               subtitle={subtitle}
@@ -56,12 +57,14 @@ export default function AppShell({
             />
           </aside>
 
-          <section className="min-w-0 space-y-6">
+          <section className="min-w-0 space-y-4 md:space-y-5">
             {children}
           </section>
 
         </div>
       </div>
+
+      <MobileBottomNav />
     </main>
   );
 }

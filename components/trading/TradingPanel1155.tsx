@@ -1,3 +1,4 @@
+// PATH: components/trading/TradingPanel1155.tsx — NFT detail buy/sell panel
 "use client";
 
 import {
@@ -717,7 +718,7 @@ function EmptyStateCard({
   cta?: ReactNode;
 }) {
   return (
-    <div className="rounded-[26px] border border-dashed border-white/12 bg-white/[0.025] p-5 text-center">
+    <div className="rounded-[22px] border border-dashed border-white/12 bg-white/[0.025] p-5 text-center">
       <div className="text-[12px] font-black uppercase tracking-[0.18em] text-white/55">
         {title}
       </div>
@@ -2338,9 +2339,9 @@ export default function TradingPanel1155({
   }
 
   const wrap =
-    "rounded-[34px] overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] p-px shadow-[0_34px_130px_rgba(0,0,0,0.60)]";
+    "rounded-[22px] overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] p-px shadow-[0_34px_130px_rgba(0,0,0,0.60)]";
   const card =
-    "rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10";
+    "rounded-[22px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10";
 
   const stats = data?.stats;
 
@@ -2435,7 +2436,7 @@ export default function TradingPanel1155({
 
       <div className={wrap}>
         <div className={card}>
-        <div className="p-6 pb-32 md:p-7 md:pb-7">
+        <div className="p-4 pb-32 md:p-5 md:pb-5">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/45">
@@ -2636,7 +2637,7 @@ export default function TradingPanel1155({
           </div>
 
           {tab === "sell" ? (
-            <div className="mt-6 rounded-[26px] border border-white/10 bg-white/[0.04] p-5 md:p-6">
+            <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[0.04] p-4 md:p-5">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[12px] font-black uppercase tracking-wider text-white/80">
@@ -2802,7 +2803,7 @@ export default function TradingPanel1155({
             </div>
           ) : (
             <div className="mt-6 grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-              <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5 md:p-6">
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4 md:p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-[12px] font-black uppercase tracking-wider text-white/80">
@@ -3005,7 +3006,7 @@ export default function TradingPanel1155({
                 ) : null}
               </div>
 
-              <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5 md:p-6">
+              <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-4 md:p-5">
                 <div>
                   <div className="text-[12px] font-black uppercase tracking-wider text-white/80">
                     Buy selected
@@ -3249,7 +3250,7 @@ export default function TradingPanel1155({
             </div>
           )}
 
-          <div className="mt-6 rounded-[26px] border border-white/10 bg-white/[0.04] p-5 md:p-6">
+          <div className="mt-4 rounded-[22px] border border-white/10 bg-white/[0.04] p-4 md:p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className="text-[12px] font-black uppercase tracking-wider text-white/80">
@@ -3329,7 +3330,7 @@ export default function TradingPanel1155({
 
       <div className="md:hidden">
         <div className="pointer-events-none fixed inset-x-0 bottom-3 z-[90] px-3">
-          <div className="pointer-events-auto rounded-[26px] border border-white/12 bg-[#0b0a09]/78 p-3 shadow-[0_26px_90px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
+          <div className="pointer-events-auto rounded-[22px] border border-white/12 bg-[#0b0a09]/78 p-3 shadow-[0_26px_90px_rgba(0,0,0,0.48)] backdrop-blur-2xl">
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/45">

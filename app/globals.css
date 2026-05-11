@@ -37,6 +37,19 @@ html, body {
 html {
   scroll-behavior: smooth;
   color-scheme: dark;
+
+  /* Tighter base density across the whole app.
+     Defaults to 15px (≈94% of the browser default 16px). All rem-based
+     paddings, fonts, gaps and shadows scale down proportionally — no need
+     to touch individual components. Tailwind's spacing scale uses rem so
+     this also tightens layout automatically. */
+  font-size: 15px;
+}
+
+@media (min-width: 1536px) {
+  /* On very wide displays restore slightly larger base so cards don't look
+     lost in whitespace. */
+  html { font-size: 15.5px; }
 }
 
 body {

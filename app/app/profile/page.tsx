@@ -1,3 +1,4 @@
+// PATH: app/app/profile/page.tsx — Profile index redirect to canonical /app/profile/[handle-or-publicId]. No visual UI here.
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";

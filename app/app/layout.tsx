@@ -1,16 +1,11 @@
 import type { ReactNode } from "react";
 import AppShell from "@/components/AppShell";
-import SidebarBottom from "@/components/SidebarBottom";
 
-export const dynamic = "force-dynamic"; // ← добавь эту строку
+export const dynamic = "force-dynamic";
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <AppShell
-      title="REALIFE"
-      subtitle="premium creator app"
-      sidebarBottom={<SidebarBottom />}
-    >
+    <AppShell title="REALIFE" subtitle="premium creator app">
       {children}
     </AppShell>
   );

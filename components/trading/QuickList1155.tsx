@@ -1,3 +1,4 @@
+// PATH: components/trading/QuickList1155.tsx — quick listing modal for ERC-1155 owned NFTs
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1311,13 +1312,13 @@ export default function QuickList1155({
             </button>
 
             <div
-              className="relative z-[121] w-full max-w-[360px] overflow-hidden rounded-[30px] bg-[linear-gradient(135deg,rgba(247,231,167,0.20),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] p-px shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
+              className="relative z-[121] w-full max-w-[360px] overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,rgba(247,231,167,0.20),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] p-px shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
               }}
             >
-              <div className="overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/88 ring-1 ring-black/10 backdrop-blur-2xl">
+              <div className="overflow-hidden rounded-[22px] border border-white/10 bg-[#0b0a09]/88 ring-1 ring-black/10 backdrop-blur-2xl">
                 <div className="p-4">
                   {headerBadges.length > 0 ? (
                     <div className="mb-2 flex justify-center">

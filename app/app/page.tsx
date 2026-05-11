@@ -1,3 +1,4 @@
+// PATH: app/app/page.tsx — App Home / Dashboard page inside new AppShell
 "use client";
 
 import Image from "next/image";
@@ -73,7 +74,7 @@ const CORE_MODULES = [
 ] as const;
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
-// Radius:  rounded-2xl (buttons/pills) · rounded-[28px] (cards) · rounded-[40px] (GoldEdgeCard)
+// Radius: rounded-xl/2xl (buttons/pills) · rounded-[18px]/[22px] (cards) · rounded-[22px] (GoldEdgeCard)
 // Opacity: /40 (labels/meta) · /60 (body text) · /75 (UI text)
 // Weight:  font-black (h1/h2/h3) · font-bold (card titles) · font-extrabold (CTA buttons only)
 
@@ -88,15 +89,15 @@ function GoldEdgeCard({
   return (
     <div
       className={[
-        "relative rounded-[40px] overflow-hidden p-px",
+        "relative rounded-[22px] overflow-hidden p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.40),rgba(212,175,55,0.18),rgba(184,135,10,0.12))]",
-        "shadow-[0_34px_140px_rgba(0,0,0,0.60)]",
+        "shadow-[0_24px_100px_rgba(0,0,0,0.55)]",
         className,
       ].join(" ")}
     >
       <div
         className={[
-          "relative h-full overflow-hidden rounded-[40px]",
+          "relative h-full overflow-hidden rounded-[22px]",
           "border border-white/10",
           "bg-[#0b0a09]/40 backdrop-blur-2xl",
           "ring-1 ring-black/10",
@@ -146,12 +147,12 @@ function StatCard({
   hint: string;
 }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-2xl shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]">
+    <div className="rounded-[20px] border border-white/10 bg-white/[0.04] p-4 backdrop-blur-2xl shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]">
       <div className="text-xs font-semibold text-white/40">{title}</div>
-      <div className="mt-2 text-2xl font-bold tracking-tight text-white">
+      <div className="mt-1.5 text-xl font-bold tracking-tight text-white">
         {value}
       </div>
-      <div className="mt-2 text-xs text-white/60">{hint}</div>
+      <div className="mt-1.5 text-xs text-white/60">{hint}</div>
     </div>
   );
 }
@@ -159,11 +160,11 @@ function StatCard({
 // ─── MiniCard ─────────────────────────────────────────────────────────────────
 function MiniCard({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-white/[0.05] px-5 py-[18px] shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.07] md:px-6 md:py-5">
-      <div className="text-[15px] font-bold tracking-tight text-white md:text-[16px]">
+    <div className="rounded-[20px] border border-white/10 bg-white/[0.05] px-4 py-3.5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.07] md:px-4 md:py-4">
+      <div className="text-sm font-bold tracking-tight text-white md:text-[15px]">
         {title}
       </div>
-      <div className="mt-2.5 text-[13px] leading-[1.66] text-white/60 md:text-[14px]">
+      <div className="mt-2 text-xs leading-relaxed text-white/60 md:text-[13px]">
         {text}
       </div>
     </div>
@@ -187,7 +188,7 @@ function PersonaSilhouette({
     <div
       className={[
         "relative flex flex-col items-center justify-end",
-        "w-[128px] md:w-[150px] xl:w-[164px]",
+        "w-[112px] md:w-[128px] xl:w-[138px]",
         className,
       ].join(" ")}
     >
@@ -196,7 +197,7 @@ function PersonaSilhouette({
       <div className="relative">
         <svg
           viewBox="0 0 220 360"
-          className="h-[198px] w-[128px] md:h-[228px] md:w-[150px] xl:h-[246px] xl:w-[164px]"
+          className="h-[170px] w-[112px] md:h-[194px] md:w-[128px] xl:h-[210px] xl:w-[138px]"
           aria-hidden="true"
         >
           <defs>
@@ -319,7 +320,7 @@ function DuoEcosystemScene() {
 
       <div className="relative mt-4 min-h-[220px] md:min-h-[250px] xl:min-h-[270px]">
         <div className="duo-orbit absolute left-[13%] top-[58px] z-10 h-2.5 w-2.5 rounded-full bg-[#f7e7a7]/75 shadow-[0_0_16px_rgba(247,231,167,0.65)]" />
-        <div className="duo-orbit absolute right-[13%] top-[70px] z-10 h-2 w-2 rounded-full bg-[#d4af37]/75 shadow-[0_0_14px_rgba(212,175,55,0.65)]" style={{ animationDelay: "0.65s" }} />
+        <div className="duo-orbit absolute right-[13%] top-[70px] z-10 h-1.5 w-1.5 rounded-full bg-[#d4af37]/75 shadow-[0_0_14px_rgba(212,175,55,0.65)]" style={{ animationDelay: "0.65s" }} />
         <div className="duo-orbit absolute left-[29%] top-[136px] z-10 h-1.5 w-1.5 rounded-full bg-white/70 shadow-[0_0_10px_rgba(255,255,255,0.35)]" style={{ animationDelay: "1.1s" }} />
         <div className="duo-orbit absolute right-[30%] top-[142px] z-10 h-1.5 w-1.5 rounded-full bg-white/70 shadow-[0_0_10px_rgba(255,255,255,0.35)]" style={{ animationDelay: "0.9s" }} />
 
@@ -333,7 +334,7 @@ function DuoEcosystemScene() {
                 Tokenize ↔ Market ↔ Escrow
               </p>
             </div>
-            <div className="duo-pulse mt-1 h-2 w-2 rounded-full bg-[#f7e7a7] shadow-[0_0_0_6px_rgba(247,231,167,0.10)]" />
+            <div className="duo-pulse mt-1 h-1.5 w-1.5 rounded-full bg-[#f7e7a7] shadow-[0_0_0_6px_rgba(247,231,167,0.10)]" />
           </div>
 
           <div className="mt-3 grid grid-cols-3 gap-1.5">
@@ -371,7 +372,7 @@ function DuoEcosystemScene() {
 export default function AppPage() {
   return (
     <div className="relative isolate">
-      {/* Ambient background */}
+      {/* Local ambient accents. AppShell already owns the main page background. */}
       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
         <div className="absolute left-[-140px] top-[80px] h-[360px] w-[360px] rounded-full bg-[#d4af37]/[0.10] blur-[120px]" />
         <div className="absolute right-[-160px] top-[240px] h-[460px] w-[460px] rounded-full bg-[#b8870a]/[0.10] blur-[145px]" />
@@ -382,34 +383,34 @@ export default function AppPage() {
         <div className="absolute inset-x-0 top-[1320px] h-px bg-[linear-gradient(90deg,transparent,rgba(212,175,55,0.10),transparent)]" />
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-4">
         {/* ── Hero ──────────────────────────────────────────────── */}
         <Reveal>
           <GoldEdgeCard>
-            <div className="p-8 md:p-14">
+            <div className="p-4 md:p-5">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <LuxPill>
-                  <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#d4af37] shadow-[0_0_0_4px_rgba(212,175,55,0.12)]" />
                   Stablecoin escrow commerce • App live
                 </LuxPill>
 
                 <div className="flex items-center gap-2">
                   <Link
                     href="/app/create"
-                    className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 text-sm font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
+                    className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-3 py-1.5 text-xs font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
                   >
                     Create listing
                   </Link>
                   <Link
                     href="/app/faucet"
-                    className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold transition hover:-translate-y-px hover:bg-white/[0.07] active:translate-y-0"
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold transition hover:-translate-y-px hover:bg-white/[0.07] active:translate-y-0"
                   >
                     Get test ETH
                   </Link>
                 </div>
               </div>
 
-              <h1 className="mt-7 text-4xl font-black leading-[1.03] tracking-[-0.03em] md:text-6xl">
+              <h1 className="mt-3 text-2xl font-black leading-[1.1] tracking-[-0.02em] sm:text-3xl md:text-[2rem]">
                 Realife — the app layer for
                 <br />
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
@@ -417,19 +418,19 @@ export default function AppPage() {
                 </span>
               </h1>
 
-              <p className="mt-5 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
+              <p className="mt-2 max-w-3xl text-xs leading-relaxed text-white/65 md:text-sm">
                 Realife connects crypto payments, NFT-linked transaction rights,
                 marketplace activity, AI-assisted listing tools, and escrow-protected
                 fulfillment for real-world products, services, and delivery.
               </p>
 
-              <p className="mt-4 max-w-3xl text-xs leading-relaxed text-white/45 md:text-sm">
+              <p className="mt-2 max-w-3xl text-xs leading-relaxed text-white/50">
                 Designed for stablecoin-powered commerce. The current Base Sepolia
                 testnet uses test ETH for simplified testing while the platform
                 architecture is built around real-world settlement and protected flows.
               </p>
 
-              <div className="mt-10 grid gap-4 md:grid-cols-3">
+              <div className="mt-3 grid gap-2 md:grid-cols-3">
                 <StatCard
                   title="Commerce Layer"
                   value="Products + Services"
@@ -447,8 +448,8 @@ export default function AppPage() {
                 />
               </div>
 
-              <div className="mt-10 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,rgba(247,231,167,0.30),rgba(212,175,55,0.14),rgba(184,135,10,0.10))] p-px">
-                <div className="flex flex-col gap-4 rounded-[28px] border border-white/10 bg-[#0b0a09]/50 p-6 backdrop-blur-2xl md:flex-row md:items-center md:justify-between">
+              <div className="mt-3 overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,rgba(247,231,167,0.30),rgba(212,175,55,0.14),rgba(184,135,10,0.10))] p-px">
+                <div className="flex flex-col gap-4 rounded-[18px] border border-white/10 bg-[#0b0a09]/50 p-3.5 md:p-4 backdrop-blur-2xl md:flex-row md:items-center md:justify-between">
                   <div>
                     <p className="text-sm font-bold text-white">
                       Create → Tokenize → Trade → Settle
@@ -461,13 +462,13 @@ export default function AppPage() {
                   <div className="flex flex-wrap gap-3">
                     <Link
                       href="/app/create"
-                      className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-7 py-3 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
+                      className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
                     >
                       Create listing
                     </Link>
                     <Link
                       href={REAL_MARKETING_HREF}
-                      className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-7 py-3 font-extrabold transition hover:bg-white/[0.07]"
+                      className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 font-extrabold transition hover:bg-white/[0.07]"
                     >
                       Enter Real Marketing
                     </Link>
@@ -479,13 +480,13 @@ export default function AppPage() {
         </Reveal>
 
         {/* ── How it works + Who it serves ──────────────────────── */}
-        <div className="grid gap-6 lg:grid-cols-12 lg:items-stretch xl:gap-7">
+        <div className="grid gap-4 lg:grid-cols-12 lg:items-stretch">
           <div className="lg:col-span-8">
             <Reveal className="h-full w-full" delayMs={90}>
               <GoldEdgeCard className="h-full w-full">
-                <div className="h-full p-8 md:p-10">
+                <div className="h-full p-4 md:p-5">
                   <p className="text-xs font-semibold text-white/40">How it works</p>
-                  <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">
+                  <h2 className="mt-2 text-lg font-black tracking-tight md:text-2xl">
                     A practical path from real-world value to on-chain commerce
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/60">
@@ -495,30 +496,30 @@ export default function AppPage() {
                     completion when the listing maps to a real product or service.
                   </p>
 
-                  <div className="mt-8 grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+                  <div className="mt-4 grid gap-2 md:grid-cols-2 2xl:grid-cols-4">
                     {HOW_STEPS.map((s) => (
                       <div
                         key={s.n}
-                        className="flex min-h-[160px] flex-col rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.065] md:min-h-[176px] md:p-6"
+                        className="flex min-h-[128px] flex-col rounded-[18px] border border-white/10 bg-white/[0.045] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.32)] transition hover:bg-white/[0.065] md:min-h-[136px] md:p-4"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-[11px] font-extrabold text-black shadow-[0_16px_50px_rgba(212,175,55,0.16)]">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-[10px] font-extrabold text-black shadow-[0_16px_50px_rgba(212,175,55,0.16)]">
                             {s.n}
                           </div>
-                          <p className="text-[15px] font-bold leading-tight text-white md:text-[16px]">
+                          <p className="text-sm font-bold leading-tight text-white md:text-[15px]">
                             {s.t}
                           </p>
                         </div>
-                        <p className="mt-4 flex-1 text-[12.5px] leading-[1.65] text-white/60 md:text-[13px]">
+                        <p className="mt-2.5 flex-1 text-xs leading-relaxed text-white/60 md:text-[13px]">
                           {s.d}
                         </p>
                       </div>
                     ))}
                   </div>
 
-                  <div className="pt-9">
-                    <div className="overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,rgba(247,231,167,0.26),rgba(212,175,55,0.12),rgba(184,135,10,0.08))] p-px">
-                      <div className="rounded-[28px] border border-white/10 bg-[#0b0a09]/55 p-5 backdrop-blur-2xl">
+                  <div className="pt-4">
+                    <div className="overflow-hidden rounded-[18px] bg-[linear-gradient(135deg,rgba(247,231,167,0.26),rgba(212,175,55,0.12),rgba(184,135,10,0.08))] p-px">
+                      <div className="rounded-[18px] border border-white/10 bg-[#0b0a09]/55 p-4 backdrop-blur-2xl">
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                           <div className="max-w-2xl">
                             <p className="text-sm font-bold text-white">
@@ -542,16 +543,16 @@ export default function AppPage() {
 
                     <DuoEcosystemScene />
 
-                    <div className="mt-6 flex flex-wrap gap-3">
+                    <div className="mt-4 flex flex-wrap gap-2">
                       <Link
                         href="/app/create"
-                        className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
+                        className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
                       >
                         Create listing
                       </Link>
                       <Link
                         href="/app/trading"
-                        className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-3 font-extrabold transition hover:-translate-y-px hover:bg-white/[0.07] active:translate-y-0"
+                        className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 font-extrabold transition hover:-translate-y-px hover:bg-white/[0.07] active:translate-y-0"
                       >
                         Open marketplace
                       </Link>
@@ -565,24 +566,24 @@ export default function AppPage() {
           <div className="lg:col-span-4">
             <Reveal className="h-full w-full" delayMs={150}>
               <GoldEdgeCard className="h-full w-full">
-                <div className="flex h-full min-h-[100%] flex-col p-9 md:p-11">
+                <div className="flex h-full min-h-[100%] flex-col p-4 md:p-5">
                   <div>
-                    <p className="text-[13px] font-semibold text-white/40">Who it serves</p>
-                    <h3 className="mt-2 text-[28px] font-black leading-[1.08] tracking-tight md:text-[32px]">
+                    <p className="text-xs font-semibold text-white/40">Who it serves</p>
+                    <h3 className="mt-2 text-xl font-black leading-[1.12] tracking-tight md:text-2xl">
                       Creators, workers, brands, businesses, Web2 users, and crypto users
                     </h3>
-                    <p className="mt-3 text-[14px] leading-[1.72] text-white/60 md:text-[15px]">
+                    <p className="mt-2 text-xs leading-relaxed text-white/60 md:text-sm">
                       Realife is not just a mint page. It is an app layer for
                       real-world crypto commerce, connecting digital ownership with
                       real products, services, campaigns, fulfillment, and escrow.
                     </p>
-                    <div className="mt-7 space-y-3.5">
+                    <div className="mt-4 space-y-2.5">
                       {WHO_IT_SERVES.map((item) => (
                         <MiniCard key={item.title} title={item.title} text={item.text} />
                       ))}
                     </div>
                   </div>
-                  <div className="mt-auto pt-6 text-[11px] leading-relaxed text-white/40">
+                  <div className="mt-auto pt-4 text-[11px] leading-relaxed text-white/40">
                     Base Sepolia • AI-assisted minting • NFT-linked rights • marketplace • service escrow • delivery flows
                   </div>
                 </div>
@@ -592,13 +593,13 @@ export default function AppPage() {
         </div>
 
         {/* ── Core modules ──────────────────────────────────────── */}
-        <Reveal className="mt-6">
+        <Reveal className="mt-3">
           <GoldEdgeCard>
-            <div className="p-8 md:p-10">
-              <div className="flex flex-wrap items-end justify-between gap-5">
+            <div className="p-4 md:p-5">
+              <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold text-white/40">Core modules</p>
-                  <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">
+                  <h2 className="mt-2 text-lg font-black tracking-tight md:text-2xl">
                     Move through the Realife commerce ecosystem
                   </h2>
                   <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/60">
@@ -609,17 +610,17 @@ export default function AppPage() {
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
                 {CORE_MODULES.map((x) => (
                   <div
                     key={x.t}
-                    className="rounded-[28px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]"
+                    className="rounded-[20px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.35)] transition hover:bg-white/[0.06]"
                   >
-                    <div className="text-lg font-bold tracking-tight">{x.t}</div>
+                    <div className="text-base font-bold tracking-tight">{x.t}</div>
                     <div className="mt-2 text-sm leading-relaxed text-white/60">{x.d}</div>
                     <Link
                       href={x.href}
-                      className="mt-5 inline-flex rounded-2xl border border-white/10 bg-black/20 px-4 py-2 text-sm font-semibold transition hover:bg-white/[0.08]"
+                      className="mt-3 inline-flex rounded-2xl border border-white/10 bg-black/20 px-3 py-1.5 text-xs font-semibold transition hover:bg-white/[0.08]"
                     >
                       Open →
                     </Link>
@@ -631,11 +632,11 @@ export default function AppPage() {
         </Reveal>
 
         {/* ── Ecosystem verticals ───────────────────────────────── */}
-        <Reveal className="mt-6">
+        <Reveal className="mt-3">
           <GoldEdgeCard>
-            <div className="p-8 md:p-10">
+            <div className="p-4 md:p-5">
               <p className="text-xs font-semibold text-white/40">Inside the ecosystem</p>
-              <h2 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">
+              <h2 className="mt-2 text-lg font-black tracking-tight md:text-2xl">
                 Beyond trading: real-world verticals inside Realife
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-white/60">
@@ -644,32 +645,32 @@ export default function AppPage() {
                 stablecoin-oriented real-world utility.
               </p>
 
-              <div className="mt-8 grid gap-4 lg:grid-cols-3">
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
                 {/* Real Marketing */}
-                <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_22px_80px_rgba(0,0,0,0.35)]">
+                <div className="rounded-[20px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_22px_80px_rgba(0,0,0,0.35)]">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/40">
                     Brand commerce layer
                   </p>
-                  <h3 className="mt-2 text-2xl font-black tracking-tight">Real Marketing</h3>
-                  <p className="mt-3 text-sm leading-relaxed text-white/60">
+                  <h3 className="mt-2 text-lg font-black tracking-tight">Real Marketing</h3>
+                  <p className="mt-2 text-xs leading-relaxed text-white/60 md:text-sm">
                     The ecosystem hub for creator campaigns, crypto brand collaborations,
                     Crypto Cafe, Realife Store, product activations, and real-world commerce stories.
                   </p>
-                  <div className="mt-5 grid gap-3">
+                  <div className="mt-3 grid gap-2">
                     {[
                       "Campaigns and branded experiences",
                       "Product storytelling and storefronts",
                       "Bridge between Web2 value and Web3 commerce",
                     ].map((x) => (
-                      <div key={x} className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white/75">
+                      <div key={x} className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs md:text-sm text-white/75">
                         {x}
                       </div>
                     ))}
                   </div>
-                  <div className="mt-6">
+                  <div className="mt-3">
                     <Link
                       href={REAL_MARKETING_HREF}
-                      className="inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
+                      className="inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
                     >
                       Enter Real Marketing
                     </Link>
@@ -684,8 +685,8 @@ export default function AppPage() {
                     <div className="absolute left-4 top-4">
                       <LuxPill className="bg-black/35">Crypto Cafe</LuxPill>
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 p-5">
-                      <div className="text-xl font-black tracking-tight">Realife Crypto Cafe</div>
+                    <div className="absolute bottom-0 left-0 right-0 p-4">
+                      <div className="text-lg font-black tracking-tight">Realife Crypto Cafe</div>
                       <div className="mt-2 text-sm leading-relaxed text-white/60">
                         A premium storefront concept for branded goods, community culture,
                         crypto-native commerce, and real-world experiences.
@@ -702,8 +703,8 @@ export default function AppPage() {
                     <div className="absolute left-4 top-4">
                       <LuxPill className="bg-black/35">Realife Store</LuxPill>
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 p-5">
-                      <div className="text-xl font-black tracking-tight">Tokenized product stories</div>
+                    <div className="absolute bottom-0 left-0 right-0 p-4">
+                      <div className="text-lg font-black tracking-tight">Tokenized product stories</div>
                       <div className="mt-2 text-sm leading-relaxed text-white/60">
                         Real-world products, branded packaging, NFT-linked ownership,
                         and marketplace-ready commerce inside the ecosystem.
@@ -717,20 +718,20 @@ export default function AppPage() {
         </Reveal>
 
         {/* ── Vision ────────────────────────────────────────────── */}
-        <Reveal className="mt-6">
+        <Reveal className="mt-3">
           <GoldEdgeCard>
-            <div className="p-8 md:p-12">
-              <div className="grid items-center gap-6 lg:grid-cols-12">
+            <div className="p-4 md:p-5">
+              <div className="grid items-center gap-4 lg:grid-cols-12">
                 <div className="lg:col-span-8">
                   <p className="text-xs font-semibold text-white/40">Vision</p>
-                  <h2 className="mt-2 text-3xl font-black leading-[1.05] tracking-tight md:text-4xl">
+                  <h2 className="mt-2 text-xl font-black leading-[1.12] tracking-tight md:text-2xl">
                     We are building a Web3 commerce layer where{" "}
                     <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
                       real people, real products, and real services
                     </span>{" "}
                     can move on-chain.
                   </h2>
-                  <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
+                  <p className="mt-2 max-w-3xl text-xs leading-relaxed text-white/60 md:text-sm">
                     Realife is designed to feel premium for investors and simple for users:
                     real-world commerce, crypto payments, NFT-linked rights, AI-assisted
                     creation, marketplace activity, and escrow protection for products,
@@ -741,13 +742,13 @@ export default function AppPage() {
                   <div className="flex flex-col gap-3">
                     <Link
                       href="/app/create"
-                      className="inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
+                      className="inline-flex w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 font-extrabold text-black shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15 transition hover:-translate-y-px hover:brightness-110 active:translate-y-0"
                     >
                       Create listing
                     </Link>
                     <Link
                       href={REAL_MARKETING_HREF}
-                      className="inline-flex w-full items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-3 font-extrabold transition hover:bg-white/[0.07]"
+                      className="inline-flex w-full items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 font-extrabold transition hover:bg-white/[0.07]"
                     >
                       Explore Real Marketing
                     </Link>
@@ -758,7 +759,7 @@ export default function AppPage() {
           </GoldEdgeCard>
         </Reveal>
 
-        <div className="mt-6 px-2 text-xs text-white/40">
+        <div className="mt-3 px-1 text-[11px] text-white/40">
           Realife premium UI • AI-assisted minting • NFT-linked transaction rights • marketplace • protected escrow • real-world commerce
         </div>
       </div>

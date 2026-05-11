@@ -65,18 +65,18 @@ export default function CreatePage() {
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Reveal>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="relative overflow-hidden p-7 md:p-10">
-            <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/14 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="relative overflow-hidden p-4 md:p-5">
+            <div className="pointer-events-none absolute -top-32 -right-32 h-[320px] w-[320px] rounded-full bg-[#d4af37]/14 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-32 -left-32 h-[320px] w-[320px] rounded-full bg-white/[0.06] blur-3xl" />
 
             <div className="relative">
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <Pill>
-                  <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                  Public Mint • Base Sepolia • IPFS metadata
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#d4af37] shadow-[0_0_0_4px_rgba(212,175,55,0.12)]" />
+                  Base Sepolia
                 </Pill>
 
                 <Pill>
@@ -86,205 +86,109 @@ export default function CreatePage() {
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    ERC-1155 NFT
+                    ERC-1155 • IPFS
                   </span>
                 </Pill>
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    One public mint contract
-                  </span>
-                </Pill>
-
-                <Pill>
-                  <span className="font-extrabold text-white/80">
-                    Protected services
-                  </span>
-                </Pill>
-
-                <Pill>
-                  <span className="font-extrabold text-white/80">
-                    Local / offline services
-                  </span>
-                </Pill>
-
-                <Pill>
-                  <span className="font-extrabold text-white/80">
-                    AI image suggest
+                    AI suggest
                   </span>
                 </Pill>
               </div>
 
-              <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
+              <h1 className="mt-3 text-2xl font-black leading-[1.1] tracking-[-0.02em] sm:text-3xl md:text-[2rem]">
                 Create{" "}
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
                   Realife NFT
                 </span>
               </h1>
 
-              <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
-                Prepare metadata on IPFS → sign wallet tx → mint an ERC-1155 NFT
-                on Base Sepolia.
+              <p className="mt-2 max-w-3xl text-xs leading-relaxed text-white/65 md:text-sm">
+                Prepare metadata → sign wallet tx → mint an ERC-1155 NFT on Base Sepolia.
+                Use AI Suggest to auto-fill category, brand, and description from your image.
               </p>
 
-              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                Create NFTs for{" "}
-                <span className="font-semibold text-white">
-                  products, services, portfolios, projects, websites,
-                  collectibles, clothing, merch, travel offers, tickets,
-                  online sessions, and local / offline services
-                </span>
-                .
-              </div>
-
-              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                This page does not expose separate mint contracts. It creates the NFT with one public contract and stores enough metadata so the platform can route collectibles to standard listings and real products/services to protected flow.
-              </div>
-
-              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                The mint form uses a real-world structure:
-                <span className="font-semibold text-white">
-                  {" "}
-                  offer type → main category → item type → specific item / offer
-                </span>
-                . The seller manually chooses whether this is a collectible, product, digital service, online session, or local service. For offline services, it also stores{" "}
-                <span className="font-semibold text-white">
-                  country, city, and service area
-                </span>
-                .
-              </div>
-
-              <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
-                You can also use{" "}
-                <span className="font-semibold text-white">AI Suggest</span> to
-                inspect the uploaded image and propose category, item type,
-                item label, subcategory, brand, title, and description.
-              </div>
-
-              <div className="mt-4 flex max-w-5xl flex-wrap gap-2">
+              <div className="mt-3 flex max-w-5xl flex-wrap gap-1">
                 {[
                   "Clothing & Merch",
                   "Accessories & Jewelry",
                   "Travel & Tours",
                   "Events & Tickets",
-                  "Business & Professional Services",
+                  "Business",
                   "Health & Wellness",
-                  "Local / Offline Services",
+                  "Local Services",
                   "Home & Repair",
-                  "Fitness Sessions",
+                  "Fitness",
                   "Food & Beverage",
-                  "Beauty & Personal Care",
-                  "Electronics & Gadgets",
+                  "Beauty",
+                  "Electronics",
                 ].map((x) => (
                   <span
                     key={x}
-                    className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] font-semibold text-white/75"
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-semibold text-white/70"
                   >
                     {x}
                   </span>
                 ))}
               </div>
-              <div className="mt-4 max-w-4xl rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/60">
-                Unified public mint contract: {" "}
-                <span className="break-all font-semibold text-white">
+
+              <div className="mt-3 max-w-4xl rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] text-white/55">
+                Unified mint contract: {" "}
+                <span className="break-all font-semibold text-white/90">
                   {publicStandardMintContract}
                 </span>
               </div>
 
-              <div className="mt-4 grid max-w-6xl grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Standard collectible flow
+              <div className="mt-3 grid max-w-6xl grid-cols-2 gap-2 md:grid-cols-4">
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-2.5">
+                  <div className="text-[9px] uppercase tracking-[0.14em] text-white/45">
+                    Collectible
                   </div>
-                  <div className="mt-2 text-sm font-extrabold text-white">
-                    Mint via standard contract
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Art, collectible, public NFT. Later usually lists on the
-                    standard marketplace.
+                  <div className="mt-1 text-[11px] font-extrabold text-white">
+                    Standard flow
                   </div>
                 </div>
 
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Service / trust flow
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-2.5">
+                  <div className="text-[9px] uppercase tracking-[0.14em] text-white/45">
+                    Service
                   </div>
-                  <div className="mt-2 text-sm font-extrabold text-white">
-                    Mint via standard contract
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Consultation, coaching, training, website, project,
-                    portfolio, digital service. Later the platform can route the
-                    listing into the protected marketplace.
+                  <div className="mt-1 text-[11px] font-extrabold text-white">
+                    Trust / escrow
                   </div>
                 </div>
 
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Local / offline service
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-2.5">
+                  <div className="text-[9px] uppercase tracking-[0.14em] text-white/45">
+                    Local service
                   </div>
-                  <div className="mt-2 text-sm font-extrabold text-white">
-                    Country + city + area
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Fitness trainer, repair worker, tour guide, photographer,
-                    cleaning, beauty, offline lessons, and other local real-world
-                    services.
+                  <div className="mt-1 text-[11px] font-extrabold text-white">
+                    Country + area
                   </div>
                 </div>
 
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    Good / item flow
+                <div className="rounded-lg border border-white/10 bg-white/[0.04] p-2.5">
+                  <div className="text-[9px] uppercase tracking-[0.14em] text-white/45">
+                    Good / item
                   </div>
-                  <div className="mt-2 text-sm font-extrabold text-white">
-                    Mint via unified contract
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Any testnet user can create good offers. Good / delivery behavior is stored in metadata and can later route into protected trust flow.
+                  <div className="mt-1 text-[11px] font-extrabold text-white">
+                    Delivery flow
                   </div>
                 </div>
               </div>
 
-              <div className="mt-4 grid max-w-6xl grid-cols-1 gap-3 md:grid-cols-2">
-                <div className="rounded-[26px] border border-amber-500/15 bg-amber-500/10 p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-amber-100/70">
-                    Example local service NFT
-                  </div>
-                  <div className="mt-2 text-sm font-extrabold text-white">
-                    Veronica Martineli — Offline Fitness Session
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    Health & Wellness • Personal Training • United States • Los
-                    Angeles • West Hollywood / Beverly Hills
-                  </div>
-                </div>
-
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-                  <div className="text-[11px] uppercase tracking-[0.16em] text-white/45">
-                    AI image suggest
-                  </div>
-                  <div className="mt-2 text-sm font-extrabold text-white">
-                    Detect category from photo
-                  </div>
-                  <div className="mt-2 text-xs leading-relaxed text-white/60">
-                    AI can suggest category, item type, item label, niche,
-                    title, brand, and description from the uploaded image.
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <Link
                   href="/app/faucet"
-                  className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+                  className="rounded-lg bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-3.5 py-2 text-xs font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_10px_36px_rgba(212,175,55,0.20)]"
                 >
                   Get test ETH
                 </Link>
 
                 <Link
                   href="/app"
-                  className="rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                  className="rounded-lg border border-white/15 bg-white/[0.06] px-3.5 py-2 text-xs font-semibold backdrop-blur-2xl transition hover:bg-white/10"
                 >
                   Back to App →
                 </Link>
@@ -293,7 +197,7 @@ export default function CreatePage() {
                   href="https://sepolia.basescan.org/"
                   target="_blank"
                   rel="noreferrer"
-                  className="rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                  className="rounded-lg border border-white/15 bg-white/[0.06] px-3.5 py-2 text-xs font-semibold backdrop-blur-2xl transition hover:bg-white/10"
                 >
                   Explorer ↗
                 </a>
@@ -303,9 +207,9 @@ export default function CreatePage() {
         </GoldEdgeWrap>
       </Reveal>
 
-      <Reveal delayMs={120}>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="p-6 md:p-10">
+      <Reveal delayMs={100}>
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="p-4 md:p-5">
             <MintForm />
           </div>
         </GoldEdgeWrap>

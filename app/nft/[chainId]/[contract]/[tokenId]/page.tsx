@@ -1,3 +1,4 @@
+// PATH: app/nft/[chainId]/[contract]/[tokenId]/page.tsx — NFT detail page
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -995,13 +996,13 @@ function AccordionSection({
     <details
       open={defaultOpen}
       className={cx(
-        "group/acc overflow-hidden rounded-[28px] p-px",
+        "group/acc overflow-hidden rounded-[22px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
         "shadow-[0_26px_100px_rgba(0,0,0,0.55)]",
         "transition-shadow duration-300 hover:shadow-[0_30px_120px_rgba(212,175,55,0.10)]"
       )}
     >
-      <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/30 ring-1 ring-black/10 backdrop-blur-2xl">
+      <div className="overflow-hidden rounded-[22px] border border-white/10 bg-[#0b0a09]/30 ring-1 ring-black/10 backdrop-blur-2xl">
         <summary className="list-none cursor-pointer select-none transition-colors duration-200 hover:bg-white/[0.02]">
           <div className="flex items-center justify-between gap-4 px-6 py-5 md:px-7 md:py-6">
             <div className="min-w-0">
@@ -1548,7 +1549,7 @@ export default async function NftDetailsPage({
         <div className="absolute inset-x-0 top-0 h-48 bg-[linear-gradient(to_bottom,rgba(0,0,0,0.65),transparent)]" />
       </div>
 
-      <div className="relative mx-auto max-w-[1480px] px-6 py-10 space-y-8">
+      <div className="relative mx-auto max-w-[1480px] px-4 py-5 md:px-5 md:py-6 space-y-4">
         <div className="reveal grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/40">
@@ -1631,18 +1632,18 @@ export default async function NftDetailsPage({
           </div>
         </div>
 
-        <div className="grid items-stretch gap-6 xl:grid-cols-[minmax(0,1.02fr)_minmax(520px,0.98fr)]">
-          <div className="space-y-6">
+        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.02fr)_minmax(520px,0.98fr)]">
+          <div className="space-y-4">
             <div
               className={cx(
-                "reveal group/media overflow-hidden rounded-[28px] p-px",
+                "reveal group/media overflow-hidden rounded-[22px] p-px",
                 "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
                 "shadow-[0_34px_130px_rgba(0,0,0,0.60)]",
                 "transition-shadow duration-500 hover:shadow-[0_40px_140px_rgba(212,175,55,0.18)]"
               )}
               style={{ animationDelay: "80ms" }}
             >
-              <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/15 ring-1 ring-black/10 backdrop-blur-2xl">
+              <div className="overflow-hidden rounded-[22px] border border-white/10 bg-[#0b0a09]/15 ring-1 ring-black/10 backdrop-blur-2xl">
                 <div className="relative aspect-square bg-black">
                   {media ? (
                     <NftPreviewLightbox
@@ -1682,7 +1683,7 @@ export default async function NftDetailsPage({
                     </div>
                   </div>
 
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.76)_0%,rgba(0,0,0,0.30)_42%,transparent_100%)] p-6">
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.76)_0%,rgba(0,0,0,0.30)_42%,transparent_100%)] p-4 md:p-5">
                     <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/40">
                       {isCafeNft
                         ? "Realife Cafe Edition"
@@ -1710,17 +1711,17 @@ export default async function NftDetailsPage({
             </div>
           </div>
 
-          <div className="space-y-6 h-full">
+          <div className="space-y-4 h-full">
             <div
               className={cx(
-                "reveal h-full overflow-hidden rounded-[28px] p-px",
+                "reveal h-full overflow-hidden rounded-[22px] p-px",
                 "bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))]",
                 "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
               )}
               style={{ animationDelay: "140ms" }}
             >
-              <div className="h-full overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/30 ring-1 ring-black/10 backdrop-blur-2xl">
-                <div className="flex h-full min-h-[640px] flex-col p-6 md:min-h-[700px] md:p-7">
+              <div className="h-full overflow-hidden rounded-[22px] border border-white/10 bg-[#0b0a09]/30 ring-1 ring-black/10 backdrop-blur-2xl">
+                <div className="flex h-full min-h-[560px] flex-col p-4 md:min-h-[620px] md:p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/40">
                       {isCafeNft
@@ -1778,7 +1779,7 @@ export default async function NftDetailsPage({
                     </InfoPill>
                   </div>
 
-                  <div className="mt-4 text-3xl font-black tracking-tight md:text-4xl">
+                  <div className="mt-3 text-2xl font-black tracking-tight md:text-[2rem]">
                     {nft.name || `Token #${nft.tokenId}`}
                   </div>
 
@@ -1902,14 +1903,14 @@ export default async function NftDetailsPage({
 
         <div
           className={cx(
-            "grid gap-6",
+            "grid gap-4",
             hasStorefrontPanel
               ? "xl:grid-cols-[minmax(0,0.88fr)_minmax(520px,1.12fr)]"
               : "grid-cols-1"
           )}
         >
           {hasStorefrontPanel ? (
-            <div className="space-y-6 xl:sticky xl:top-6 xl:self-start">
+            <div className="space-y-4 xl:sticky xl:top-6 xl:self-start">
               {isCafeNft ? (
                 <div className="reveal" style={{ animationDelay: "180ms" }}>
                   <StorefrontBuyPanel1155
@@ -1998,17 +1999,17 @@ export default async function NftDetailsPage({
             </div>
           ) : null}
 
-          <div className="space-y-6">
+          <div className="space-y-4">
             {usesProtectedSecondaryMarket ? (
               <div className="reveal" style={{ animationDelay: "180ms" }}>
                 <div
                   className={cx(
-                    "overflow-hidden rounded-[28px] p-px",
+                    "overflow-hidden rounded-[22px] p-px",
                     "bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.08),rgba(184,135,10,0.06))]",
                     "shadow-[0_34px_130px_rgba(0,0,0,0.60)]"
                   )}
                 >
-                  <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[#0b0a09]/30 p-6 ring-1 ring-black/10 backdrop-blur-2xl md:p-7">
+                  <div className="overflow-hidden rounded-[22px] border border-white/10 bg-[#0b0a09]/30 p-4 ring-1 ring-black/10 backdrop-blur-2xl md:p-5">
                     <div className="text-[12px] font-bold uppercase tracking-wider text-white/80">
                       Protected Escrow
                     </div>
@@ -2082,7 +2083,7 @@ export default async function NftDetailsPage({
               title="About this NFT"
               subtitle="Description, brand, project, collection, category, item type and rarity metadata."
             >
-              <div className="grid gap-6 xl:grid-cols-[minmax(0,0.92fr)_minmax(340px,1.08fr)]">
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,0.92fr)_minmax(340px,1.08fr)]">
                 <div>
                   {metaDescription ? (
                     <div className="whitespace-pre-wrap text-[13px] leading-relaxed text-white/80">
@@ -2246,7 +2247,7 @@ export default async function NftDetailsPage({
                   Market data temporarily unavailable ({marketError}).
                 </div>
               ) : (
-                <div className="grid gap-6 xl:grid-cols-2">
+                <div className="grid gap-4 xl:grid-cols-2">
                   <div>
                     <div className="flex items-center justify-between gap-3">
                       <div className="text-[12px] font-black uppercase tracking-wider text-white/80">

@@ -1,3 +1,4 @@
+// PATH: components/trading/TxProgress.tsx — shared tx progress strip used by QuickList1155
 "use client";
 
 /**

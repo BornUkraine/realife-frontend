@@ -1,3 +1,5 @@
+// PATH: components/storefront/StorefrontBuyPanel1155.tsx — Storefront detail buy panel
+// NOTE: Visual-density alignment for the new Realife AppShell. Transaction/data logic preserved.
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -574,15 +576,15 @@ export default function StorefrontBuyPanel1155({
   }
 
   const wrap =
-    "rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.60)]";
+    "rounded-[22px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.60)]";
   const card =
-    "rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10";
+    "rounded-[22px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10";
 
   return (
     <div className={wrap}>
       <div className={card}>
-        <div className="p-6 md:p-7">
-          <div className="flex items-center justify-between gap-3">
+        <div className="p-3 md:p-5">
+          <div className="flex items-center justify-between gap-2.5">
             <div>
               <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
                 {storefrontLabel}
@@ -625,8 +627,8 @@ export default function StorefrontBuyPanel1155({
             ) : null}
           </div>
 
-          <div className="mt-5 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="mt-4 grid grid-cols-2 gap-2.5">
+            <div className="rounded-[18px] border border-white/10 bg-white/[0.04] p-3">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Price
               </div>
@@ -635,7 +637,7 @@ export default function StorefrontBuyPanel1155({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="rounded-[18px] border border-white/10 bg-white/[0.04] p-3">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Payment
               </div>
@@ -644,7 +646,7 @@ export default function StorefrontBuyPanel1155({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="rounded-[18px] border border-white/10 bg-white/[0.04] p-3">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Remaining
               </div>
@@ -653,7 +655,7 @@ export default function StorefrontBuyPanel1155({
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="rounded-[18px] border border-white/10 bg-white/[0.04] p-3">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Supply
               </div>
@@ -663,7 +665,7 @@ export default function StorefrontBuyPanel1155({
             </div>
           </div>
 
-          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4 text-[12px] text-white/60">
+          <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.04] p-3 text-[12px] text-white/60">
             NFT: <span className="font-mono text-white/80">{shortAddr(nftAddr)}</span>
             <span className="text-white/30"> • </span>
             Token: <span className="font-mono text-white/80">#{tokenId}</span>
@@ -690,7 +692,7 @@ export default function StorefrontBuyPanel1155({
           </div>
 
           {requiresShipping ? (
-            <div className="mt-5 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4">
+            <div className="mt-4 rounded-[18px] border border-sky-500/20 bg-sky-500/10 p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="text-[12px] font-black text-sky-100">
@@ -704,81 +706,81 @@ export default function StorefrontBuyPanel1155({
 
                 <Link
                   href="/app/orders"
-                  className="inline-flex items-center justify-center px-4 py-2 rounded-2xl border border-sky-200/20 bg-white/10 hover:bg-white/15 text-[12px] font-black text-sky-50 transition"
+                  className="inline-flex items-center justify-center px-3.5 py-2 rounded-[18px] border border-sky-200/20 bg-white/10 hover:bg-white/15 text-[12px] font-black text-sky-50 transition"
                 >
                   Open Orders
                 </Link>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 <input
                   value={shippingName}
                   onChange={(e) => setShippingName(e.target.value)}
                   placeholder="Full name"
-                  className="h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                  className="h-11 rounded-[18px] border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
                 />
 
                 <input
                   value={shippingPhone}
                   onChange={(e) => setShippingPhone(e.target.value)}
                   placeholder="Phone"
-                  className="h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                  className="h-11 rounded-[18px] border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
                 />
 
                 <input
                   value={shippingCountry}
                   onChange={(e) => setShippingCountry(e.target.value)}
                   placeholder="Country"
-                  className="h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                  className="h-11 rounded-[18px] border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
                 />
 
                 <input
                   value={shippingCity}
                   onChange={(e) => setShippingCity(e.target.value)}
                   placeholder="City"
-                  className="h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
+                  className="h-11 rounded-[18px] border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
                 />
 
                 <input
                   value={shippingZip}
                   onChange={(e) => setShippingZip(e.target.value)}
                   placeholder="ZIP / Postal code"
-                  className="h-12 rounded-2xl border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20 md:col-span-2"
+                  className="h-11 rounded-[18px] border border-white/10 bg-black/20 px-4 text-sm font-semibold text-white/95 outline-none focus:border-white/20 md:col-span-2"
                 />
 
                 <textarea
                   value={shippingAddress}
                   onChange={(e) => setShippingAddress(e.target.value)}
                   placeholder="Full shipping address"
-                  className="min-h-[96px] rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20 md:col-span-2"
+                  className="min-h-[84px] rounded-[18px] border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20 md:col-span-2"
                 />
               </div>
             </div>
           ) : null}
 
           {err ? (
-            <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100">
+            <div className="mt-4 rounded-[18px] border border-rose-500/20 bg-rose-500/10 p-3 text-[12px] text-rose-100">
               {err}
             </div>
           ) : null}
 
           {ok ? (
-            <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-[12px] text-emerald-100">
+            <div className="mt-4 rounded-[18px] border border-emerald-500/20 bg-emerald-500/10 p-3 text-[12px] text-emerald-100">
               {ok}
             </div>
           ) : null}
 
           {!hasBuyConfig ? (
-            <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-[12px] text-amber-100">
+            <div className="mt-4 rounded-[18px] border border-amber-500/20 bg-amber-500/10 p-3 text-[12px] text-amber-100">
               Buy config is not connected yet. The UI is ready, but exact buy contract call still needs to be passed into this component.
             </div>
           ) : null}
 
-          <div className="mt-5 flex flex-wrap items-center gap-2">
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             {!hasActiveWallet ? (
               <button
                 onClick={() => openConnectModal?.()}
-                className="inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                className="inline-flex items-center justify-center px-3.5 py-2.5 rounded-[18px] text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
               >
                 Connect Wallet
               </button>
@@ -787,7 +789,7 @@ export default function StorefrontBuyPanel1155({
             {needSwitch ? (
               <button
                 onClick={() => void ensureChain()}
-                className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition"
+                className="inline-flex items-center justify-center px-3.5 py-2.5 rounded-[18px] border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition"
               >
                 Switch Chain ({chainId})
               </button>
@@ -801,8 +803,8 @@ export default function StorefrontBuyPanel1155({
           </div>
 
           {hasErc20Payment ? (
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="mt-4 rounded-[18px] border border-white/10 bg-white/[0.04] p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
                 <div>
                   <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                     ERC20 Approval
@@ -831,7 +833,7 @@ export default function StorefrontBuyPanel1155({
                     disabled={busy !== null || !hasActiveWallet || needSwitch}
                     onClick={approveToken}
                     className={cx(
-                      "inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition",
+                      "inline-flex items-center justify-center px-3.5 py-2.5 rounded-[18px] border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition",
                       busy ? "opacity-60 cursor-not-allowed" : ""
                     )}
                   >
@@ -846,7 +848,7 @@ export default function StorefrontBuyPanel1155({
             </div>
           ) : null}
 
-          <div className="mt-6 flex flex-col md:flex-row md:items-center gap-2">
+          <div className="mt-4 flex flex-col md:flex-row md:items-center gap-2">
             <button
               disabled={
                 busy !== null ||
@@ -857,7 +859,7 @@ export default function StorefrontBuyPanel1155({
               }
               onClick={buyNow}
               className={cx(
-                "inline-flex items-center justify-center w-full md:w-auto px-6 py-3 rounded-2xl text-black font-extrabold transition",
+                "inline-flex items-center justify-center w-full md:w-auto px-4.5 py-2.5 rounded-[18px] text-black font-extrabold transition",
                 "shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15",
                 "hover:brightness-110",
                 busy ? "opacity-60 cursor-not-allowed" : "",
@@ -882,7 +884,7 @@ export default function StorefrontBuyPanel1155({
             </div>
           </div>
 
-          <div className="mt-5 text-[11px] text-white/35">
+          <div className="mt-4 text-[11px] text-white/35">
             This block is for primary storefront sales. Secondary market buy/sell stays in TradingPanel1155.
           </div>
         </div>

@@ -1,3 +1,5 @@
+// PATH: app/app/real-marketing/realife-store/page.tsx — Realife NFT Store page
+// NOTE: Visual-density alignment for the new Realife AppShell. Transaction/data logic preserved.
 import Link from "next/link";
 import type { ReactNode } from "react";
 import Reveal from "@/components/Reveal";
@@ -29,7 +31,7 @@ function GoldEdgeWrap({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[34px] p-px",
+        "relative overflow-hidden rounded-[22px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.35),rgba(212,175,55,0.16),rgba(184,135,10,0.10))]",
         "shadow-[0_34px_130px_rgba(0,0,0,0.60)]",
         className
@@ -37,7 +39,7 @@ function GoldEdgeWrap({
     >
       <div
         className={cx(
-          "relative overflow-hidden rounded-[34px]",
+          "relative overflow-hidden rounded-[22px]",
           "border border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
@@ -65,7 +67,7 @@ function ActionLink({
     return (
       <Link
         href={href}
-        className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+        className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2.5 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
       >
         {children}
       </Link>
@@ -75,7 +77,7 @@ function ActionLink({
   return (
     <Link
       href={href}
-      className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+      className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
     >
       {children}
     </Link>
@@ -84,12 +86,12 @@ function ActionLink({
 
 export default function RealifeStorePage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Reveal>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="relative overflow-hidden p-7 md:p-10">
-            <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/14 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="relative overflow-hidden p-4 md:p-5">
+            <div className="pointer-events-none absolute -top-36 -right-36 h-[420px] w-[420px] rounded-full bg-[#d4af37]/14 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[420px] w-[420px] rounded-full bg-white/[0.06] blur-3xl" />
 
             <div className="relative">
               <div className="flex flex-wrap items-center gap-2">
@@ -117,7 +119,7 @@ export default function RealifeStorePage() {
                 </Pill>
               </div>
 
-              <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
+              <h1 className="mt-4 text-2xl font-black leading-[1.08] tracking-[-0.02em] sm:text-3xl md:text-[2rem]">
                 Realife{" "}
                 <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
                   NFT Store
@@ -144,7 +146,7 @@ export default function RealifeStorePage() {
                 broader product verticals.
               </div>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-wrap gap-3">
                 <ActionLink href="/app/orders" primary>
                   Orders & Delivery
                 </ActionLink>
@@ -167,9 +169,9 @@ export default function RealifeStorePage() {
       </Reveal>
 
       <Reveal delayMs={200}>
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-6 pt-2 text-xs text-white/45">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 pt-1 text-xs text-white/45">
           <div>Realife Ecosystem</div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span className="opacity-60">Store</span>
             <span className="opacity-60">Collectibles</span>
             <span className="opacity-60">Delivery</span>

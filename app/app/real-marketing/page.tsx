@@ -1,3 +1,5 @@
+// PATH: app/app/real-marketing/page.tsx — Real Marketing hub
+// NOTE: Visual-density alignment for the new Realife AppShell. Transaction/data logic preserved.
 import Link from "next/link";
 import type { ReactNode } from "react";
 import Reveal from "@/components/Reveal";
@@ -36,7 +38,7 @@ function GoldEdgeWrap({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[34px] p-px",
+        "relative overflow-hidden rounded-[22px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.35),rgba(212,175,55,0.16),rgba(184,135,10,0.10))]",
         "shadow-[0_34px_130px_rgba(0,0,0,0.60)]",
         className
@@ -44,7 +46,7 @@ function GoldEdgeWrap({
     >
       <div
         className={cx(
-          "relative overflow-hidden rounded-[34px]",
+          "relative overflow-hidden rounded-[22px]",
           "border border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
@@ -72,7 +74,7 @@ function ActionLink({
     return (
       <Link
         href={href}
-        className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+        className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2.5 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
       >
         {children}
       </Link>
@@ -82,7 +84,7 @@ function ActionLink({
   return (
     <Link
       href={href}
-      className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold transition hover:bg-white/10 backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+      className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 font-semibold transition hover:bg-white/10 backdrop-blur-2xl shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
     >
       {children}
     </Link>
@@ -123,7 +125,7 @@ function VideoShell({
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[28px] border border-white/10 bg-black/30",
+        "relative overflow-hidden rounded-[22px] border border-white/10 bg-black/30",
         "shadow-[0_24px_90px_rgba(0,0,0,0.45)]",
         className
       )}
@@ -243,7 +245,7 @@ function StoryPlaceholderCard({
 
 function FeatureList({ items }: { items: string[] }) {
   return (
-    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+    <div className="mt-4 grid gap-3 sm:grid-cols-2">
       {items.map((item) => (
         <div
           key={item}
@@ -279,12 +281,12 @@ export default function RealMarketingPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Reveal>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="relative overflow-hidden p-7 md:p-10">
-            <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/14 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="relative overflow-hidden p-4 md:p-5">
+            <div className="pointer-events-none absolute -top-36 -right-36 h-[420px] w-[420px] rounded-full bg-[#d4af37]/14 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[420px] w-[420px] rounded-full bg-white/[0.06] blur-3xl" />
 
             <div className="relative">
               <div className="flex flex-wrap items-center gap-2">
@@ -310,7 +312,7 @@ export default function RealMarketingPage() {
                 </Pill>
               </div>
 
-              <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
+              <h1 className="mt-4 text-2xl font-black leading-[1.08] tracking-[-0.02em] sm:text-3xl md:text-[2rem]">
                 Realife{" "}
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
                   Marketing Hub
@@ -337,7 +339,7 @@ export default function RealMarketingPage() {
                 dedicated experience.
               </div>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-wrap gap-3">
                 <ActionLink href="/app/real-marketing/realife-cafe" primary>
                   Open Realife Cafe
                 </ActionLink>
@@ -354,8 +356,8 @@ export default function RealMarketingPage() {
       </Reveal>
 
       <Reveal delayMs={100}>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="grid gap-6 p-6 md:grid-cols-[1.05fr_1fr] md:p-8 xl:p-10">
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="grid gap-3 p-4 md:grid-cols-[1.05fr_1fr] md:p-8 xl:p-10">
             <div className="flex flex-col justify-center">
               <SectionTitle
                 eyebrow="Featured vertical"
@@ -385,7 +387,7 @@ export default function RealMarketingPage() {
                 ]}
               />
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-wrap gap-3">
                 <ActionLink href="/app/real-marketing/realife-cafe" primary>
                   Open Realife Cafe
                 </ActionLink>
@@ -405,8 +407,8 @@ export default function RealMarketingPage() {
       </Reveal>
 
       <Reveal delayMs={160}>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="p-6 md:p-8 xl:p-10">
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="p-4 md:p-5">
             <SectionTitle
               eyebrow="Storefront"
               title={
@@ -426,7 +428,7 @@ export default function RealMarketingPage() {
               }
             />
 
-            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
               {storeColumns.map((item, index) =>
                 item.src ? (
                   <PromoVideo
@@ -453,7 +455,7 @@ export default function RealMarketingPage() {
               )}
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-4 flex flex-wrap gap-3">
               <ActionLink href="/app/real-marketing/realife-store" primary>
                 Open NFT Store
               </ActionLink>
@@ -465,15 +467,15 @@ export default function RealMarketingPage() {
       </Reveal>
 
       <Reveal delayMs={220}>
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
           <GoldEdgeWrap className="xl:col-span-2">
-            <div className="p-6 md:p-8">
+            <div className="p-4 md:p-5">
               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/45">
                 Live verticals
               </div>
 
-              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5">
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="rounded-[20px] border border-white/10 bg-white/[0.04] p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-lg font-extrabold text-white/90">
                       Realife Crypto Cafe
@@ -489,7 +491,7 @@ export default function RealMarketingPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-5">
+                <div className="rounded-[20px] border border-white/10 bg-white/[0.04] p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-lg font-extrabold text-white/90">
                       Realife NFT Store
@@ -509,7 +511,7 @@ export default function RealMarketingPage() {
           </GoldEdgeWrap>
 
           <GoldEdgeWrap>
-            <div className="p-6 md:p-8">
+            <div className="p-4 md:p-5">
               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-white/45">
                 Roadmap
               </div>
@@ -551,9 +553,9 @@ export default function RealMarketingPage() {
       </Reveal>
 
       <Reveal delayMs={280}>
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-6 pt-2 text-xs text-white/45">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 pt-1 text-xs text-white/45">
           <div>Realife Ecosystem</div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span className="opacity-60">Real Marketing</span>
             <span className="opacity-60">Cafe</span>
             <span className="opacity-60">Store</span>

@@ -98,6 +98,26 @@ function OrdersIcon({ className = "" }: { className?: string }) {
   );
 }
 
+function FaucetIcon({ className = "" }: { className?: string }) {
+  // Simple droplet — outline, matches other utility icons.
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
+      <path
+        d="M12 3.5c-3.2 4-5.5 6.6-5.5 9.5a5.5 5.5 0 0 0 11 0c0-2.9-2.3-5.5-5.5-9.5Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.5 13.5c0 1.4 1 2.5 2.5 2.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function AiIcon({ className = "" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
@@ -605,7 +625,10 @@ export default function TopBar() {
   const dotState: "ok" | "warn" | "off" =
     !mounted || !connected ? "off" : wrongNetwork ? "warn" : "ok";
 
-  const showGetEth = mounted && connected && (wrongNetwork || !hasGas);
+  // Faucet is now a utility button — always visible after mount.
+  // Previously it appeared only when the wallet was low on gas; with the
+  // SidebarBottom removed it lives permanently in the top bar.
+  const showGetEth = mounted;
   const canSwitch = externalWalletConnected && typeof switchChainAsync === "function";
 
   const statusProps: NetworkStatusContentProps = {
@@ -643,7 +666,7 @@ export default function TopBar() {
       />
 
       <div className="relative border-b border-white/10 bg-[#0a0806]/65 backdrop-blur-2xl">
-        <div className="mx-auto w-full max-w-[1760px] px-4 py-3 sm:px-6 lg:px-8 2xl:px-10">
+        <div className="mx-auto w-full max-w-[1480px] px-3 py-2.5 sm:px-5 lg:px-6 2xl:px-8">
           {/* ── Mobile layout ─────────────────────────────────────── */}
           <div className="flex flex-col gap-3 md:hidden">
             <div className="flex items-center justify-between gap-3">
@@ -662,6 +685,20 @@ export default function TopBar() {
                   <OrdersIcon className="h-[17px] w-[17px]" />
                 </Link>
 
+                {showGetEth && (
+                  <Link
+                    href="/app/faucet"
+                    className={cn(
+                      "inline-flex h-9 w-9 items-center justify-center rounded-xl",
+                      "border border-white/10 bg-white/[0.05] backdrop-blur-xl",
+                      "text-white/75 transition hover:bg-white/10 hover:text-white",
+                    )}
+                    aria-label="Faucet ETH"
+                  >
+                    <FaucetIcon className="h-[17px] w-[17px]" />
+                  </Link>
+                )}
+
                 {web2EmbeddedConnected ? (
                   <Web2EmbeddedAccountMenu
                     compact
@@ -671,19 +708,6 @@ export default function TopBar() {
                   />
                 ) : externalWalletConnected ? null : (
                   <Web2EmbeddedLogin compact />
-                )}
-
-                {showGetEth && (
-                  <Link
-                    href="/app/faucet"
-                    className={cn(
-                      "inline-flex h-9 items-center rounded-xl px-3",
-                      "border border-white/10 bg-white/[0.05]",
-                      "text-sm font-semibold transition hover:bg-white/10",
-                    )}
-                  >
-                    Get ETH
-                  </Link>
                 )}
 
                 {!web2EmbeddedConnected ? <WalletMenu /> : null}
@@ -716,6 +740,20 @@ export default function TopBar() {
                 <span>My Orders</span>
               </Link>
 
+              {showGetEth && (
+                <Link
+                  href="/app/faucet"
+                  className={cn(
+                    "inline-flex h-9 items-center gap-2 rounded-xl px-3.5",
+                    "border border-white/10 bg-white/[0.05] backdrop-blur-xl",
+                    "text-sm font-medium text-white/75 transition hover:bg-white/10 hover:text-white",
+                  )}
+                >
+                  <FaucetIcon className="h-[16px] w-[16px]" />
+                  <span>Faucet ETH</span>
+                </Link>
+              )}
+
               {web2EmbeddedConnected ? (
                 <Web2EmbeddedAccountMenu
                   walletAddress={embeddedWalletAddress}
@@ -724,19 +762,6 @@ export default function TopBar() {
                 />
               ) : externalWalletConnected ? null : (
                 <Web2EmbeddedLogin />
-              )}
-
-              {showGetEth && (
-                <Link
-                  href="/app/faucet"
-                  className={cn(
-                    "inline-flex h-9 items-center rounded-xl px-3.5",
-                    "border border-white/10 bg-white/[0.05]",
-                    "text-sm font-medium transition hover:bg-white/10",
-                  )}
-                >
-                  Get ETH ↗
-                </Link>
               )}
 
               {!web2EmbeddedConnected ? <WalletMenu /> : null}

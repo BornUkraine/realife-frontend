@@ -1,3 +1,4 @@
+// PATH: components/trading/ActivityPanel.tsx — user marketplace activity panel
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -369,8 +370,8 @@ function EmptyCard({
 
 function EmptyOverview() {
   return (
-    <div className="mt-6 overflow-hidden rounded-[28px] bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.07),rgba(184,135,10,0.05))] p-px shadow-[0_20px_70px_rgba(0,0,0,0.42)]">
-      <div className="rounded-[28px] border border-white/10 bg-[#0b0a09]/40 p-6 text-center backdrop-blur-2xl">
+    <div className="mt-4 overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.07),rgba(184,135,10,0.05))] p-px shadow-[0_20px_70px_rgba(0,0,0,0.42)]">
+      <div className="rounded-[22px] border border-white/10 bg-[#0b0a09]/40 p-4 text-center backdrop-blur-2xl">
         <div className="text-[11px] font-black uppercase tracking-[0.22em] text-white/40">Activity feed</div>
         <div className="mt-3 text-xl font-black tracking-tight text-white/90">No marketplace activity yet</div>
         <div className="mx-auto mt-2 max-w-xl text-[13px] leading-relaxed text-white/55">
@@ -388,7 +389,7 @@ function ListingCard({ row }: { row: ListingRow }) {
     <Link
       href={`/nft/${row.chainId}/${row.contract}/${row.tokenId}`}
       className={cx(
-        "group relative overflow-hidden rounded-[26px] border border-white/9 bg-white/[0.035] p-4",
+        "group relative overflow-hidden rounded-[22px] border border-white/9 bg-white/[0.035] p-4",
         "transition-all duration-200 hover:-translate-y-[2px] hover:border-white/14 hover:bg-white/[0.06]"
       )}
     >
@@ -465,7 +466,7 @@ function TradeCard({ row, direction }: { row: TradeRow; direction: "from" | "to"
     <Link
       href={`/nft/${row.chainId}/${row.contract}/${row.tokenId}`}
       className={cx(
-        "group relative overflow-hidden rounded-[26px] border border-white/9 bg-white/[0.035] p-4",
+        "group relative overflow-hidden rounded-[22px] border border-white/9 bg-white/[0.035] p-4",
         "transition-all duration-200 hover:-translate-y-[2px] hover:border-white/14 hover:bg-white/[0.06]"
       )}
     >
@@ -525,7 +526,7 @@ function TradeCard({ row, direction }: { row: TradeRow; direction: "from" | "to"
 
 function SkeletonRow() {
   return (
-    <div className="overflow-hidden rounded-[26px] border border-white/8 bg-white/[0.03] p-4">
+    <div className="overflow-hidden rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
       <div className="flex gap-4">
         <div className="h-14 w-14 shrink-0 rounded-[18px] bg-white/8" />
         <div className="flex-1 space-y-3">
@@ -707,14 +708,14 @@ export default function ActivityPanel({ userKey }: { userKey: string }) {
     (totalCounts?.sales ?? 0) === 0;
 
   const wrap =
-    "overflow-hidden rounded-[34px] bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.07),rgba(184,135,10,0.05))] p-px shadow-[0_28px_110px_rgba(0,0,0,0.55)]";
+    "overflow-hidden rounded-[22px] bg-[linear-gradient(135deg,rgba(247,231,167,0.16),rgba(212,175,55,0.07),rgba(184,135,10,0.05))] p-px shadow-[0_28px_110px_rgba(0,0,0,0.55)]";
   const card =
-    "overflow-hidden rounded-[34px] border border-white/9 bg-[#0b0a09]/38 ring-1 ring-black/10 backdrop-blur-2xl";
+    "overflow-hidden rounded-[22px] border border-white/9 bg-[#0b0a09]/38 ring-1 ring-black/10 backdrop-blur-2xl";
 
   return (
     <div className={wrap}>
       <div className={card}>
-        <div className="p-6 md:p-7">
+        <div className="p-4 md:p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">

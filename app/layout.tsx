@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import "@rainbow-me/rainbowkit/styles.css";
@@ -18,6 +18,14 @@ export const metadata: Metadata = {
   other: {
     "base:app_id": "69e678d9c2f43db9becf667b",
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: "#070606",
 };
 
 export const dynamic = "force-dynamic";

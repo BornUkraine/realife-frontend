@@ -1,3 +1,4 @@
+// PATH: app/app/profile/[id]/page.tsx — Public/smart profile page. Light compact alignment for the new AppShell.
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -63,18 +64,18 @@ function Card({ children, className = "" }: { children: ReactNode; className?: s
   return (
     <div
       className={cx(
-        "relative overflow-hidden rounded-[30px] p-px",
+        "relative overflow-hidden rounded-[22px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.11),rgba(184,135,10,0.10))]",
         "shadow-[0_26px_100px_rgba(0,0,0,0.60)]",
         className,
       )}
     >
-      <div className="relative h-full overflow-hidden rounded-[30px] border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
+      <div className="relative h-full overflow-hidden rounded-[22px] border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
         </div>
-        <div className="relative z-10 h-full p-6 md:p-7">{children}</div>
+        <div className="relative z-10 h-full p-4 md:p-5">{children}</div>
       </div>
     </div>
   );
@@ -97,7 +98,7 @@ function Avatar({ src, fallback, className = "" }: { src?: string | null; fallba
   return (
     <div
       className={cx(
-        "flex h-20 w-20 items-center justify-center overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.06] shadow-[0_20px_80px_rgba(0,0,0,0.35)] ring-1 ring-black/15",
+        "flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.06] shadow-[0_20px_80px_rgba(0,0,0,0.35)] ring-1 ring-black/15",
         className,
       )}
     >
@@ -135,7 +136,7 @@ function SocialIcon({ kind }: { kind: "x" | "discord" }) {
 
 function Field({ label, value, mono = false }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+    <div className="rounded-[18px] border border-white/10 bg-white/[0.04] p-3">
       <div className="text-[11px] font-semibold uppercase tracking-wider text-white/40">{label}</div>
       <div className={cx("mt-1 truncate text-sm font-bold text-white/85", mono && "font-mono text-[13px]")}>{value}</div>
     </div>
@@ -160,15 +161,15 @@ function SocialCard({
   connected: boolean;
 }) {
   return (
-    <div className="flex h-full flex-col justify-center rounded-[26px] border border-white/10 bg-white/[0.052] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.24)] ring-1 ring-black/10 md:p-6">
-      <div className="flex items-center gap-4 md:gap-5">
+    <div className="flex h-full flex-col justify-center rounded-[22px] border border-white/10 bg-white/[0.052] p-4 shadow-[0_18px_70px_rgba(0,0,0,0.24)] ring-1 ring-black/10 md:p-5">
+      <div className="flex items-center gap-3 md:gap-4">
         <div className="relative shrink-0">
           <Avatar
             src={avatar}
             fallback={title.slice(0, 1)}
-            className="h-[92px] w-[92px] rounded-[26px] md:h-[104px] md:w-[104px]"
+            className="h-[76px] w-[76px] rounded-[22px] md:h-[84px] md:w-[84px]"
           />
-          <div className="absolute -right-2 -bottom-2 flex h-10 w-10 items-center justify-center rounded-2xl border border-white/15 bg-[#1b170d]/95 text-white shadow-[0_14px_45px_rgba(0,0,0,0.45)] ring-1 ring-amber-400/10">
+          <div className="absolute -right-2 -bottom-2 flex h-9 w-9 items-center justify-center rounded-2xl border border-white/15 bg-[#1b170d]/95 text-white shadow-[0_14px_45px_rgba(0,0,0,0.45)] ring-1 ring-amber-400/10">
             <SocialIcon kind={kind} />
           </div>
         </div>
@@ -204,7 +205,7 @@ function NftPreviewCard({ nft }: { nft: PublicNftPreview }) {
   return (
     <Link
       href={`/app/trading/${encodeURIComponent(nft.mintId)}`}
-      className="group overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.045] transition hover:-translate-y-0.5 hover:bg-white/[0.07]"
+      className="group overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.045] transition hover:-translate-y-0.5 hover:bg-white/[0.07]"
     >
       <div className="aspect-square bg-white/[0.04]">
         {img ? (
@@ -388,14 +389,14 @@ export default async function SmartProfilePage({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Card>
-        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div className="flex min-w-0 items-center gap-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
             <Avatar src={avatar} fallback="RL" />
             <div className="min-w-0">
               <div className="text-xs font-semibold text-white/55">Public Realife profile</div>
-              <h1 className="mt-1 truncate text-3xl font-black tracking-tight text-white md:text-4xl">{displayName}</h1>
+              <h1 className="mt-1 truncate text-2xl font-black tracking-tight text-white md:text-[2rem]">{displayName}</h1>
               <div className="mt-3 flex flex-wrap gap-2">
                 {twitterUser && <Pill tone="gold">X @{twitterUser}</Pill>}
                 {discordUser && <Pill tone="gold">Discord @{discordUser}</Pill>}
@@ -423,7 +424,7 @@ export default async function SmartProfilePage({
           </div>
         </div>
 
-        <div className="mt-7 grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-5">
           <Field label="NFTs" value={nftCount} />
           <Field label="Active listings" value={activeListingsCount} />
           <Field label="Points" value={targetUser.points ?? 0} />
@@ -432,10 +433,10 @@ export default async function SmartProfilePage({
         </div>
       </Card>
 
-      <div className="grid items-stretch gap-6 lg:grid-cols-2">
+      <div className="grid items-stretch gap-4 lg:grid-cols-2">
         <Card className="h-full">
           <div className="flex h-full flex-col">
-            <div className="mb-5 flex items-center justify-between gap-4">
+            <div className="mb-4 flex items-center justify-between gap-4">
               <div>
                 <div className="text-lg font-black text-white">Social identity</div>
                 <div className="mt-1 text-sm text-white/55">Public trust signals linked by the profile owner.</div>
@@ -481,7 +482,7 @@ export default async function SmartProfilePage({
               ))}
             </div>
           ) : (
-            <div className="rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm text-white/55">
+            <div className="rounded-[20px] border border-white/10 bg-white/[0.04] p-4 text-sm text-white/55">
               This profile has no public verified NFT holdings yet.
             </div>
           )}

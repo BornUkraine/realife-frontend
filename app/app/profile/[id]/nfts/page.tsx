@@ -1,3 +1,4 @@
+// PATH: app/app/profile/[id]/nfts/page.tsx — Public NFT gallery for a profile. Light compact alignment for the new AppShell.
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -837,22 +838,22 @@ export default async function AppProfileNFTsPage({
   ).length;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
         <div
           className={cx(
-            "reveal rounded-[28px] p-px overflow-hidden",
+            "reveal rounded-[22px] p-px overflow-hidden",
             "bg-[linear-gradient(135deg,rgba(247,231,167,0.24),rgba(212,175,55,0.11),rgba(184,135,10,0.10))]",
             "shadow-[0_26px_100px_rgba(0,0,0,0.60)]"
           )}
         >
-          <div className="rounded-[28px] overflow-hidden border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
+          <div className="rounded-[22px] overflow-hidden border border-white/10 bg-[#0b0a09]/25 backdrop-blur-2xl ring-1 ring-black/10">
             <div className="pointer-events-none absolute inset-0">
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_24%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_86%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
             </div>
 
-            <div className="relative z-10 p-6 md:p-7">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-5">
+            <div className="relative z-10 p-4 md:p-5">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                 <div className="h-16 w-16 rounded-2xl border border-white/10 bg-white/[0.06] overflow-hidden shadow-[0_18px_70px_rgba(0,0,0,0.30)] ring-1 ring-black/15 shrink-0">
                   {avatar ? (
                     <img
@@ -880,7 +881,7 @@ export default async function AppProfileNFTsPage({
                     ) : null}
                   </div>
 
-                  <div className="mt-3 text-3xl md:text-4xl font-black tracking-tight truncate">
+                  <div className="mt-2 text-2xl md:text-[2rem] font-black tracking-tight truncate">
                     {displayName}
                   </div>
 
@@ -936,7 +937,7 @@ export default async function AppProfileNFTsPage({
                   {publicUrl ? (
                     <Link
                       href={publicUrl}
-                      className="px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-bold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                      className="px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-bold transition shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                     >
                       Profile
                     </Link>
@@ -944,14 +945,14 @@ export default async function AppProfileNFTsPage({
 
                   <Link
                     href="/app/trading"
-                    className="px-5 py-3 rounded-2xl text-sm font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 transition"
+                    className="px-4 py-2.5 rounded-2xl text-sm font-extrabold text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] shadow-[0_18px_60px_rgba(212,175,55,0.18)] ring-1 ring-black/15 hover:brightness-110 transition"
                   >
                     Trading →
                   </Link>
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-2 md:grid-cols-7 gap-3">
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-7 gap-2.5">
                 <StatChip label="Items" value={itemsCount} tone="gold" />
                 <StatChip
                   label="Tab"
@@ -1028,7 +1029,7 @@ export default async function AppProfileNFTsPage({
             <GalleryGridClient items={enriched} isOwner={isOwner} />
 
             {enriched.length === 0 ? (
-              <div className="reveal rounded-[28px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-8 text-center text-white/60">
+              <div className="reveal rounded-[22px] border border-white/10 bg-white/[0.04] backdrop-blur-xl p-5 text-center text-white/60">
                 <div className="text-lg font-bold text-white/85">
                   This user doesn't own any NFTs yet.
                 </div>
@@ -1037,7 +1038,7 @@ export default async function AppProfileNFTsPage({
                   <div className="mt-4">
                     <Link
                       href={publicUrl}
-                      className="inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-bold transition"
+                      className="inline-flex items-center justify-center px-4 py-2.5 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 text-sm font-bold transition"
                     >
                       Back to profile
                     </Link>
@@ -1048,7 +1049,7 @@ export default async function AppProfileNFTsPage({
           </>
         )}
 
-        <footer className="reveal pt-6 text-[10px] font-bold text-white/20 text-center uppercase tracking-[0.4em]">
+        <footer className="reveal pt-3 text-[10px] font-bold text-white/20 text-center uppercase tracking-[0.4em]">
           Realife Ecosystem • Gallery
         </footer>
     </div>

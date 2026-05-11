@@ -30,7 +30,7 @@ function cx(...a: Array<string | false | null | undefined>) {
 
 function Pill({ children }: { children: ReactNode }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-[11px] font-semibold text-white/70 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
+    <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold text-white/70 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.25)]">
       {children}
     </div>
   );
@@ -46,7 +46,7 @@ function GoldEdgeWrap({
   return (
     <div
       className={[
-        "relative overflow-hidden rounded-[34px] p-px",
+        "relative overflow-hidden rounded-[22px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.35),rgba(212,175,55,0.16),rgba(184,135,10,0.10))]",
         "shadow-[0_34px_130px_rgba(0,0,0,0.60)]",
         className,
@@ -54,7 +54,7 @@ function GoldEdgeWrap({
     >
       <div
         className={[
-          "relative overflow-hidden rounded-[34px]",
+          "relative overflow-hidden rounded-[22px]",
           "border border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
@@ -94,17 +94,17 @@ export default async function RealifeStoreTradingPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Reveal>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="relative overflow-hidden p-7 md:p-10">
-            <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-sky-500/10 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
+        <GoldEdgeWrap className="rounded-[22px]">
+          <div className="relative overflow-hidden p-4 md:p-5">
+            <div className="pointer-events-none absolute -top-32 -right-32 h-[320px] w-[320px] rounded-full bg-sky-500/10 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-32 -left-32 h-[320px] w-[320px] rounded-full bg-white/[0.06] blur-3xl" />
 
             <div className="relative">
               <div className="flex flex-wrap items-center gap-2">
                 <Pill>
-                  <span className="h-2 w-2 rounded-full bg-sky-400 shadow-[0_0_0_6px_rgba(14,165,233,0.12)]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-sky-400 shadow-[0_0_0_4px_rgba(14,165,233,0.12)]" />
                   Realife Store
                 </Pill>
 
@@ -127,26 +127,26 @@ export default async function RealifeStoreTradingPage() {
                 </Pill>
               </div>
 
-              <h1 className="mt-5 text-4xl md:text-6xl font-black leading-[1.05] tracking-[-0.02em]">
+              <h1 className="mt-3 text-2xl sm:text-3xl md:text-[2rem] font-black leading-[1.05] tracking-[-0.02em]">
                 Realife{" "}
                 <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#7dd3fc,#38bdf8,#0ea5e9)]">
                   Store
                 </span>
               </h1>
 
-              <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/70 md:text-base">
+              <p className="mt-2 max-w-3xl text-xs leading-relaxed text-white/65 md:text-sm">
                 Secondary market page for official Realife Store NFTs.
                 This section is trading only. Delivery does not work here for secondary trading,
                 and official fulfillment is not automatically guaranteed for secondary buyers.
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <Link
                   href="/app/trading"
                   className={cx(
-                    "px-6 py-3 rounded-2xl border border-white/15 bg-white/[0.06]",
+                    "px-3.5 py-2 text-xs rounded-lg border border-white/15 bg-white/[0.06]",
                     "font-semibold hover:bg-white/10 transition backdrop-blur-2xl",
-                    "shadow-[0_18px_70px_rgba(0,0,0,0.28)] text-white"
+                    " text-white"
                   )}
                 >
                   Back to Trading Hub

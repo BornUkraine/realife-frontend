@@ -1,3 +1,5 @@
+// PATH: components/storefront/StorefrontQuickBuy1155.tsx — Storefront quick-buy modal
+// NOTE: Visual-density alignment for the new Realife AppShell. Transaction/data logic preserved.
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -434,7 +436,7 @@ export default function StorefrontQuickBuy1155({
         }}
         disabled={disabledOpen}
         className={cx(
-          "inline-flex items-center justify-center px-4 py-3 rounded-2xl",
+          "inline-flex items-center justify-center px-3.5 py-2.5 rounded-[18px]",
           "text-[12px] font-extrabold transition",
           disabledOpen
             ? "border border-white/10 bg-white/[0.04] text-white/45 cursor-not-allowed"
@@ -458,21 +460,21 @@ export default function StorefrontQuickBuy1155({
               e.stopPropagation();
               setOpen(false);
             }}
-            className="absolute top-4 right-4 z-[101] h-11 w-11 rounded-full border border-white/12 bg-white/[0.08] hover:bg-white/[0.12] transition flex items-center justify-center text-white/85 text-lg font-black"
+            className="absolute top-3 right-3 z-[101] h-10 w-10 rounded-full border border-white/12 bg-white/[0.08] hover:bg-white/[0.12] transition flex items-center justify-center text-white/85 text-lg font-black"
             title="Close"
           >
             ✕
           </button>
 
           <div
-            className="relative w-full max-w-[420px] rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
+            className="relative w-full max-w-[390px] rounded-[22px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.70)]"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
             }}
           >
-            <div className="rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/82 backdrop-blur-2xl ring-1 ring-black/10">
-              <div className="p-5">
+            <div className="rounded-[22px] overflow-hidden border border-white/10 bg-[#0b0a09]/82 backdrop-blur-2xl ring-1 ring-black/10">
+              <div className="p-4">
                 <div className="text-center">
                   <div className="text-[18px] font-black text-white/95">
                     {title || `Token #${tokenId}`}
@@ -481,13 +483,13 @@ export default function StorefrontQuickBuy1155({
                 </div>
 
                 {err ? (
-                  <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-[12px] text-rose-100 text-center">
+                  <div className="mt-3 rounded-[18px] border border-rose-500/20 bg-rose-500/10 px-3.5 py-2.5 text-[12px] text-rose-100 text-center">
                     {err}
                   </div>
                 ) : null}
 
                 {ok ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-[12px] text-emerald-100 text-center">
+                  <div className="mt-3 rounded-[18px] border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-2.5 text-[12px] text-emerald-100 text-center">
                     {ok}
                   </div>
                 ) : null}
@@ -495,7 +497,7 @@ export default function StorefrontQuickBuy1155({
                 {!hasActiveWallet ? (
                   <button
                     onClick={() => openConnectModal?.()}
-                    className="mt-4 w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
+                    className="mt-3 w-full inline-flex items-center justify-center px-4 py-2.5 rounded-[18px] text-black font-extrabold hover:brightness-110 transition shadow-[0_18px_60px_rgba(212,175,55,0.20)] bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
                   >
                     Connect Wallet
                   </button>
@@ -504,19 +506,19 @@ export default function StorefrontQuickBuy1155({
                 {needSwitch ? (
                   <button
                     onClick={() => void ensureChain()}
-                    className="mt-4 w-full inline-flex items-center justify-center px-5 py-3 rounded-2xl border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition text-white"
+                    className="mt-3 w-full inline-flex items-center justify-center px-4 py-2.5 rounded-[18px] border border-white/15 bg-white/[0.06] hover:bg-white/10 font-extrabold transition text-white"
                   >
                     Switch Chain
                   </button>
                 ) : null}
 
-                <div className="mt-5">
+                <div className="mt-3">
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setAmount(1)}
                       className={cx(
-                        "h-11 rounded-2xl border text-sm font-black transition",
+                        "h-11 rounded-[18px] border text-sm font-black transition",
                         amount === 1
                           ? "border-amber-300/40 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black"
                           : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]"
@@ -529,7 +531,7 @@ export default function StorefrontQuickBuy1155({
                       type="button"
                       onClick={() => setAmount(clampInt(10, 1, Math.max(1, maxBuyAmount)))}
                       className={cx(
-                        "h-11 rounded-2xl border text-sm font-black transition",
+                        "h-11 rounded-[18px] border text-sm font-black transition",
                         amount === clampInt(10, 1, Math.max(1, maxBuyAmount))
                           ? "border-amber-300/40 bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black"
                           : "border-white/10 bg-white/[0.04] text-white/80 hover:bg-white/[0.08]"
@@ -547,16 +549,16 @@ export default function StorefrontQuickBuy1155({
                     type="number"
                     min={1}
                     max={Math.max(1, maxBuyAmount)}
-                    className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-center text-base font-black text-white/95 outline-none focus:border-white/20"
+                    className="mt-2 h-11 w-full rounded-[18px] border border-white/10 bg-black/20 px-4 text-center text-base font-black text-white/95 outline-none focus:border-white/20"
                   />
                 </div>
 
-                <div className="mt-5 grid grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-2 gap-2">
                   <button
                     disabled={busy !== null || !hasActiveWallet || needSwitch || !needsApproval}
                     onClick={approveToken}
                     className={cx(
-                      "h-12 rounded-2xl font-extrabold transition border",
+                      "h-11 rounded-[18px] font-extrabold transition border",
                       needsApproval
                         ? "border-white/15 bg-white/[0.06] text-white hover:bg-white/10"
                         : "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
@@ -579,7 +581,7 @@ export default function StorefrontQuickBuy1155({
                     }
                     onClick={buyNow}
                     className={cx(
-                      "h-12 rounded-2xl font-extrabold transition text-black",
+                      "h-11 rounded-[18px] font-extrabold transition text-black",
                       "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] hover:brightness-110",
                       busy !== null ||
                         !hasActiveWallet ||

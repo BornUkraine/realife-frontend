@@ -11,7 +11,6 @@ function cx(...a: Array<string | false | null | undefined>) {
 }
 
 // ─── GoldEdgeCard ─────────────────────────────────────────────────────────────
-// Thin gradient border that reads as a premium physical edge.
 function GoldEdgeCard({
   className = "",
   children,
@@ -22,18 +21,17 @@ function GoldEdgeCard({
   return (
     <div
       className={cx(
-        "relative rounded-[28px] p-px overflow-hidden",
+        "relative rounded-3xl p-px overflow-hidden",
         "bg-[linear-gradient(145deg,rgba(247,231,167,0.38),rgba(201,168,76,0.16),rgba(184,135,10,0.10))]",
-        "shadow-[0_28px_120px_rgba(0,0,0,0.55)]",
+        "shadow-[0_22px_90px_rgba(0,0,0,0.55)]",
         className,
       )}
     >
       <div
         className={cx(
-          "relative rounded-[28px] overflow-hidden",
+          "relative rounded-3xl overflow-hidden",
           "border border-white/[0.07]",
           "bg-[#0a0806]/72 backdrop-blur-2xl",
-          // Radial inner highlights — top-left warm, bottom-right cool
           "before:pointer-events-none before:absolute before:inset-0",
           "before:bg-[radial-gradient(circle_at_15%_0%,rgba(201,168,76,0.10),transparent_42%)]",
           "after:pointer-events-none after:absolute after:inset-0",
@@ -43,6 +41,96 @@ function GoldEdgeCard({
         <div className="relative z-10">{children}</div>
       </div>
     </div>
+  );
+}
+
+// ─── Nav icons — outline SVG, sized 16×16 ────────────────────────────────────
+function NavIcon({ href }: { href: string }) {
+  const cls = "h-4 w-4 shrink-0";
+
+  if (href === "/app") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={cls} aria-hidden>
+        <path d="M3 11.5 12 4l9 7.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (href === "/app/create") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={cls} aria-hidden>
+        <path d="M12 4v3M12 17v3M4 12h3M17 12h3" strokeLinecap="round" />
+        <path d="m6.5 6.5 2 2M15.5 15.5l2 2M17.5 6.5l-2 2M8.5 15.5l-2 2" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="3" />
+      </svg>
+    );
+  }
+  if (href === "/app/ai-studio") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={cls} aria-hidden>
+        <path d="M5 19 19 5" strokeLinecap="round" />
+        <path d="M15 5h4v4" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M9 9.5 7.5 8 9 6.5 10.5 8 9 9.5Z" />
+      </svg>
+    );
+  }
+  if (href === "/app/trading") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={cls} aria-hidden>
+        <path d="M4 8h12l-3-3" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M20 16H8l3 3" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+  if (href === "/app/real-marketing") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={cls} aria-hidden>
+        <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1Z" strokeLinejoin="round" />
+        <path d="M15 8a4 4 0 0 1 0 8" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (href === "/app/social") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={cls} aria-hidden>
+        <circle cx="9" cy="9" r="3" />
+        <path d="M3 19c1.2-2.8 3.4-4.2 6-4.2s4.8 1.4 6 4.2" strokeLinecap="round" />
+        <circle cx="17" cy="7" r="2.4" />
+        <path d="M15.5 14c1.6.4 3 1.6 3.8 3.5" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (href === "/app/profile") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={cls} aria-hidden>
+        <circle cx="12" cy="8" r="3.4" />
+        <path d="M5 20c1.4-3.4 4-5.2 7-5.2s5.6 1.8 7 5.2" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  if (href === "/faq") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={cls} aria-hidden>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.7" strokeLinecap="round" />
+        <circle cx="12" cy="17" r="0.8" fill="currentColor" />
+      </svg>
+    );
+  }
+  if (href === "/app/contacts") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className={cls} aria-hidden>
+        <rect x="3" y="6" width="18" height="13" rx="2" />
+        <path d="m3 8 9 6 9-6" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  // Fallback dot
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" className={cls} aria-hidden>
+      <circle cx="12" cy="12" r="3" />
+    </svg>
   );
 }
 
@@ -61,16 +149,15 @@ function SidebarNavItem({
   badge?: string;
 }) {
   const base = cx(
-    "group relative flex w-full items-center justify-between gap-3",
-    "rounded-xl px-4 py-2.5 text-sm font-medium",
-    "transition-all duration-200",
+    "group relative flex w-full items-center gap-2.5",
+    "rounded-lg px-2.5 py-1.5 text-[12.5px] font-medium",
+    "transition-all duration-150",
   );
 
-  // ── Active: gold left-rule + subtle warm surface
-  // Using inline style for border-left to avoid Tailwind conflicts with border shorthand.
+  // Active accent: gold left rule. Use inline style to avoid Tailwind border conflicts.
   const activeStyle = {
     borderLeft: "2px solid #C9A84C",
-    paddingLeft: "14px", // compensate 2px border so text doesn't shift
+    paddingLeft: "8px",
   };
 
   const activeCls = cx(
@@ -80,10 +167,9 @@ function SidebarNavItem({
   );
 
   const idleCls = cx(
-    "text-white/60 hover:text-white/90",
+    "text-white/65 hover:text-white",
     "border border-transparent hover:border-white/[0.07]",
     "hover:bg-white/[0.04]",
-    "hover:-translate-y-px active:translate-y-0",
   );
 
   const disabledCls = cx(
@@ -93,21 +179,24 @@ function SidebarNavItem({
 
   const content = (
     <>
-      <span className="truncate">{label}</span>
+      <span
+        className={cx(
+          "shrink-0 transition-colors",
+          active ? "text-[#C9A84C]" : "text-white/55 group-hover:text-white/85",
+        )}
+      >
+        <NavIcon href={href} />
+      </span>
+
+      <span className="truncate flex-1">{label}</span>
 
       {!enabled ? (
-        <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px] font-medium text-white/50">
+        <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[9px] font-medium text-white/45">
           {badge ?? "Soon"}
         </span>
       ) : active ? (
-        <span className="shrink-0 rounded-full border border-[rgba(201,168,76,0.25)] bg-[rgba(201,168,76,0.12)] px-2 py-0.5 text-[10px] font-medium text-[#C9A84C]">
-          Active
-        </span>
-      ) : (
-        <span className="shrink-0 text-[11px] text-white/40 opacity-0 transition-opacity group-hover:opacity-100">
-          →
-        </span>
-      )}
+        <span className="shrink-0 h-1.5 w-1.5 rounded-full bg-[#C9A84C]" aria-hidden />
+      ) : null}
     </>
   );
 
@@ -142,17 +231,16 @@ export default function AppSidebar({
   const pathname = usePathname();
 
   return (
-    <div className="sticky top-24">
+    <div className="sticky top-20">
       <GoldEdgeCard>
-        <div className="p-5 xl:p-6">
+        <div className="p-3 xl:p-4">
 
           {/* ── Logo ──────────────────────────────────────────────── */}
           <Link
             href="/app"
-            className="mb-7 flex items-center relative overflow-visible"
+            className="mb-3 flex items-center relative overflow-visible"
           >
-            {/* Logo mark */}
-            <div className="z-10 shrink-0 relative w-14 h-14 flex items-center justify-center -ml-1.5">
+            <div className="z-10 shrink-0 relative w-10 h-10 flex items-center justify-center -ml-1">
               <Image
                 src="/brand/logo-mark.png"
                 alt="Realife"
@@ -161,12 +249,11 @@ export default function AppSidebar({
                 priority
                 quality={90}
                 sizes="240px"
-                className="h-full w-full object-contain mix-blend-screen scale-[4.2]"
+                className="h-full w-full object-contain mix-blend-screen scale-[3.2]"
                 draggable={false}
               />
             </div>
-            {/* Wordmark — absolute-positioned so it can overflow */}
-            <div className="relative flex-1 h-11 overflow-visible z-0">
+            <div className="relative flex-1 h-8 overflow-visible z-0">
               <Image
                 src="/brand/logo-wordmark.png"
                 alt="Realife"
@@ -175,7 +262,7 @@ export default function AppSidebar({
                 priority
                 quality={90}
                 sizes="560px"
-                className="absolute left-[-64px] top-1/2 h-auto w-[280px] max-w-none -translate-y-1/2 object-contain object-left mix-blend-screen"
+                className="absolute left-[-48px] top-1/2 h-auto w-[200px] max-w-none -translate-y-1/2 object-contain object-left mix-blend-screen"
                 draggable={false}
               />
             </div>
@@ -183,14 +270,14 @@ export default function AppSidebar({
 
           {/* ── Section label ─────────────────────────────────────── */}
           {(title || subtitle) && (
-            <div className="mb-4 border-b border-white/[0.06] pb-4">
+            <div className="mb-2.5 border-b border-white/[0.06] pb-2.5">
               {title && (
-                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/35">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.20em] text-white/35">
                   {title}
                 </p>
               )}
               {subtitle && (
-                <p className="mt-1.5 text-[12px] leading-relaxed text-white/48">
+                <p className="mt-0.5 text-[10.5px] leading-snug text-white/45">
                   {subtitle}
                 </p>
               )}
@@ -199,13 +286,13 @@ export default function AppSidebar({
 
           {/* ── Top badge slot ─────────────────────────────────────── */}
           {topBadge && (
-            <div className="mb-4 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-3.5">
+            <div className="mb-2.5 rounded-xl border border-white/[0.08] bg-white/[0.04] p-2">
               {topBadge}
             </div>
           )}
 
           {/* ── Navigation ────────────────────────────────────────── */}
-          <nav className="space-y-1">
+          <nav className="space-y-0.5">
             {APP_NAV.map((item) => (
               <SidebarNavItem
                 key={item.href}
@@ -220,7 +307,7 @@ export default function AppSidebar({
 
           {/* ── Bottom slot ───────────────────────────────────────── */}
           {bottom && (
-            <div className="mt-5 border-t border-white/[0.06] pt-5">
+            <div className="mt-3 border-t border-white/[0.06] pt-3">
               {bottom}
             </div>
           )}

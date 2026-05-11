@@ -1,3 +1,5 @@
+// PATH: app/app/real-marketing/realife-cafe/CafeStoreClient.tsx — Cafe storefront client grid
+// NOTE: Visual-density alignment for the new Realife AppShell. Transaction/data logic preserved.
 "use client";
 
 import Link from "next/link";
@@ -212,15 +214,15 @@ export default function CafeStoreClient() {
   const activeCount = useMemo(() => rows.filter((x) => x.active).length, [rows]);
 
   const goldWrap =
-    "rounded-[34px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.60)]";
+    "rounded-[22px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.22),rgba(212,175,55,0.10),rgba(184,135,10,0.08))] shadow-[0_34px_130px_rgba(0,0,0,0.60)]";
   const goldCard =
-    "rounded-[34px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10";
+    "rounded-[22px] overflow-hidden border border-white/10 bg-[#0b0a09]/30 backdrop-blur-2xl ring-1 ring-black/10";
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className={goldWrap}>
-        <div className={cx(goldCard, "p-6 md:p-7")}>
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className={cx(goldCard, "p-3 md:p-3")}>
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[11px] uppercase tracking-[0.22em] text-white/45 font-black">
                 Primary Storefront
@@ -238,7 +240,7 @@ export default function CafeStoreClient() {
               <button
                 onClick={() => setMode("active")}
                 className={cx(
-                  "px-4 py-2 rounded-2xl border text-[12px] font-black transition",
+                  "px-3.5 py-2 rounded-2xl border text-[12px] font-black transition",
                   mode === "active"
                     ? "border-black/10 text-black bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15"
                     : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
@@ -250,7 +252,7 @@ export default function CafeStoreClient() {
               <button
                 onClick={() => setMode("all")}
                 className={cx(
-                  "px-4 py-2 rounded-2xl border text-[12px] font-black transition",
+                  "px-3.5 py-2 rounded-2xl border text-[12px] font-black transition",
                   mode === "all"
                     ? "border-white/15 bg-white/[0.10] text-white"
                     : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]"
@@ -261,36 +263,36 @@ export default function CafeStoreClient() {
 
               <Link
                 href="/app/trading"
-                className="px-4 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100"
+                className="px-3.5 py-2 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-amber-100/90 hover:text-amber-100"
               >
                 Open Trading →
               </Link>
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+          <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Total
               </div>
               <div className="mt-1 text-lg font-black text-white/90">{rows.length}</div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Active
               </div>
               <div className="mt-1 text-lg font-black text-emerald-200">{activeCount}</div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Visible
               </div>
               <div className="mt-1 text-lg font-black text-white/90">{filtered.length}</div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
                 Mode
               </div>
@@ -303,7 +305,7 @@ export default function CafeStoreClient() {
       </div>
 
       <div className={goldWrap}>
-        <div className={cx(goldCard, "p-6 md:p-7")}>
+        <div className={cx(goldCard, "p-3 md:p-3")}>
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[220px] flex-1">
               <div className="text-[11px] text-white/55 font-semibold uppercase tracking-wider">
@@ -313,7 +315,7 @@ export default function CafeStoreClient() {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="cappuccino / token id…"
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
+                className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-3.5 py-2.5 text-sm font-black text-white/90 outline-none focus:border-white/20"
               />
             </div>
 
@@ -324,7 +326,7 @@ export default function CafeStoreClient() {
               <select
                 value={sort}
                 onChange={(e) => setSort(e.target.value as "new" | "priceAsc" | "priceDesc")}
-                className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
+                className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-3.5 py-2.5 text-sm font-black text-white/90 outline-none focus:border-white/20"
               >
                 <option value="new">Newest</option>
                 <option value="priceAsc">Price: Low → High</option>
@@ -334,14 +336,14 @@ export default function CafeStoreClient() {
           </div>
 
           {err ? (
-            <div className="mt-5 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-[12px] text-rose-100">
+            <div className="mt-3 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-3 text-[12px] text-rose-100">
               {err}
             </div>
           ) : null}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {(loading ? Array.from({ length: 8 }) : filtered).map((x: any, idx: number) => {
           const isSkeleton = !x || typeof x !== "object" || !x.id;
 
@@ -350,13 +352,13 @@ export default function CafeStoreClient() {
               <div
                 key={`sk_${idx}`}
                 className={cx(
-                  "rounded-[26px] overflow-hidden border border-white/10 bg-white/[0.04]",
+                  "rounded-[20px] overflow-hidden border border-white/10 bg-white/[0.04]",
                   "backdrop-blur-xl",
                   "shadow-[0_24px_90px_rgba(0,0,0,0.55)]"
                 )}
               >
                 <div className="aspect-square w-full bg-white/[0.03] animate-pulse" />
-                <div className="p-5 space-y-3">
+                <div className="p-3 space-y-3">
                   <div className="h-4 w-3/4 bg-white/[0.06] rounded-lg animate-pulse" />
                   <div className="h-3 w-1/2 bg-white/[0.06] rounded-lg animate-pulse" />
                   <div className="h-10 w-full bg-white/[0.06] rounded-2xl animate-pulse" />
@@ -384,7 +386,7 @@ export default function CafeStoreClient() {
             <div
               key={x.id}
               className={cx(
-                "group rounded-[26px] overflow-hidden border border-white/10 bg-white/[0.04]",
+                "group rounded-[20px] overflow-hidden border border-white/10 bg-white/[0.04]",
                 "backdrop-blur-xl",
                 "shadow-[0_24px_90px_rgba(0,0,0,0.55)] hover:-translate-y-1 transition-all duration-300 hover:bg-white/[0.08]"
               )}
@@ -430,7 +432,7 @@ export default function CafeStoreClient() {
                 </div>
               </Link>
 
-              <div className="p-5">
+              <div className="p-3">
                 <Link href={href} className="block">
                   <div className="text-sm font-extrabold text-white/90 truncate hover:text-amber-100 transition">
                     {x.name || `Cafe Product #${x.tokenId}`}
@@ -458,7 +460,7 @@ export default function CafeStoreClient() {
                   <span className="font-mono">#{x.tokenId}</span>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
+                <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-[12px] text-white/55 font-semibold">Store price</div>
                     <div className="text-[13px] font-black text-amber-100">
@@ -480,10 +482,10 @@ export default function CafeStoreClient() {
                   </div>
                 ) : null}
 
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <Link
                     href={href}
-                    className="inline-flex items-center justify-center px-4 py-3 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
+                    className="inline-flex items-center justify-center px-3.5 py-2.5 rounded-2xl border border-white/12 bg-white/[0.06] hover:bg-white/[0.10] transition text-[12px] font-black text-white/85"
                   >
                     Open product
                   </Link>
@@ -511,7 +513,7 @@ export default function CafeStoreClient() {
                     <Link
                       href={href}
                       className={cx(
-                        "inline-flex items-center justify-center px-4 py-3 rounded-2xl",
+                        "inline-flex items-center justify-center px-3.5 py-2.5 rounded-2xl",
                         "text-[12px] font-extrabold text-black",
                         "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]",
                         "shadow-[0_18px_60px_rgba(212,175,55,0.16)] ring-1 ring-black/15",
@@ -521,7 +523,7 @@ export default function CafeStoreClient() {
                       Buy now
                     </Link>
                   ) : (
-                    <div className="inline-flex items-center justify-center px-4 py-3 rounded-2xl border border-white/10 bg-white/[0.04] text-[12px] font-black text-white/45">
+                    <div className="inline-flex items-center justify-center px-3.5 py-2.5 rounded-2xl border border-white/10 bg-white/[0.04] text-[12px] font-black text-white/45">
                       {soldOut ? "Sold out" : "Inactive"}
                     </div>
                   )}

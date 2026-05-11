@@ -1,3 +1,4 @@
+// PATH: app/app/profile/ProfileClient.tsx — Large owner profile client component. NOT changed in this package; edit only with screenshots / targeted issue.
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
