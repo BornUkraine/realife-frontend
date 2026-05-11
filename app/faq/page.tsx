@@ -1,3 +1,4 @@
+// PATH: app/faq/page.tsx — public FAQ page (Realife FAQ)
 import Link from "next/link";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -43,7 +44,7 @@ function GoldEdgeWrap({
   return (
     <div
       className={[
-        "relative overflow-hidden rounded-[34px] p-px",
+        "relative overflow-hidden rounded-[24px] p-px",
         "bg-[linear-gradient(135deg,rgba(247,231,167,0.35),rgba(212,175,55,0.16),rgba(184,135,10,0.10))]",
         "shadow-[0_34px_130px_rgba(0,0,0,0.60)]",
         className,
@@ -51,7 +52,7 @@ function GoldEdgeWrap({
     >
       <div
         className={[
-          "relative overflow-hidden rounded-[34px]",
+          "relative overflow-hidden rounded-[24px]",
           "border border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl",
           "ring-1 ring-black/10",
           "before:pointer-events-none before:absolute before:inset-0",
@@ -474,12 +475,12 @@ export default function FAQPage() {
   const year = new Date().getFullYear();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Reveal>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="relative overflow-hidden p-7 md:p-10">
-            <div className="pointer-events-none absolute -top-44 -right-44 h-[560px] w-[560px] rounded-full bg-[#d4af37]/14 blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[560px] w-[560px] rounded-full bg-white/[0.06] blur-3xl" />
+        <GoldEdgeWrap className="rounded-[24px]">
+          <div className="relative overflow-hidden p-4 md:p-5">
+            <div className="pointer-events-none absolute -top-44 -right-44 h-[360px] w-[360px] rounded-full bg-[#d4af37]/14 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-44 -left-44 h-[360px] w-[360px] rounded-full bg-white/[0.06] blur-3xl" />
 
             <div className="relative">
               <div className="flex flex-wrap items-center gap-2">
@@ -492,41 +493,41 @@ export default function FAQPage() {
                 <Pill>Escrow + trust</Pill>
               </div>
 
-              <h1 className="mt-5 max-w-5xl text-4xl font-black leading-[1.05] tracking-[-0.02em] md:text-6xl">
+              <h1 className="mt-4 max-w-4xl text-2xl font-black leading-[1.05] tracking-[-0.02em] sm:text-3xl md:text-[2rem]">
                 Frequently asked questions about{" "}
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
                   Realife
                 </span>
               </h1>
 
-              <p className="mt-4 max-w-4xl text-sm leading-relaxed text-white/70 md:text-base">
+              <p className="mt-3 max-w-3xl text-sm leading-relaxed text-white/70">
                 Realife is building a trust layer for stablecoin commerce:
                 escrow, NFT-linked receipts, order states, delivery and service
                 confirmation, and dispute paths for real-world goods and
                 services.
               </p>
 
-              <div className="mt-5 grid max-w-6xl grid-cols-2 gap-2 md:grid-cols-4">
+              <div className="mt-4 grid max-w-5xl grid-cols-2 gap-2 md:grid-cols-4">
                 {quickStats.map((item) => (
                   <div
                     key={item}
-                    className="rounded-[22px] border border-white/10 bg-white/[0.05] px-3 py-3 text-xs font-semibold leading-relaxed text-white/70"
+                    className="rounded-[16px] border border-white/10 bg-white/[0.05] px-3 py-2.5 text-xs font-semibold leading-relaxed text-white/70"
                   >
                     {item}
                   </div>
                 ))}
               </div>
 
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-wrap gap-2.5">
                 <Link
                   href="/app/create"
-                  className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+                  className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2.5 text-sm font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.18)]"
                 >
                   Create NFT
                 </Link>
                 <Link
                   href="/app/trading"
-                  className="rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                  className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.24)]"
                 >
                   Open marketplace →
                 </Link>
@@ -538,13 +539,13 @@ export default function FAQPage() {
 
       {faqSections.map((section, sectionIndex) => (
         <Reveal key={section.title} delayMs={80 + sectionIndex * 40}>
-          <GoldEdgeWrap className="rounded-[36px]">
-            <section className="p-6 md:p-8">
-              <div className="mb-5 max-w-3xl">
+          <GoldEdgeWrap className="rounded-[24px]">
+            <section className="p-4 md:p-5">
+              <div className="mb-4 max-w-3xl">
                 <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-100/60">
                   {section.eyebrow}
                 </div>
-                <h2 className="mt-2 text-2xl font-black tracking-[-0.02em] text-white md:text-3xl">
+                <h2 className="mt-2 text-xl font-black tracking-[-0.02em] text-white md:text-2xl">
                   {section.title}
                 </h2>
                 <p className="mt-2 text-sm leading-relaxed text-white/60">
@@ -556,17 +557,17 @@ export default function FAQPage() {
                 {section.items.map((item) => (
                   <details
                     key={item.q}
-                    className="group rounded-[26px] border border-white/10 bg-white/[0.04] p-5 backdrop-blur-2xl transition hover:border-amber-300/20 hover:bg-white/[0.06] open:border-amber-300/25 open:bg-amber-500/[0.06]"
+                    className="group rounded-[18px] border border-white/10 bg-white/[0.04] p-4 backdrop-blur-2xl transition hover:border-amber-300/20 hover:bg-white/[0.06] open:border-amber-300/25 open:bg-amber-500/[0.06]"
                   >
                     <summary className="cursor-pointer list-none text-sm font-extrabold leading-snug text-white marker:text-[#d4af37]">
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start justify-between gap-3">
                         <span>{item.q}</span>
-                        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/20 text-sm font-black text-amber-100/70 transition group-open:rotate-45 group-open:border-amber-300/30 group-open:text-amber-100">
+                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/20 text-sm font-black text-amber-100/70 transition group-open:rotate-45 group-open:border-amber-300/30 group-open:text-amber-100">
                           +
                         </span>
                       </div>
                     </summary>
-                    <div className="mt-4 border-t border-white/10 pt-4 text-sm leading-relaxed text-white/64">
+                    <div className="mt-3 border-t border-white/10 pt-3 text-sm leading-relaxed text-white/64">
                       {item.a}
                     </div>
                   </details>
@@ -578,33 +579,33 @@ export default function FAQPage() {
       ))}
 
       <Reveal delayMs={240}>
-        <GoldEdgeWrap className="rounded-[40px]">
-          <div className="relative overflow-hidden p-7 md:p-10">
-            <div className="pointer-events-none absolute -right-36 -top-36 h-[420px] w-[420px] rounded-full bg-[#d4af37]/12 blur-3xl" />
+        <GoldEdgeWrap className="rounded-[24px]">
+          <div className="relative overflow-hidden p-4 md:p-5">
+            <div className="pointer-events-none absolute -right-36 -top-36 h-[360px] w-[360px] rounded-full bg-[#d4af37]/12 blur-3xl" />
             <div className="relative max-w-4xl">
               <div className="text-[11px] font-black uppercase tracking-[0.18em] text-amber-100/60">
                 Still early
               </div>
-              <h2 className="mt-2 text-3xl font-black tracking-[-0.02em] text-white md:text-4xl">
+              <h2 className="mt-2 text-2xl font-black tracking-[-0.02em] text-white md:text-3xl">
                 Realife is live on testnet and moving toward mainnet commerce.
               </h2>
-              <p className="mt-3 text-sm leading-relaxed text-white/65 md:text-base">
+              <p className="mt-3 text-sm leading-relaxed text-white/65">
                 The current MVP is for proving the product surface: minting,
                 marketplace activity, protected order flows, wallet-based
                 onboarding, AI-assisted listings, and admin tooling. Mainnet
                 launch requires security hardening, compliance review, USDC
                 settlement readiness, seller onboarding, and controlled pilots.
               </p>
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-wrap gap-2.5">
                 <Link
                   href="/app"
-                  className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-6 py-3 font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+                  className="rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2.5 text-sm font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.18)]"
                 >
                   Enter Realife
                 </Link>
                 <Link
                   href="/app/faucet"
-                  className="rounded-2xl border border-white/15 bg-white/[0.06] px-6 py-3 font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
+                  className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold backdrop-blur-2xl transition hover:bg-white/10 shadow-[0_18px_70px_rgba(0,0,0,0.24)]"
                 >
                   Get test ETH →
                 </Link>
@@ -615,7 +616,7 @@ export default function FAQPage() {
       </Reveal>
 
       <Reveal delayMs={280}>
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-6 pt-2 text-xs text-white/45">
+        <div className="flex flex-wrap items-center justify-between gap-4 pb-4 pt-1 text-xs text-white/45">
           <div>© {year} Realife</div>
           <div className="flex flex-wrap items-center gap-4">
             <span className="opacity-60">USDC commerce</span>

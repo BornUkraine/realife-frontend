@@ -1,6 +1,7 @@
 "use client";
 
-export const dynamic = "force-dynamic";
+// PATH: app/app/faucet/FaucetClient.tsx — client UI for the Base Sepolia faucet page.
+// Fix: keep wagmi/RainbowKit hooks in this client component. Do NOT export route config here.
 
 import Link from "next/link";
 import { useMemo, useState, useEffect } from "react";
@@ -94,7 +95,7 @@ function Pill({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function FaucetPage() {
+export default function FaucetClient() {
   const mounted = useMounted();
   const { openConnectModal } = useConnectModal();
 
