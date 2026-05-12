@@ -44,6 +44,11 @@ type MarketListing = {
   suggestedMarketType?: MarketType | null;
   marketplaceContract?: string | null;
 
+  // ETH for STANDARD listings, USDC raw amount for PROTECTED listings.
+  paymentTokenAddress?: string | null;
+  paymentSymbol?: string | null;
+  paymentDecimals?: number | null;
+
   deliveryEnabled?: boolean | null;
   physicalItemIncluded?: boolean | null;
   officialItem?: boolean | null;
@@ -210,29 +215,70 @@ function normText(v?: string | null) {
   return String(v || "").trim().toLowerCase();
 }
 
-function fmtEth(weiStr?: string | null) {
+const ETH_DECIMALS = 18;
+const PROTECTED_USDC_DECIMALS = 6;
+const ETH_SYMBOL = "ETH";
+const PROTECTED_PAYMENT_SYMBOL = "USDC";
+
+function isProtectedView(view: MarketView) {
+  return view === "publicProtected" || view === "publicDelivery";
+}
+
+function priceFilterSymbol(view: MarketView) {
+  return isProtectedView(view) ? PROTECTED_PAYMENT_SYMBOL : ETH_SYMBOL;
+}
+
+function priceFilterDecimals(view: MarketView) {
+  return isProtectedView(view) ? PROTECTED_USDC_DECIMALS : ETH_DECIMALS;
+}
+
+function formatRawAmount(raw?: string | null, decimals = ETH_DECIMALS) {
   try {
-    if (!weiStr) return "—";
-    const v = formatUnits(BigInt(weiStr), 18);
+    if (!raw) return "—";
+    const v = formatUnits(BigInt(raw), decimals);
     const [a, b] = v.split(".");
     if (!b) return a;
-    const bb = b.slice(0, 6).replace(/0+$/, "");
+    const maxDecimals = decimals === PROTECTED_USDC_DECIMALS ? 2 : 6;
+    const bb = b.slice(0, maxDecimals).replace(/0+$/, "");
     return bb ? `${a}.${bb}` : a;
   } catch {
     return "—";
   }
 }
 
-function safeEthToWeiString(value: string) {
+function safeAmountToRawString(value: string, decimals = ETH_DECIMALS) {
   const v = String(value || "").trim().replace(",", ".");
   if (!v) return null;
-  if (!/^\d+(\.\d{1,18})?$/.test(v)) return null;
+  const re = new RegExp(`^\\d+(\\.\\d{1,${decimals}})?$`);
+  if (!re.test(v)) return null;
 
   try {
-    return parseUnits(v, 18).toString();
+    return parseUnits(v, decimals).toString();
   } catch {
     return null;
   }
+}
+
+function listingPaymentDecimals(item: { resolvedMarketType?: MarketType | null; paymentDecimals?: number | null }) {
+  if (item.resolvedMarketType === "PROTECTED") {
+    return Number(item.paymentDecimals || PROTECTED_USDC_DECIMALS);
+  }
+
+  return Number(item.paymentDecimals || ETH_DECIMALS);
+}
+
+function listingPaymentSymbol(item: { resolvedMarketType?: MarketType | null; paymentSymbol?: string | null }) {
+  if (item.resolvedMarketType === "PROTECTED") {
+    return String(item.paymentSymbol || PROTECTED_PAYMENT_SYMBOL).toUpperCase();
+  }
+
+  return String(item.paymentSymbol || ETH_SYMBOL).toUpperCase();
+}
+
+function formatListingPrice(item: { pricePerUnitWei?: string | null; resolvedMarketType?: MarketType | null; paymentDecimals?: number | null; paymentSymbol?: string | null }) {
+  const symbol = listingPaymentSymbol(item);
+  const decimals = listingPaymentDecimals(item);
+  return `${formatRawAmount(item.pricePerUnitWei, decimals)} ${symbol}`;
 }
 
 function compactFilters(filters: TradingFilters) {
@@ -522,7 +568,7 @@ function getMarketViewConfig(view: MarketView) {
         label: "Service • Protected",
         title: "Service Protected NFT Trading",
         subtitle:
-          "Service NFTs minted through the standard public mint contract and listed through the PROTECTED escrow flow. This view is for digital services, online sessions and local/offline services.",
+          "Service NFTs minted through the standard public mint contract and listed through the PROTECTED USDC escrow flow. This view is for digital services, online sessions and local/offline services.",
         contract: PUBLIC_STANDARD_CONTRACT || null,
         marketType: "PROTECTED" as MarketType,
         fulfillmentGroup: "service" as "product" | "service" | "standard" | null,
@@ -533,7 +579,7 @@ function getMarketViewConfig(view: MarketView) {
         label: "Goods • Protected",
         title: "Goods Protected NFT Trading",
         subtitle:
-          "Goods NFTs minted through the unified public mint contract and listed through the PROTECTED escrow flow for physical goods, delivery, fulfillment and buyer confirmation.",
+          "Goods NFTs minted through the unified public mint contract and listed through the PROTECTED USDC escrow flow for physical goods, delivery, fulfillment and buyer confirmation.",
         contract: PUBLIC_STANDARD_CONTRACT || null,
         marketType: "PROTECTED" as MarketType,
         fulfillmentGroup: "product" as "product" | "service" | "standard" | null,
@@ -556,7 +602,7 @@ function getMarketViewConfig(view: MarketView) {
         label: "All Trading NFTs",
         title: "NFT Trading",
         subtitle:
-          "All verified Realife NFTs available for secondary trading, with the main focus on Service Protected, Goods Protected and Public Standard flows before Cafe and Store resale.",
+          "All verified Realife NFTs available for secondary trading, with Service Protected and Goods Protected routed through USDC escrow, plus Public Standard before Cafe and Store resale.",
         contract: null,
         marketType: null as MarketType | null,
         fulfillmentGroup: null as "product" | "service" | "standard" | null,
@@ -584,14 +630,14 @@ function getMarketViewNote(view: MarketView) {
       return {
         tone: "border-violet-500/20 bg-violet-500/10 text-violet-100",
         text:
-          "Service Protected shows NFTs from the standard public mint contract listed through the PROTECTED escrow flow. This is the main service direction for digital services, online sessions and local/offline services with buyer confirmation.",
+          "Service Protected shows NFTs from the standard public mint contract listed through the PROTECTED USDC escrow flow. Buyer funds are held in USDC until service completion, confirmation, release, or refund resolution.",
       };
 
     case "publicDelivery":
       return {
         tone: "border-amber-500/20 bg-amber-500/10 text-amber-100",
         text:
-          "Goods Protected shows NFTs from the unified public mint contract listed through the PROTECTED escrow flow. This is the main goods direction for physical goods, delivery, fulfillment and buyer confirmation.",
+          "Goods Protected shows NFTs from the unified public mint contract listed through the PROTECTED USDC escrow flow. Buyer funds are held in USDC while delivery, fulfillment, confirmation, release, or refund resolution happens.",
       };
 
     case "publicStandard":
@@ -896,10 +942,11 @@ export default function TradingClient({
         params.set("serviceArea", activeFilters.serviceArea);
       }
 
-      const minWei = safeEthToWeiString(activeFilters.minPriceEth);
-      const maxWei = safeEthToWeiString(activeFilters.maxPriceEth);
-      if (minWei) params.set("minPriceWei", minWei);
-      if (maxWei) params.set("maxPriceWei", maxWei);
+      const priceDecimals = priceFilterDecimals(view);
+      const minRaw = safeAmountToRawString(activeFilters.minPriceEth, priceDecimals);
+      const maxRaw = safeAmountToRawString(activeFilters.maxPriceEth, priceDecimals);
+      if (minRaw) params.set("minPriceWei", minRaw);
+      if (maxRaw) params.set("maxPriceWei", maxRaw);
 
       params.set("sort", sort);
 
@@ -1579,14 +1626,14 @@ export default function TradingClient({
 
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
-                      Min ETH
+                      Min {priceFilterSymbol(marketView)}
                     </div>
                     <input
                       value={filters.minPriceEth}
                       onChange={(e) =>
                         setFilters((prev) => ({ ...prev, minPriceEth: e.target.value }))
                       }
-                      placeholder="0.001"
+                      placeholder={isProtectedView(marketView) ? "10" : "0.001"}
                       inputMode="decimal"
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                     />
@@ -1594,14 +1641,14 @@ export default function TradingClient({
 
                   <div>
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-white/45">
-                      Max ETH
+                      Max {priceFilterSymbol(marketView)}
                     </div>
                     <input
                       value={filters.maxPriceEth}
                       onChange={(e) =>
                         setFilters((prev) => ({ ...prev, maxPriceEth: e.target.value }))
                       }
-                      placeholder="0.1"
+                      placeholder={isProtectedView(marketView) ? "100" : "0.1"}
                       inputMode="decimal"
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-black text-white/90 outline-none focus:border-white/20"
                     />
@@ -1913,7 +1960,7 @@ export default function TradingClient({
                               Price
                             </div>
                             <div className="text-[13px] font-black text-amber-100">
-                              {fmtEth(x.pricePerUnitWei)} ETH
+                              {formatListingPrice(x)}
                             </div>
                           </div>
 

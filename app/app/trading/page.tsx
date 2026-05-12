@@ -154,7 +154,7 @@ export default async function TradingPage() {
 
                 <Pill>
                   <span className="font-extrabold text-white/80">
-                    Service + Goods Protected
+                    USDC Protected Escrow
                   </span>
                 </Pill>
               </div>
@@ -167,8 +167,8 @@ export default async function TradingPage() {
               </h1>
 
               <p className="mt-2 max-w-3xl text-xs leading-relaxed text-white/65 md:text-sm">
-                Service Protected for services, Goods Protected for physical goods and delivery,
-                Public Standard for normal NFTs. Cafe and Store resale at the end.
+                Service Protected and Goods Protected now use USDC escrow on Base Sepolia.
+                Public Standard remains the normal NFT trading flow. Cafe and Store resale stay at the end.
                 Everything minted through the unified ERC-1155 contract and routed by metadata.
               </p>
 
@@ -193,12 +193,12 @@ export default async function TradingPage() {
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <StatCard
                   label="Main flow"
-                  value="Service Protected"
+                  value="USDC escrow"
                   tone="gold"
                 />
                 <StatCard
                   label="Goods flow"
-                  value="Goods Protected"
+                  value="USDC goods"
                   tone="violet"
                 />
                 <StatCard
@@ -227,8 +227,8 @@ export default async function TradingPage() {
           <div className="flex flex-wrap items-center gap-4">
             <span className="opacity-60">AI search</span>
             <span className="opacity-60">Secondary market</span>
-            <span className="opacity-60">Service Protected</span>
-            <span className="opacity-60">Goods Protected</span>
+            <span className="opacity-60">Service Protected / USDC</span>
+            <span className="opacity-60">Goods Protected / USDC</span>
             <span className="opacity-60">Public Standard</span>
             <span className="opacity-60">Cafe resale</span>
             <span className="opacity-60">Store resale</span>
