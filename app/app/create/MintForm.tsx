@@ -19,6 +19,11 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { decodeEventLog, encodeFunctionData, formatUnits, toHex } from "viem";
 
 import { realife1155Abi } from "@/lib/realife1155Abi";
+import {
+  BASE_SEPOLIA_USDC_ADDRESS,
+  REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT,
+  REALIFE_PROTECTED_PAYMENT_USDC,
+} from "@/lib/realifeProtectedUsdc";
 import NftMedia from "@/components/NftMedia";
 
 const REALIFE_PROJECT = "Realife" as const;
@@ -672,6 +677,18 @@ const CONTRACT_1155_STANDARD =
     | `0x${string}`
     | undefined;
 
+const PROTECTED_USDC_MARKETPLACE_CONTRACT =
+  REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT;
+
+const PROTECTED_USDC_PAYMENT_SYMBOL = REALIFE_PROTECTED_PAYMENT_USDC.symbol;
+const PROTECTED_USDC_PAYMENT_DECIMALS = REALIFE_PROTECTED_PAYMENT_USDC.decimals;
+
+function shortAddress(v?: string | null) {
+  const s = String(v || "").trim();
+  if (!/^0x[a-fA-F0-9]{40}$/.test(s)) return "not set";
+  return `${s.slice(0, 6)}…${s.slice(-4)}`;
+}
+
 
 /* ---------------- UI kit ---------------- */
 
@@ -979,6 +996,13 @@ function Stepper({
               </span>
             </Pill>
 
+            {suggestedMarketType === "protected" ? (
+              <Pill>
+                <span className="text-white/70">Protected payment:</span>
+                <span className="text-amber-200 font-extrabold">USDC</span>
+              </Pill>
+            ) : null}
+
             <Pill>
               <span className="text-white/70">NFT class:</span>
               <span className="text-white font-extrabold">
@@ -1034,6 +1058,18 @@ function Stepper({
             </span>
           </div>
 
+          {suggestedMarketType === "protected" ? (
+            <div className="mt-2 text-[11px] leading-relaxed text-white/55">
+              Protected listings are routed to the USDC escrow contract: {" "}
+              <span className="font-semibold text-amber-200">
+                {shortAddress(PROTECTED_USDC_MARKETPLACE_CONTRACT)}
+              </span>
+              <span className="text-white/45">
+                {" "}• payment token: {PROTECTED_USDC_PAYMENT_SYMBOL} / 6 decimals.
+              </span>
+            </div>
+          ) : null}
+
           <div className="mt-2 text-[11px] leading-relaxed text-white/55">
             {suggestedMarketType === "protected" ? (
               <>
@@ -1042,7 +1078,7 @@ function Stepper({
                   {humanFulfillmentType(fulfillmentType)}
                 </span>
                 . It mints through the standard public NFT contract, while Realife
-                metadata marks it for a later protected listing / escrow flow.
+                metadata marks it for a later protected USDC listing / escrow flow.
               </>
             ) : (
               <>
@@ -1553,6 +1589,20 @@ export default function MintForm() {
               subcategory: subcategory.trim() || null,
               fulfillmentType,
               suggestedMarketType,
+              marketplaceContract:
+                suggestedMarketType === "protected"
+                  ? PROTECTED_USDC_MARKETPLACE_CONTRACT
+                  : null,
+              paymentTokenAddress:
+                suggestedMarketType === "protected" ? BASE_SEPOLIA_USDC_ADDRESS : null,
+              paymentSymbol:
+                suggestedMarketType === "protected"
+                  ? PROTECTED_USDC_PAYMENT_SYMBOL
+                  : null,
+              paymentDecimals:
+                suggestedMarketType === "protected"
+                  ? PROTECTED_USDC_PAYMENT_DECIMALS
+                  : null,
               serviceCountry: finalServiceCountry || null,
               serviceCity: finalServiceCity || null,
               serviceArea: finalServiceArea || null,
@@ -1581,6 +1631,12 @@ export default function MintForm() {
       qp.set("brand", brand.trim());
       qp.set("delivery", targetDeliveryEnabled ? "1" : "0");
       qp.set("market", suggestedMarketType);
+      if (suggestedMarketType === "protected") {
+        qp.set("marketplaceContract", PROTECTED_USDC_MARKETPLACE_CONTRACT);
+        qp.set("paymentToken", BASE_SEPOLIA_USDC_ADDRESS);
+        qp.set("paymentSymbol", PROTECTED_USDC_PAYMENT_SYMBOL);
+        qp.set("paymentDecimals", String(PROTECTED_USDC_PAYMENT_DECIMALS));
+      }
       qp.set("fulfillmentType", fulfillmentType || "");
       qp.set("serviceCountry", finalServiceCountry);
       qp.set("serviceCity", finalServiceCity);
@@ -1825,6 +1881,24 @@ export default function MintForm() {
       );
       formData.append("fulfillmentType", fulfillmentType || "");
       formData.append("suggestedMarketType", suggestedMarketType);
+      formData.append(
+        "marketplaceContract",
+        suggestedMarketType === "protected" ? PROTECTED_USDC_MARKETPLACE_CONTRACT : ""
+      );
+      formData.append(
+        "paymentTokenAddress",
+        suggestedMarketType === "protected" ? BASE_SEPOLIA_USDC_ADDRESS : ""
+      );
+      formData.append(
+        "paymentSymbol",
+        suggestedMarketType === "protected" ? PROTECTED_USDC_PAYMENT_SYMBOL : ""
+      );
+      formData.append(
+        "paymentDecimals",
+        suggestedMarketType === "protected"
+          ? String(PROTECTED_USDC_PAYMENT_DECIMALS)
+          : ""
+      );
       formData.append("serviceCountry", isLocalService ? serviceCountry.trim() : "");
       formData.append("serviceCity", isLocalService ? serviceCity.trim() : "");
       formData.append("serviceArea", isLocalService ? serviceArea.trim() : "");
@@ -2710,7 +2784,7 @@ export default function MintForm() {
                 <span className="font-semibold text-white">
                   {humanFulfillmentType(fulfillmentType)}
                 </span>
-                , later listing should go through protected escrow / trust flow.
+                , later listing should go through protected USDC escrow / trust flow.
               </>
             ) : (
               <>
