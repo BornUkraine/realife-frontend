@@ -634,6 +634,21 @@ model Listing {
    */
   marketplaceContract String?
 
+  /**
+   * Payment token snapshot for the listing.
+   * For legacy ETH listings these fields can stay null.
+   * For USDC protected listings:
+   * - paymentTokenAddress = Circle testnet USDC on Base Sepolia
+   * - paymentSymbol = "USDC"
+   * - paymentDecimals = 6
+   *
+   * Keep pricePerUnitWei as the existing raw amount column for now.
+   * In USDC flow it stores USDC raw units, e.g. 10 USDC = 10000000.
+   */
+  paymentTokenAddress String?
+  paymentSymbol       String?
+  paymentDecimals     Int?
+
   sellerWallet         String
   marketplaceListingId BigInt
   pricePerUnitWei      BigInt
@@ -688,6 +703,8 @@ model Listing {
   @@index([deliveryEnabled, physicalItemIncluded])
   @@index([marketType])
   @@index([marketplaceContract])
+  @@index([paymentTokenAddress])
+  @@index([paymentSymbol])
   @@index([marketType, marketplaceListingId])
   @@index([marketplaceContract, marketplaceListingId])
   @@index([fulfillmentType])
@@ -726,6 +743,21 @@ model Trade {
   marketplaceContract String?
 
   /**
+   * Payment token snapshot for the trade/order event.
+   * For legacy ETH/spot trades these fields can stay null.
+   * For USDC protected trades:
+   * - paymentTokenAddress = Circle testnet USDC on Base Sepolia
+   * - paymentSymbol = "USDC"
+   * - paymentDecimals = 6
+   *
+   * Keep pricePerUnitWei / totalPriceWei as existing raw amount columns.
+   * In USDC flow they store USDC raw units, e.g. 10 USDC = 10000000.
+   */
+  paymentTokenAddress String?
+  paymentSymbol       String?
+  paymentDecimals     Int?
+
+  /**
    * ---------------- Snapshot of protected/service classification ------------
    */
   fulfillmentType FulfillmentType?
@@ -760,6 +792,8 @@ model Trade {
   @@index([marketplacePurchaseId])
   @@index([marketType])
   @@index([marketplaceContract])
+  @@index([paymentTokenAddress])
+  @@index([paymentSymbol])
   @@index([marketType, marketplaceListingId])
   @@index([marketType, marketplacePurchaseId])
   @@index([marketplaceContract, marketplaceListingId])
@@ -897,7 +931,15 @@ model StoreOrder {
   unitPrice  BigInt
   totalPrice BigInt
 
-  paymentToken String?
+  /**
+   * Payment token used for the order.
+   * Existing paymentToken can continue to store token/native address.
+   * For USDC protected orders, paymentToken should be the USDC contract address,
+   * paymentSymbol = "USDC", paymentDecimals = 6.
+   */
+  paymentToken    String?
+  paymentSymbol   String?
+  paymentDecimals Int?
 
   deliveryRequired Boolean @default(false)
   physicalItem     Boolean @default(false)
@@ -993,6 +1035,8 @@ model StoreOrder {
   @@index([createdAt])
   @@index([marketType])
   @@index([marketplaceContract])
+  @@index([paymentToken])
+  @@index([paymentSymbol])
   @@index([marketType, marketplaceListingId])
   @@index([marketType, marketplacePurchaseId])
   @@index([marketplaceContract, marketplaceListingId])
