@@ -97,6 +97,12 @@ const PUBLIC_STANDARD_CONTRACT = normAddr(
     null
 );
 
+const ACTIVE_PROTECTED_USDC_MARKETPLACE = normAddr(
+  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
+    process.env.REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
+    null
+);
+
 function fixedMarketTypeByContract(
   contract: string | null | undefined
 ): ForcedMarketType | null {
@@ -300,6 +306,9 @@ function listingSelectForMode(mode: QueryMode) {
     tokenId: true,
     status: true,
     marketplaceContract: true,
+    paymentTokenAddress: true,
+    paymentSymbol: true,
+    paymentDecimals: true,
     marketplaceListingId: true,
     sellerWallet: true,
     pricePerUnitWei: true,
@@ -346,6 +355,9 @@ function tradeSelectForMode(mode: QueryMode) {
   if (mode === "meta" || mode === "ai") {
     base.marketType = true;
     base.marketplaceContract = true;
+    base.paymentTokenAddress = true;
+    base.paymentSymbol = true;
+    base.paymentDecimals = true;
     base.marketplaceListingId = true;
     base.marketplacePurchaseId = true;
     base.fulfillmentType = true;
@@ -493,6 +505,9 @@ function listingToJson(r: any, requestedMarketType: MarketType | null) {
     marketType: rowResolvedMarketType,
     suggestedMarketType: rowSuggestedMarketType,
     marketplaceContract: r.marketplaceContract ?? null,
+    paymentTokenAddress: r.paymentTokenAddress ?? null,
+    paymentSymbol: r.paymentSymbol ?? (rowResolvedMarketType === "PROTECTED" ? "USDC" : null),
+    paymentDecimals: r.paymentDecimals ?? (rowResolvedMarketType === "PROTECTED" ? 6 : null),
 
     sellerWallet: r.sellerWallet,
     seller: r.seller || null,
@@ -544,6 +559,9 @@ function tradeToJson(
 
     marketType: rowResolvedMarketType,
     marketplaceContract: t.marketplaceContract ?? null,
+    paymentTokenAddress: t.paymentTokenAddress ?? null,
+    paymentSymbol: t.paymentSymbol ?? (rowResolvedMarketType === "PROTECTED" ? "USDC" : null),
+    paymentDecimals: t.paymentDecimals ?? (rowResolvedMarketType === "PROTECTED" ? 6 : null),
     marketplaceListingId: t.marketplaceListingId
       ? s(t.marketplaceListingId)
       : null,
@@ -583,9 +601,13 @@ export async function GET(req: NextRequest) {
     ? (marketTypeRaw as MarketType)
     : null;
 
-  const marketplaceContract = normAddr(
+  const marketplaceContractParam = normAddr(
     url.searchParams.get("marketplaceContract")
   );
+
+  const marketplaceContract =
+    marketplaceContractParam ||
+    (requestedMarketType === "PROTECTED" ? ACTIVE_PROTECTED_USDC_MARKETPLACE : null);
 
   const listingsTake = Math.max(
     1,

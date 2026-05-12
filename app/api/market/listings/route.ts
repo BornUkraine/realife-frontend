@@ -79,6 +79,12 @@ const PUBLIC_STANDARD_CONTRACT = normAddr(
     null
 );
 
+const ACTIVE_PROTECTED_USDC_MARKETPLACE = normAddr(
+  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
+    process.env.REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
+    null
+);
+
 function orderByForSort(sort: SortMode) {
   if (sort === "priceAsc") {
     return [{ pricePerUnitWei: "asc" as const }, { createdAt: "desc" as const }];
@@ -358,6 +364,9 @@ export async function GET(req: NextRequest) {
 
     if (requestedMarketType && !contract) {
       where.marketType = requestedMarketType;
+      if (requestedMarketType === "PROTECTED" && ACTIVE_PROTECTED_USDC_MARKETPLACE) {
+        where.marketplaceContract = ACTIVE_PROTECTED_USDC_MARKETPLACE;
+      }
     }
 
     if (requestedMarketType && contract) {
@@ -367,6 +376,9 @@ export async function GET(req: NextRequest) {
         // Store is standard by product logic.
       } else {
         where.marketType = requestedMarketType;
+        if (requestedMarketType === "PROTECTED" && ACTIVE_PROTECTED_USDC_MARKETPLACE) {
+          where.marketplaceContract = ACTIVE_PROTECTED_USDC_MARKETPLACE;
+        }
       }
     }
 
@@ -390,6 +402,9 @@ export async function GET(req: NextRequest) {
         status: true,
         marketType: true,
         marketplaceContract: true,
+        paymentTokenAddress: true,
+        paymentSymbol: true,
+        paymentDecimals: true,
         marketplaceListingId: true,
         sellerWallet: true,
         pricePerUnitWei: true,
@@ -634,6 +649,9 @@ export async function GET(req: NextRequest) {
         marketType: suggestedMarketType,
         suggestedMarketType,
         marketplaceContract: r.marketplaceContract,
+        paymentTokenAddress: r.paymentTokenAddress ?? null,
+        paymentSymbol: r.paymentSymbol ?? (suggestedMarketType === "PROTECTED" ? "USDC" : null),
+        paymentDecimals: r.paymentDecimals ?? (suggestedMarketType === "PROTECTED" ? 6 : null),
 
         sellerWallet: r.sellerWallet,
         seller: r.seller || null,

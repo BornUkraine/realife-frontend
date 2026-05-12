@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 import {
@@ -323,36 +322,50 @@ function BrandLink() {
     <Link
       href="/"
       aria-label="Realife"
-      className="group inline-flex min-w-0 items-center"
+      className="group inline-flex min-w-0 items-center gap-2"
     >
-      {/* Mobile: just the round medallion PNG (logo-mark) at 36×36 */}
-      <span className="inline-flex h-9 items-center sm:hidden">
-        <Image
+      {/* Mobile: round medallion (logo-mark) at 36×36.
+         Plain <img> + onError fallback to a gold "R" so something is always visible. */}
+      <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center sm:hidden">
+        {/* Fallback letter — sits behind the image */}
+        <span
+          aria-hidden
+          className="absolute inset-0 flex items-center justify-center rounded-full border border-[#d4af37]/30 bg-black text-[18px] font-black text-[#d4af37]"
+        >
+          R
+        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src="/brand/logo-mark.png"
           alt="Realife"
-          width={144}
-          height={144}
-          priority
-          quality={95}
-          sizes="36px"
-          className="h-9 w-9 object-contain transition group-hover:opacity-90"
+          className="relative h-9 w-9 object-contain transition group-hover:opacity-90"
           draggable={false}
+          onError={(e) => {
+            // If the PNG fails to load, hide the broken image so the fallback letter shows.
+            e.currentTarget.style.display = "none";
+          }}
         />
       </span>
 
-      {/* Desktop / tablet: the horizontal lockup PNG (logo-wordmark)
-         which already contains "REALIFE" + "R" medallion. No fake CSS text. */}
-      <span className="hidden h-9 items-center sm:inline-flex">
-        <Image
+      {/* Desktop / tablet: horizontal wordmark lockup.
+         Fallback to a styled "REALIFE" text if the PNG fails. */}
+      <span className="relative hidden h-9 items-center sm:inline-flex">
+        <span
+          aria-hidden
+          className="absolute inset-0 flex items-center text-[16px] font-light italic tracking-[0.18em] text-[#E8D5A0]"
+          style={{ fontFamily: "var(--font-display, Georgia, serif)" }}
+        >
+          REALIFE
+        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src="/brand/logo-wordmark.png"
           alt="Realife"
-          width={560}
-          height={120}
-          priority
-          quality={95}
-          sizes="180px"
-          className="h-9 w-auto object-contain transition group-hover:opacity-90"
+          className="relative h-9 w-auto max-w-[200px] object-contain transition group-hover:opacity-90"
           draggable={false}
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
         />
       </span>
     </Link>

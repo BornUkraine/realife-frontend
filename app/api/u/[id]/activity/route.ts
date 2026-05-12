@@ -177,6 +177,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         seller: x.seller,
 
         marketplaceListingId: s(x.marketplaceListingId),
+        paymentTokenAddress: x.paymentTokenAddress ?? null,
+        paymentSymbol: x.paymentSymbol ?? (x.marketType === "PROTECTED" ? "USDC" : null),
+        paymentDecimals: x.paymentDecimals ?? (x.marketType === "PROTECTED" ? 6 : null),
         pricePerUnitWei: s(x.pricePerUnitWei),
         amountTotal: s(x.amountTotal),
         amountRemaining: s(x.amountRemaining),
@@ -209,6 +212,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         counterpartyUser: t.seller ?? null,
 
         amount: s(t.amount),
+        paymentTokenAddress: t.paymentTokenAddress ?? null,
+        paymentSymbol: t.paymentSymbol ?? (t.marketType === "PROTECTED" ? "USDC" : null),
+        paymentDecimals: t.paymentDecimals ?? (t.marketType === "PROTECTED" ? 6 : null),
         pricePerUnitWei: s(t.pricePerUnitWei),
         totalPriceWei: s(t.totalPriceWei),
 
@@ -236,6 +242,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         counterpartyUser: t.buyer ?? null,
 
         amount: s(t.amount),
+        paymentTokenAddress: t.paymentTokenAddress ?? null,
+        paymentSymbol: t.paymentSymbol ?? (t.marketType === "PROTECTED" ? "USDC" : null),
+        paymentDecimals: t.paymentDecimals ?? (t.marketType === "PROTECTED" ? 6 : null),
         pricePerUnitWei: s(t.pricePerUnitWei),
         totalPriceWei: s(t.totalPriceWei),
 

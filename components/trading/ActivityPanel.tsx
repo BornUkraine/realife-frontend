@@ -24,6 +24,9 @@ type ListingRow = {
   sellerWallet: string;
   marketplaceListingId: string;
   pricePerUnitWei: string;
+  paymentTokenAddress?: string | null;
+  paymentSymbol?: string | null;
+  paymentDecimals?: number | null;
   amountTotal: string;
   amountRemaining: string;
   createdAt: string;
@@ -54,6 +57,9 @@ type TradeRow = {
   amount: string;
   pricePerUnitWei: string;
   totalPriceWei: string;
+  paymentTokenAddress?: string | null;
+  paymentSymbol?: string | null;
+  paymentDecimals?: number | null;
   mint: MintMini | null;
   marketType?: "STANDARD" | "PROTECTED" | null;
   fulfillmentType?: string | null;
@@ -96,16 +102,28 @@ function shortAddr(addr?: string | null) {
   return `${s.slice(0, 6)}…${s.slice(-4)}`;
 }
 
-function fmtEth(weiStr: string) {
+function fmtRawAmount(raw?: string | null, decimals = 18) {
   try {
-    const v = formatUnits(BigInt(weiStr || "0"), 18);
+    const v = formatUnits(BigInt(raw || "0"), decimals);
     const [a, b] = v.split(".");
     if (!b) return a;
-    const bb = b.slice(0, 6).replace(/0+$/, "");
+    const bb = b.slice(0, decimals === 6 ? 2 : 6).replace(/0+$/, "");
     return bb ? `${a}.${bb}` : a;
   } catch {
     return "0";
   }
+}
+
+function paymentSymbol(row: { marketType?: "STANDARD" | "PROTECTED" | null; paymentSymbol?: string | null }) {
+  return row.paymentSymbol || (row.marketType === "PROTECTED" ? "USDC" : "ETH");
+}
+
+function paymentDecimals(row: { marketType?: "STANDARD" | "PROTECTED" | null; paymentDecimals?: number | null }) {
+  return Number(row.paymentDecimals || (row.marketType === "PROTECTED" ? 6 : 18));
+}
+
+function fmtPayment(raw: string | null | undefined, row: { marketType?: "STANDARD" | "PROTECTED" | null; paymentDecimals?: number | null }) {
+  return fmtRawAmount(raw || null, paymentDecimals(row));
 }
 
 function fmtInt(x: string) {
@@ -427,7 +445,7 @@ function ListingCard({ row }: { row: ListingRow }) {
 
           <div className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
             <div className="rounded-2xl border border-white/8 bg-black/18 px-3 py-2 text-white/68">
-              Price: <span className="font-black text-amber-100">{fmtEth(row.pricePerUnitWei)} ETH</span>
+              Price: <span className="font-black text-amber-100">{fmtPayment(row.pricePerUnitWei, row)} {paymentSymbol(row)}</span>
             </div>
             <div className="rounded-2xl border border-white/8 bg-black/18 px-3 py-2 text-white/68">
               Remaining: <span className="font-black text-white/92">{fmtInt(row.amountRemaining)}</span>
@@ -492,7 +510,7 @@ function TradeCard({ row, direction }: { row: TradeRow; direction: "from" | "to"
 
           <div className="mt-3 grid grid-cols-2 gap-2 text-[12px]">
             <div className="rounded-2xl border border-white/8 bg-black/18 px-3 py-2 text-white/68">
-              Total: <span className="font-black text-amber-100">{fmtEth(row.totalPriceWei)} ETH</span>
+              Total: <span className="font-black text-amber-100">{fmtPayment(row.totalPriceWei, row)} {paymentSymbol(row)}</span>
             </div>
             <div className="rounded-2xl border border-white/8 bg-black/18 px-3 py-2 text-white/68">
               Amount: <span className="font-black text-white/92">{fmtInt(row.amount)}</span>

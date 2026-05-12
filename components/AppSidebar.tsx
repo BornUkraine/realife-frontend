@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -236,24 +235,29 @@ export default function AppSidebar({
         <div className="p-3 xl:p-4">
 
           {/* ── Logo ──────────────────────────────────────────────── */}
-          {/* Renders the actual brand PNG: /brand/logo-wordmark.png
-             (the "REALIFE + R medallion" horizontal lockup). No CSS-rendered
-             text, no scale tricks — just the file at the right height. */}
+          {/* Renders /brand/logo-wordmark.png. If the file fails to load,
+             a styled "REALIFE" text fallback shows instead. */}
           <Link
             href="/app"
             aria-label="Realife"
-            className="group mb-3 flex items-center justify-center"
+            className="group relative mb-3 flex h-9 items-center justify-center"
           >
-            <Image
+            <span
+              aria-hidden
+              className="absolute inset-0 flex items-center justify-center text-[15px] font-light italic tracking-[0.18em] text-[#E8D5A0]"
+              style={{ fontFamily: "var(--font-display, Georgia, serif)" }}
+            >
+              REALIFE
+            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src="/brand/logo-wordmark.png"
               alt="Realife"
-              width={560}
-              height={120}
-              priority
-              quality={95}
-              sizes="180px"
-              className="h-8 w-auto object-contain transition group-hover:opacity-90"
+              className="relative h-8 w-auto max-w-full object-contain transition group-hover:opacity-90"
               draggable={false}
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
             />
           </Link>
 

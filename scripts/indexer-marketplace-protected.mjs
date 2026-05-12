@@ -12,11 +12,8 @@ const RPC_URL =
 const CHAIN_ID = Number(process.env.CHAIN_ID || "84532");
 
 const MARKETPLACE = (
-  process.env.REALIFE_PROTECTED_MARKETPLACE_CONTRACT ||
-  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_CONTRACT ||
-  process.env.PROTECTED_MARKETPLACE_ADDRESS ||
-  process.env.REALIFE_MARKETPLACE_PROTECTED_ADDRESS ||
-  process.env.MARKETPLACE_PROTECTED_ADDRESS ||
+  process.env.REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
+  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
   ""
 )
   .trim()
@@ -27,6 +24,17 @@ if (!MARKETPLACE) {
 }
 
 const MARKET_TYPE = "PROTECTED";
+
+const PAYMENT_TOKEN_ADDRESS = (
+  process.env.BASE_SEPOLIA_USDC_ADDRESS ||
+  process.env.NEXT_PUBLIC_BASE_SEPOLIA_USDC_ADDRESS ||
+  "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+)
+  .trim()
+  .toLowerCase();
+
+const PAYMENT_SYMBOL = process.env.PROTECTED_MARKETPLACE_PAYMENT_SYMBOL || "USDC";
+const PAYMENT_DECIMALS = Number(process.env.PROTECTED_MARKETPLACE_PAYMENT_DECIMALS || "6");
 
 const START_BLOCK = BigInt(
   process.env.PROTECTED_MARKETPLACE_START_BLOCK ||
@@ -61,15 +69,15 @@ const LOOKBACK_BLOCKS = BigInt(
 const provider = new JsonRpcProvider(RPC_URL);
 
 const ABI = [
-  "event Listed(uint256 indexed listingId,address indexed seller,address indexed nft,uint256 tokenId,uint256 amount,uint256 pricePerUnitWei,uint8 fulfillmentType)",
+  "event Listed(uint256 indexed listingId,address indexed seller,address indexed nft,uint256 tokenId,uint256 amount,uint256 pricePerUnitUsdc,uint8 fulfillmentType)",
   "event Cancelled(uint256 indexed listingId,address indexed seller,address indexed nft,uint256 tokenId,uint256 amountReturned)",
-  "event PurchaseFunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 pricePerUnitWei,uint256 totalPriceWei,uint8 fulfillmentType)",
+  "event PurchaseFunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 pricePerUnitUsdc,uint256 totalPriceUsdc,uint8 fulfillmentType)",
   "event BuyerConfirmed(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
   "event RefundRequested(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
   "event PurchaseNftReturned(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer,address nft,uint256 tokenId,uint256 amount)",
   "event RefundRequestRejected(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer)",
-  "event PurchaseReleased(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 totalPriceWei,uint256 feeWei,uint256 sellerAmountWei,uint8 fulfillmentType)",
-  "event PurchaseRefunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 totalPriceWei,uint8 fulfillmentType)",
+  "event PurchaseReleased(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 totalPriceUsdc,uint256 feeUsdc,uint256 sellerAmountUsdc,uint8 fulfillmentType)",
+  "event PurchaseRefunded(uint256 indexed purchaseId,uint256 indexed listingId,address indexed seller,address buyer,address nft,uint256 tokenId,uint256 amount,uint256 totalPriceUsdc,uint8 fulfillmentType)",
   "event RefundRejectedAndNftRestored(uint256 indexed purchaseId,uint256 indexed listingId,address indexed buyer,address nft,uint256 tokenId,uint256 amount)",
 ];
 
@@ -84,7 +92,7 @@ function norm(v) {
 }
 
 function stateKey() {
-  return `marketplace:${MARKET_TYPE}:${MARKETPLACE}`;
+  return `marketplace:${MARKET_TYPE}:USDC:${MARKETPLACE}`;
 }
 
 function initialLastBlockValue() {
@@ -98,9 +106,10 @@ function minScanBlock() {
 
 function listingWhereUnique(listingId) {
   return {
-    chainId_marketType_marketplaceListingId: {
+    chainId_marketType_marketplaceContract_marketplaceListingId: {
       chainId: CHAIN_ID,
       marketType: MARKET_TYPE,
+      marketplaceContract: MARKETPLACE,
       marketplaceListingId: listingId,
     },
   };
@@ -262,7 +271,7 @@ async function handleListed(parsed, log) {
   const nft = norm(parsed.args.nft);
   const tokenId = BigInt(parsed.args.tokenId).toString();
   const amount = BigInt(parsed.args.amount);
-  const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
+  const pricePerUnitUsdc = BigInt(parsed.args.pricePerUnitUsdc);
   const fulfillmentType = fulfillmentTypeFromRaw(parsed.args.fulfillmentType);
   const txHash = log.transactionHash;
 
@@ -354,7 +363,10 @@ async function handleListed(parsed, log) {
       status: "ACTIVE",
       sellerId,
       sellerWallet: seller,
-      pricePerUnitWei,
+      pricePerUnitWei: pricePerUnitUsdc,
+      paymentTokenAddress: PAYMENT_TOKEN_ADDRESS,
+      paymentSymbol: PAYMENT_SYMBOL,
+      paymentDecimals: PAYMENT_DECIMALS,
       amountTotal: amount,
       amountRemaining: amount,
       standard: "ERC1155",
@@ -378,7 +390,10 @@ async function handleListed(parsed, log) {
       sellerId,
       sellerWallet: seller,
       marketplaceListingId: listingId,
-      pricePerUnitWei,
+      pricePerUnitWei: pricePerUnitUsdc,
+      paymentTokenAddress: PAYMENT_TOKEN_ADDRESS,
+      paymentSymbol: PAYMENT_SYMBOL,
+      paymentDecimals: PAYMENT_DECIMALS,
       amountTotal: amount,
       amountRemaining: amount,
       status: "ACTIVE",
@@ -423,7 +438,7 @@ async function handleListed(parsed, log) {
     nft,
     tokenId,
     amount: amount.toString(),
-    pricePerUnitWei: pricePerUnitWei.toString(),
+    pricePerUnitUsdc: pricePerUnitUsdc.toString(),
     fulfillmentType,
   });
 }
@@ -507,8 +522,8 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
   const nft = norm(parsed.args.nft);
   const tokenId = BigInt(parsed.args.tokenId).toString();
   const amount = BigInt(parsed.args.amount);
-  const pricePerUnitWei = BigInt(parsed.args.pricePerUnitWei);
-  const totalPriceWei = BigInt(parsed.args.totalPriceWei);
+  const pricePerUnitUsdc = BigInt(parsed.args.pricePerUnitUsdc);
+  const totalPriceUsdc = BigInt(parsed.args.totalPriceUsdc);
   const fulfillmentType = fulfillmentTypeFromRaw(parsed.args.fulfillmentType);
   const txHash = log.transactionHash;
   const logIndex = Number(log.index ?? log.logIndex ?? 0);
@@ -614,8 +629,11 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
         buyerId,
 
         amount,
-        pricePerUnitWei,
-        totalPriceWei,
+        pricePerUnitWei: pricePerUnitUsdc,
+        totalPriceWei: totalPriceUsdc,
+        paymentTokenAddress: PAYMENT_TOKEN_ADDRESS,
+        paymentSymbol: PAYMENT_SYMBOL,
+        paymentDecimals: PAYMENT_DECIMALS,
       },
       select: { id: true },
     });
@@ -728,10 +746,12 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
           marketplacePurchaseId: purchaseId,
 
           amount,
-          unitPrice: pricePerUnitWei,
-          totalPrice: totalPriceWei,
+          unitPrice: pricePerUnitUsdc,
+          totalPrice: totalPriceUsdc,
 
-          paymentToken: null,
+          paymentToken: PAYMENT_TOKEN_ADDRESS,
+          paymentSymbol: PAYMENT_SYMBOL,
+          paymentDecimals: PAYMENT_DECIMALS,
 
           deliveryRequired,
           physicalItem: Boolean(physicalItem),
@@ -772,7 +792,7 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
     nft,
     tokenId,
     amount: amount.toString(),
-    totalPriceWei: totalPriceWei.toString(),
+    totalPriceUsdc: totalPriceUsdc.toString(),
     fulfillmentType,
   });
 }

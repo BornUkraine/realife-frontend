@@ -25,7 +25,9 @@ import { useWeb3Auth } from "@web3auth/modal/react";
 
 import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
-import { realifeMarketplaceProtectedEscrow1155Abi } from "@/lib/realifeMarketplaceProtectedEscrow1155Abi";
+import { realifeMarketplaceProtectedEscrow1155USDCAbi } from "@/lib/realifeMarketplaceProtectedEscrow1155USDCAbi";
+import { erc20UsdcAbi } from "@/lib/erc20UsdcAbi";
+import { REALIFE_PROTECTED_PAYMENT_USDC } from "@/lib/realifeProtectedUsdc";
 
 type MarketType = "STANDARD" | "PROTECTED";
 
@@ -49,6 +51,9 @@ type Listing = {
   seller?: { handle: string | null; publicId: string | null } | null;
   marketplaceListingId: string;
   pricePerUnitWei: string;
+  paymentTokenAddress?: string | null;
+  paymentSymbol?: string | null;
+  paymentDecimals?: number | null;
   amountTotal: string;
   amountRemaining: string;
   createdAt: string;
@@ -78,6 +83,9 @@ type Trade = {
   amount: string;
   pricePerUnitWei: string;
   totalPriceWei: string;
+  paymentTokenAddress?: string | null;
+  paymentSymbol?: string | null;
+  paymentDecimals?: number | null;
 
   fulfillmentType?: FulfillmentType | null;
   category?: string | null;
@@ -256,17 +264,41 @@ function shortAddr(addr?: string | null) {
   return `${s.slice(0, 6)}…${s.slice(-4)}`;
 }
 
-function fmtEth(weiStr?: string | null) {
+function fmtRawAmount(raw?: string | bigint | null, decimals = 18) {
   try {
-    if (!weiStr) return "—";
-    const v = formatUnits(BigInt(weiStr), 18);
+    if (raw === null || raw === undefined || raw === "") return "—";
+    const v = formatUnits(BigInt(raw), decimals);
     const [a, b] = v.split(".");
     if (!b) return a;
-    const bb = b.slice(0, 6).replace(/0+$/, "");
+    const bb = b.slice(0, decimals === 6 ? 2 : 6).replace(/0+$/, "");
     return bb ? `${a}.${bb}` : a;
   } catch {
     return "—";
   }
+}
+
+function fmtEth(weiStr?: string | null) {
+  return fmtRawAmount(weiStr, 18);
+}
+
+function rowPaymentSymbol(row?: { marketType?: MarketType | null; paymentSymbol?: string | null } | null) {
+  return row?.paymentSymbol || (row?.marketType === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.symbol : "ETH");
+}
+
+function rowPaymentDecimals(row?: { marketType?: MarketType | null; paymentDecimals?: number | null } | null) {
+  return Number(row?.paymentDecimals || (row?.marketType === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.decimals : 18));
+}
+
+function fmtRowAmount(raw: string | bigint | null | undefined, row?: { marketType?: MarketType | null; paymentDecimals?: number | null } | null) {
+  return fmtRawAmount(raw ?? null, rowPaymentDecimals(row));
+}
+
+function marketPaymentSymbol(marketType: MarketType) {
+  return marketType === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.symbol : "ETH";
+}
+
+function marketPaymentDecimals(marketType: MarketType) {
+  return marketType === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.decimals : 18;
 }
 
 
@@ -306,12 +338,16 @@ function bigintToSafeInt(v: bigint, fallback = 1) {
   }
 }
 
-function parseEthOrZero(v: string) {
+function parsePaymentOrZero(v: string, marketType: MarketType) {
   try {
-    return parseUnits(String(v || "0"), 18);
+    return parseUnits(String(v || "0"), marketPaymentDecimals(marketType));
   } catch {
     return 0n;
   }
+}
+
+function parseEthOrZero(v: string) {
+  return parsePaymentOrZero(v, "STANDARD");
 }
 
 function explorerTxUrl(chainId: number, txHash: string) {
@@ -390,6 +426,10 @@ function buildPendingListing(input: {
 
     marketType: input.marketType,
     marketplaceContract: input.marketplaceContract,
+    paymentTokenAddress:
+      input.marketType === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.tokenAddress : null,
+    paymentSymbol: input.marketType === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.symbol : null,
+    paymentDecimals: input.marketType === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.decimals : null,
 
     fulfillmentType: input.fulfillmentType ?? null,
     category: input.category ?? null,
@@ -1089,10 +1129,8 @@ export default function TradingPanel1155({
 
   const PROTECTED_MARKETPLACE_ADDRESS = useMemo(() => {
     return toLower(
-      process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_CONTRACT ||
-        process.env.NEXT_PUBLIC_PROTECTED_MARKETPLACE_ADDRESS ||
-        process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_PROTECTED_ADDRESS ||
-        process.env.NEXT_PUBLIC_MARKETPLACE_PROTECTED_ADDRESS ||
+      process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
+        REALIFE_PROTECTED_PAYMENT_USDC.marketplaceAddress ||
         ""
     );
   }, []);
@@ -1265,11 +1303,19 @@ export default function TradingPanel1155({
       }
 
       try {
+        const activeMarketplaceForQuery =
+          resolvedMarketType === "PROTECTED"
+            ? PROTECTED_MARKETPLACE_ADDRESS
+            : STANDARD_MARKETPLACE_ADDRESS;
+
         const url =
           `/api/market/nft?chainId=${encodeURIComponent(String(chainId))}` +
           `&contract=${encodeURIComponent(nftAddr)}` +
           `&tokenId=${encodeURIComponent(String(tokenId))}` +
           `&marketType=${encodeURIComponent(resolvedMarketType)}` +
+          (activeMarketplaceForQuery
+            ? `&marketplaceContract=${encodeURIComponent(activeMarketplaceForQuery)}`
+            : "") +
           `&listingsTake=50&tradesTake=50`;
 
         const j = (await fetchJSON(url)) as MarketNftResponse;
@@ -1285,7 +1331,7 @@ export default function TradingPanel1155({
         }
       }
     },
-    [chainId, nftAddr, tokenId, resolvedMarketType]
+    [chainId, nftAddr, tokenId, resolvedMarketType, PROTECTED_MARKETPLACE_ADDRESS, STANDARD_MARKETPLACE_ADDRESS]
   );
 
   useEffect(() => {
@@ -1302,7 +1348,7 @@ export default function TradingPanel1155({
 
   const sellMarketplaceAbi = useMemo(() => {
     return sellMarketType === "PROTECTED"
-      ? realifeMarketplaceProtectedEscrow1155Abi
+      ? realifeMarketplaceProtectedEscrow1155USDCAbi
       : marketplaceSpot1155Abi;
   }, [sellMarketType]);
 
@@ -1436,6 +1482,10 @@ export default function TradingPanel1155({
           marketType: marketTypeForTrade,
           marketplaceContract: listing.marketplaceContract ?? null,
           marketplacePurchaseId: null,
+          paymentTokenAddress:
+            marketTypeForTrade === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.tokenAddress : null,
+          paymentSymbol: marketTypeForTrade === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.symbol : null,
+          paymentDecimals: marketTypeForTrade === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.decimals : null,
           fulfillmentType: listing.fulfillmentType ?? null,
           category: listing.category ?? null,
           subcategory: listing.subcategory ?? null,
@@ -1599,12 +1649,14 @@ export default function TradingPanel1155({
   }, [contractView, resolvedMarketType, selectedListing?.marketType]);
 
   const selectedListingMarketplaceAddress = useMemo(() => {
+    if (selectedListingMarketType === "PROTECTED") {
+      return PROTECTED_MARKETPLACE_ADDRESS;
+    }
+
     const direct = toLower(selectedListing?.marketplaceContract || "");
     if (direct.startsWith("0x")) return direct;
 
-    return selectedListingMarketType === "PROTECTED"
-      ? PROTECTED_MARKETPLACE_ADDRESS
-      : STANDARD_MARKETPLACE_ADDRESS;
+    return STANDARD_MARKETPLACE_ADDRESS;
   }, [
     selectedListing?.marketplaceContract,
     selectedListingMarketType,
@@ -1614,7 +1666,7 @@ export default function TradingPanel1155({
 
   const selectedListingMarketplaceAbi = useMemo(() => {
     return selectedListingMarketType === "PROTECTED"
-      ? realifeMarketplaceProtectedEscrow1155Abi
+      ? realifeMarketplaceProtectedEscrow1155USDCAbi
       : marketplaceSpot1155Abi;
   }, [selectedListingMarketType]);
 
@@ -1649,7 +1701,7 @@ export default function TradingPanel1155({
     return toLower(selectedListing.sellerWallet) === me;
   }, [selectedListing, me]);
 
-  const sellPriceWei = useMemo(() => parseEthOrZero(sellPriceEth), [sellPriceEth]);
+  const sellPriceWei = useMemo(() => parsePaymentOrZero(sellPriceEth, sellMarketType), [sellPriceEth, sellMarketType]);
 
   const sellTotalWei = useMemo(() => {
     try {
@@ -1951,7 +2003,7 @@ export default function TradingPanel1155({
       const amt = BigInt(clampInt(sellAmount, 1, Math.max(1, maxSell)));
 
       if (sellPriceWei <= 0n) {
-        const msg = "Enter a valid ETH price greater than zero.";
+        const msg = `Enter a valid ${marketPaymentSymbol(sellMarketType)} price greater than zero.`;
         setErr("Enter valid price");
         pushToast("error", "Invalid price", msg);
         updateTx(
@@ -2105,15 +2157,16 @@ export default function TradingPanel1155({
     });
 
     const directMarketplace = toLower(listing.marketplaceContract || "");
-    const listingMarketplaceAddress = directMarketplace.startsWith("0x")
-      ? directMarketplace
-      : listingMarketType === "PROTECTED"
-      ? PROTECTED_MARKETPLACE_ADDRESS
-      : STANDARD_MARKETPLACE_ADDRESS;
+    const listingMarketplaceAddress =
+      listingMarketType === "PROTECTED"
+        ? PROTECTED_MARKETPLACE_ADDRESS
+        : directMarketplace.startsWith("0x")
+        ? directMarketplace
+        : STANDARD_MARKETPLACE_ADDRESS;
 
     const listingMarketplaceAbi =
       listingMarketType === "PROTECTED"
-        ? realifeMarketplaceProtectedEscrow1155Abi
+        ? realifeMarketplaceProtectedEscrow1155USDCAbi
         : marketplaceSpot1155Abi;
 
     if (!listingMarketplaceAddress.startsWith("0x")) {
@@ -2255,18 +2308,52 @@ export default function TradingPanel1155({
       updateTx({
         kind: "buy",
         phase: "awaiting-sig",
-        label: `Open wallet and sign the purchase (${fmtEth(
-          total.toString()
-        )} ETH).`,
+        label:
+          selectedListingMarketType === "PROTECTED"
+            ? `Open wallet and approve ${fmtRawAmount(total, REALIFE_PROTECTED_PAYMENT_USDC.decimals)} USDC for escrow.`
+            : `Open wallet and sign the purchase (${fmtEth(total.toString())} ETH).`,
       });
 
-      const hash = await sendActiveContractTransaction({
-        abi: selectedListingMarketplaceAbi as any,
-        address: selectedListingMarketplaceAddress as `0x${string}`,
-        functionName: "buy",
-        args: [BigInt(selectedListing.marketplaceListingId), amt],
-        value: total,
-      });
+      let hash: `0x${string}`;
+
+      if (selectedListingMarketType === "PROTECTED") {
+        const approveHash = await sendActiveContractTransaction({
+          abi: erc20UsdcAbi,
+          address: REALIFE_PROTECTED_PAYMENT_USDC.tokenAddress,
+          functionName: "approve",
+          args: [selectedListingMarketplaceAddress as `0x${string}`, total],
+        });
+
+        updateTx({
+          kind: "buy",
+          phase: "confirming",
+          label: "USDC approval submitted. Waiting for confirmation…",
+          txHash: approveHash,
+        });
+
+        await publicClient?.waitForTransactionReceipt({ hash: approveHash });
+
+        updateTx({
+          kind: "buy",
+          phase: "awaiting-sig",
+          label: "USDC approved. Now confirm protected escrow purchase.",
+        });
+
+        hash = await sendActiveContractTransaction({
+          abi: selectedListingMarketplaceAbi as any,
+          address: selectedListingMarketplaceAddress as `0x${string}`,
+          functionName: "buy",
+          args: [BigInt(selectedListing.marketplaceListingId), amt],
+        });
+      } else {
+        hash = await sendActiveContractTransaction({
+          abi: selectedListingMarketplaceAbi as any,
+          address: selectedListingMarketplaceAddress as `0x${string}`,
+          functionName: "buy",
+          args: [BigInt(selectedListing.marketplaceListingId), amt],
+          value: total,
+        });
+      }
 
       updateTx({
         kind: "buy",
@@ -2364,7 +2451,7 @@ export default function TradingPanel1155({
 
   const sellEnvMissingText =
     sellMarketType === "PROTECTED"
-      ? "Missing protected marketplace env (NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_CONTRACT)"
+      ? "Missing protected marketplace env (NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT)"
       : "Missing standard marketplace env (NEXT_PUBLIC_REALIFE_MARKETPLACE_ADDRESS or NEXT_PUBLIC_MARKETPLACE_ADDRESS)";
 
   const ownerHasInventory = balance > 0n;
@@ -2588,7 +2675,7 @@ export default function TradingPanel1155({
                 Floor
               </div>
               <div className="mt-1 text-lg font-black text-amber-100">
-                {fmtEth(stats?.floorWei)} ETH
+                {fmtRawAmount(stats?.floorWei, marketPaymentDecimals(resolvedMarketType))} {marketPaymentSymbol(resolvedMarketType)}
               </div>
             </div>
 
@@ -2597,7 +2684,7 @@ export default function TradingPanel1155({
                 Last sale
               </div>
               <div className="mt-1 text-lg font-black text-white/90">
-                {fmtEth(stats?.lastSaleWei)} ETH
+                {fmtRawAmount(stats?.lastSaleWei, marketPaymentDecimals(resolvedMarketType))} {marketPaymentSymbol(resolvedMarketType)}
               </div>
             </div>
 
@@ -2644,7 +2731,7 @@ export default function TradingPanel1155({
                     Create listing
                   </div>
                   <div className="mt-1 text-[12px] text-white/50">
-                    List your amount with a per-unit ETH price.
+                    List your amount with a per-unit {marketPaymentSymbol(sellMarketType)} price.
                   </div>
                 </div>
 
@@ -2763,7 +2850,7 @@ export default function TradingPanel1155({
 
                 <label className="block">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
-                    Price per unit (ETH)
+                    Price per unit ({marketPaymentSymbol(sellMarketType)})
                   </div>
 
                   <input
@@ -2775,7 +2862,7 @@ export default function TradingPanel1155({
                   />
 
                   <div className="mt-1 text-[11px] text-white/40">
-                    Total estimate: {fmtEth(sellTotalWei.toString())} ETH
+                    Total estimate: {fmtRawAmount(sellTotalWei, marketPaymentDecimals(sellMarketType))} {marketPaymentSymbol(sellMarketType)}
                   </div>
                 </label>
               </div>
@@ -2886,7 +2973,7 @@ export default function TradingPanel1155({
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="min-w-0">
                               <div className="text-sm font-extrabold text-white/92">
-                                {fmtEth(l.pricePerUnitWei)} ETH
+                                {fmtRowAmount(l.pricePerUnitWei, l)} {rowPaymentSymbol(l)}
                                 <span className="ml-2 text-[12px] font-black text-white/35">
                                   per unit
                                 </span>
@@ -3023,7 +3110,7 @@ export default function TradingPanel1155({
                         Selected listing
                       </div>
                       <div className="mt-2 text-sm font-extrabold text-white/92">
-                        {fmtEth(selectedListing.pricePerUnitWei)} ETH
+                        {fmtRowAmount(selectedListing.pricePerUnitWei, selectedListing)} {rowPaymentSymbol(selectedListing)}
                         <span className="ml-2 text-[12px] font-black text-white/35">
                           per unit
                         </span>
@@ -3211,7 +3298,7 @@ export default function TradingPanel1155({
                         Total
                       </div>
                       <div className="mt-1 text-lg font-black text-amber-100">
-                        {fmtEth(buyTotalWei.toString())} ETH
+                        {fmtRowAmount(buyTotalWei, selectedListing)} {rowPaymentSymbol(selectedListing)}
                       </div>
                     </div>
 
@@ -3275,7 +3362,7 @@ export default function TradingPanel1155({
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-[12px] font-black text-amber-100">
-                        {fmtEth(t.totalPriceWei)} ETH
+                        {fmtRowAmount(t.totalPriceWei, t)} {rowPaymentSymbol(t)}
                         <span className="ml-2 font-black text-white/35">•</span>
                         <span className="ml-2 font-black text-white/70">x{t.amount}</span>
                       </div>
@@ -3342,7 +3429,7 @@ export default function TradingPanel1155({
                       ? `You own ${balance.toString()} item(s)`
                       : "No owned balance available"
                     : selectedListing
-                    ? `${fmtEth(selectedListing.pricePerUnitWei)} ETH • Left ${selectedListing.amountRemaining}`
+                    ? `${fmtRowAmount(selectedListing.pricePerUnitWei, selectedListing)} {rowPaymentSymbol(selectedListing)} • Left ${selectedListing.amountRemaining}`
                     : "Select a listing to continue"}
                 </div>
               </div>

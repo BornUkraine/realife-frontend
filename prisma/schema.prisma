@@ -694,7 +694,7 @@ model Listing {
   adminHiddenReason   String?
   adminHiddenNote     String?   @db.Text
 
-  @@unique([chainId, marketType, marketplaceListingId])
+  @@unique([chainId, marketType, marketplaceContract, marketplaceListingId])
   @@index([status])
   @@index([adminHidden])
   @@index([sellerWallet])

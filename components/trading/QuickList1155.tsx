@@ -18,7 +18,8 @@ import { useWeb3Auth } from "@web3auth/modal/react";
 
 import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
-import { realifeMarketplaceProtectedEscrow1155Abi } from "@/lib/realifeMarketplaceProtectedEscrow1155Abi";
+import { realifeMarketplaceProtectedEscrow1155USDCAbi } from "@/lib/realifeMarketplaceProtectedEscrow1155USDCAbi";
+import { REALIFE_PROTECTED_PAYMENT_USDC } from "@/lib/realifeProtectedUsdc";
 import TxProgress, { type TxState } from "./TxProgress";
 
 type MarketType = "STANDARD" | "PROTECTED";
@@ -162,22 +163,34 @@ function clampInt(n: number, min: number, max: number) {
   return Math.max(min, Math.min(max, n));
 }
 
-function fmtEthWei(wei?: bigint | null) {
+function formatRawAmount(raw?: bigint | null, decimals = 18) {
   try {
-    if (wei == null) return "—";
-    const s = formatUnits(wei, 18);
+    if (raw == null) return "—";
+    const s = formatUnits(raw, decimals);
     const [a, b] = s.split(".");
     if (!b) return a;
-    const bb = b.slice(0, 6).replace(/0+$/, "");
+    const bb = b.slice(0, decimals === 6 ? 2 : 6).replace(/0+$/, "");
     return bb ? `${a}.${bb}` : a;
   } catch {
     return "—";
   }
 }
 
-function parsePriceWeiSafe(v: string) {
+function paymentDecimalsForMarket(marketType: MarketType) {
+  return marketType === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.decimals : 18;
+}
+
+function paymentSymbolForMarket(marketType: MarketType) {
+  return marketType === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.symbol : "ETH";
+}
+
+function fmtPriceRaw(raw?: bigint | null, marketType: MarketType = "STANDARD") {
+  return formatRawAmount(raw, paymentDecimalsForMarket(marketType));
+}
+
+function parsePriceRawSafe(v: string, marketType: MarketType) {
   try {
-    const x = parseUnits(String(v || "0"), 18);
+    const x = parseUnits(String(v || "0"), paymentDecimalsForMarket(marketType));
     return x > 0n ? x : null;
   } catch {
     return null;
@@ -513,10 +526,8 @@ export default function QuickList1155({
 
   const PROTECTED_MARKETPLACE_ADDRESS = useMemo(() => {
     return toLower(
-      process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_CONTRACT ||
-        process.env.NEXT_PUBLIC_PROTECTED_MARKETPLACE_ADDRESS ||
-        process.env.NEXT_PUBLIC_REALIFE_MARKETPLACE_PROTECTED_ADDRESS ||
-        process.env.NEXT_PUBLIC_MARKETPLACE_PROTECTED_ADDRESS ||
+      process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
+        REALIFE_PROTECTED_PAYMENT_USDC.marketplaceAddress ||
         ""
     );
   }, []);
@@ -603,7 +614,7 @@ export default function QuickList1155({
 
   const marketplaceAbi = useMemo(() => {
     return inferredMarketType === "PROTECTED"
-      ? realifeMarketplaceProtectedEscrow1155Abi
+      ? realifeMarketplaceProtectedEscrow1155USDCAbi
       : marketplaceSpot1155Abi;
   }, [inferredMarketType]);
 
@@ -719,7 +730,7 @@ export default function QuickList1155({
     };
   }, []);
 
-  const priceWei = useMemo(() => parsePriceWeiSafe(priceEth), [priceEth]);
+  const priceWei = useMemo(() => parsePriceRawSafe(priceEth, inferredMarketType), [priceEth, inferredMarketType]);
 
   const totalPriceWei = useMemo(() => {
     try {
@@ -1039,8 +1050,8 @@ export default function QuickList1155({
         {
           kind: "list",
           phase: "error",
-          label: "Enter a valid ETH price greater than zero.",
-          errorText: "Enter a valid ETH price greater than zero.",
+          label: `Enter a valid ${paymentSymbolForMarket(inferredMarketType)} price greater than zero.`,
+          errorText: `Enter a valid ${paymentSymbolForMarket(inferredMarketType)} price greater than zero.`,
         },
         { autoDismissMs: 4500 }
       );
@@ -1477,16 +1488,16 @@ export default function QuickList1155({
                       value={priceEth}
                       onChange={(e) => setPriceEth(e.target.value)}
                       type="text"
-                      placeholder="0.01"
+                      placeholder={inferredMarketType === "PROTECTED" ? "10" : "0.01"}
                       className="h-11 w-full rounded-2xl border border-white/10 bg-black/20 px-4 text-center text-[15px] font-black text-white/95 outline-none focus:border-white/20"
                     />
                     <div className="mt-1.5 text-center text-[11px] text-white/40">
-                      Price per unit
+                      Price per unit ({paymentSymbolForMarket(inferredMarketType)})
                     </div>
                   </div>
 
                   <div className="mt-3 text-center text-[12px] font-black text-amber-100">
-                    Total: {fmtEthWei(totalPriceWei)} ETH
+                    Total: {fmtPriceRaw(totalPriceWei, inferredMarketType)} {paymentSymbolForMarket(inferredMarketType)}
                   </div>
 
                   {/* Inline progress widget. Replaces the previous static
