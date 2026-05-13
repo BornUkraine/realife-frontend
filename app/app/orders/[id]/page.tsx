@@ -138,12 +138,12 @@ export default async function OrderRoomPage({
 
               <div className="mt-3 max-w-3xl text-sm leading-relaxed text-white/60 md:text-base">
                 Protected marketplace orders can require on-chain confirmation
-                and on-chain refund path. For one-step protected refund flow,
+                and on-chain USDC refund path. For one-step protected refund flow,
                 buyer can use the wallet path such as{" "}
                 <span className="font-extrabold text-white/80">
                   requestRefundAndReturnNft(purchaseId)
                 </span>{" "}
-                after NFT approval.
+                after NFT approval to return the NFT to protected escrow.
               </div>
 
               <div className="mt-6 flex flex-wrap gap-3">

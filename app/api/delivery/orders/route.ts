@@ -1,3 +1,11 @@
+// app/api/delivery/orders/route.ts
+//
+// Изменения по сравнению со старой версией:
+//   1. Из БД дополнительно выбираем buyerLastReadAt / sellerLastReadAt.
+//   2. Для каждого заказа считаем unreadCount — количество сообщений
+//      от ДРУГОЙ стороны, у которых createdAt > viewerLastReadAt.
+//   3. unreadCount и lastReadAt отдаём в JSON ответе.
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
@@ -203,6 +211,8 @@ export async function GET(req: Request) {
         unitPrice: true,
         totalPrice: true,
         paymentToken: true,
+        paymentSymbol: true,
+        paymentDecimals: true,
 
         deliveryRequired: true,
         physicalItem: true,
@@ -254,205 +264,261 @@ export async function GET(req: Request) {
         noteBuyer: true,
         noteSeller: true,
         adminNote: true,
+
+        // ─── НОВЫЕ ПОЛЯ для unread tracking ───
+        buyerLastReadAt: true,
+        sellerLastReadAt: true,
       },
     });
 
-    const items = await Promise.all(
-      rows
-        .filter((row) =>
-          isFulfillmentOrderRow({
-            deliveryRequired: row.deliveryRequired,
-            fulfillmentType: row.fulfillmentType,
-          })
-        )
-        .map(async (row) => {
-          const product = await prisma.realMarketingProduct.findUnique({
-            where: {
-              chainId_contract_tokenId: {
-                chainId: row.chainId,
-                contract: row.contract,
-                tokenId: row.tokenId,
-              },
-            },
-            select: {
-              name: true,
-              image: true,
-              tokenUri: true,
-              vertical: true,
-              deliveryEnabled: true,
-              physicalItemIncluded: true,
-              officialItem: true,
-              primarySellerWallet: true,
-            },
-          });
+    const fulfilmentRows = rows.filter((row) =>
+      isFulfillmentOrderRow({
+        deliveryRequired: row.deliveryRequired,
+        fulfillmentType: row.fulfillmentType,
+      })
+    );
 
-          const mint = !product
-            ? await prisma.mint.findUnique({
-                where: {
-                  chainId_contract_tokenId: {
-                    chainId: row.chainId,
-                    contract: row.contract,
-                    tokenId: row.tokenId,
-                  },
+    // ─── Считаем unreadCount для каждого заказа одним батч-запросом ─────────
+    // Для каждого заказа: сообщения с createdAt > viewerLastReadAt
+    // от ДРУГОЙ стороны (senderRole != viewerRole) и не internal.
+    const unreadByOrderId = new Map<string, number>();
+
+    if (fulfilmentRows.length > 0) {
+      const unreadQueries = fulfilmentRows.map((row) => {
+        const viewerIsBuyer = isBuyer(viewer, row);
+        const viewerIsSeller = !viewerIsBuyer && isSeller(viewer, row);
+
+        if (!viewerIsBuyer && !viewerIsSeller) {
+          return Promise.resolve({ id: row.id, count: 0 });
+        }
+
+        const lastReadAt = viewerIsBuyer
+          ? row.buyerLastReadAt
+          : row.sellerLastReadAt;
+
+        const otherSenderRole = viewerIsBuyer ? "SELLER" : "BUYER";
+
+        return prisma.deliveryMessage
+          .count({
+            where: {
+              orderId: row.id,
+              isInternal: false,
+              senderRole: otherSenderRole,
+              ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
+            },
+          })
+          .then((count) => ({ id: row.id, count }))
+          .catch(() => ({ id: row.id, count: 0 }));
+      });
+
+      const unreadResults = await Promise.all(unreadQueries);
+      for (const r of unreadResults) unreadByOrderId.set(r.id, r.count);
+    }
+
+    const items = await Promise.all(
+      fulfilmentRows.map(async (row) => {
+        const product = await prisma.realMarketingProduct.findUnique({
+          where: {
+            chainId_contract_tokenId: {
+              chainId: row.chainId,
+              contract: row.contract,
+              tokenId: row.tokenId,
+            },
+          },
+          select: {
+            name: true,
+            image: true,
+            tokenUri: true,
+            vertical: true,
+            deliveryEnabled: true,
+            physicalItemIncluded: true,
+            officialItem: true,
+            primarySellerWallet: true,
+          },
+        });
+
+        const mint = !product
+          ? await prisma.mint.findUnique({
+              where: {
+                chainId_contract_tokenId: {
+                  chainId: row.chainId,
+                  contract: row.contract,
+                  tokenId: row.tokenId,
                 },
-                select: {
-                  name: true,
-                  image: true,
-                  tokenUri: true,
-                  deliveryEnabled: true,
-                  physicalItemIncluded: true,
-                  officialItem: true,
-                  fulfillmentType: true,
-                  category: true,
-                  subcategory: true,
-                },
-              })
+              },
+              select: {
+                name: true,
+                image: true,
+                tokenUri: true,
+                deliveryEnabled: true,
+                physicalItemIncluded: true,
+                officialItem: true,
+                fulfillmentType: true,
+                category: true,
+                subcategory: true,
+              },
+            })
+          : null;
+
+        const viewerRole = isBuyer(viewer, row)
+          ? "buyer"
+          : isSeller(viewer, row)
+          ? "seller"
+          : "unknown";
+
+        const viewerLastReadAt =
+          viewerRole === "buyer"
+            ? row.buyerLastReadAt
+            : viewerRole === "seller"
+            ? row.sellerLastReadAt
             : null;
 
-          const viewerRole = isBuyer(viewer, row)
-            ? "buyer"
-            : isSeller(viewer, row)
-            ? "seller"
-            : "unknown";
+        return {
+          id: row.id,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
 
-          return {
-            id: row.id,
-            createdAt: row.createdAt.toISOString(),
-            updatedAt: row.updatedAt.toISOString(),
+          chainId: row.chainId,
+          contract: row.contract,
+          tokenId: row.tokenId,
 
-            chainId: row.chainId,
-            contract: row.contract,
-            tokenId: row.tokenId,
+          sourceType: row.sourceType,
+          orderKind: row.orderKind,
+          vertical: row.vertical,
 
-            sourceType: row.sourceType,
-            orderKind: row.orderKind,
-            vertical: row.vertical,
-
-            marketType: row.marketType || null,
-            marketplaceContract: row.marketplaceContract || null,
-            marketplaceListingId:
-              row.marketplaceListingId != null
-                ? row.marketplaceListingId.toString()
-                : null,
-            marketplacePurchaseId:
-              row.marketplacePurchaseId != null
-                ? row.marketplacePurchaseId.toString()
-                : null,
-
-            buyerWallet: row.buyerWallet,
-            sellerWallet: row.sellerWallet,
-
-            listingId: row.listingId || null,
-            tradeId: row.tradeId || null,
-
-            amount: row.amount.toString(),
-            unitPrice: row.unitPrice.toString(),
-            totalPrice: row.totalPrice.toString(),
-            paymentToken: row.paymentToken || null,
-
-            deliveryRequired: row.deliveryRequired,
-            physicalItem: row.physicalItem,
-            officialItem: row.officialItem,
-
-            fulfillmentType:
-              row.fulfillmentType ||
-              mint?.fulfillmentType ||
-              (row.deliveryRequired ? "PHYSICAL_GOOD" : null),
-            serviceStatus: row.serviceStatus,
-            category: row.category || mint?.category || null,
-            subcategory: row.subcategory || mint?.subcategory || null,
-
-            escrowStatus: row.escrowStatus,
-            deliveryStatus: row.deliveryStatus,
-
-            escrowFundedAt: row.escrowFundedAt
-              ? row.escrowFundedAt.toISOString()
+          marketType: row.marketType || null,
+          marketplaceContract: row.marketplaceContract || null,
+          marketplaceListingId:
+            row.marketplaceListingId != null
+              ? row.marketplaceListingId.toString()
               : null,
-            shippedAt: row.shippedAt ? row.shippedAt.toISOString() : null,
-            deliveredAt: row.deliveredAt
-              ? row.deliveredAt.toISOString()
-              : null,
-            confirmedAt: row.confirmedAt ? row.confirmedAt.toISOString() : null,
-            releasedAt: row.releasedAt ? row.releasedAt.toISOString() : null,
-            refundedAt: row.refundedAt ? row.refundedAt.toISOString() : null,
-            disputedAt: row.disputedAt ? row.disputedAt.toISOString() : null,
-            cancelledAt: row.cancelledAt ? row.cancelledAt.toISOString() : null,
-
-            buyerConfirmedAt: row.buyerConfirmedAt
-              ? row.buyerConfirmedAt.toISOString()
-              : null,
-            refundRequestedAt: row.refundRequestedAt
-              ? row.refundRequestedAt.toISOString()
-              : null,
-            nftReturnedAt: row.nftReturnedAt
-              ? row.nftReturnedAt.toISOString()
-              : null,
-            refundRejectedAt: row.refundRejectedAt
-              ? row.refundRejectedAt.toISOString()
+          marketplacePurchaseId:
+            row.marketplacePurchaseId != null
+              ? row.marketplacePurchaseId.toString()
               : null,
 
-            scheduledFor: row.scheduledFor
-              ? row.scheduledFor.toISOString()
-              : null,
-            workStartedAt: row.workStartedAt
-              ? row.workStartedAt.toISOString()
-              : null,
-            submittedAt: row.submittedAt
-              ? row.submittedAt.toISOString()
-              : null,
-            revisionRequestedAt: row.revisionRequestedAt
-              ? row.revisionRequestedAt.toISOString()
-              : null,
-            completedAt: row.completedAt
-              ? row.completedAt.toISOString()
-              : null,
+          buyerWallet: row.buyerWallet,
+          sellerWallet: row.sellerWallet,
 
-            shippingName: row.shippingName || null,
-            shippingPhone: row.shippingPhone || null,
-            shippingCountry: row.shippingCountry || null,
-            shippingCity: row.shippingCity || null,
-            shippingAddress: row.shippingAddress || null,
-            shippingZip: row.shippingZip || null,
+          listingId: row.listingId || null,
+          tradeId: row.tradeId || null,
 
-            trackingCode: row.trackingCode || null,
-            trackingUrl: row.trackingUrl || null,
-            carrier: row.carrier || null,
+          amount: row.amount.toString(),
+          unitPrice: row.unitPrice.toString(),
+          totalPrice: row.totalPrice.toString(),
+          paymentToken: row.paymentToken || null,
+          paymentSymbol: row.paymentSymbol || null,
+          paymentDecimals: row.paymentDecimals ?? null,
 
-            buyTxHash: row.buyTxHash || null,
-            escrowReleaseTxHash: row.escrowReleaseTxHash || null,
-            escrowRefundTxHash: row.escrowRefundTxHash || null,
+          deliveryRequired: row.deliveryRequired,
+          physicalItem: row.physicalItem,
+          officialItem: row.officialItem,
 
-            noteBuyer: row.noteBuyer || null,
-            noteSeller: row.noteSeller || null,
-            adminNote: row.adminNote || null,
+          fulfillmentType:
+            row.fulfillmentType ||
+            mint?.fulfillmentType ||
+            (row.deliveryRequired ? "PHYSICAL_GOOD" : null),
+          serviceStatus: row.serviceStatus,
+          category: row.category || mint?.category || null,
+          subcategory: row.subcategory || mint?.subcategory || null,
 
-            viewerRole,
+          escrowStatus: row.escrowStatus,
+          deliveryStatus: row.deliveryStatus,
 
-            product: product
-              ? {
-                  name: product.name || null,
-                  image: product.image || null,
-                  tokenUri: product.tokenUri || null,
-                  vertical: product.vertical || null,
-                  deliveryEnabled: product.deliveryEnabled,
-                  physicalItemIncluded: product.physicalItemIncluded,
-                  officialItem: product.officialItem,
-                  primarySellerWallet: product.primarySellerWallet || null,
-                }
-              : mint
-              ? {
-                  name: mint.name || null,
-                  image: mint.image || null,
-                  tokenUri: mint.tokenUri || null,
-                  vertical: row.vertical || null,
-                  deliveryEnabled: mint.deliveryEnabled,
-                  physicalItemIncluded: mint.physicalItemIncluded,
-                  officialItem: mint.officialItem,
-                  primarySellerWallet: null,
-                }
-              : null,
-          };
-        })
+          escrowFundedAt: row.escrowFundedAt
+            ? row.escrowFundedAt.toISOString()
+            : null,
+          shippedAt: row.shippedAt ? row.shippedAt.toISOString() : null,
+          deliveredAt: row.deliveredAt
+            ? row.deliveredAt.toISOString()
+            : null,
+          confirmedAt: row.confirmedAt ? row.confirmedAt.toISOString() : null,
+          releasedAt: row.releasedAt ? row.releasedAt.toISOString() : null,
+          refundedAt: row.refundedAt ? row.refundedAt.toISOString() : null,
+          disputedAt: row.disputedAt ? row.disputedAt.toISOString() : null,
+          cancelledAt: row.cancelledAt ? row.cancelledAt.toISOString() : null,
+
+          buyerConfirmedAt: row.buyerConfirmedAt
+            ? row.buyerConfirmedAt.toISOString()
+            : null,
+          refundRequestedAt: row.refundRequestedAt
+            ? row.refundRequestedAt.toISOString()
+            : null,
+          nftReturnedAt: row.nftReturnedAt
+            ? row.nftReturnedAt.toISOString()
+            : null,
+          refundRejectedAt: row.refundRejectedAt
+            ? row.refundRejectedAt.toISOString()
+            : null,
+
+          scheduledFor: row.scheduledFor
+            ? row.scheduledFor.toISOString()
+            : null,
+          workStartedAt: row.workStartedAt
+            ? row.workStartedAt.toISOString()
+            : null,
+          submittedAt: row.submittedAt
+            ? row.submittedAt.toISOString()
+            : null,
+          revisionRequestedAt: row.revisionRequestedAt
+            ? row.revisionRequestedAt.toISOString()
+            : null,
+          completedAt: row.completedAt
+            ? row.completedAt.toISOString()
+            : null,
+
+          shippingName: row.shippingName || null,
+          shippingPhone: row.shippingPhone || null,
+          shippingCountry: row.shippingCountry || null,
+          shippingCity: row.shippingCity || null,
+          shippingAddress: row.shippingAddress || null,
+          shippingZip: row.shippingZip || null,
+
+          trackingCode: row.trackingCode || null,
+          trackingUrl: row.trackingUrl || null,
+          carrier: row.carrier || null,
+
+          buyTxHash: row.buyTxHash || null,
+          escrowReleaseTxHash: row.escrowReleaseTxHash || null,
+          escrowRefundTxHash: row.escrowRefundTxHash || null,
+
+          noteBuyer: row.noteBuyer || null,
+          noteSeller: row.noteSeller || null,
+          adminNote: row.adminNote || null,
+
+          viewerRole,
+
+          // ─── НОВЫЕ ПОЛЯ для unread tracking ───
+          unreadCount: unreadByOrderId.get(row.id) || 0,
+          lastReadAt: viewerLastReadAt
+            ? viewerLastReadAt.toISOString()
+            : null,
+
+          product: product
+            ? {
+                name: product.name || null,
+                image: product.image || null,
+                tokenUri: product.tokenUri || null,
+                vertical: product.vertical || null,
+                deliveryEnabled: product.deliveryEnabled,
+                physicalItemIncluded: product.physicalItemIncluded,
+                officialItem: product.officialItem,
+                primarySellerWallet: product.primarySellerWallet || null,
+              }
+            : mint
+            ? {
+                name: mint.name || null,
+                image: mint.image || null,
+                tokenUri: mint.tokenUri || null,
+                vertical: row.vertical || null,
+                deliveryEnabled: mint.deliveryEnabled,
+                physicalItemIncluded: mint.physicalItemIncluded,
+                officialItem: mint.officialItem,
+                primarySellerWallet: null,
+              }
+            : null,
+        };
+      })
     );
 
     return NextResponse.json({

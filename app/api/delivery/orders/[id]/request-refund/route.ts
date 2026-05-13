@@ -92,6 +92,9 @@ export async function POST(
         marketType: true,
         marketplaceContract: true,
         marketplacePurchaseId: true,
+        paymentToken: true,
+        paymentSymbol: true,
+        paymentDecimals: true,
       },
     });
 
@@ -156,7 +159,7 @@ export async function POST(
               senderWallet: null,
               senderRole: "SYSTEM",
               body:
-                "Buyer requested refund in the room. Final refund flow for this order must be executed on-chain through the marketplace contract. Buyer must return NFT back to escrow contract first.",
+                "Buyer requested refund in the room. Final refund flow for this order must be executed on-chain through the protected USDC marketplace contract. Buyer must return the NFT back to the escrow contract first.",
               isInternal: false,
             },
           ],

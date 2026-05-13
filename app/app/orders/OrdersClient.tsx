@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatUnits } from "viem";
 
 type MarketType = "STANDARD" | "DELIVERY" | "PROTECTED";
@@ -117,6 +117,10 @@ type OrderRow = {
   adminNote: string | null;
 
   viewerRole: "buyer" | "seller" | "unknown";
+
+  // Unread tracking
+  unreadCount?: number;
+  lastReadAt?: string | null;
 
   product: {
     name: string | null;
@@ -362,6 +366,7 @@ function hasShippingMinimumFromRow(x: OrderRow) {
 
 export default function OrdersClient() {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [rows, setRows] = useState<OrderRow[]>([]);
   const [role, setRole] = useState<"all" | "buyer" | "seller">("all");
@@ -377,6 +382,11 @@ export default function OrdersClient() {
   const [shippingCity, setShippingCity] = useState<Record<string, string>>({});
   const [shippingAddress, setShippingAddress] = useState<Record<string, string>>({});
   const [shippingZip, setShippingZip] = useState<Record<string, string>>({});
+
+  // ── Refs ──────────────────────────────────────────────────────────────────
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const roleRef = useRef(role);
+  roleRef.current = role;
 
   function hydrateShippingForms(items: OrderRow[]) {
     setShippingName((prev) => {
@@ -434,9 +444,48 @@ export default function OrdersClient() {
     }
   }
 
+  // Тихое фоновое обновление (без спиннера загрузки)
+  async function silentRefresh() {
+    try {
+      const j = await fetchJSON<OrdersResponse>(
+        `/api/delivery/orders?role=${roleRef.current}&take=100`
+      );
+      const items = Array.isArray(j?.items) ? j.items : [];
+      setRows(items);
+      hydrateShippingForms(items);
+    } catch {
+      // Тихо игнорируем polling ошибки
+    }
+  }
+
+  // Ручное обновление с индикатором
+  async function manualRefresh() {
+    setRefreshing(true);
+    await silentRefresh();
+    setRefreshing(false);
+  }
+
   useEffect(() => {
     void load();
   }, [role]);
+
+  // ── Polling каждые 30 секунд ──────────────────────────────────────────────
+  useEffect(() => {
+    pollingRef.current = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void silentRefresh();
+    }, 30_000);
+
+    function handleVisibility() {
+      if (document.visibilityState === "visible") void silentRefresh();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
 
   const buyerCount = useMemo(
     () => rows.filter((x) => x.viewerRole === "buyer").length,
@@ -445,6 +494,11 @@ export default function OrdersClient() {
 
   const sellerCount = useMemo(
     () => rows.filter((x) => x.viewerRole === "seller").length,
+    [rows]
+  );
+
+  const totalUnread = useMemo(
+    () => rows.reduce((sum, x) => sum + (x.unreadCount || 0), 0),
     [rows]
   );
 
@@ -538,7 +592,7 @@ export default function OrdersClient() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setRole("all")}
                 className={cx(
@@ -574,10 +628,30 @@ export default function OrdersClient() {
               >
                 Sold
               </button>
+
+              {/* Кнопка ручного обновления */}
+              <button
+                onClick={manualRefresh}
+                disabled={refreshing || loading}
+                className={cx(
+                  "inline-flex items-center gap-1.5 rounded-2xl border px-4 py-2 text-[12px] font-black transition",
+                  refreshing || loading
+                    ? "cursor-not-allowed border-white/10 bg-white/[0.04] text-white/30"
+                    : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white/80"
+                )}
+              >
+                <span
+                  className={cx(
+                    "inline-block h-3 w-3 rounded-full border-2 border-current border-t-transparent",
+                    refreshing ? "animate-spin" : ""
+                  )}
+                />
+                {refreshing ? "Refreshing..." : "Refresh"}
+              </button>
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-3 gap-3">
+          <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-white/55">
                 Total
@@ -604,6 +678,38 @@ export default function OrdersClient() {
                 {sellerCount}
               </div>
             </div>
+
+            <div
+              className={cx(
+                "rounded-2xl border p-4",
+                totalUnread > 0
+                  ? "border-rose-500/30 bg-rose-500/10"
+                  : "border-white/10 bg-white/[0.04]"
+              )}
+            >
+              <div
+                className={cx(
+                  "text-[11px] font-semibold uppercase tracking-wider",
+                  totalUnread > 0 ? "text-rose-200" : "text-white/55"
+                )}
+              >
+                Unread messages
+              </div>
+              <div
+                className={cx(
+                  "mt-1 text-lg font-black",
+                  totalUnread > 0 ? "text-rose-100" : "text-white/40"
+                )}
+              >
+                {totalUnread}
+              </div>
+            </div>
+          </div>
+
+          {/* Индикатор auto-polling */}
+          <div className="mt-4 flex items-center gap-2 text-[11px] text-white/35">
+            <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+            Auto-refresh every 30s
           </div>
 
           {err ? (
@@ -715,8 +821,18 @@ export default function OrdersClient() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <div className="truncate text-[18px] font-black text-white/90">
-                            {x.product?.name || `Order NFT #${x.tokenId}`}
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="truncate text-[18px] font-black text-white/90">
+                              {x.product?.name || `Order NFT #${x.tokenId}`}
+                            </div>
+
+                            {/* Unread badge */}
+                            {(x.unreadCount || 0) > 0 ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/15 px-2 py-1 text-[10px] font-black text-rose-100">
+                                <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-rose-300" />
+                                {x.unreadCount} new
+                              </span>
+                            ) : null}
                           </div>
 
                           <div className="mt-2 flex flex-wrap gap-2">
@@ -1284,9 +1400,17 @@ export default function OrdersClient() {
                       <div className="mt-4 flex flex-wrap gap-2">
                         <Link
                           href={roomHref}
-                          className="inline-flex items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 text-[12px] font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]"
+                          className={cx(
+                            "relative inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-[12px] font-extrabold text-black ring-1 ring-black/15 transition hover:brightness-110 shadow-[0_18px_60px_rgba(212,175,55,0.20)]",
+                            "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)]"
+                          )}
                         >
                           Open room
+                          {(x.unreadCount || 0) > 0 ? (
+                            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 text-[10px] font-black text-white">
+                              {x.unreadCount}
+                            </span>
+                          ) : null}
                         </Link>
 
                         <Link

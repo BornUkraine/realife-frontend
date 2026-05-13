@@ -1,7 +1,15 @@
+// app/api/delivery/orders/[id]/messages/route.ts
+//
+// Изменения по сравнению со старой версией:
+//   1. После создания сообщения отправляем email уведомление другой стороне.
+//   2. Когда buyer/seller получает GET (читает чат) — обновляется поле
+//      buyerLastReadAt / sellerLastReadAt в StoreOrder.
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { notifyNewMessage } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -134,6 +142,10 @@ function getViewerRole(
   return null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// GET — список сообщений + автоматическая отметка прочитанным для просителя
+// ─────────────────────────────────────────────────────────────────────────
+
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -194,6 +206,23 @@ export async function GET(
       },
     });
 
+    // Отмечаем прочитанным для buyer/seller (но не для support)
+    if (viewerRole === "buyer") {
+      await prisma.storeOrder
+        .update({
+          where: { id: order.id },
+          data: { buyerLastReadAt: new Date() },
+        })
+        .catch(() => null);
+    } else if (viewerRole === "seller") {
+      await prisma.storeOrder
+        .update({
+          where: { id: order.id },
+          data: { sellerLastReadAt: new Date() },
+        })
+        .catch(() => null);
+    }
+
     return NextResponse.json({
       ok: true,
       viewerRole: viewerRole || "unknown",
@@ -212,6 +241,10 @@ export async function GET(
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// POST — создание сообщения + email уведомление другой стороне
+// ─────────────────────────────────────────────────────────────────────────
 
 export async function POST(
   req: Request,
@@ -247,6 +280,25 @@ export async function POST(
         sellerId: true,
         buyerWallet: true,
         sellerWallet: true,
+        product: {
+          select: { name: true },
+        },
+        buyer: {
+          select: {
+            googleEmail: true,
+            contactEmail: true,
+            contactEmailVerifiedAt: true,
+            emailNotificationsEnabled: true,
+          },
+        },
+        seller: {
+          select: {
+            googleEmail: true,
+            contactEmail: true,
+            contactEmailVerifiedAt: true,
+            emailNotificationsEnabled: true,
+          },
+        },
       },
     });
 
@@ -277,26 +329,86 @@ export async function POST(
         ? "SELLER"
         : "SUPPORT";
 
-    const created = await prisma.deliveryMessage.create({
-      data: {
-        orderId: order.id,
-        senderUserId: actor.userId || undefined,
-        senderWallet: actor.walletAddress || undefined,
-        senderRole,
-        body: text,
-        isInternal,
-      },
-      select: {
-        id: true,
-        orderId: true,
-        senderUserId: true,
-        senderWallet: true,
-        senderRole: true,
-        body: true,
-        isInternal: true,
-        createdAt: true,
-      },
+    const now = new Date();
+
+    // Создаём сообщение и сразу обновляем lastReadAt отправителя.
+    // Тогда у самого отправителя сразу нет непрочитанного.
+    const created = await prisma.$transaction(async (tx) => {
+      const msg = await tx.deliveryMessage.create({
+        data: {
+          orderId: order.id,
+          senderUserId: actor.userId || undefined,
+          senderWallet: actor.walletAddress || undefined,
+          senderRole,
+          body: text,
+          isInternal,
+        },
+        select: {
+          id: true,
+          orderId: true,
+          senderUserId: true,
+          senderWallet: true,
+          senderRole: true,
+          body: true,
+          isInternal: true,
+          createdAt: true,
+        },
+      });
+
+      // Отметка прочитанным для отправителя
+      if (viewerRole === "buyer") {
+        await tx.storeOrder.update({
+          where: { id: order.id },
+          data: { buyerLastReadAt: now },
+        });
+      } else if (viewerRole === "seller") {
+        await tx.storeOrder.update({
+          where: { id: order.id },
+          data: { sellerLastReadAt: now },
+        });
+      }
+
+      return msg;
     });
+
+    // ─── Email уведомление другой стороне (асинхронно, не блокируем ответ) ───
+    if (!isInternal) {
+      const recipient: "buyer" | "seller" | null =
+        senderRole === "BUYER"
+          ? "seller"
+          : senderRole === "SELLER"
+          ? "buyer"
+          : null; // SUPPORT-сообщения не уведомляют по email автоматически
+
+      if (recipient) {
+        const recipientData =
+          recipient === "buyer" ? order.buyer : order.seller;
+
+        // Приоритет: verified contactEmail > googleEmail
+        const verifiedContactEmail =
+          recipientData?.contactEmail &&
+          recipientData?.contactEmailVerifiedAt
+            ? recipientData.contactEmail
+            : null;
+
+        const email = verifiedContactEmail || recipientData?.googleEmail || "";
+        const allowed = recipientData?.emailNotificationsEnabled !== false;
+
+        if (email && allowed) {
+          // fire-and-forget: ошибки email не должны валить POST
+          void notifyNewMessage({
+            recipientEmail: email,
+            recipientRole: recipient,
+            senderRole,
+            orderId: order.id,
+            productName: order.product?.name || null,
+            messageBody: text,
+          }).catch((e) => {
+            console.error("[messages POST] notifyNewMessage failed:", e);
+          });
+        }
+      }
+    }
 
     return NextResponse.json({
       ok: true,

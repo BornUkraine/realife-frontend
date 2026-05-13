@@ -322,52 +322,25 @@ function BrandLink() {
     <Link
       href="/"
       aria-label="Realife"
-      className="group inline-flex min-w-0 items-center gap-2"
+      className="group inline-flex min-w-0 items-center"
     >
-      {/* Mobile: round medallion (logo-mark) at 36×36.
-         Plain <img> + onError fallback to a gold "R" so something is always visible. */}
-      <span className="relative inline-flex h-9 w-9 shrink-0 items-center justify-center sm:hidden">
-        {/* Fallback letter — sits behind the image */}
-        <span
-          aria-hidden
-          className="absolute inset-0 flex items-center justify-center rounded-full border border-[#d4af37]/30 bg-black text-[18px] font-black text-[#d4af37]"
-        >
-          R
-        </span>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/brand/logo-mark.png"
-          alt="Realife"
-          className="relative h-9 w-9 object-contain transition group-hover:opacity-90"
-          draggable={false}
-          onError={(e) => {
-            // If the PNG fails to load, hide the broken image so the fallback letter shows.
-            e.currentTarget.style.display = "none";
-          }}
-        />
-      </span>
+      {/* Mobile: logo-mark.png (circular medallion) */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/brand/logo-mark.png"
+        alt="Realife"
+        className="block h-10 w-10 object-contain transition group-hover:opacity-90 sm:hidden"
+        draggable={false}
+      />
 
-      {/* Desktop / tablet: horizontal wordmark lockup.
-         Fallback to a styled "REALIFE" text if the PNG fails. */}
-      <span className="relative hidden h-9 items-center sm:inline-flex">
-        <span
-          aria-hidden
-          className="absolute inset-0 flex items-center text-[16px] font-light italic tracking-[0.18em] text-[#E8D5A0]"
-          style={{ fontFamily: "var(--font-display, Georgia, serif)" }}
-        >
-          REALIFE
-        </span>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/brand/logo-wordmark.png"
-          alt="Realife"
-          className="relative h-9 w-auto max-w-[200px] object-contain transition group-hover:opacity-90"
-          draggable={false}
-          onError={(e) => {
-            e.currentTarget.style.display = "none";
-          }}
-        />
-      </span>
+      {/* Desktop: logo-wordmark.png (REALIFE + R lockup) */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/brand/logo-wordmark.png"
+        alt="Realife"
+        className="hidden h-10 w-auto object-contain transition group-hover:opacity-90 sm:block"
+        draggable={false}
+      />
     </Link>
   );
 }

@@ -122,6 +122,9 @@ export async function POST(
         marketType: true,
         marketplaceContract: true,
         marketplacePurchaseId: true,
+        paymentToken: true,
+        paymentSymbol: true,
+        paymentDecimals: true,
       },
     });
 
@@ -152,6 +155,9 @@ export async function POST(
             order.marketplacePurchaseId != null
               ? order.marketplacePurchaseId.toString()
               : null,
+          paymentToken: order.paymentToken || null,
+          paymentSymbol: order.paymentSymbol || null,
+          paymentDecimals: order.paymentDecimals ?? null,
         },
         { status: 409 }
       );

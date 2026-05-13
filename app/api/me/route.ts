@@ -74,6 +74,11 @@ export async function GET(req: Request) {
           googleName: true,
           googleImage: true,
 
+          // Email уведомления + опциональный contact email (Web3 юзеры)
+          emailNotificationsEnabled: true,
+          contactEmail: true,
+          contactEmailVerifiedAt: true,
+
           lastDailyAt: true,
           createdAt: true,
 

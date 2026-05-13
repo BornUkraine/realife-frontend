@@ -248,6 +248,27 @@ model User {
   googleImage String?
 
   /**
+   * ---------------- Email notifications ----------------
+   * Controls whether the user receives email notifications about
+   * order room messages, status changes, etc.
+   * Email recipient is taken from googleEmail (or another OAuth email
+   * field in the future). Users can disable this in their account settings.
+   */
+  emailNotificationsEnabled Boolean @default(true)
+
+  /**
+   * ---------------- User-provided contact email ----------------
+   * For Web3 wallet users (no Google login) who want email notifications
+   * about their orders. Optional, requires 6-digit code verification.
+   * If set and verified, this email is preferred over googleEmail for
+   * notifications.
+   */
+  contactEmail           String?
+  contactEmailVerifiedAt DateTime?
+
+  emailVerificationCodes EmailVerificationCode[]
+
+  /**
    * ---------------- Site support/admin role ----------------
    */
   supportRole SupportRole @default(USER)
@@ -482,6 +503,30 @@ model TwitterLinkAttempt {
   @@index([sessionToken])
   @@index([createdAt])
   @@index([twitterId])
+}
+
+/**
+ * ==========================================================================
+ * EMAIL VERIFICATION CODE
+ * Used to verify user-provided contact emails (Web3 wallet users without
+ * Google login). 6-digit code, expires in 10 minutes.
+ * ==========================================================================
+ */
+model EmailVerificationCode {
+  id        String   @id @default(cuid())
+  userId    String
+  email     String
+  code      String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
+  @@map("email_verification_codes")
 }
 
 /**
@@ -1013,6 +1058,16 @@ model StoreOrder {
   noteBuyer  String?
   noteSeller String?
   adminNote  String?
+
+  /**
+   * ---------------- Unread tracking for order room chat -------------------
+   * Timestamp of when buyer/seller last read messages in this order room.
+   * Messages with createdAt > this value are considered unread.
+   * Used to render "N new" badges on the orders list page and to
+   * decide whether an email notification should be sent.
+   */
+  buyerLastReadAt  DateTime?
+  sellerLastReadAt DateTime?
 
   deliveryMessages   DeliveryMessage[]
   adminNotifications AdminNotification[]

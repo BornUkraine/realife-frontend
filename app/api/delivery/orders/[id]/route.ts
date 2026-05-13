@@ -158,6 +158,8 @@ export async function GET(
         unitPrice: true,
         totalPrice: true,
         paymentToken: true,
+        paymentSymbol: true,
+        paymentDecimals: true,
 
         deliveryRequired: true,
         physicalItem: true,
@@ -310,6 +312,8 @@ export async function GET(
         unitPrice: order.unitPrice.toString(),
         totalPrice: order.totalPrice.toString(),
         paymentToken: order.paymentToken || null,
+        paymentSymbol: order.paymentSymbol || null,
+        paymentDecimals: order.paymentDecimals ?? null,
 
         deliveryRequired: order.deliveryRequired,
         physicalItem: order.physicalItem,

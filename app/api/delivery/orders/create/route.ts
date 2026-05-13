@@ -25,6 +25,14 @@ const PAYMENT_TOKEN_FALLBACK = String(
   .trim()
   .toLowerCase();
 
+const BASE_SEPOLIA_USDC_ADDRESS = String(
+  process.env.BASE_SEPOLIA_USDC_ADDRESS ||
+    process.env.NEXT_PUBLIC_BASE_SEPOLIA_USDC_ADDRESS ||
+    "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+)
+  .trim()
+  .toLowerCase();
+
 const client = createPublicClient({
   chain: baseSepolia,
   transport: http(RPC_URL),
@@ -68,6 +76,24 @@ function clean(v: unknown, max = 200) {
 function isTxHash(v?: string | null) {
   const s = String(v || "").trim();
   return /^0x([A-Fa-f0-9]{64})$/.test(s);
+}
+
+function getPaymentMeta(rawToken?: string | null) {
+  const token = normAddr(rawToken) || PAYMENT_TOKEN_FALLBACK || null;
+
+  if (token && token === BASE_SEPOLIA_USDC_ADDRESS) {
+    return {
+      paymentToken: token,
+      paymentSymbol: "USDC",
+      paymentDecimals: 6,
+    };
+  }
+
+  return {
+    paymentToken: token,
+    paymentSymbol: token ? null : "ETH",
+    paymentDecimals: token ? null : 18,
+  };
 }
 
 function isTokenId(v?: string | null) {
@@ -125,6 +151,9 @@ function serializeOrder(order: {
   amount: bigint;
   totalPrice: bigint;
   unitPrice: bigint;
+  paymentToken?: string | null;
+  paymentSymbol?: string | null;
+  paymentDecimals?: number | null;
   escrowStatus: string;
   deliveryStatus: string;
   fulfillmentType: string | null;
@@ -135,6 +164,9 @@ function serializeOrder(order: {
     amount: order.amount.toString(),
     totalPrice: order.totalPrice.toString(),
     unitPrice: order.unitPrice.toString(),
+    paymentToken: order.paymentToken || null,
+    paymentSymbol: order.paymentSymbol || null,
+    paymentDecimals: order.paymentDecimals ?? null,
     fulfillmentType: order.fulfillmentType || null,
     createdAt: order.createdAt.toISOString(),
   };
@@ -486,6 +518,7 @@ export async function POST(req: Request) {
       eventTotalPrice > 0n ? eventTotalPrice : unitPrice * eventAmount;
 
     const vertical = product.vertical || verticalRaw || "store";
+    const payment = getPaymentMeta(product.paymentToken);
 
     const order = await prisma.$transaction(async (tx) => {
       const created = await tx.storeOrder.create({
@@ -509,8 +542,9 @@ export async function POST(req: Request) {
           amount: eventAmount,
           unitPrice,
           totalPrice,
-          paymentToken:
-            normAddr(product.paymentToken) || PAYMENT_TOKEN_FALLBACK || null,
+          paymentToken: payment.paymentToken,
+          paymentSymbol: payment.paymentSymbol,
+          paymentDecimals: payment.paymentDecimals,
 
           deliveryRequired: true,
           physicalItem: Boolean(product.physicalItemIncluded),
@@ -541,6 +575,9 @@ export async function POST(req: Request) {
           amount: true,
           totalPrice: true,
           unitPrice: true,
+          paymentToken: true,
+          paymentSymbol: true,
+          paymentDecimals: true,
           escrowStatus: true,
           deliveryStatus: true,
           fulfillmentType: true,

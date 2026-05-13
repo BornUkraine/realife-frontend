@@ -155,6 +155,9 @@ export async function POST(
         marketType: true,
         marketplaceContract: true,
         marketplacePurchaseId: true,
+        paymentToken: true,
+        paymentSymbol: true,
+        paymentDecimals: true,
       },
     });
 
@@ -178,6 +181,9 @@ export async function POST(
             order.marketplacePurchaseId != null
               ? order.marketplacePurchaseId.toString()
               : null,
+          paymentToken: order.paymentToken || null,
+          paymentSymbol: order.paymentSymbol || null,
+          paymentDecimals: order.paymentDecimals ?? null,
         },
         { status: 409 },
       );
@@ -237,7 +243,7 @@ export async function POST(
           orderId: order.id,
           senderRole: "SYSTEM",
           body: onchainEscrow
-            ? "Support synced on-chain refund transaction for this protected escrow order."
+            ? "Support synced on-chain refund transaction for this protected USDC escrow order."
             : nextEscrowStatus === "NOT_REQUIRED"
               ? "Support marked this official store order as refunded."
               : "Support executed final refund for this order.",

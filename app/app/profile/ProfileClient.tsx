@@ -6,6 +6,7 @@ import Reveal from "@/components/Reveal";
 import { signOut, useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAccount } from "wagmi";
+import EmailSettings from "@/components/profile/EmailSettings";
 
 /* -------------------------------------------------------------------------- */
 /* REWARDS                                                                    */
@@ -1337,6 +1338,13 @@ export default function ProfileClient({ ownerProfile = null }: ProfileClientProp
           </div>
         </Card>
       </Reveal>
+
+      {/* ───────── Email notifications settings ───────── */}
+      {authed && (
+        <Reveal delayMs={60}>
+          <EmailSettings />
+        </Reveal>
+      )}
 
       <Reveal delayMs={70}>
         <div className="grid min-w-0 items-stretch gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
