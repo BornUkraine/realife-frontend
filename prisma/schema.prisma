@@ -171,6 +171,23 @@ enum AiEnrichmentStatus {
   ERROR
 }
 
+
+/**
+ * --------------------------------------------------------------------------
+ * Testnet faucet
+ * --------------------------------------------------------------------------
+ */
+enum FaucetAsset {
+  ETH
+  USDC
+}
+
+enum FaucetClaimStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 /**
  * ==========================================================================
  * USER
@@ -345,6 +362,12 @@ model User {
   wallets     UserWallet[]
   loginEvents UserLoginEvent[]
 
+
+  /**
+   * ---------------- Testnet faucet claims ----------------
+   */
+  faucetClaims FaucetClaim[]
+
   @@index([authMethod])
   @@index([walletKind])
   @@index([embeddedWalletProvider])
@@ -359,6 +382,44 @@ model User {
   @@index([lastIp])
   @@index([lastLoginAt])
   @@index([lastCountry])
+}
+
+
+
+/**
+ * ==========================================================================
+ * TESTNET FAUCET CLAIMS
+ * Records small Base Sepolia ETH / test USDC claims from the Realife faucet.
+ * ==========================================================================
+ */
+model FaucetClaim {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  chainId       Int
+  walletAddress String
+  ipHash        String?
+  userAgent     String? @db.Text
+
+  asset       FaucetAsset
+  amountRaw   BigInt
+  amountLabel String
+  tokenAddress String?
+
+  txHash String? @unique
+  status FaucetClaimStatus @default(PENDING)
+  error  String? @db.Text
+
+  @@index([userId])
+  @@index([walletAddress, asset, createdAt])
+  @@index([ipHash, asset, createdAt])
+  @@index([asset, status, createdAt])
+  @@index([chainId, txHash])
+  @@map("faucet_claims")
 }
 
 /**
