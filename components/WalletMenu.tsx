@@ -549,7 +549,7 @@ export default function WalletMenu() {
                   <IconBox tone="gold">
                     <FaucetIcon className="w-[15px] h-[15px]" />
                   </IconBox>
-                  Get test ETH
+                  Get test ETH / USDC
                 </span>
                 <ArrowUpRight className="w-3.5 h-3.5 text-[#C9A84C]/60" />
               </Link>

@@ -1,17 +1,33 @@
 "use client";
 
-// PATH: app/app/faucet/FaucetClient.tsx — client UI for the Base Sepolia faucet page.
-// Fix: keep wagmi/RainbowKit hooks in this client component. Do NOT export route config here.
+// PATH: app/app/faucet/FaucetClient.tsx
+// Client UI for Realife's Base Sepolia faucet.
+// Supports backend claims for test ETH + test USDC, with external faucets as fallback.
 
 import Link from "next/link";
 import { useMemo, useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { useAccount, useBalance, useChainId, useSwitchChain } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
-import { formatUnits } from "viem";
+import { formatUnits, getAddress, isAddress } from "viem";
 import Reveal from "@/components/Reveal";
 
+const BASE_SEPOLIA_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as const;
+
+type FaucetAsset = "ETH" | "USDC";
+
+type ClaimResult = {
+  ok?: boolean;
+  asset?: FaucetAsset;
+  amount?: string;
+  txHash?: string;
+  explorerUrl?: string;
+  error?: string;
+};
+
 const FAUCETS = [
+  { name: "Circle Faucet — test USDC", url: "https://faucet.circle.com/" },
   { name: "Alchemy Base Sepolia Faucet", url: "https://www.alchemy.com/faucets/base-sepolia" },
   { name: "EthFaucet (Base Sepolia)", url: "https://ethfaucet.com/networks/base/base-sepolia" },
   { name: "LearnWeb3 Base Sepolia Faucet", url: "https://learnweb3.io/faucets/base_sepolia/" },
@@ -25,18 +41,24 @@ function useMounted() {
   return mounted;
 }
 
-function shortAddr(a?: `0x${string}`) {
+function normalizeWallet(v: unknown): `0x${string}` | undefined {
+  const s = String(v || "").trim();
+  if (!isAddress(s)) return undefined;
+  return getAddress(s) as `0x${string}`;
+}
+
+function shortAddr(a?: `0x${string}` | string) {
   if (!a) return "—";
   return `${a.slice(0, 6)}…${a.slice(-4)}`;
 }
 
-function fmtEth(value?: string) {
+function fmtAmount(value?: string, digits = 5) {
   if (!value) return "0";
   const n = Number(value);
   if (!Number.isFinite(n)) return value;
   if (n === 0) return "0";
   if (n < 0.0001) return "<0.0001";
-  return n.toFixed(5).replace(/0+$/, "").replace(/\.$/, "");
+  return n.toFixed(digits).replace(/0+$/, "").replace(/\.$/, "");
 }
 
 function StatusDot({ state }: { state: "ok" | "warn" | "off" }) {
@@ -95,43 +117,147 @@ function Pill({ children }: { children: React.ReactNode }) {
   );
 }
 
+function ClaimButton({
+  asset,
+  title,
+  subtitle,
+  amount,
+  disabled,
+  loading,
+  onClick,
+}: {
+  asset: FaucetAsset;
+  title: string;
+  subtitle: string;
+  amount: string;
+  disabled: boolean;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={[
+        "group relative rounded-[30px] p-px overflow-hidden text-left",
+        "bg-[linear-gradient(135deg,rgba(247,231,167,0.32),rgba(212,175,55,0.16),rgba(184,135,10,0.10))]",
+        "shadow-[0_22px_80px_rgba(0,0,0,0.45)]",
+        "transition duration-300 hover:-translate-y-[2px] hover:brightness-110 disabled:opacity-55 disabled:hover:translate-y-0 disabled:hover:brightness-100",
+      ].join(" ")}
+    >
+      <div className="relative rounded-[30px] border border-white/10 bg-[#0b0a09]/60 backdrop-blur-2xl p-5 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 opacity-90">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,0.12),transparent_45%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_85%_120%,rgba(255,255,255,0.06),transparent_55%)]" />
+        </div>
+
+        <div className="relative flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-white/50">Realife faucet</div>
+            <div className="mt-2 text-lg font-black leading-tight">{title}</div>
+            <div className="mt-2 text-xs text-white/55 leading-relaxed">{subtitle}</div>
+          </div>
+
+          <div className="shrink-0 h-11 w-11 rounded-2xl border border-white/10 bg-white/[0.06] flex items-center justify-center text-[#d4af37] font-black shadow-[0_18px_60px_rgba(0,0,0,0.35)]">
+            {asset}
+          </div>
+        </div>
+
+        <div className="relative mt-5 flex items-center justify-between gap-3">
+          <div className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-white/70">
+            Amount <span className="text-[#d4af37]">•</span> {amount}
+          </div>
+
+          <span className="text-sm font-extrabold text-[#d4af37]">
+            {loading ? "Sending…" : "Claim"}
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function FaucetClient() {
   const mounted = useMounted();
+  const { data: session } = useSession();
   const { openConnectModal } = useConnectModal();
 
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
 
-  const connected = mounted ? isConnected : false;
-  const effectiveChainId = mounted ? chainId : undefined;
+  const sessionWallet = useMemo(
+    () => normalizeWallet((session as any)?.user?.walletAddress),
+    [session]
+  );
 
-  const wrongNetwork = connected && effectiveChainId !== baseSepolia.id;
+  const effectiveAddress = useMemo(
+    () => normalizeWallet(address) || sessionWallet,
+    [address, sessionWallet]
+  );
 
-  const { data: balanceData, isLoading, isFetching, refetch } = useBalance({
-    address,
+  const externalWalletConnected = mounted && isConnected && Boolean(address);
+  const connected = mounted && Boolean(effectiveAddress);
+  const wrongNetwork = externalWalletConnected && chainId !== baseSepolia.id;
+
+  const {
+    data: ethBalanceData,
+    isLoading: ethLoading,
+    isFetching: ethFetching,
+    refetch: refetchEth,
+  } = useBalance({
+    address: effectiveAddress,
     chainId: baseSepolia.id,
     query: {
-      enabled: mounted && connected && !wrongNetwork && Boolean(address),
+      enabled: mounted && connected && Boolean(effectiveAddress),
       refetchInterval: 12_000,
     },
   });
 
-  const balanceLabel = useMemo(() => {
+  const {
+    data: usdcBalanceData,
+    isLoading: usdcLoading,
+    isFetching: usdcFetching,
+    refetch: refetchUsdc,
+  } = useBalance({
+    address: effectiveAddress,
+    chainId: baseSepolia.id,
+    token: BASE_SEPOLIA_USDC,
+    query: {
+      enabled: mounted && connected && Boolean(effectiveAddress),
+      refetchInterval: 12_000,
+    },
+  });
+
+  const [claiming, setClaiming] = useState<FaucetAsset | null>(null);
+  const [result, setResult] = useState<ClaimResult | null>(null);
+  const [error, setError] = useState("");
+
+  const ethBalanceLabel = useMemo(() => {
     if (!mounted || !connected) return "—";
     if (wrongNetwork) return "—";
-    if (isLoading) return "loading…";
-    if (!balanceData) return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
-    const s = formatUnits(balanceData.value, balanceData.decimals);
-    return `${fmtEth(s)} ${balanceData.symbol ?? "ETH"}`;
-  }, [mounted, connected, wrongNetwork, isLoading, balanceData]);
+    if (ethLoading) return "loading…";
+    if (!ethBalanceData) return `0 ${baseSepolia.nativeCurrency?.symbol ?? "ETH"}`;
+    const s = formatUnits(ethBalanceData.value, ethBalanceData.decimals);
+    return `${fmtAmount(s)} ${ethBalanceData.symbol ?? "ETH"}`;
+  }, [mounted, connected, wrongNetwork, ethLoading, ethBalanceData]);
+
+  const usdcBalanceLabel = useMemo(() => {
+    if (!mounted || !connected) return "—";
+    if (wrongNetwork) return "—";
+    if (usdcLoading) return "loading…";
+    if (!usdcBalanceData) return "0 USDC";
+    const s = formatUnits(usdcBalanceData.value, usdcBalanceData.decimals);
+    return `${fmtAmount(s, 2)} ${usdcBalanceData.symbol ?? "USDC"}`;
+  }, [mounted, connected, wrongNetwork, usdcLoading, usdcBalanceData]);
 
   const balanceEth = useMemo(() => {
-    if (!mounted || !balanceData) return 0;
-    const s = formatUnits(balanceData.value, balanceData.decimals);
+    if (!mounted || !ethBalanceData) return 0;
+    const s = formatUnits(ethBalanceData.value, ethBalanceData.decimals);
     const n = Number(s);
     return Number.isFinite(n) ? n : 0;
-  }, [mounted, balanceData]);
+  }, [mounted, ethBalanceData]);
 
   const hasGas = connected && !wrongNetwork && balanceEth > 0;
 
@@ -151,9 +277,53 @@ export default function FaucetClient() {
     ? "Wrong network"
     : "Base Sepolia";
 
+  async function refreshBalances() {
+    await Promise.all([refetchEth(), refetchUsdc()]).catch(() => null);
+  }
+
+  async function claim(asset: FaucetAsset) {
+    if (!mounted) return;
+
+    if (!effectiveAddress) {
+      openConnectModal?.();
+      return;
+    }
+
+    if (wrongNetwork) {
+      setError("Switch to Base Sepolia first.");
+      return;
+    }
+
+    setClaiming(asset);
+    setError("");
+    setResult(null);
+
+    try {
+      const res = await fetch("/api/faucet/claim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ asset, walletAddress: effectiveAddress }),
+      });
+
+      const json = (await res.json().catch(() => null)) as ClaimResult | null;
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || "Faucet request failed.");
+      }
+
+      setResult(json);
+      await refreshBalances();
+    } catch (e: any) {
+      setError(e?.message || "Faucet request failed.");
+    } finally {
+      setClaiming(null);
+    }
+  }
+
+  const claimDisabled = !mounted || !connected || wrongNetwork || Boolean(claiming);
+
   return (
     <div className="space-y-6">
-      {/* HERO CARD */}
       <Reveal>
         <GoldEdgeWrap className="rounded-[46px]">
           <div className="relative overflow-hidden">
@@ -174,19 +344,19 @@ export default function FaucetClient() {
                 <div className="min-w-0">
                   <Pill>
                     <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                    Faucet ETH • Base Sepolia
+                    Faucet ETH + USDC • Base Sepolia
                   </Pill>
 
                   <h1 className="mt-5 text-4xl md:text-5xl font-black leading-[1.05] tracking-[-0.02em]">
-                    Get test ETH{" "}
+                    Get test funds{" "}
                     <span className="text-transparent bg-clip-text bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)]">
-                      for gas
+                      for Realife
                     </span>
                   </h1>
 
                   <p className="mt-3 text-sm md:text-base text-white/70 max-w-2xl leading-relaxed">
-                    You need a small balance of <b>test ETH</b> on the <b>Base Sepolia</b> network to mint.
-                    Click <b>Switch</b> if you are on the wrong network, then open any faucet below.
+                    Claim small amounts of <b>Base Sepolia ETH</b> for gas and <b>test USDC</b> for protected marketplace testing.
+                    Testnet only — no real value.
                   </p>
                 </div>
 
@@ -201,13 +371,12 @@ export default function FaucetClient() {
                     </button>
                   ) : (
                     <div className="h-11 inline-flex items-center px-5 rounded-2xl border border-white/10 bg-white/[0.06] text-sm font-semibold shadow-[0_18px_70px_rgba(0,0,0,0.28)]">
-                      {shortAddr(address)}
+                      {shortAddr(effectiveAddress)}
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* STATUS STRIP */}
               <Reveal delayMs={80}>
                 <div className="mt-8 rounded-[38px] p-px overflow-hidden bg-[linear-gradient(135deg,rgba(247,231,167,0.30),rgba(212,175,55,0.14),rgba(184,135,10,0.10))]">
                   <div className="rounded-[38px] border border-white/10 bg-[#0b0a09]/55 backdrop-blur-2xl p-5 md:p-6 shadow-[0_26px_90px_rgba(0,0,0,0.45)]">
@@ -231,33 +400,37 @@ export default function FaucetClient() {
                           ) : null}
                         </div>
 
-                        <div className="mt-2 text-xs text-white/70">
-                          Base Sepolia balance:{" "}
-                          <span className="text-white font-semibold">{balanceLabel}</span>
+                        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-white/70">
+                          <div>
+                            ETH balance: <span className="text-white font-semibold">{ethBalanceLabel}</span>
+                          </div>
+                          <div>
+                            USDC balance: <span className="text-white font-semibold">{usdcBalanceLabel}</span>
+                          </div>
                         </div>
 
                         <div className="mt-1 text-[11px] text-white/55">
                           {mounted && connected
                             ? wrongNetwork
-                              ? "Switch network to Base Sepolia to mint."
+                              ? "Switch network to Base Sepolia before claiming."
                               : hasGas
-                              ? "Ready — go mint."
-                              : "Request test ETH below, then Refresh."
-                            : "Connect wallet to see balance + enable switch."}
+                              ? "Ready — you can test mint and protected USDC flows."
+                              : "Claim test ETH first, then claim USDC for protected orders."
+                            : "Connect wallet or sign in with Google to request test funds."}
                         </div>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-3">
                         <button
                           type="button"
-                          onClick={() => refetch()}
-                          disabled={!mounted || !connected || wrongNetwork || isFetching}
+                          onClick={refreshBalances}
+                          disabled={!mounted || !connected || wrongNetwork || ethFetching || usdcFetching}
                           className="h-11 px-5 rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/10 transition text-sm font-semibold disabled:opacity-50 shadow-[0_18px_70px_rgba(0,0,0,0.28)]"
                         >
-                          {!mounted ? "Refresh" : isFetching ? "Refreshing…" : "Refresh"}
+                          {!mounted ? "Refresh" : ethFetching || usdcFetching ? "Refreshing…" : "Refresh"}
                         </button>
 
-                        {mounted && connected && wrongNetwork ? (
+                        {mounted && externalWalletConnected && wrongNetwork ? (
                           <button
                             type="button"
                             disabled={isSwitching}
@@ -280,34 +453,61 @@ export default function FaucetClient() {
                 </div>
               </Reveal>
 
-              {/* QUICK STEPS */}
               <Reveal delayMs={120}>
-                <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
-                    <div className="text-xs font-semibold text-white/60">Step 1</div>
-                    <div className="mt-2 text-sm font-extrabold">Switch to Base Sepolia</div>
-                    <div className="mt-2 text-[11px] text-white/55">
-                      If you are on the wrong network, click <b>Switch</b>.
-                    </div>
-                  </div>
-                  <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
-                    <div className="text-xs font-semibold text-white/60">Step 2</div>
-                    <div className="mt-2 text-sm font-extrabold">Open faucet</div>
-                    <div className="mt-2 text-[11px] text-white/55">
-                      Open any faucet below and request <b>test ETH</b>.
-                    </div>
-                  </div>
-                  <div className="rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-2xl p-5 shadow-[0_18px_70px_rgba(0,0,0,0.30)]">
-                    <div className="text-xs font-semibold text-white/60">Step 3</div>
-                    <div className="mt-2 text-sm font-extrabold">Refresh balance</div>
-                    <div className="mt-2 text-[11px] text-white/55">
-                      Wait 10–60s and click <b>Refresh</b>.
-                    </div>
-                  </div>
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <ClaimButton
+                    asset="ETH"
+                    title="Claim test ETH"
+                    subtitle="Used only for gas on Base Sepolia while minting, listing, buying, and confirming test orders."
+                    amount={process.env.NEXT_PUBLIC_FAUCET_ETH_LABEL || "0.01 ETH"}
+                    disabled={claimDisabled}
+                    loading={claiming === "ETH"}
+                    onClick={() => claim("ETH")}
+                  />
+
+                  <ClaimButton
+                    asset="USDC"
+                    title="Claim test USDC"
+                    subtitle="Used for protected marketplace testing: buy, escrow, delivery/order room, refund/release flows."
+                    amount={process.env.NEXT_PUBLIC_FAUCET_USDC_LABEL || "10 USDC"}
+                    disabled={claimDisabled}
+                    loading={claiming === "USDC"}
+                    onClick={() => claim("USDC")}
+                  />
                 </div>
               </Reveal>
 
-              {/* FAUCETS GRID */}
+              {(error || result?.ok) && (
+                <Reveal delayMs={80}>
+                  <div
+                    className={[
+                      "mt-6 rounded-[28px] border p-5 text-sm leading-relaxed",
+                      error
+                        ? "border-rose-400/20 bg-rose-500/10 text-rose-100"
+                        : "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
+                    ].join(" ")}
+                  >
+                    {error ? (
+                      <>{error}</>
+                    ) : (
+                      <>
+                        Sent {result?.amount} {result?.asset} to {shortAddr(effectiveAddress)}. {" "}
+                        {result?.explorerUrl ? (
+                          <a
+                            href={result.explorerUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-bold underline decoration-white/30 underline-offset-4"
+                          >
+                            View transaction ↗
+                          </a>
+                        ) : null}
+                      </>
+                    )}
+                  </div>
+                </Reveal>
+              )}
+
               <Reveal delayMs={160}>
                 <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {FAUCETS.map((f, idx) => (
@@ -342,7 +542,7 @@ export default function FaucetClient() {
 
                         <div className="relative mt-4 flex items-center justify-between gap-3">
                           <div className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.06] text-white/70">
-                            Open faucet <span className="text-[#d4af37]">•</span> Request ETH
+                            Fallback faucet
                           </div>
 
                           <div className="text-[11px] text-white/45">#{String(idx + 1).padStart(2, "0")}</div>
@@ -355,8 +555,7 @@ export default function FaucetClient() {
 
               <Reveal delayMs={220}>
                 <div className="mt-6 text-xs text-white/55">
-                  Tip: if a faucet asks for a network, choose <b>Base Sepolia</b>. After funding, click <b>Refresh</b>.
-                  Testnet only.
+                  Tip: your backend faucet wallet must hold both <b>Base Sepolia ETH</b> and <b>test USDC</b>. Keep only small test amounts there.
                 </div>
               </Reveal>
             </div>
@@ -364,7 +563,6 @@ export default function FaucetClient() {
         </GoldEdgeWrap>
       </Reveal>
 
-      {/* bottom action */}
       <Reveal delayMs={140}>
         <div className="flex flex-wrap gap-3">
           <Link

@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type ReactNode,
+  type ComponentType,
 } from "react";
 import { useAccount, useBalance, useChainId, useSwitchChain } from "wagmi";
 import { baseSepolia } from "wagmi/chains";
@@ -37,7 +38,9 @@ function fmtBalance(value?: string) {
 }
 
 function normalizeEvmAddress(v: unknown): `0x${string}` | undefined {
-  const s = String(v || "").trim().toLowerCase();
+  const s = String(v || "")
+    .trim()
+    .toLowerCase();
   return /^0x[a-f0-9]{40}$/.test(s) ? (s as `0x${string}`) : undefined;
 }
 
@@ -163,6 +166,32 @@ function TradeIcon({ className = "" }: { className?: string }) {
         d="M17 7c-2.2 0-4 1.8-4 4M7 17c2.2 0 4-1.8 4-4"
         stroke="currentColor"
         strokeWidth="1.45"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function NftIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
+      <path
+        d="M6.75 5.25h10.5c.83 0 1.5.67 1.5 1.5v10.5c0 .83-.67 1.5-1.5 1.5H6.75c-.83 0-1.5-.67-1.5-1.5V6.75c0-.83.67-1.5 1.5-1.5Z"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8.25 15.75l2.6-2.65a1.2 1.2 0 0 1 1.7 0l1.05 1.05.85-.85a1.2 1.2 0 0 1 1.7 0l1.6 1.6"
+        stroke="currentColor"
+        strokeWidth="1.45"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.25 9.25h.02"
+        stroke="currentColor"
+        strokeWidth="2.2"
         strokeLinecap="round"
       />
     </svg>
@@ -347,13 +376,44 @@ function BrandLink() {
 
 // ─── Web2 embedded wallet menu ────────────────────────────────────────────────
 
-const WEB2_MENU_LINKS = [
+type MeUser = {
+  id?: string;
+  walletAddress?: string | null;
+  handle?: string | null;
+  publicId?: string | null;
+  publicUrl?: string | null;
+};
+
+type Web2MenuLink = {
+  href: string;
+  label: string;
+  icon: ComponentType<{ className?: string }>;
+};
+
+const WEB2_BASE_MENU_LINKS: Web2MenuLink[] = [
   { href: "/app/ai-studio", label: "AI Studio", icon: AiIcon },
   { href: "/app/create", label: "Create NFT", icon: PlusIcon },
   { href: "/app/trading", label: "Trading NFTs", icon: TradeIcon },
-  { href: "/app/orders", label: "My Orders", icon: OrdersIcon },
-  { href: "/app/profile", label: "Profile", icon: ProfileIcon },
 ];
+
+function cleanProfileKey(v?: string | null) {
+  const s = String(v || "").trim();
+  return s && s !== "tmp" ? s : null;
+}
+
+function pickProfileKey(u?: MeUser | null) {
+  return cleanProfileKey(u?.handle) || cleanProfileKey(u?.publicId);
+}
+
+function sameEvmAddress(a?: string | null, b?: string | null) {
+  const x = String(a || "")
+    .trim()
+    .toLowerCase();
+  const y = String(b || "")
+    .trim()
+    .toLowerCase();
+  return Boolean(x && y && x === y);
+}
 
 function Web2EmbeddedAccountMenu({
   compact = false,
@@ -403,6 +463,59 @@ function Web2EmbeddedAccountMenu({
 
   const displayName = String(userName || userEmail || "Google Wallet").trim();
   const avatarText = initialsFrom(userName, userEmail);
+
+  const [meUser, setMeUser] = useState<MeUser | null>(null);
+
+  useEffect(() => {
+    if (!walletAddress) {
+      setMeUser(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadMe() {
+      try {
+        const res = await fetch("/api/me", { cache: "no-store" });
+        if (!res.ok) return;
+
+        const json = await res.json().catch(() => null);
+        const user = (json?.user as MeUser | undefined) || null;
+
+        if (cancelled) return;
+
+        if (
+          !user?.walletAddress ||
+          sameEvmAddress(user.walletAddress, walletAddress)
+        ) {
+          setMeUser(user);
+        }
+      } catch {
+        if (!cancelled) setMeUser(null);
+      }
+    }
+
+    void loadMe();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [walletAddress]);
+
+  const myNftsHref = useMemo(() => {
+    const key = pickProfileKey(meUser);
+    return key ? `/app/profile/${key}/nfts` : "/app/profile";
+  }, [meUser]);
+
+  const web2MenuLinks = useMemo<Web2MenuLink[]>(
+    () => [
+      ...WEB2_BASE_MENU_LINKS,
+      { href: myNftsHref, label: "My NFTs", icon: NftIcon },
+      { href: "/app/orders", label: "My Orders", icon: OrdersIcon },
+      { href: "/app/profile", label: "Profile", icon: ProfileIcon },
+    ],
+    [myNftsHref],
+  );
 
   return (
     <div ref={rootRef} className="relative">
@@ -470,7 +583,7 @@ function Web2EmbeddedAccountMenu({
             </div>
 
             <div className="mt-2 grid grid-cols-1 gap-1">
-              {WEB2_MENU_LINKS.map((item) => {
+              {web2MenuLinks.map((item) => {
                 const Icon = item.icon;
                 return (
                   <Link
@@ -488,7 +601,9 @@ function Web2EmbeddedAccountMenu({
                       <Icon className="h-[16px] w-[16px]" />
                     </span>
                     <span className="flex-1">{item.label}</span>
-                    <span className="text-white/30 group-hover:text-white/60">→</span>
+                    <span className="text-white/30 group-hover:text-white/60">
+                      →
+                    </span>
                   </Link>
                 );
               })}
@@ -553,8 +668,8 @@ function TopBarSkeleton() {
 export default function TopBar() {
   const mounted = useMounted();
 
-  const { data: session } = useSession();
-  const { address, isConnected } = useAccount();
+  const { data: session, status: sessionStatus } = useSession();
+  const { address, isConnected, status: walletStatus } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
 
@@ -563,21 +678,42 @@ export default function TopBar() {
   const embeddedWalletAddress = normalizeEvmAddress(sessionUser?.walletAddress);
   const externalWalletAddress = normalizeEvmAddress(address);
 
+  // Wait until both auth systems finish their first restore pass.
+  // Without this, NextAuth can render the embedded wallet before wagmi restores MetaMask/RainbowKit.
+  const authReady =
+    mounted &&
+    sessionStatus !== "loading" &&
+    walletStatus !== "connecting" &&
+    walletStatus !== "reconnecting";
+
+  const isEmbeddedSessionKind =
+    sessionWalletKind === "EMBEDDED" || sessionWalletKind === "WEB2";
+
   // One clear auth surface:
   // - external wallet connected  => WalletMenu only, hide Web2 Google
   // - Web2 embedded connected    => Web2 menu only, hide WalletMenu
   // - disconnected               => show Google login + Connect Wallet
-  const externalWalletConnected = mounted && Boolean(isConnected && externalWalletAddress);
+  const externalWalletConnected =
+    authReady && Boolean(isConnected && externalWalletAddress);
   const web2EmbeddedConnected =
-    mounted &&
+    authReady &&
     !externalWalletConnected &&
     Boolean(embeddedWalletAddress) &&
-    (sessionWalletKind === "EMBEDDED" || sessionWalletKind === "WEB2" || Boolean(sessionUser));
+    isEmbeddedSessionKind;
 
-  const effectiveAddress = externalWalletAddress || embeddedWalletAddress;
+  const effectiveAddress = externalWalletConnected
+    ? externalWalletAddress
+    : web2EmbeddedConnected
+      ? embeddedWalletAddress
+      : undefined;
   const effectiveChainId = externalWalletConnected ? chainId : baseSepolia.id;
 
-  const { data: balanceData, isLoading, refetch, isFetching } = useBalance({
+  const {
+    data: balanceData,
+    isLoading,
+    refetch,
+    isFetching,
+  } = useBalance({
     address: effectiveAddress,
     chainId: effectiveChainId ?? baseSepolia.id,
     query: {
@@ -604,20 +740,21 @@ export default function TopBar() {
     return `${fmtBalance(formatUnits(balanceData.value, balanceData.decimals))} ${balanceData.symbol ?? "ETH"}`;
   }, [mounted, connected, isLoading, balanceData]);
 
-  const networkTitle = !mounted || !connected
-    ? "Connect wallet"
-    : wrongNetwork
-      ? "Wrong network"
-      : "Base Sepolia";
+  const networkTitle =
+    !mounted || !connected
+      ? "Connect wallet"
+      : wrongNetwork
+        ? "Wrong network"
+        : "Base Sepolia";
 
   const dotState: "ok" | "warn" | "off" =
     !mounted || !connected ? "off" : wrongNetwork ? "warn" : "ok";
 
   // Faucet is now a utility button — always visible after mount.
-  // Previously it appeared only when the wallet was low on gas; with the
-  // SidebarBottom removed it lives permanently in the top bar.
-  const showGetEth = mounted;
-  const canSwitch = externalWalletConnected && typeof switchChainAsync === "function";
+  // It can provide both Base Sepolia ETH and test USDC.
+  const showFaucet = mounted;
+  const canSwitch =
+    externalWalletConnected && typeof switchChainAsync === "function";
 
   const statusProps: NetworkStatusContentProps = {
     mounted,
@@ -632,12 +769,13 @@ export default function TopBar() {
     canSwitch,
     onRefresh: () => void refetch(),
     onSwitch: () => {
-      if (canSwitch) void switchChainAsync({ chainId: baseSepolia.id }).catch(() => {});
+      if (canSwitch)
+        void switchChainAsync({ chainId: baseSepolia.id }).catch(() => {});
     },
   };
 
   // Render skeleton on server / before hydration to avoid layout shift
-  if (!mounted) {
+  if (!authReady) {
     return (
       <header className="relative z-50 w-full">
         <TopBarSkeleton />
@@ -673,7 +811,7 @@ export default function TopBar() {
                   <OrdersIcon className="h-[17px] w-[17px]" />
                 </Link>
 
-                {showGetEth && (
+                {showFaucet && (
                   <Link
                     href="/app/faucet"
                     className={cn(
@@ -681,7 +819,7 @@ export default function TopBar() {
                       "border border-white/10 bg-white/[0.05] backdrop-blur-xl",
                       "text-white/75 transition hover:bg-white/10 hover:text-white",
                     )}
-                    aria-label="Faucet ETH"
+                    aria-label="Faucet ETH / USDC"
                   >
                     <FaucetIcon className="h-[17px] w-[17px]" />
                   </Link>
@@ -728,7 +866,7 @@ export default function TopBar() {
                 <span>My Orders</span>
               </Link>
 
-              {showGetEth && (
+              {showFaucet && (
                 <Link
                   href="/app/faucet"
                   className={cn(
@@ -738,7 +876,7 @@ export default function TopBar() {
                   )}
                 >
                   <FaucetIcon className="h-[16px] w-[16px]" />
-                  <span>Faucet ETH</span>
+                  <span>Faucet</span>
                 </Link>
               )}
 

@@ -60,7 +60,7 @@ export default function BaseSepoliaFaucet() {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/35">
-            Gas · Base Sepolia
+            Faucet · Base Sepolia
           </p>
           <p className="mt-1 text-sm font-semibold text-white/85">
             {connected ? (wrongNetwork ? "Wrong network" : "Base Sepolia ready") : "Connect wallet"}
@@ -103,7 +103,7 @@ export default function BaseSepoliaFaucet() {
               href="/app/faucet"
               className="px-3.5 py-1.5 rounded-xl text-[#0a0806] text-sm font-bold bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_50%,#b8870a_100%)] transition hover:brightness-105"
             >
-              Faucet ↗
+              Faucet ETH/USDC ↗
             </Link>
           )}
 
@@ -119,7 +119,7 @@ export default function BaseSepoliaFaucet() {
       </div>
 
       <p className="mt-3 pt-3 border-t border-white/[0.06] text-[11px] text-white/28">
-        Switch → Request test ETH → Refresh → Mint
+        Switch → Claim test ETH/USDC → Refresh → Mint
       </p>
     </div>
   );
