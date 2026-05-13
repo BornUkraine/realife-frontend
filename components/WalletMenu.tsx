@@ -203,7 +203,7 @@ export default function WalletMenu() {
 
   const myKey = useMemo(() => pickPublicKey(meUser), [meUser]);
   const myNftsHref = useMemo(
-    () => (myKey ? `/u/${myKey}/nfts` : "/app/profile"),
+    () => (myKey ? `/app/profile/${myKey}/nfts` : "/app/profile"),
     [myKey]
   );
 
@@ -579,7 +579,7 @@ export default function WalletMenu() {
 
               {!myKey && walletVerified && (
                 <p className="px-3 pt-2 pb-1 text-[11px] text-white/30 leading-relaxed">
-                  Set a handle in Profile to get a public /u/&lt;id&gt;/nfts
+                  Set a handle in Profile to get your /app/profile/&lt;id&gt;/nfts
                   link.
                 </p>
               )}
