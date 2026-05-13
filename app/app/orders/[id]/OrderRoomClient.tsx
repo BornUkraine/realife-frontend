@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { encodeFunctionData, formatUnits, toHex } from "viem";
+import { useEffect, useMemo, useState } from "react";
+import { decodeFunctionResult, encodeFunctionData, formatUnits, toHex } from "viem";
 import {
   useAccount,
   useChainId,
@@ -158,6 +158,16 @@ type MessagesResponse = {
 
 
 const ERC1155_RETURN_APPROVAL_ABI = [
+  {
+    type: "function",
+    name: "isApprovedForAll",
+    stateMutability: "view",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "operator", type: "address" },
+    ],
+    outputs: [{ name: "", type: "bool" }],
+  },
   {
     type: "function",
     name: "setApprovalForAll",
@@ -450,10 +460,6 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
   const [serviceNote, setServiceNote] = useState("");
   const [revisionDraft, setRevisionDraft] = useState("");
 
-  // ── Refs ──────────────────────────────────────────────────────────────────
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   const { data: session } = useSession();
   const { provider: web3AuthProviderRaw } = useWeb3Auth();
   const embeddedProvider = (web3AuthProviderRaw as Eip1193Provider | null) || null;
@@ -534,15 +540,6 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
 
   useEffect(() => {
     void loadInitial();
-
-    // Явная отметка прочитанным когда юзер открыл order room.
-    // GET messages route уже делает это автоматически, но дублируем
-    // на случай если юзер просто открыл страницу заказа без чата.
-    fetch(`/api/delivery/orders/${orderId}/mark-read`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({}),
-    }).catch(() => null);
   }, [orderId]);
 
   useEffect(() => {
@@ -578,89 +575,20 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
     }
   }, [txReceipt.isSuccess, chainTxHash, chainActionKind]);
 
-  // ── Polling: новые сообщения от другой стороны каждые 12 секунд ──────────
-  useEffect(() => {
-    if (!orderId) return;
-
-    pollingRef.current = setInterval(async () => {
-      if (document.visibilityState === "hidden") return;
-      try {
-        const messagesRes = await fetchJSON<MessagesResponse>(
-          `/api/delivery/orders/${orderId}/messages`
-        );
-        const next = Array.isArray(messagesRes.items) ? messagesRes.items : [];
-        setMessages((prev) => {
-          // Сравниваем только реальные (не optimistic) сообщения
-          const realPrev = prev.filter((m) => !m.id.startsWith("optimistic-"));
-          if (next.length !== realPrev.length) return next;
-          // Проверяем последнее сообщение по id
-          const lastPrevId = realPrev[realPrev.length - 1]?.id;
-          const lastNextId = next[next.length - 1]?.id;
-          if (lastPrevId !== lastNextId) return next;
-          return prev;
-        });
-      } catch {
-        // Polling errors игнорируем тихо
-      }
-    }, 12_000);
-
-    // При возврате на вкладку — сразу обновляем
-    function handleVisibility() {
-      if (document.visibilityState === "visible") void refreshRoom();
-    }
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [orderId]);
-
-  // ── Auto-scroll вниз при новых сообщениях ────────────────────────────────
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // ── Отправка с Optimistic UI ──────────────────────────────────────────────
   async function sendMessage() {
     if (!draft.trim()) return;
     setSending(true);
     setErr(null);
 
-    const optimisticId = `optimistic-${Date.now()}`;
-    const optimisticMsg: DeliveryMessage = {
-      id: optimisticId,
-      orderId,
-      senderUserId: null,
-      senderWallet: null,
-      senderRole:
-        viewerRole === "buyer"
-          ? "BUYER"
-          : viewerRole === "seller"
-          ? "SELLER"
-          : "SUPPORT",
-      body: draft.trim(),
-      isInternal: false,
-      createdAt: new Date().toISOString(),
-    };
-    const bodyToSend = draft.trim();
-
-    // Показываем сразу — до ответа сервера
-    setMessages((prev) => [...prev, optimisticMsg]);
-    setDraft("");
-
     try {
       await fetchJSON(`/api/delivery/orders/${orderId}/messages`, {
         method: "POST",
-        body: JSON.stringify({ body: bodyToSend }),
+        body: JSON.stringify({ body: draft.trim() }),
       });
-      // Заменяем optimistic-сообщение на реальные данные с сервера
+      setDraft("");
       await refreshRoom();
     } catch (e: any) {
       setErr(e?.message || "Send message failed");
-      // Rollback: убираем optimistic и возвращаем черновик
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticId));
-      setDraft(bodyToSend);
     } finally {
       setSending(false);
     }
@@ -766,6 +694,54 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
     }
   }
 
+  async function isNftApprovedForProtectedMarketplace(params: {
+    nftContract: `0x${string}`;
+    owner: `0x${string}`;
+    operator: `0x${string}`;
+  }) {
+    const { nftContract, owner, operator } = params;
+
+    if (activeWalletKind === "EMBEDDED") {
+      if (!embeddedProvider) return false;
+
+      const data = encodeFunctionData({
+        abi: ERC1155_RETURN_APPROVAL_ABI,
+        functionName: "isApprovedForAll",
+        args: [owner, operator],
+      });
+
+      const raw = await embeddedProvider.request({
+        method: "eth_call",
+        params: [
+          {
+            to: nftContract,
+            data,
+          },
+          "latest",
+        ],
+      });
+
+      const decoded = decodeFunctionResult({
+        abi: ERC1155_RETURN_APPROVAL_ABI,
+        functionName: "isApprovedForAll",
+        data: String(raw || "0x") as `0x${string}`,
+      });
+
+      return Boolean(decoded);
+    }
+
+    if (!publicClient) return false;
+
+    const approved = await publicClient.readContract({
+      address: nftContract,
+      abi: ERC1155_RETURN_APPROVAL_ABI,
+      functionName: "isApprovedForAll",
+      args: [owner, operator],
+    });
+
+    return Boolean(approved);
+  }
+
   async function runBuyerOnchainAction(
     action: "confirm_release" | "refund_return"
   ) {
@@ -798,29 +774,37 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
         setEmbeddedChainId(nextChainId);
 
         if (action === "refund_return") {
-          const approvalData = encodeFunctionData({
-            abi: ERC1155_RETURN_APPROVAL_ABI,
-            functionName: "setApprovalForAll",
-            args: [marketplaceContract, true],
+          const alreadyApproved = await isNftApprovedForProtectedMarketplace({
+            nftContract,
+            owner: activeAddress,
+            operator: marketplaceContract,
           });
 
-          const rawApprovalHash = await embeddedProvider!.request({
-            method: "eth_sendTransaction",
-            params: [
-              {
-                from: activeAddress,
-                to: nftContract,
-                data: approvalData,
-              },
-            ],
-          });
+          if (!alreadyApproved) {
+            const approvalData = encodeFunctionData({
+              abi: ERC1155_RETURN_APPROVAL_ABI,
+              functionName: "setApprovalForAll",
+              args: [marketplaceContract, true],
+            });
 
-          const approvalHash = normalizeTxHash(rawApprovalHash);
-          if (!approvalHash) {
-            throw new Error("Embedded wallet did not return approval transaction hash.");
+            const rawApprovalHash = await embeddedProvider!.request({
+              method: "eth_sendTransaction",
+              params: [
+                {
+                  from: activeAddress,
+                  to: nftContract,
+                  data: approvalData,
+                },
+              ],
+            });
+
+            const approvalHash = normalizeTxHash(rawApprovalHash);
+            if (!approvalHash) {
+              throw new Error("Embedded wallet did not return approval transaction hash.");
+            }
+
+            await waitForEmbeddedTxReceipt(embeddedProvider!, approvalHash);
           }
-
-          await waitForEmbeddedTxReceipt(embeddedProvider!, approvalHash);
         }
 
         const data = encodeFunctionData({
@@ -853,14 +837,22 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
             throw new Error("Public client is not ready. Please refresh the page and try again.");
           }
 
-          const approvalHash = await writeContractAsync({
-            address: nftContract,
-            abi: ERC1155_RETURN_APPROVAL_ABI,
-            functionName: "setApprovalForAll",
-            args: [marketplaceContract, true],
-          } as any);
+          const alreadyApproved = await isNftApprovedForProtectedMarketplace({
+            nftContract,
+            owner: activeAddress,
+            operator: marketplaceContract,
+          });
 
-          await publicClient.waitForTransactionReceipt({ hash: approvalHash });
+          if (!alreadyApproved) {
+            const approvalHash = await writeContractAsync({
+              address: nftContract,
+              abi: ERC1155_RETURN_APPROVAL_ABI,
+              functionName: "setApprovalForAll",
+              args: [marketplaceContract, true],
+            } as any);
+
+            await publicClient.waitForTransactionReceipt({ hash: approvalHash });
+          }
         }
 
         hash = await writeContractAsync({
@@ -1062,7 +1054,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
                     <span className="mx-1 font-black">buyerConfirmAndRelease(purchaseId)</span>
                     and
                     <span className="mx-1 font-black">requestRefundAndReturnNft(purchaseId)</span>.
-                    Refund return first approves the NFT contract for the marketplace, then returns the NFT to escrow.
+                    Refund return checks NFT approval first. If already approved, it only sends the return transaction; otherwise it asks for approval first, then returns the NFT to escrow.
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
                     {order.marketplacePurchaseId ? (
@@ -1235,21 +1227,12 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
         </div>
       ) : null}
 
-      {/* ── Chat ─────────────────────────────────────────────────────────── */}
       <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.04] backdrop-blur-xl shadow-[0_24px_90px_rgba(0,0,0,0.55)]">
         <div className="p-5 md:p-6">
-          {/* Header с индикатором auto-refresh */}
-          <div className="flex items-center justify-between">
-            <div className="text-[12px] font-black uppercase tracking-wider text-white/85">
-              Chat
-            </div>
-            <div className="flex items-center gap-2 text-[11px] text-white/40">
-              <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-              Auto-refresh every 12s
-            </div>
+          <div className="text-[12px] font-black uppercase tracking-wider text-white/85">
+            Chat
           </div>
 
-          {/* Список сообщений */}
           <div className="mt-4 max-h-[560px] space-y-3 overflow-y-auto pr-1">
             {visibleMessages.length === 0 ? (
               <div className="rounded-2xl border border-white/10 bg-black/10 p-4 text-[12px] text-white/55">
@@ -1260,8 +1243,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
                 <div
                   key={m.id}
                   className={cx(
-                    "rounded-2xl border p-4 transition-opacity duration-200",
-                    m.id.startsWith("optimistic-") ? "opacity-55" : "opacity-100",
+                    "rounded-2xl border p-4",
                     messageTone(m.senderRole, m.isInternal)
                   )}
                 >
@@ -1269,7 +1251,6 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
                     <div className="text-[11px] font-black uppercase tracking-wider">
                       {senderLabel(m.senderRole)}
                       {m.isInternal ? " • internal" : ""}
-                      {m.id.startsWith("optimistic-") ? " • sending…" : ""}
                     </div>
                     <div className="text-[11px] opacity-70">{fmtDate(m.createdAt)}</div>
                   </div>
@@ -1279,23 +1260,14 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
                 </div>
               ))
             )}
-            {/* Якорь для auto-scroll */}
-            <div ref={messagesEndRef} />
           </div>
 
-          {/* Форма отправки */}
           <div className="mt-4 rounded-2xl border border-white/10 bg-black/10 p-4">
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
-                  e.preventDefault();
-                  if (!sending && draft.trim()) void sendMessage();
-                }
-              }}
               rows={4}
-              placeholder="Write a message… (Ctrl+Enter to send)"
+              placeholder="Write a message to the other side..."
               className="w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm font-semibold text-white/95 outline-none focus:border-white/20"
             />
             <div className="mt-3 flex justify-end">
@@ -1426,7 +1398,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
                         : "Return NFT"}
                     </button>
                     <div className="text-[11px] leading-relaxed text-white/55">
-                      To complete a protected refund, the NFT must be returned to escrow first.
+                      To complete a protected refund, the NFT must be returned to escrow first. If approval already exists, this should be one wallet transaction; otherwise approval + return is required.
                     </div>
                   </div>
                 ) : null}
