@@ -2311,7 +2311,7 @@ export default function TradingPanel1155({
         label:
           selectedListingMarketType === "PROTECTED"
             ? `Open wallet and approve ${fmtRawAmount(total, REALIFE_PROTECTED_PAYMENT_USDC.decimals)} USDC for escrow.`
-            : `Open wallet and sign the purchase (${fmtEth(total.toString())} ETH).`,
+            : `Open wallet and sign the purchase (${fmtRawAmount(total.toString(), marketPaymentDecimals(selectedListingMarketType))} ${marketPaymentSymbol(selectedListingMarketType)}).`,
       });
 
       let hash: `0x${string}`;

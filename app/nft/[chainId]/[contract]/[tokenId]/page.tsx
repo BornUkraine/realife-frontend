@@ -11,6 +11,7 @@ import { realifeStoreAbi } from "@/lib/realifeStoreAbi";
 import { headers } from "next/headers";
 import { createPublicClient, formatUnits, http } from "viem";
 import { baseSepolia } from "viem/chains";
+import { REALIFE_PROTECTED_PAYMENT_USDC } from "@/lib/realifeProtectedUsdc";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -825,17 +826,56 @@ async function loadMarketNft(
   return { data: res.json, error: null as string | null };
 }
 
-function fmtEth(wei?: string | null) {
+type PaymentMarketType = "STANDARD" | "PROTECTED";
+
+type PaymentLike = {
+  marketType?: PaymentMarketType | null;
+  paymentSymbol?: string | null;
+  paymentDecimals?: number | null;
+};
+
+function paymentSymbolForMarket(marketType?: PaymentMarketType | null) {
+  return marketType === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.symbol : "ETH";
+}
+
+function paymentDecimalsForMarket(marketType?: PaymentMarketType | null) {
+  return marketType === "PROTECTED" ? REALIFE_PROTECTED_PAYMENT_USDC.decimals : 18;
+}
+
+function paymentSymbolForRow(row?: PaymentLike | null, fallbackMarketType?: PaymentMarketType | null) {
+  return row?.paymentSymbol || paymentSymbolForMarket(row?.marketType || fallbackMarketType);
+}
+
+function paymentDecimalsForRow(row?: PaymentLike | null, fallbackMarketType?: PaymentMarketType | null) {
+  const n = Number(row?.paymentDecimals ?? paymentDecimalsForMarket(row?.marketType || fallbackMarketType));
+  return Number.isFinite(n) && n > 0 ? n : paymentDecimalsForMarket(row?.marketType || fallbackMarketType);
+}
+
+function fmtRawAmount(raw?: string | bigint | null, decimals = 18) {
   try {
-    if (!wei) return "—";
-    const s = formatUnits(BigInt(wei), 18);
+    if (raw === null || raw === undefined || raw === "") return "—";
+    const s = formatUnits(BigInt(raw), decimals);
     const [a, b] = s.split(".");
     if (!b) return a;
-    const bb = b.slice(0, 6).replace(/0+$/, "");
+    const digits = decimals === 6 ? 2 : 6;
+    const bb = b.slice(0, digits).replace(/0+$/, "");
     return bb ? `${a}.${bb}` : a;
   } catch {
     return "—";
   }
+}
+
+function fmtPayment(raw?: string | bigint | null, row?: PaymentLike | null, fallbackMarketType?: PaymentMarketType | null) {
+  return fmtRawAmount(raw ?? null, paymentDecimalsForRow(row, fallbackMarketType));
+}
+
+function fmtPaymentWithSymbol(raw?: string | bigint | null, row?: PaymentLike | null, fallbackMarketType?: PaymentMarketType | null) {
+  if (raw === null || raw === undefined || raw === "") return "—";
+  return `${fmtPayment(raw, row, fallbackMarketType)} ${paymentSymbolForRow(row, fallbackMarketType)}`;
+}
+
+function fmtEth(wei?: string | null) {
+  return fmtRawAmount(wei, 18);
 }
 
 function StatCard({
@@ -1603,14 +1643,23 @@ export default async function NftDetailsPage({
           </div>
 
           <div className="flex w-full flex-col gap-3 sm:w-auto xl:justify-self-end">
-            {backToGalleryHref ? (
+            <div className="flex w-full flex-col gap-3 sm:flex-row xl:justify-end">
+              {backToGalleryHref ? (
+                <Link
+                  href={backToGalleryHref}
+                  className="inline-flex min-w-[190px] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 font-extrabold text-black ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_22px_70px_rgba(212,175,55,0.28)] active:translate-y-0"
+                >
+                  Back to gallery
+                </Link>
+              ) : null}
+
               <Link
-                href={backToGalleryHref}
-                className="inline-flex min-w-[190px] items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] px-4 py-2 font-extrabold text-black ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)] transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_22px_70px_rgba(212,175,55,0.28)] active:translate-y-0"
+                href="/app/trading"
+                className="inline-flex min-w-[190px] items-center justify-center rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-2 font-bold text-white shadow-[0_18px_70px_rgba(0,0,0,0.28)] transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-300/35 hover:bg-white/10 active:translate-y-0"
               >
-                Back to gallery
+                Back to trading
               </Link>
-            ) : null}
+            </div>
 
             {isCafeNft ? (
               <Link
@@ -1879,12 +1928,12 @@ export default async function NftDetailsPage({
                   <div className="mt-auto grid grid-cols-2 gap-3 pt-6">
                     <StatCard
                       label="Floor"
-                      value={stats?.floorWei ? `${fmtEth(stats.floorWei)} ETH` : "—"}
+                      value={fmtPaymentWithSymbol(stats?.floorWei ?? null, null, secondaryMarketType)}
                       tone="gold"
                     />
                     <StatCard
                       label="Last sale"
-                      value={stats?.lastSaleWei ? `${fmtEth(stats.lastSaleWei)} ETH` : "—"}
+                      value={fmtPaymentWithSymbol(stats?.lastSaleWei ?? null, null, secondaryMarketType)}
                     />
                     <StatCard
                       label="Active"
@@ -2286,7 +2335,7 @@ export default async function NftDetailsPage({
                             >
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="text-[13px] font-black text-amber-100">
-                                  {fmtEth(l.pricePerUnitWei)} ETH{" "}
+                                  {fmtPaymentWithSymbol(l.pricePerUnitWei, l, rowMarketType)}{" "}
                                   <span className="text-[11px] font-black text-white/35">
                                     / unit
                                   </span>
@@ -2366,7 +2415,7 @@ export default async function NftDetailsPage({
                             >
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <div className="text-[13px] font-black text-amber-100">
-                                  {fmtEth(t.totalPriceWei)} ETH{" "}
+                                  {fmtPaymentWithSymbol(t.totalPriceWei, t, rowMarketType)}{" "}
                                   <span className="text-[11px] font-black text-white/35">•</span>
                                   <span className="ml-2 text-[12px] font-black text-white/80">
                                     x{t.amount}
