@@ -233,6 +233,9 @@ function serializeListing(row: any) {
     marketType: row.marketType,
     marketplaceContract: row.marketplaceContract || null,
     marketplaceListingId: String(row.marketplaceListingId),
+    paymentTokenAddress: row.paymentTokenAddress || null,
+    paymentSymbol: row.paymentSymbol || (row.marketType === "PROTECTED" ? "USDC" : null),
+    paymentDecimals: row.paymentDecimals ?? (row.marketType === "PROTECTED" ? 6 : null),
 
     sellerWallet: row.sellerWallet,
     seller: row.seller
@@ -347,6 +350,9 @@ export async function GET(req: Request) {
             marketType: true,
             marketplaceContract: true,
             marketplaceListingId: true,
+            paymentTokenAddress: true,
+            paymentSymbol: true,
+            paymentDecimals: true,
             sellerWallet: true,
             pricePerUnitWei: true,
             amountTotal: true,

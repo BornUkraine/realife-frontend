@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import AdminEscrowGateClient from "./AdminEscrowGateClient";
 import ProtectedEscrowAdminClient from "./ProtectedEscrowAdminClient";
 import AdminUsersClient from "./AdminUsersClient";
+import AdminTradingModerationClient from "./AdminTradingModerationClient";
 import {
   ADMIN_ESCROW_COOKIE_NAME,
   verifyAdminEscrowToken,
@@ -348,6 +349,8 @@ export default async function ProtectedEscrowAdminPage() {
       </div>
 
       <AdminUsersClient />
+
+      <AdminTradingModerationClient />
 
       <ProtectedEscrowAdminClient />
     </div>

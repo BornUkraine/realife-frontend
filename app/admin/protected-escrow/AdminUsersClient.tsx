@@ -52,6 +52,9 @@ type UserActivityItem = {
   totalPriceWei?: string | null;
   pricePerUnitWei?: string | null;
   paymentToken?: string | null;
+  paymentTokenAddress?: string | null;
+  paymentSymbol?: string | null;
+  paymentDecimals?: number | null;
   escrowStatus?: string | null;
   deliveryStatus?: string | null;
   serviceStatus?: string | null;
@@ -174,6 +177,100 @@ type AdminUserRow = {
   recentTradesBought: UserActivityItem[];
 };
 
+
+
+type InventoryListingRow = {
+  id: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  chainId?: number | null;
+  contract?: string | null;
+  tokenId?: string | null;
+  status?: string | null;
+  adminHidden?: boolean;
+  marketType?: string | null;
+  marketplaceListingId?: string | null;
+  paymentSymbol?: string | null;
+  paymentTokenAddress?: string | null;
+  paymentDecimals?: number | null;
+  sellerWallet?: string | null;
+  pricePerUnitWei?: string | null;
+  amountTotal?: string | null;
+  amountRemaining?: string | null;
+  fulfillmentType?: string | null;
+  category?: string | null;
+  subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  nftName?: string | null;
+  nftImage?: string | null;
+  nftVerified?: boolean | null;
+};
+
+type InventoryMintRow = {
+  id: string;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  chainId?: number | null;
+  contract?: string | null;
+  tokenId?: string | null;
+  txHash?: string | null;
+  tokenUri?: string | null;
+  name?: string | null;
+  image?: string | null;
+  description?: string | null;
+  verified?: boolean;
+  fulfillmentType?: string | null;
+  category?: string | null;
+  subcategory?: string | null;
+  serviceCountry?: string | null;
+  serviceCity?: string | null;
+  listingsCount?: number;
+  tradesCount?: number;
+  recentListings?: InventoryListingRow[];
+};
+
+type InventoryHoldingRow = {
+  id: string;
+  updatedAt?: string | null;
+  chainId?: number | null;
+  contract?: string | null;
+  tokenId?: string | null;
+  standard?: string | null;
+  amount?: string | null;
+  mint?: InventoryMintRow | null;
+};
+
+type UserNftInventoryResponse = {
+  ok: boolean;
+  error?: string;
+  role: "MODERATOR" | "ADMIN";
+  user: {
+    id: string;
+    handle: string | null;
+    publicId: string | null;
+    walletAddress: string | null;
+    walletShort: string | null;
+    googleEmail: string | null;
+    googleName: string | null;
+    twitterUser: string | null;
+    twitterName: string | null;
+    discordUser: string | null;
+    discordName: string | null;
+    referralCode: string | null;
+    points: number;
+  };
+  counts: {
+    minted: number;
+    profileHoldings: number;
+    listings: number;
+    activeListings: number;
+  };
+  minted: InventoryMintRow[];
+  profileHoldings: InventoryHoldingRow[];
+  listings: InventoryListingRow[];
+};
+
 type AdminUsersResponse = {
   ok: boolean;
   role: "MODERATOR" | "ADMIN";
@@ -241,8 +338,15 @@ function shortHash(v?: string | null) {
   return `${s.slice(0, 10)}…${s.slice(-8)}`;
 }
 
+function mediaUrl(v?: string | null) {
+  const s = String(v || "").trim();
+  if (!s) return null;
+  if (s.startsWith("ipfs://")) return `https://ipfs.io/ipfs/${s.replace("ipfs://", "").replace(/^ipfs\//, "")}`;
+  return s;
+}
+
 function paymentSymbol(paymentToken?: string | null) {
-  return paymentToken ? "USDT" : "ETH";
+  return paymentToken ? "USDC" : "ETH";
 }
 
 function formatPaymentAmount(raw?: string | null, paymentToken?: string | null) {
@@ -397,7 +501,7 @@ function MiniActivityList({ items, kind }: { items: UserActivityItem[]; kind: "m
               {kind === "listings" ? (
                 <>
                   <KV label="Listing" value={item.marketplaceListingId || "—"} />
-                  <KV label="Price" value={formatPaymentAmount(item.pricePerUnitWei, null)} />
+                  <KV label="Price" value={formatPaymentAmount(item.pricePerUnitWei, item.marketType === "PROTECTED" ? "USDC" : null)} />
                 </>
               ) : null}
               {kind === "orders" ? (
@@ -408,7 +512,7 @@ function MiniActivityList({ items, kind }: { items: UserActivityItem[]; kind: "m
               ) : null}
               {kind === "trades" ? (
                 <>
-                  <KV label="Price" value={formatPaymentAmount(item.totalPriceWei, null)} />
+                  <KV label="Price" value={formatPaymentAmount(item.totalPriceWei, item.paymentSymbol || item.paymentTokenAddress || (item.marketType === "PROTECTED" ? "USDC" : null))} />
                   <KV label="Tx" value={shortHash(item.txHash)} />
                 </>
               ) : null}
@@ -417,6 +521,173 @@ function MiniActivityList({ items, kind }: { items: UserActivityItem[]; kind: "m
           </div>
         );
       })}
+    </div>
+  );
+}
+
+
+function InventoryThumb({ src, label }: { src?: string | null; label?: string | null }) {
+  const url = mediaUrl(src);
+  return (
+    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
+      {url ? (
+        <img src={url} alt={label || "NFT"} className="h-full w-full object-cover" loading="lazy" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-[10px] text-white/35">NFT</div>
+      )}
+    </div>
+  );
+}
+
+function InventoryListingMini({ item }: { item: InventoryListingRow }) {
+  const title = item.nftName || `Token #${item.tokenId || "—"}`;
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+      <div className="flex items-start gap-3">
+        <InventoryThumb src={item.nftImage} label={title} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-white">{title}</div>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {item.status ? <Badge tone={item.status}>{titleCase(item.status)}</Badge> : null}
+            {item.adminHidden ? <Badge tone="hidden">Hidden</Badge> : null}
+            {item.marketType ? <Badge tone={item.marketType}>{titleCase(item.marketType)}</Badge> : null}
+          </div>
+          <div className="mt-2 grid gap-1 text-xs text-white/55">
+            <KV label="Price" value={formatPaymentAmount(item.pricePerUnitWei, item.paymentSymbol || item.paymentTokenAddress || (item.marketType === "PROTECTED" ? "USDC" : null))} />
+            <KV label="Amount" value={`${item.amountRemaining || "—"}/${item.amountTotal || "—"}`} />
+            <KV label="Listing" value={item.marketplaceListingId || "—"} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InventoryMintMini({ item, holdingAmount }: { item: InventoryMintRow; holdingAmount?: string | null }) {
+  const title = item.name || `Token #${item.tokenId || "—"}`;
+  const href = item.contract && item.tokenId ? `/app/trading/${encodeURIComponent(item.contract)}/${encodeURIComponent(item.tokenId)}` : null;
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+      <div className="flex items-start gap-3">
+        <InventoryThumb src={item.image} label={title} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-white">{title}</div>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {item.verified ? <Badge tone="verified">Verified</Badge> : <Badge tone="unverified">Unverified</Badge>}
+                {item.fulfillmentType ? <Badge tone={item.fulfillmentType}>{titleCase(item.fulfillmentType)}</Badge> : null}
+                {holdingAmount ? <Badge tone="holding">x{holdingAmount}</Badge> : null}
+              </div>
+            </div>
+            {href ? (
+              <a href={href} target="_blank" rel="noreferrer" className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#f5d76e] hover:underline">
+                Open ↗
+              </a>
+            ) : null}
+          </div>
+          <div className="mt-2 grid gap-1 text-xs text-white/55">
+            <KV label="Token" value={`#${item.tokenId || "—"} · ${shortAddr(item.contract)}`} />
+            <KV label="Category" value={[item.category, item.subcategory].filter(Boolean).join(" · ") || "—"} />
+            <KV label="Location" value={[item.serviceCity, item.serviceCountry].filter(Boolean).join(", ") || "—"} />
+            <KV label="Mint tx" value={shortHash(item.txHash)} />
+          </div>
+          {item.recentListings?.length ? (
+            <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-white/55">
+              Listings attached: <span className="font-semibold text-white">{item.recentListings.length}</span>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InventoryModal({
+  targetUser,
+  data,
+  loading,
+  error,
+  onClose,
+}: {
+  targetUser: AdminUserRow;
+  data: UserNftInventoryResponse | null;
+  loading: boolean;
+  error: string | null;
+  onClose: () => void;
+}) {
+  const label = data?.user?.twitterName || data?.user?.discordName || data?.user?.googleName || (data?.user?.handle ? `@${data.user.handle}` : null) || userLabel(targetUser);
+  const profile = data?.user?.handle || data?.user?.publicId || targetUser.handle || targetUser.publicId;
+  const profileUrl = profile ? `/app/profile/${encodeURIComponent(profile)}/nfts` : null;
+
+  return (
+    <div className="fixed inset-0 z-[80] overflow-y-auto bg-black/75 p-3 backdrop-blur-xl sm:p-6">
+      <div className="mx-auto max-w-6xl rounded-[30px] border border-white/10 bg-[#0b0a09] shadow-[0_40px_140px_rgba(0,0,0,0.75)]">
+        <div className="sticky top-0 z-10 rounded-t-[30px] border-b border-white/10 bg-[#0b0a09]/95 p-4 backdrop-blur-xl sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="inline-flex rounded-full border border-[#d4af37]/25 bg-[#d4af37]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f5d76e]">
+                User NFT inventory
+              </div>
+              <h3 className="mt-2 text-xl font-semibold text-white">{label}</h3>
+              <p className="mt-1 max-w-3xl text-sm leading-6 text-white/60">
+                Full admin view of NFTs minted by this user, NFTs currently visible in the user profile/holdings, and all trading listings attached to the user wallets.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {profileUrl ? (
+                <a href={profileUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-[#d4af37]/25 bg-[#d4af37]/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#f5d76e] transition hover:bg-[#d4af37]/15">
+                  Public NFTs ↗
+                </a>
+              ) : null}
+              <button type="button" onClick={onClose} className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-white/80 transition hover:border-white/20 hover:bg-white/[0.08]">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4 p-4 sm:p-5">
+          {loading ? <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-5 text-sm text-white/65">Loading user NFT inventory...</div> : null}
+          {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">{error}</div> : null}
+
+          {data ? (
+            <>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <TinyStat label="Minted by user" value={data.counts.minted} />
+                <TinyStat label="Profile NFTs" value={data.counts.profileHoldings} />
+                <TinyStat label="All listings" value={data.counts.listings} />
+                <TinyStat label="Active listings" value={data.counts.activeListings} />
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <SectionTitle>Profile / current holdings</SectionTitle>
+                  <div className="grid gap-2">
+                    {data.profileHoldings.length ? data.profileHoldings.map((h) => (
+                      <InventoryMintMini key={h.id} item={h.mint || { id: h.id, tokenId: h.tokenId, contract: h.contract }} holdingAmount={h.amount} />
+                    )) : <EmptyMini text="No profile holdings found." />}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  <SectionTitle>Minted by this user</SectionTitle>
+                  <div className="grid gap-2">
+                    {data.minted.length ? data.minted.map((m) => <InventoryMintMini key={m.id} item={m} />) : <EmptyMini text="No minted NFTs found." />}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                <SectionTitle>Trading listings from this user wallets</SectionTitle>
+                <div className="grid gap-2 xl:grid-cols-2">
+                  {data.listings.length ? data.listings.map((l) => <InventoryListingMini key={l.id} item={l} />) : <EmptyMini text="No listings from this user wallets." />}
+                </div>
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -463,6 +734,10 @@ export default function AdminUsersClient() {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [inventoryUser, setInventoryUser] = useState<AdminUserRow | null>(null);
+  const [inventory, setInventory] = useState<UserNftInventoryResponse | null>(null);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
 
   const query = useMemo(() => {
     const p = new URLSearchParams();
@@ -504,6 +779,22 @@ export default function AdminUsersClient() {
     }
   }
 
+
+  async function openInventory(u: AdminUserRow) {
+    setInventoryUser(u);
+    setInventory(null);
+    setInventoryError(null);
+    setInventoryLoading(true);
+    try {
+      const j = await fetchJSON<UserNftInventoryResponse>(`/api/admin/users/${encodeURIComponent(u.id)}/nfts?take=250`);
+      setInventory(j);
+    } catch (e: any) {
+      setInventoryError(e?.message || "Unable to load user NFT inventory.");
+    } finally {
+      setInventoryLoading(false);
+    }
+  }
+
   const sortedItems = useMemo(() => {
     const toTime = (v?: string | null) => {
       if (!v) return 0;
@@ -531,6 +822,19 @@ export default function AdminUsersClient() {
 
   return (
     <div className="space-y-4 rounded-[28px] border border-white/10 bg-[#0b0a09]/60 p-4 backdrop-blur-2xl xl:p-5">
+      {inventoryUser ? (
+        <InventoryModal
+          targetUser={inventoryUser}
+          data={inventory}
+          loading={inventoryLoading}
+          error={inventoryError}
+          onClose={() => {
+            setInventoryUser(null);
+            setInventory(null);
+            setInventoryError(null);
+          }}
+        />
+      ) : null}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="inline-flex rounded-full border border-[#d4af37]/25 bg-[#d4af37]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f5d76e]">
@@ -744,6 +1048,14 @@ export default function AdminUsersClient() {
                               className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-white/80 transition hover:border-white/20 hover:bg-white/[0.08]"
                             >
                               {isOpen ? "Hide details" : "Open details"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => void openInventory(u)}
+                              className="rounded-xl border border-[#d4af37]/25 bg-[#d4af37]/10 px-3 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#f5d76e] transition hover:bg-[#d4af37]/15"
+                            >
+                              NFT inventory
                             </button>
 
                             {publicProfileHref ? (

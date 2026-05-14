@@ -117,7 +117,7 @@ function titleCase(v?: string | null) {
 }
 
 function paymentSymbol(paymentToken?: string | null) {
-  return paymentToken ? "USDT" : "ETH";
+  return paymentToken ? "USDC" : "ETH";
 }
 
 function formatPaymentAmount(
