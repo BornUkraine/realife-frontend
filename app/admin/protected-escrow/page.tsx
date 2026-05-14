@@ -329,7 +329,7 @@ export default async function ProtectedEscrowAdminPage() {
         <ActionCard
           title="Referral ranking"
           text="See who invited whom, qualified testnet users, listings, orders and referral performance by code."
-          href="/app/admin/referrals"
+          href="/admin/referrals"
           tone="gold"
         />
         <ActionCard
