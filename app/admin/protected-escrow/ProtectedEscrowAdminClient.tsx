@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { formatUnits, isAddress } from "viem";
 import {
   useAccount,
@@ -13,11 +13,15 @@ import {
 import { realifeMarketplaceProtectedEscrow1155Abi } from "@/lib/realifeMarketplaceProtectedEscrow1155Abi";
 
 type EscrowBucket =
+  | "all"
+  | "open"
   | "disputed"
   | "refund_requested"
   | "nft_returned"
   | "released"
   | "refunded";
+
+type OrderScope = "protected" | "all";
 
 type Row = {
   id: string;
@@ -139,6 +143,8 @@ function formatPaymentAmount(
 }
 
 function bucketLabel(bucket: EscrowBucket) {
+  if (bucket === "all") return "All orders";
+  if (bucket === "open") return "Open orders";
   if (bucket === "disputed") return "Disputed";
   if (bucket === "refund_requested") return "Refund requested";
   if (bucket === "nft_returned") return "NFT returned";
@@ -147,6 +153,12 @@ function bucketLabel(bucket: EscrowBucket) {
 }
 
 function toneForBucket(bucket: EscrowBucket) {
+  if (bucket === "all") {
+    return "border-[#d4af37]/25 bg-[#d4af37]/10 text-[#f7e7a7]";
+  }
+  if (bucket === "open") {
+    return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
+  }
   if (bucket === "disputed") {
     return "border-rose-500/20 bg-rose-500/10 text-rose-100";
   }
@@ -228,6 +240,19 @@ function walletErrorMessage(e: any) {
   if (raw.includes("User rejected") || raw.includes("rejected")) {
     return "Wallet transaction was rejected.";
   }
+  if (
+    raw.includes("EstimateGasExecutionError") ||
+    raw.includes("execution reverted") ||
+    raw.includes("reverted") ||
+    raw.includes("cannot estimate gas") ||
+    raw.includes("ContractFunctionExecutionError")
+  ) {
+    return (
+      "The protected escrow contract rejected this action before signing. " +
+      "Most likely reason: wrong owner/operator wallet, wrong purchase status, NFT was not returned on-chain, or ABI/function mismatch. Raw error: " +
+      raw
+    );
+  }
   return raw;
 }
 
@@ -249,8 +274,13 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 export default function ProtectedEscrowAdminClient() {
-  const [bucket, setBucket] = useState<EscrowBucket>("disputed");
+  const [bucket, setBucket] = useState<EscrowBucket>("all");
+  const [scope, setScope] = useState<OrderScope>("protected");
+  const [query, setQuery] = useState("");
+  const [queryDraft, setQueryDraft] = useState("");
   const [summary, setSummary] = useState<Summary>({
+    all: 0,
+    open: 0,
     disputed: 0,
     refund_requested: 0,
     nft_returned: 0,
@@ -269,20 +299,41 @@ export default function ProtectedEscrowAdminClient() {
   const { switchChainAsync } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
 
-  async function load(nextBucket: EscrowBucket = bucket) {
+  async function load(
+    nextBucket: EscrowBucket = bucket,
+    nextScope: OrderScope = scope,
+    nextQuery: string = query,
+  ) {
     setLoading(true);
     setError(null);
 
     try {
+      const params = new URLSearchParams({
+        bucket: nextBucket,
+        scope: nextScope,
+        take: "100",
+      });
+      const cleanedQuery = nextQuery.trim();
+      if (cleanedQuery) params.set("q", cleanedQuery);
+
       const j = await fetchJSON<ApiResponse>(
-        `/api/admin/protected-escrow/orders?bucket=${encodeURIComponent(
-          nextBucket,
-        )}`,
+        `/api/admin/protected-escrow/orders?${params.toString()}`,
       );
 
       setBucket(j.bucket);
+      setScope(nextScope);
+      setQuery(cleanedQuery);
+      setQueryDraft(cleanedQuery);
       setRole(j.role);
-      setSummary(j.summary);
+      setSummary({
+        all: j.summary?.all ?? 0,
+        open: j.summary?.open ?? 0,
+        disputed: j.summary?.disputed ?? 0,
+        refund_requested: j.summary?.refund_requested ?? 0,
+        nft_returned: j.summary?.nft_returned ?? 0,
+        released: j.summary?.released ?? 0,
+        refunded: j.summary?.refunded ?? 0,
+      });
       setItems(j.items);
     } catch (e: any) {
       setError(e?.message || "Unable to load protected escrow orders.");
@@ -292,12 +343,28 @@ export default function ProtectedEscrowAdminClient() {
   }
 
   useEffect(() => {
-    load("disputed");
+    load("all", "protected", "");
   }, []);
 
   async function onSelectBucket(nextBucket: EscrowBucket) {
     if (actionId) return;
-    await load(nextBucket);
+    await load(nextBucket, scope, query);
+  }
+
+  async function onSelectScope(nextScope: OrderScope) {
+    if (actionId) return;
+    await load(bucket, nextScope, query);
+  }
+
+  async function onSearchSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (actionId) return;
+    await load(bucket, scope, queryDraft);
+  }
+
+  async function clearSearch() {
+    if (actionId) return;
+    await load(bucket, scope, "");
   }
 
   async function runSettlementAction(order: Row, action: "release" | "refund") {
@@ -358,16 +425,28 @@ export default function ProtectedEscrowAdminClient() {
           await switchChainAsync?.({ chainId: order.chainId });
         }
 
-        const hash = await writeContractAsync({
+        if (!publicClient) {
+          throw new Error("RPC/public client is not ready. Refresh the page and reconnect the wallet.");
+        }
+
+        const functionName =
+          action === "release" ? "releasePurchase" : "refundPurchase";
+
+        // Preflight simulation prevents MetaMask from opening a disabled
+        // “Unknown transaction” when the contract will revert anyway.
+        // If this fails, the user sees the real reason in the admin panel.
+        const simulated = await publicClient.simulateContract({
           address: contract as `0x${string}`,
           abi: realifeMarketplaceProtectedEscrow1155Abi,
-          functionName:
-            action === "release" ? "releasePurchase" : "refundPurchase",
+          functionName,
           args: [purchaseId],
+          account: connectedAddress as `0x${string}`,
         } as any);
 
+        const hash = await writeContractAsync(simulated.request as any);
+
         txHash = String(hash);
-        await publicClient?.waitForTransactionReceipt({
+        await publicClient.waitForTransactionReceipt({
           hash: hash as `0x${string}`,
         });
       } else {
@@ -423,9 +502,11 @@ export default function ProtectedEscrowAdminClient() {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
         {(
           [
+            "all",
+            "open",
             "disputed",
             "refund_requested",
             "nft_returned",
@@ -458,15 +539,19 @@ export default function ProtectedEscrowAdminClient() {
                 {summary[x] ?? 0}
               </div>
               <div className="mt-2 text-sm text-white/60">
-                {x === "disputed"
-                  ? "Need review / decision"
-                  : x === "refund_requested"
-                    ? "Buyer asked for refund"
-                    : x === "nft_returned"
-                      ? "Ready for protected refund review"
-                      : x === "released"
-                        ? "Funds released"
-                        : "Refund completed"}
+                {x === "all"
+                  ? "All visible platform orders"
+                  : x === "open"
+                    ? "Active orders before settlement"
+                    : x === "disputed"
+                      ? "Need review / decision"
+                      : x === "refund_requested"
+                        ? "Buyer asked for refund"
+                        : x === "nft_returned"
+                          ? "Ready for protected refund review"
+                          : x === "released"
+                            ? "Funds released"
+                            : "Refund completed"}
               </div>
             </button>
           );
@@ -480,18 +565,68 @@ export default function ProtectedEscrowAdminClient() {
               {bucketLabel(bucket)}
             </div>
             <h2 className="mt-3 text-2xl font-semibold text-white">
-              Protected escrow control list
+              All orders & protected escrow control list
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-7 text-white/65">
-              Review notes, room links, purchase ids, and settlement readiness.
-              For protected on-chain orders, Release/Refund opens the connected
-              wallet and calls the protected escrow contract.
+              Admins and moderators can now review every active, completed, disputed, refunded and released order from one place. Use Open room to enter the buyer/seller order room, read messages, delivery proof, service evidence and support notes. For protected on-chain orders, Release/Refund opens the connected wallet and calls the protected escrow contract.
             </p>
           </div>
 
           <div className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/65">
             {role || "—"}
           </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-[auto_1fr] lg:items-end">
+          <div>
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">
+              Order scope
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(["protected", "all"] as OrderScope[]).map((x) => (
+                <button
+                  key={x}
+                  type="button"
+                  onClick={() => onSelectScope(x)}
+                  disabled={actionId !== null || loading}
+                  className={cx(
+                    "rounded-2xl border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] transition disabled:cursor-not-allowed disabled:opacity-60",
+                    scope === x
+                      ? "border-[#d4af37]/35 bg-[#d4af37]/12 text-[#f7e7a7]"
+                      : "border-white/10 bg-white/[0.04] text-white/60 hover:border-white/20 hover:bg-white/[0.07]",
+                  )}
+                >
+                  {x === "protected" ? "Protected / service orders" : "All store orders"}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <form onSubmit={onSearchSubmit} className="flex flex-wrap gap-2">
+            <input
+              value={queryDraft}
+              onChange={(e) => setQueryDraft(e.target.value)}
+              placeholder="Search order id, wallet, tokenId, tx hash, city, category..."
+              className="min-w-[260px] flex-1 rounded-2xl border border-white/10 bg-black/30 px-4 py-2.5 text-sm text-white outline-none placeholder:text-white/35 focus:border-[#d4af37]/35"
+            />
+            <button
+              type="submit"
+              disabled={actionId !== null || loading}
+              className="rounded-2xl border border-[#d4af37]/25 bg-[#d4af37]/12 px-4 py-2.5 text-sm font-semibold text-[#f7e7a7] transition hover:bg-[#d4af37]/18 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Search
+            </button>
+            {query ? (
+              <button
+                type="button"
+                onClick={clearSearch}
+                disabled={actionId !== null || loading}
+                className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-white/70 transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Clear
+              </button>
+            ) : null}
+          </form>
         </div>
 
         {error ? (
@@ -506,7 +641,7 @@ export default function ProtectedEscrowAdminClient() {
           </div>
         ) : visibleItems.length === 0 ? (
           <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-5 text-sm text-white/65">
-            No orders in this bucket right now.
+            No orders match this filter right now.
           </div>
         ) : (
           <div className="mt-6 space-y-4">

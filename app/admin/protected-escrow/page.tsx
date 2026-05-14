@@ -338,9 +338,9 @@ export default async function ProtectedEscrowAdminPage() {
           tone="danger"
         />
         <ActionCard
-          title="Order room"
-          text="Support can read public messages and internal notes. The admin panel can add internal support notes directly."
-          href="/app/orders"
+          title="All order rooms"
+          text="Review all user orders below, then open any buyer/seller room directly from the admin control list."
+          tone="gold"
         />
         <ActionCard
           title="Server-only admins"

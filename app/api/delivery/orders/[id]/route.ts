@@ -15,16 +15,24 @@ const SERVICE_FULFILLMENTS = [
   "LOCAL_SERVICE",
 ] as const;
 
-const ADMIN_WALLETS = (
-  process.env.ADMIN_CREATE_WALLETS ||
-  process.env.ADMIN_WALLETS ||
-  process.env.NEXT_PUBLIC_ADMIN_CREATE_WALLETS ||
-  process.env.NEXT_PUBLIC_ADMIN_WALLETS ||
-  ""
-)
-  .split(",")
-  .map((v) => v.trim().toLowerCase())
-  .filter(Boolean);
+function getEnvWallets(...names: string[]) {
+  return names
+    .flatMap((name) => String(process.env[name] || "").split(","))
+    .map((x) => normAddr(x))
+    .filter(Boolean);
+}
+
+const ADMIN_WALLETS = getEnvWallets(
+  "ADMIN_CREATE_WALLETS",
+  "ADMIN_WALLETS",
+  "NEXT_PUBLIC_ADMIN_CREATE_WALLETS",
+  "NEXT_PUBLIC_ADMIN_WALLETS"
+);
+
+const MODERATOR_WALLETS = getEnvWallets(
+  "MODERATOR_WALLETS",
+  "ADMIN_MODERATOR_WALLETS"
+);
 
 function normAddr(v?: string | null) {
   return String(v || "").trim().toLowerCase();
@@ -55,8 +63,11 @@ async function getActor() {
   const isAdminSession = Boolean(
     (session as any)?.user?.isAdmin || (session as any)?.isAdmin
   );
-  const isAllowlistedWallet =
+  const isAllowlistedAdminWallet =
     !!walletAddress && ADMIN_WALLETS.includes(walletAddress);
+
+  const isAllowlistedModeratorWallet =
+    !!walletAddress && MODERATOR_WALLETS.includes(walletAddress);
 
   let dbSupportRole: SupportRoleValue | null = null;
 
@@ -80,7 +91,11 @@ async function getActor() {
   return {
     userId,
     walletAddress,
-    isSupport: isAdminSession || isAllowlistedWallet || isDbSupport,
+    isSupport:
+      isAdminSession ||
+      isAllowlistedAdminWallet ||
+      isAllowlistedModeratorWallet ||
+      isDbSupport,
     dbSupportRole,
   };
 }
