@@ -298,7 +298,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       ].filter(Boolean))
     );
 
-    const [minted, holdings, listings, counts] = await prisma.$transaction([
+    const [minted, holdings, listings] = await prisma.$transaction([
       prisma.mint.findMany({
         where: { userId: user.id },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
@@ -448,15 +448,20 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           mint: { select: { name: true, image: true, metaImage: true, metaItem: true, verified: true } },
         },
       }),
-      Promise.all([
-        prisma.mint.count({ where: { userId: user.id } }),
-        prisma.holding.count({ where: { userId: user.id, amount: { gt: 0n } } }),
-        prisma.listing.count({ where: wallets.length ? { sellerWallet: { in: wallets } } : { sellerWallet: user.walletAddress } }),
-        prisma.listing.count({ where: { ...(wallets.length ? { sellerWallet: { in: wallets } } : { sellerWallet: user.walletAddress }), status: "ACTIVE", adminHidden: false } }),
-      ]),
     ]);
 
-    const [mintedCount, holdingsCount, listingsCount, activeListingsCount] = counts;
+    const [mintedCount, holdingsCount, listingsCount, activeListingsCount] = await prisma.$transaction([
+      prisma.mint.count({ where: { userId: user.id } }),
+      prisma.holding.count({ where: { userId: user.id, amount: { gt: 0n } } }),
+      prisma.listing.count({ where: wallets.length ? { sellerWallet: { in: wallets } } : { sellerWallet: user.walletAddress } }),
+      prisma.listing.count({
+        where: {
+          ...(wallets.length ? { sellerWallet: { in: wallets } } : { sellerWallet: user.walletAddress }),
+          status: "ACTIVE",
+          adminHidden: false,
+        },
+      }),
+    ]);
 
     return NextResponse.json({
       ok: true,
