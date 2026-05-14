@@ -306,7 +306,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         select: {
           id: true,
           createdAt: true,
-          updatedAt: true,
           chainId: true,
           contract: true,
           tokenId: true,
@@ -384,7 +383,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             select: {
               id: true,
               createdAt: true,
-              updatedAt: true,
               chainId: true,
               contract: true,
               tokenId: true,
