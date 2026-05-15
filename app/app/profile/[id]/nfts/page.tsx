@@ -60,6 +60,15 @@ const USER_1155_DELIVERY_CONTRACT = norm(
     ""
 );
 
+// New quantity/inventory protected ERC-1155 mint contract.
+// Profile galleries must include this address, otherwise protected NFTs
+// minted on 0xf67a... will be hidden from public/user galleries.
+const USER_1155_PROTECTED_CONTRACT = norm(
+  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS ||
+    process.env.REALIFE_PROTECTED_1155_ADDRESS ||
+    ""
+);
+
 const CAFE_1155_CONTRACT = norm(
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
     process.env.REALIFE_CAFE_STORE_CONTRACT ||
@@ -75,6 +84,7 @@ const STORE_1155_CONTRACT = norm(
 const USER_1155_CONTRACTS = [
   USER_1155_STANDARD_CONTRACT,
   USER_1155_DELIVERY_CONTRACT,
+  USER_1155_PROTECTED_CONTRACT,
 ].filter(Boolean);
 
 const ALLOWED_1155_CONTRACTS = [
@@ -185,6 +195,10 @@ function suggestSecondaryMarketType(input: {
 
   if (c && (c === CAFE_1155_CONTRACT || c === STORE_1155_CONTRACT)) {
     return "STANDARD" as const;
+  }
+
+  if (c && c === USER_1155_PROTECTED_CONTRACT) {
+    return "PROTECTED" as const;
   }
 
   if (c && c === USER_1155_DELIVERY_CONTRACT) {
@@ -635,6 +649,8 @@ export default async function AppProfileNFTsPage({
       const isUser1155Nft = USER_1155_CONTRACTS.includes(contract);
       const isDeliveryUserNft =
         !!USER_1155_DELIVERY_CONTRACT && contract === USER_1155_DELIVERY_CONTRACT;
+      const isProtectedUserNft =
+        !!USER_1155_PROTECTED_CONTRACT && contract === USER_1155_PROTECTED_CONTRACT;
       const cachedMediaKind = normalizeMediaKind((x.mint as any)?.metaMediaKind);
       const cachedImageUri = (x.mint as any)?.metaImage || x.mint?.image || null;
       const cachedAnimationUri = (x.mint as any)?.metaAnimation || null;
@@ -797,6 +813,7 @@ export default async function AppProfileNFTsPage({
         isStoreNft,
         isUser1155Nft,
         isDeliveryUserNft,
+        isProtectedUserNft,
         deliveryEnabled: Boolean(x.mint?.deliveryEnabled),
         physicalItemIncluded: Boolean(x.mint?.physicalItemIncluded),
         officialItem: Boolean(x.mint?.officialItem),

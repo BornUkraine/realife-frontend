@@ -75,6 +75,8 @@ type HandleResponse = {
 
 type PublicNftPreview = {
   mintId: string;
+  chainId?: number;
+  contract?: string;
   tokenId: string;
   name: string | null;
   image: string | null;
@@ -415,9 +417,14 @@ function Field({
 
 function OwnerNftPreviewCard({ nft }: { nft: PublicNftPreview }) {
   const img = resolveMediaUrl(nft.image);
+  const href =
+    nft.chainId && nft.contract
+      ? `/nft/${encodeURIComponent(String(nft.chainId))}/${encodeURIComponent(nft.contract)}/${encodeURIComponent(nft.tokenId)}`
+      : `/app/trading/${encodeURIComponent(nft.mintId)}`;
+
   return (
     <a
-      href={`/app/trading/${encodeURIComponent(nft.mintId)}`}
+      href={href}
       className="group overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.045] transition hover:-translate-y-0.5 hover:bg-white/[0.07]"
     >
       <div className="aspect-square bg-white/[0.04]">

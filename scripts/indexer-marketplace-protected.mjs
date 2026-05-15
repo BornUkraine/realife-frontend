@@ -189,6 +189,105 @@ async function ensureUserByWallet(wallet) {
   return user.id;
 }
 
+async function upsertHoldingDelta({
+  userId,
+  contract,
+  tokenId,
+  amountDelta = 0n,
+  pendingDelta = 0n,
+  completedDelta = 0n,
+}) {
+  if (!userId) return;
+
+  const createAmount = amountDelta > 0n ? amountDelta : 0n;
+  const createPending = pendingDelta > 0n ? pendingDelta : 0n;
+  const createCompleted = completedDelta > 0n ? completedDelta : 0n;
+
+  await prisma.holding.upsert({
+    where: {
+      userId_chainId_contract_tokenId: {
+        userId,
+        chainId: CHAIN_ID,
+        contract,
+        tokenId,
+      },
+    },
+    create: {
+      userId,
+      chainId: CHAIN_ID,
+      contract,
+      tokenId,
+      standard: "ERC1155",
+      amount: createAmount,
+      pendingLockedAmount: createPending,
+      completedLockedAmount: createCompleted,
+    },
+    update: {
+      standard: "ERC1155",
+      ...(amountDelta !== 0n ? { amount: { increment: amountDelta } } : {}),
+      ...(pendingDelta !== 0n
+        ? { pendingLockedAmount: { increment: pendingDelta } }
+        : {}),
+      ...(completedDelta !== 0n
+        ? { completedLockedAmount: { increment: completedDelta } }
+        : {}),
+    },
+  });
+}
+
+async function decrementHoldingIfPossible({
+  userId,
+  contract,
+  tokenId,
+  amount = 0n,
+  pendingAmount = 0n,
+  completedAmount = 0n,
+  logTag = "HOLDING_DECREMENT_MISS",
+  context = {},
+}) {
+  if (!userId) return;
+
+  const where = {
+    userId,
+    chainId: CHAIN_ID,
+    contract,
+    tokenId,
+    ...(amount > 0n ? { amount: { gte: amount } } : {}),
+    ...(pendingAmount > 0n
+      ? { pendingLockedAmount: { gte: pendingAmount } }
+      : {}),
+    ...(completedAmount > 0n
+      ? { completedLockedAmount: { gte: completedAmount } }
+      : {}),
+  };
+
+  const data = {
+    ...(amount > 0n ? { amount: { decrement: amount } } : {}),
+    ...(pendingAmount > 0n
+      ? { pendingLockedAmount: { decrement: pendingAmount } }
+      : {}),
+    ...(completedAmount > 0n
+      ? { completedLockedAmount: { decrement: completedAmount } }
+      : {}),
+  };
+
+  if (Object.keys(data).length === 0) return;
+
+  const res = await prisma.holding.updateMany({ where, data });
+
+  if (res.count === 0) {
+    console.warn(`[${logTag}]`, {
+      userId,
+      contract,
+      tokenId,
+      amount: amount.toString(),
+      pendingAmount: pendingAmount.toString(),
+      completedAmount: completedAmount.toString(),
+      ...context,
+    });
+  }
+}
+
 function fulfillmentTypeFromRaw(raw) {
   const n = Number(raw);
 
@@ -408,28 +507,14 @@ async function handleListed(parsed, log) {
   });
 
   if (!existingListing && sellerId) {
-    const res = await prisma.holding.updateMany({
-      where: {
-        userId: sellerId,
-        chainId: CHAIN_ID,
-        contract: nft,
-        tokenId,
-        amount: { gte: amount },
-      },
-      data: {
-        amount: { decrement: amount },
-      },
+    await decrementHoldingIfPossible({
+      userId: sellerId,
+      contract: nft,
+      tokenId,
+      amount,
+      logTag: "PROTECTED_LISTED_HOLDING_DECREMENT_MISS",
+      context: { seller, nft },
     });
-
-    if (res.count === 0) {
-      console.warn("[PROTECTED_LISTED_HOLDING_DECREMENT_MISS]", {
-        sellerId,
-        seller,
-        nft,
-        tokenId,
-        amount: amount.toString(),
-      });
-    }
   }
 
   console.log("[PROTECTED_LISTED]", {
@@ -480,27 +565,11 @@ async function handleCancelled(parsed, blockTime) {
   });
 
   if (row.sellerId && amountReturned > 0n) {
-    await prisma.holding.upsert({
-      where: {
-        userId_chainId_contract_tokenId: {
-          userId: row.sellerId,
-          chainId: CHAIN_ID,
-          contract: row.contract,
-          tokenId: row.tokenId,
-        },
-      },
-      create: {
-        userId: row.sellerId,
-        chainId: CHAIN_ID,
-        contract: row.contract,
-        tokenId: row.tokenId,
-        standard: "ERC1155",
-        amount: amountReturned,
-      },
-      update: {
-        standard: "ERC1155",
-        amount: { increment: amountReturned },
-      },
+    await upsertHoldingDelta({
+      userId: row.sellerId,
+      contract: row.contract,
+      tokenId: row.tokenId,
+      amountDelta: amountReturned,
     });
   }
 
@@ -673,27 +742,12 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
   }
 
   if (createdTrade && buyerId) {
-    await prisma.holding.upsert({
-      where: {
-        userId_chainId_contract_tokenId: {
-          userId: buyerId,
-          chainId: CHAIN_ID,
-          contract: nft,
-          tokenId,
-        },
-      },
-      create: {
-        userId: buyerId,
-        chainId: CHAIN_ID,
-        contract: nft,
-        tokenId,
-        standard: "ERC1155",
-        amount,
-      },
-      update: {
-        standard: "ERC1155",
-        amount: { increment: amount },
-      },
+    await upsertHoldingDelta({
+      userId: buyerId,
+      contract: nft,
+      tokenId,
+      amountDelta: amount,
+      pendingDelta: amount,
     });
   }
 
@@ -766,6 +820,13 @@ async function handlePurchaseFunded(parsed, log, blockTime) {
           serviceStatus: isServiceFulfillment(fulfillmentType)
             ? "PENDING"
             : "NOT_REQUIRED",
+
+          protectedNftLockStatus: "PENDING_LOCKED",
+          protectedNftPendingAmount: amount,
+          protectedNftCompletedAmount: 0n,
+          protectedNftLockedAt: blockTime,
+          protectedNftCompletedAt: null,
+          protectedNftUnlockedAt: null,
 
           escrowFundedAt: blockTime,
           buyTxHash: txHash,
@@ -867,6 +928,7 @@ async function handleRefundRequested(parsed, blockTime) {
       escrowStatus: "DISPUTED",
       disputedAt: blockTime,
       refundRequestedAt: blockTime,
+      protectedNftLockStatus: "PENDING_LOCKED",
     },
   });
 
@@ -915,34 +977,24 @@ async function handlePurchaseNftReturned(parsed, blockTime) {
       escrowStatus: "DISPUTED",
       disputedAt: blockTime,
       nftReturnedAt: blockTime,
+      protectedNftPendingAmount: 0n,
+      protectedNftLockStatus: "UNLOCKED",
+      protectedNftUnlockedAt: blockTime,
     },
   });
 
   const buyerId = row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
 
   if (buyerId) {
-    const res = await prisma.holding.updateMany({
-      where: {
-        userId: buyerId,
-        chainId: CHAIN_ID,
-        contract: row.contract,
-        tokenId: row.tokenId,
-        amount: { gte: row.amount },
-      },
-      data: {
-        amount: { decrement: row.amount },
-      },
+    await decrementHoldingIfPossible({
+      userId: buyerId,
+      contract: row.contract,
+      tokenId: row.tokenId,
+      amount: row.amount,
+      pendingAmount: row.amount,
+      logTag: "PROTECTED_RETURN_HOLDING_DECREMENT_MISS",
+      context: { purchaseId: purchaseId.toString() },
     });
-
-    if (res.count === 0) {
-      console.warn("[PROTECTED_RETURN_HOLDING_DECREMENT_MISS]", {
-        buyerId,
-        purchaseId: purchaseId.toString(),
-        contract: row.contract,
-        tokenId: row.tokenId,
-        amount: row.amount.toString(),
-      });
-    }
   }
 
   console.log("[PROTECTED_NFT_RETURNED]", {
@@ -974,6 +1026,7 @@ async function handleRefundRequestRejected(parsed, blockTime) {
     data: {
       escrowStatus: "FUNDED",
       refundRejectedAt: blockTime,
+      protectedNftLockStatus: "PENDING_LOCKED",
     },
   });
 
@@ -998,6 +1051,11 @@ async function handleReleased(parsed, log, blockTime) {
       deliveryStatus: true,
       serviceStatus: true,
       fulfillmentType: true,
+      buyerId: true,
+      buyerWallet: true,
+      contract: true,
+      tokenId: true,
+      amount: true,
       confirmedAt: true,
       completedAt: true,
     },
@@ -1029,8 +1087,40 @@ async function handleReleased(parsed, log, blockTime) {
       deliveryStatus: isPhysical ? "CONFIRMED" : row.deliveryStatus,
       serviceStatus: isService ? "CONFIRMED" : row.serviceStatus,
       completedAt: isService ? row.completedAt || blockTime : row.completedAt,
+      protectedNftLockStatus: "COMPLETED_LOCKED",
+      protectedNftPendingAmount: 0n,
+      protectedNftCompletedAmount: row.amount,
+      protectedNftCompletedAt: blockTime,
     },
   });
+
+  const buyerId = row.buyerId || (await ensureUserByWallet(row.buyerWallet));
+
+  if (buyerId) {
+    const res = await prisma.holding.updateMany({
+      where: {
+        userId: buyerId,
+        chainId: CHAIN_ID,
+        contract: row.contract,
+        tokenId: row.tokenId,
+        pendingLockedAmount: { gte: row.amount },
+      },
+      data: {
+        pendingLockedAmount: { decrement: row.amount },
+        completedLockedAmount: { increment: row.amount },
+      },
+    });
+
+    if (res.count === 0) {
+      console.warn("[PROTECTED_RELEASE_LOCK_MOVE_MISS]", {
+        buyerId,
+        purchaseId: purchaseId.toString(),
+        contract: row.contract,
+        tokenId: row.tokenId,
+        amount: row.amount.toString(),
+      });
+    }
+  }
 
   console.log("[PROTECTED_RELEASED]", {
     purchaseId: purchaseId.toString(),
@@ -1082,6 +1172,10 @@ async function handleRefunded(parsed, log, blockTime) {
       escrowStatus: "REFUNDED",
       refundedAt: blockTime,
       escrowRefundTxHash: txHash,
+      protectedNftLockStatus: "RETURNED_TO_SELLER",
+      protectedNftPendingAmount: 0n,
+      protectedNftCompletedAmount: 0n,
+      protectedNftUnlockedAt: blockTime,
       deliveryStatus: nextDeliveryStatusForRefund(
         row.deliveryRequired,
         row.deliveryStatus
@@ -1096,27 +1190,11 @@ async function handleRefunded(parsed, log, blockTime) {
   const sellerId = row.sellerId || (await ensureUserByWallet(row.sellerWallet));
 
   if (sellerId) {
-    await prisma.holding.upsert({
-      where: {
-        userId_chainId_contract_tokenId: {
-          userId: sellerId,
-          chainId: CHAIN_ID,
-          contract: row.contract,
-          tokenId: row.tokenId,
-        },
-      },
-      create: {
-        userId: sellerId,
-        chainId: CHAIN_ID,
-        contract: row.contract,
-        tokenId: row.tokenId,
-        standard: "ERC1155",
-        amount: row.amount,
-      },
-      update: {
-        standard: "ERC1155",
-        amount: { increment: row.amount },
-      },
+    await upsertHoldingDelta({
+      userId: sellerId,
+      contract: row.contract,
+      tokenId: row.tokenId,
+      amountDelta: row.amount,
     });
   }
 
@@ -1165,33 +1243,23 @@ async function handleRefundRejectedAndRestored(parsed, blockTime) {
       escrowStatus: "FUNDED",
       refundRejectedAt: blockTime,
       nftReturnedAt: null,
+      protectedNftLockStatus: "PENDING_LOCKED",
+      protectedNftPendingAmount: row.amount,
+      protectedNftCompletedAmount: 0n,
+      protectedNftLockedAt: blockTime,
+      protectedNftUnlockedAt: null,
     },
   });
 
   const buyerId = row.buyerId || (await ensureUserByWallet(row.buyerWallet || buyer));
 
   if (buyerId) {
-    await prisma.holding.upsert({
-      where: {
-        userId_chainId_contract_tokenId: {
-          userId: buyerId,
-          chainId: CHAIN_ID,
-          contract: row.contract,
-          tokenId: row.tokenId,
-        },
-      },
-      create: {
-        userId: buyerId,
-        chainId: CHAIN_ID,
-        contract: row.contract,
-        tokenId: row.tokenId,
-        standard: "ERC1155",
-        amount: row.amount,
-      },
-      update: {
-        standard: "ERC1155",
-        amount: { increment: row.amount },
-      },
+    await upsertHoldingDelta({
+      userId: buyerId,
+      contract: row.contract,
+      tokenId: row.tokenId,
+      amountDelta: row.amount,
+      pendingDelta: row.amount,
     });
   }
 

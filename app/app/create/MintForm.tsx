@@ -1787,8 +1787,9 @@ export default function MintForm() {
 
       data = encodeFunctionData({
         abi: realifeProtected1155Abi as any,
-        // Explicit overload selector — same reasoning as in handleOnchainCreate.
-        functionName: "createProtected(uint8,string,uint256)" as any,
+        // Use the overloaded function name and let viem select the 3-arg
+        // overload from args: [fulfillmentType, uri, amount].
+        functionName: "createProtected" as any,
         args: [ftUint8, uri, amount],
       });
     } else {
@@ -2154,11 +2155,9 @@ export default function MintForm() {
         hash = (await writeContractAsync({
           address: activeMintContract,
           abi: realifeProtected1155Abi as any,
-          // Disambiguate the overloaded createProtected explicitly. The mint
-          // contract exposes both createProtected(uint8,string) and the
-          // 3-arg createProtected(uint8,string,uint256). We always want the
-          // 3-arg version so supply is set on-chain at mint time.
-          functionName: "createProtected(uint8,string,uint256)" as any,
+          // Use the overloaded function name and let viem select the 3-arg
+          // overload from args: [fulfillmentType, tokenURI, amount].
+          functionName: "createProtected" as any,
           args: [ftUint8, tokenURI, amount],
           value: mintFeeWei > 0n ? mintFeeWei : undefined,
         })) as `0x${string}`;
