@@ -79,6 +79,16 @@ const PUBLIC_STANDARD_CONTRACT = normAddr(
     null
 );
 
+// ✅ Protected ERC-1155 mint contract — listings on this contract are
+// always PROTECTED market type because the contract itself is the routing
+// signal for the USDC escrow marketplace.
+const PUBLIC_PROTECTED_CONTRACT = normAddr(
+  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS ||
+    process.env.REALIFE_PROTECTED_1155_ADDRESS ||
+    process.env.ALLOWED_PROTECTED_NFTS ||
+    null
+);
+
 const ACTIVE_PROTECTED_USDC_MARKETPLACE = normAddr(
   process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
     process.env.REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
@@ -110,6 +120,12 @@ function suggestedMarketTypeFromSimple(input: {
 
   if (CAFE_CONTRACT && contract === CAFE_CONTRACT) return "STANDARD";
   if (STORE_CONTRACT && contract === STORE_CONTRACT) return "STANDARD";
+
+  // Anything that comes from the protected NFT mint contract is locked to
+  // PROTECTED — that is the whole point of having a separate contract.
+  if (PUBLIC_PROTECTED_CONTRACT && contract === PUBLIC_PROTECTED_CONTRACT) {
+    return "PROTECTED";
+  }
 
   if (input.marketType === "PROTECTED") return "PROTECTED";
   if (input.marketType === "STANDARD") return "STANDARD";

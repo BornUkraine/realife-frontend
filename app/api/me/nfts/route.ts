@@ -41,6 +41,17 @@ const PUBLIC_STANDARD_CONTRACT = normAddr(
     null
 );
 
+// ✅ New quantity/inventory protected ERC-1155 mint contract.
+// NFTs minted to this contract are ALWAYS protected market type, regardless
+// of fulfillmentType heuristics, because the contract itself is the routing
+// signal — it is the only one accepted by the protected USDC marketplace.
+const PUBLIC_PROTECTED_CONTRACT = normAddr(
+  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS ||
+    process.env.REALIFE_PROTECTED_1155_ADDRESS ||
+    process.env.ALLOWED_PROTECTED_NFTS ||
+    null
+);
+
 type FixedMarketType = "STANDARD" | "PROTECTED";
 
 function fixedMarketTypeByContract(
@@ -50,6 +61,8 @@ function fixedMarketTypeByContract(
   if (!c) return null;
   if (CAFE_CONTRACT && c === CAFE_CONTRACT) return "STANDARD";
   if (STORE_CONTRACT && c === STORE_CONTRACT) return "STANDARD";
+  // Anything minted on the protected 1155 contract is locked to PROTECTED.
+  if (PUBLIC_PROTECTED_CONTRACT && c === PUBLIC_PROTECTED_CONTRACT) return "PROTECTED";
   if (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) return null;
   return null;
 }
@@ -57,6 +70,11 @@ function fixedMarketTypeByContract(
 function isPublicStandardContract(contract: string | null | undefined) {
   const c = normAddr(contract);
   return Boolean(PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT);
+}
+
+function isPublicProtectedContract(contract: string | null | undefined) {
+  const c = normAddr(contract);
+  return Boolean(PUBLIC_PROTECTED_CONTRACT && c === PUBLIC_PROTECTED_CONTRACT);
 }
 
 function isProtectedFulfillment(v: string | null | undefined) {
@@ -118,6 +136,8 @@ function resolveMarketType(params: {
   const { contract, suggestedMarketType } = params;
   const fixed = fixedMarketTypeByContract(contract);
   if (fixed) return fixed;
+  // Protected NFT contract: always protected, ignore suggested.
+  if (isPublicProtectedContract(contract)) return "PROTECTED";
   if (isPublicStandardContract(contract)) return suggestedMarketType;
   return suggestedMarketType;
 }

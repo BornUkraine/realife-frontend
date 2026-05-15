@@ -45,6 +45,15 @@ enum DeliveryStatus {
   CANCELLED
 }
 
+enum ProtectedNftLockStatus {
+  NOT_REQUIRED
+  PENDING_LOCKED
+  COMPLETED_LOCKED
+  RETURNED_TO_SELLER
+  UNLOCKED
+  INVALIDATED
+}
+
 /**
  * --------------------------------------------------------------------------
  * Service-specific lifecycle
@@ -117,7 +126,6 @@ enum SupportRole {
  * --------------------------------------------------------------------------
  * WALLET -> external wallet login through RainbowKit / wagmi
  * GOOGLE -> Google/social login that creates an embedded wallet
- *
  * Important:
  * - X and Discord are NOT login providers in Realife.
  * - X and Discord stay profile/social links only.
@@ -171,7 +179,6 @@ enum AiEnrichmentStatus {
   ERROR
 }
 
-
 /**
  * --------------------------------------------------------------------------
  * Testnet faucet
@@ -208,18 +215,15 @@ model User {
    * ---------------- Authentication / wallet identity ----------------
    * walletAddress remains the primary onchain address used by holdings,
    * listings, trades and escrow/order flows.
-   *
    * Web3 users:
    * - authMethod = WALLET
    * - walletKind = EXTERNAL
    * - walletAddress = connected wallet address
-   *
    * Web2 users:
    * - authMethod = GOOGLE
    * - walletKind = EMBEDDED
    * - embeddedWalletProvider = WEB3AUTH, METAMASK_EMBEDDED, TURNKEY or OPENFORT
    * - walletAddress = generated embedded wallet address
-   *
    * Realife never stores seed phrases or private keys.
    */
   authMethod AuthMethod @default(WALLET)
@@ -362,7 +366,6 @@ model User {
   wallets     UserWallet[]
   loginEvents UserLoginEvent[]
 
-
   /**
    * ---------------- Testnet faucet claims ----------------
    */
@@ -384,8 +387,6 @@ model User {
   @@index([lastCountry])
 }
 
-
-
 /**
  * ==========================================================================
  * TESTNET FAUCET CLAIMS
@@ -405,14 +406,14 @@ model FaucetClaim {
   ipHash        String?
   userAgent     String? @db.Text
 
-  asset       FaucetAsset
-  amountRaw   BigInt
-  amountLabel String
+  asset        FaucetAsset
+  amountRaw    BigInt
+  amountLabel  String
   tokenAddress String?
 
-  txHash String? @unique
+  txHash String?           @unique
   status FaucetClaimStatus @default(PENDING)
-  error  String? @db.Text
+  error  String?           @db.Text
 
   @@index([userId])
   @@index([walletAddress, asset, createdAt])
@@ -442,7 +443,7 @@ model UserWallet {
   address String
   chainId Int?
 
-  kind                   WalletKind @default(EXTERNAL)
+  kind                   WalletKind              @default(EXTERNAL)
   embeddedWalletProvider EmbeddedWalletProvider?
 
   isPrimary Boolean @default(false)
@@ -480,7 +481,7 @@ model UserLoginEvent {
   eventType String @default("SESSION_CHECK")
 
   walletAddress String?
-  walletChainId  Int?
+  walletChainId Int?
 
   authMethod             AuthMethod?
   walletKind             WalletKind?
@@ -702,9 +703,21 @@ model Holding {
   standard NftStandard
   amount   BigInt      @default(0)
 
+  /**
+   * ---------------- Protected NFT quantity lock snapshots -------------
+   * For protected ERC-1155 inventory:
+   * - amount = total wallet balance indexed for this user/token
+   * - pendingLockedAmount = quantity bought but order not finalized yet
+   * - completedLockedAmount = quantity from completed orders; cannot be resold/transferred in the protected contract
+   */
+  pendingLockedAmount   BigInt @default(0)
+  completedLockedAmount BigInt @default(0)
+
   @@unique([userId, chainId, contract, tokenId])
   @@index([userId])
   @@index([chainId, contract, tokenId])
+  @@index([pendingLockedAmount])
+  @@index([completedLockedAmount])
 }
 
 /**
@@ -747,7 +760,6 @@ model Listing {
    * - paymentTokenAddress = Circle testnet USDC on Base Sepolia
    * - paymentSymbol = "USDC"
    * - paymentDecimals = 6
-   *
    * Keep pricePerUnitWei as the existing raw amount column for now.
    * In USDC flow it stores USDC raw units, e.g. 10 USDC = 10000000.
    */
@@ -855,7 +867,6 @@ model Trade {
    * - paymentTokenAddress = Circle testnet USDC on Base Sepolia
    * - paymentSymbol = "USDC"
    * - paymentDecimals = 6
-   *
    * Keep pricePerUnitWei / totalPriceWei as existing raw amount columns.
    * In USDC flow they store USDC raw units, e.g. 10 USDC = 10000000.
    */
@@ -1093,6 +1104,20 @@ model StoreOrder {
   refundRejectedAt  DateTime?
 
   /**
+   * ---------------- Protected NFT quantity lock state ------------------
+   * Mirrors the new RealifeProtected1155 quantity flow:
+   * - buy: buyer receives NFT immediately and amount becomes pending locked
+   * - release/completion: pending amount becomes completed locked
+   * - refund: pending amount is returned to seller and unlocked
+   */
+  protectedNftLockStatus      ProtectedNftLockStatus @default(NOT_REQUIRED)
+  protectedNftPendingAmount   BigInt                 @default(0)
+  protectedNftCompletedAmount BigInt                 @default(0)
+  protectedNftLockedAt        DateTime?
+  protectedNftCompletedAt     DateTime?
+  protectedNftUnlockedAt      DateTime?
+
+  /**
    * ---------------- Service-specific timing fields -------------------------
    */
   scheduledFor        DateTime?
@@ -1164,6 +1189,9 @@ model StoreOrder {
   @@index([buyTxHash])
   @@index([escrowReleaseTxHash])
   @@index([escrowRefundTxHash])
+  @@index([protectedNftLockStatus])
+  @@index([protectedNftPendingAmount])
+  @@index([protectedNftCompletedAmount])
   @@map("store_orders")
 }
 
@@ -1192,9 +1220,6 @@ model DeliveryMessage {
   @@map("delivery_messages")
 }
 
-
-
-
 /**
  * ===========================================================================
  * ADMIN NOTIFICATIONS
@@ -1208,8 +1233,8 @@ model AdminNotification {
   updatedAt DateTime @updatedAt
 
   type     String
-  status   String   @default("UNREAD") // UNREAD | READ | RESOLVED
-  priority String   @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
+  status   String @default("UNREAD") // UNREAD | READ | RESOLVED
+  priority String @default("NORMAL") // LOW | NORMAL | HIGH | URGENT
 
   title String
   body  String @db.Text
@@ -1223,9 +1248,9 @@ model AdminNotification {
   actorWallet String?
   actorRole   DeliveryMessageRole?
 
-  readAt       DateTime?
-  resolvedAt   DateTime?
-  resolvedById String?
+  readAt           DateTime?
+  resolvedAt       DateTime?
+  resolvedById     String?
   resolvedByWallet String?
 
   metadata Json?

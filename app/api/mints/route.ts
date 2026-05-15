@@ -6,6 +6,7 @@ import { createPublicClient, decodeEventLog, http } from "viem";
 import { base, baseSepolia } from "viem/chains";
 
 import { realife1155Abi } from "@/lib/realife1155Abi";
+import { realifeProtected1155Abi } from "@/lib/realifeProtected1155Abi";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,6 +55,7 @@ type FulfillmentType =
 
 type ContractKind =
   | "PUBLIC_STANDARD"
+  | "PUBLIC_PROTECTED"
   | "CATALOG_CAFE"
   | "CATALOG_STORE";
 
@@ -157,6 +159,14 @@ function getContractSets() {
     process.env.REALIFE_1155_NEW_CONTRACT,
   ]);
 
+  // ✅ New quantity/inventory protected ERC-1155 mint contract (RealifeProtected1155).
+  // Public mints that originate from the protected NFT toggle land here.
+  const PROTECTED_USER_CONTRACTS = uniqueStrings([
+    process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS,
+    process.env.REALIFE_PROTECTED_1155_ADDRESS,
+    process.env.ALLOWED_PROTECTED_NFTS,
+  ]);
+
   const CATALOG_CAFE_CONTRACTS = uniqueStrings([
     process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT,
     process.env.REALIFE_CAFE_STORE_CONTRACT,
@@ -173,8 +183,14 @@ function getContractSets() {
     ...CATALOG_STORE_CONTRACTS,
   ]);
 
-  // Public mint flow now uses ONE contract (the legacy delivery contract is removed).
-  const PUBLIC_USER_CONTRACTS = uniqueStrings([...STANDARD_USER_CONTRACTS]);
+  // Public mint flow now supports two mint contracts:
+  // - STANDARD_USER_CONTRACTS for plain collectibles
+  // - PROTECTED_USER_CONTRACTS for goods/services routed through the protected
+  //   USDC escrow marketplace
+  const PUBLIC_USER_CONTRACTS = uniqueStrings([
+    ...STANDARD_USER_CONTRACTS,
+    ...PROTECTED_USER_CONTRACTS,
+  ]);
 
   const ALL_ALLOWED_CONTRACTS = uniqueStrings([
     ...PUBLIC_USER_CONTRACTS,
@@ -183,6 +199,7 @@ function getContractSets() {
 
   return {
     STANDARD_USER_CONTRACTS,
+    PROTECTED_USER_CONTRACTS,
     CATALOG_CAFE_CONTRACTS,
     CATALOG_STORE_CONTRACTS,
     CATALOG_CONTRACTS,
@@ -331,6 +348,26 @@ function extractTokenIdFromLog(log: any, kind: ContractKind): string | null {
       }) as { eventName?: string; args?: any };
 
       if (decoded?.eventName !== "EditionCreated") return null;
+
+      const tokenId = decoded?.args?.tokenId ?? decoded?.args?.[0];
+      if (typeof tokenId === "bigint") return tokenId.toString();
+      if (typeof tokenId === "number") return String(tokenId);
+      if (typeof tokenId === "string") return tokenId;
+      return null;
+    }
+
+    if (kind === "PUBLIC_PROTECTED") {
+      // RealifeProtected1155 emits ProtectedTokenCreated(
+      //   tokenId indexed, creator indexed, fulfillmentType uint8,
+      //   supply uint256, uri string
+      // ) on createProtected.
+      const decoded = decodeEventLog({
+        abi: realifeProtected1155Abi,
+        data: log.data,
+        topics: log.topics,
+      }) as { eventName?: string; args?: any };
+
+      if (decoded?.eventName !== "ProtectedTokenCreated") return null;
 
       const tokenId = decoded?.args?.tokenId ?? decoded?.args?.[0];
       if (typeof tokenId === "bigint") return tokenId.toString();
@@ -607,6 +644,7 @@ export async function POST(req: Request) {
 
   const {
     STANDARD_USER_CONTRACTS,
+    PROTECTED_USER_CONTRACTS,
     CATALOG_CAFE_CONTRACTS,
     CATALOG_STORE_CONTRACTS,
     CATALOG_CONTRACTS,
@@ -662,6 +700,7 @@ export async function POST(req: Request) {
   }
 
   const isStandardUserContract = STANDARD_USER_CONTRACTS.includes(cContract);
+  const isProtectedUserContract = PROTECTED_USER_CONTRACTS.includes(cContract);
   const isCatalogCafeContract = CATALOG_CAFE_CONTRACTS.includes(cContract);
   const isCatalogStoreContract = CATALOG_STORE_CONTRACTS.includes(cContract);
   const isCatalogContract = CATALOG_CONTRACTS.includes(cContract);
@@ -678,13 +717,13 @@ export async function POST(req: Request) {
     );
   }
 
-  if (!isCatalogOnly && !isStandardUserContract) {
+  if (!isCatalogOnly && !isStandardUserContract && !isProtectedUserContract) {
     return NextResponse.json(
       {
         ok: false,
         error: "PUBLIC_MINT_INVALID_CONTRACT",
         message:
-          "Public mint flow uses the unified standard user contract only.",
+          "Public mint flow accepts only the standard or protected user contracts.",
       },
       { status: 400 }
     );
@@ -746,6 +785,8 @@ export async function POST(req: Request) {
     contractKind = "CATALOG_CAFE";
   } else if (isCatalogOnly && isCatalogStoreContract) {
     contractKind = "CATALOG_STORE";
+  } else if (isProtectedUserContract) {
+    contractKind = "PUBLIC_PROTECTED";
   } else {
     contractKind = "PUBLIC_STANDARD";
   }

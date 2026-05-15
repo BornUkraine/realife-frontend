@@ -97,6 +97,16 @@ const PUBLIC_STANDARD_CONTRACT = normAddr(
     null
 );
 
+// ✅ Protected ERC-1155 mint contract — NFTs from this contract are
+// always PROTECTED market type because the contract itself is the routing
+// signal for the USDC escrow marketplace.
+const PUBLIC_PROTECTED_CONTRACT = normAddr(
+  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS ||
+    process.env.REALIFE_PROTECTED_1155_ADDRESS ||
+    process.env.ALLOWED_PROTECTED_NFTS ||
+    null
+);
+
 const ACTIVE_PROTECTED_USDC_MARKETPLACE = normAddr(
   process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
     process.env.REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
@@ -112,6 +122,9 @@ function fixedMarketTypeByContract(
   if (CAFE_CONTRACT && c === CAFE_CONTRACT) return "STANDARD";
   if (STORE_CONTRACT && c === STORE_CONTRACT) return "STANDARD";
 
+  // Anything on the protected NFT contract is locked to PROTECTED.
+  if (PUBLIC_PROTECTED_CONTRACT && c === PUBLIC_PROTECTED_CONTRACT) return "PROTECTED";
+
   if (PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT) {
     return null;
   }
@@ -122,6 +135,11 @@ function fixedMarketTypeByContract(
 function isPublicStandardContract(contract: string | null | undefined) {
   const c = normAddr(contract);
   return Boolean(PUBLIC_STANDARD_CONTRACT && c === PUBLIC_STANDARD_CONTRACT);
+}
+
+function isPublicProtectedContract(contract: string | null | undefined) {
+  const c = normAddr(contract);
+  return Boolean(PUBLIC_PROTECTED_CONTRACT && c === PUBLIC_PROTECTED_CONTRACT);
 }
 
 function isProtectedFulfillment(v: string | null | undefined) {

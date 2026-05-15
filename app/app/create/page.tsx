@@ -63,9 +63,13 @@ export default function CreatePage() {
   const publicStandardMintContract =
     process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT || "not-set";
 
+  const publicProtectedMintContract =
+    process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS ||
+    "0xf67a0c7209445Ae176C9Be1081814Ce37dD0fA7c";
+
   const publicProtectedUsdcMarketplace =
     process.env.NEXT_PUBLIC_REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT ||
-    "0x67e7472E48083DE3Ec8416CB8349448B1B39f1ae";
+    "0x20F1128847028cdcBBcB0012Fc915737fCCd4e9D";
 
   const publicBaseSepoliaUsdc =
     process.env.NEXT_PUBLIC_BASE_SEPOLIA_USDC_ADDRESS ||
@@ -119,8 +123,9 @@ export default function CreatePage() {
 
               <p className="mt-2 max-w-3xl text-xs leading-relaxed text-white/65 md:text-sm">
                 Prepare metadata → sign wallet tx → mint an ERC-1155 NFT on Base Sepolia.
-                Use AI Suggest to auto-fill category, brand, and description from your image.
-                Goods and services are marked for the protected USDC escrow flow when listed later.
+                Choose Standard NFT for collectibles, or Protected NFT for goods and services
+                that need the USDC escrow flow. Use AI Suggest to auto-fill category, brand,
+                and description from your image.
               </p>
 
               <div className="mt-3 flex max-w-5xl flex-wrap gap-1">
@@ -148,9 +153,16 @@ export default function CreatePage() {
               </div>
 
               <div className="mt-3 max-w-4xl rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[10px] text-white/55">
-                Unified mint contract: {" "}
+                Standard mint contract: {" "}
                 <span className="break-all font-semibold text-white/90">
                   {publicStandardMintContract}
+                </span>
+              </div>
+
+              <div className="mt-2 max-w-4xl rounded-lg border border-amber-300/15 bg-amber-300/[0.05] px-3 py-1.5 text-[10px] text-white/55">
+                Protected mint contract: {" "}
+                <span className="break-all font-semibold text-amber-100">
+                  {publicProtectedMintContract}
                 </span>
               </div>
 
@@ -256,7 +268,8 @@ export default function CreatePage() {
             <span className="opacity-60">ERC-1155</span>
             <span className="opacity-60">IPFS</span>
             <span className="opacity-60">Public mint</span>
-            <span className="opacity-60">Unified mint</span>
+            <span className="opacity-60">Standard mint</span>
+            <span className="opacity-60">Protected mint</span>
             <span className="opacity-60">Protected USDC services</span>
             <span className="opacity-60">Local / offline</span>
             <span className="opacity-60">AI suggest</span>

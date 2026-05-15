@@ -19,8 +19,10 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { decodeEventLog, encodeFunctionData, formatUnits, toHex } from "viem";
 
 import { realife1155Abi } from "@/lib/realife1155Abi";
+import { realifeProtected1155Abi } from "@/lib/realifeProtected1155Abi";
 import {
   BASE_SEPOLIA_USDC_ADDRESS,
+  REALIFE_PROTECTED_1155_CONTRACT,
   REALIFE_PROTECTED_MARKETPLACE_USDC_CONTRACT,
   REALIFE_PROTECTED_PAYMENT_USDC,
 } from "@/lib/realifeProtectedUsdc";
@@ -94,7 +96,7 @@ type OfferType =
   | "online_session"
   | "local_service";
 type DeliveryMode = "none" | "delivery";
-type ActiveMintMode = "standard";
+type ActiveMintMode = "standard" | "protected";
 type FulfillmentType =
   | "PHYSICAL_GOOD"
   | "DIGITAL_SERVICE"
@@ -658,11 +660,49 @@ function inferFulfillmentType(params: {
 
 function inferSuggestedMarketType(
   fulfillmentType: FulfillmentType,
-  deliveryMode: DeliveryMode
+  deliveryMode: DeliveryMode,
+  mintKind: ActiveMintMode
 ): SuggestedMarketType {
+  // Explicit mint kind toggle is the source of truth.
+  // - Protected NFT  -> always lands on the protected USDC escrow marketplace.
+  // - Standard NFT   -> always stays on the standard marketplace.
+  // The older delivery/fulfillment heuristics are kept as a sanity bump for
+  // the "standard" branch only, so a misconfigured standard mint with a
+  // service offer type still gets flagged as protected for routing.
+  if (mintKind === "protected") return "protected";
   if (deliveryMode === "delivery") return "protected";
   if (fulfillmentType) return "protected";
   return "standard";
+}
+
+/* ---------------- Protected mint contract enum mapping ----------------
+ * IMPORTANT: there are TWO different fulfillmentType enums on-chain.
+ *
+ * 1) RealifeProtected1155.createProtected(fulfillmentType uint8, ...)
+ *    The mint contract's enum starts with UNKNOWN = 0, so:
+ *      UNKNOWN         = 0
+ *      PHYSICAL_GOOD   = 1
+ *      DIGITAL_SERVICE = 2
+ *      ONLINE_SESSION  = 3
+ *      LOCAL_SERVICE   = 4
+ *
+ * 2) RealifeMarketplaceProtectedEscrow1155USDC.list1155(... uint8 ft)
+ *    The marketplace contract's enum has NO UNKNOWN slot, so:
+ *      PHYSICAL_GOOD   = 0
+ *      DIGITAL_SERVICE = 1
+ *      ONLINE_SESSION  = 2
+ *      LOCAL_SERVICE   = 3
+ *
+ * Each contract needs its own map. MintForm only mints, so it uses the mint
+ * map here. The listing flow (TradingPanel1155 / QuickList1155) has its own
+ * marketplace-side map. Do NOT share these constants between the two flows.
+ */
+function fulfillmentTypeToProtectedMintUint8(v: FulfillmentType): number {
+  if (v === "PHYSICAL_GOOD") return 1;
+  if (v === "DIGITAL_SERVICE") return 2;
+  if (v === "ONLINE_SESSION") return 3;
+  if (v === "LOCAL_SERVICE") return 4;
+  return 0; // UNKNOWN — should never happen on a real protected mint
 }
 
 const API_BASE =
@@ -674,6 +714,15 @@ const AI_SUGGEST_URL = `${API_BASE.replace(/\/$/, "")}/api/ai-suggest`;
 
 const CONTRACT_1155_STANDARD =
   process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT as
+    | `0x${string}`
+    | undefined;
+
+// ✅ New quantity/inventory protected ERC-1155 mint contract (RealifeProtected1155).
+// Standard collectibles keep using CONTRACT_1155_STANDARD; protected goods/services
+// mint to this contract via createProtected(fulfillmentType, tokenURI, amount).
+const CONTRACT_1155_PROTECTED =
+  (process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS ||
+    REALIFE_PROTECTED_1155_CONTRACT) as
     | `0x${string}`
     | undefined;
 
@@ -847,35 +896,61 @@ function normalizeTokenIdValue(v: unknown): string | null {
 
 function extractMintTokenIdFromReceipt(
   receipt: any,
-  _mode: ActiveMintMode,
+  mode: ActiveMintMode,
   contract?: `0x${string}`
 ): string | null {
   const logs = receipt?.logs ?? [];
 
-  for (const log of logs) {
-    try {
-      if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) {
-        continue;
-      }
+  // Protected mints emit ProtectedTokenCreated(
+  //   tokenId indexed, creator indexed, fulfillmentType uint8,
+  //   supply uint256, uri string
+  // ) on RealifeProtected1155.
+  // Standard mints emit EditionCreated(tokenId, creator, supply, uri)
+  // on the legacy Realife1155 contract.
+  // Pick the right ABI/event for the active mode, but as a safety net try
+  // the other one too — sometimes the same wallet emits multiple logs and
+  // we only care about the protocol log that matches our mint contract.
+  const primaryAbi =
+    mode === "protected" ? realifeProtected1155Abi : realife1155Abi;
+  const primaryEvent =
+    mode === "protected" ? "ProtectedTokenCreated" : "EditionCreated";
+  const fallbackAbi =
+    mode === "protected" ? realife1155Abi : realifeProtected1155Abi;
+  const fallbackEvent =
+    mode === "protected" ? "EditionCreated" : "ProtectedTokenCreated";
 
+  function tryDecode(log: any, abi: any, eventName: string): string | null {
+    try {
       const decoded = decodeEventLog({
-        abi: realife1155Abi,
+        abi,
         data: log.data,
         topics: log.topics,
       }) as { eventName?: string; args?: any };
 
-      if (decoded.eventName === "EditionCreated") {
-        const args = decoded.args;
-        return (
-          normalizeTokenIdValue(args?.tokenId) ||
-          normalizeTokenIdValue(args?.id) ||
-          normalizeTokenIdValue(args?.editionId) ||
-          normalizeTokenIdValue(args?.[0])
-        );
-      }
+      if (decoded.eventName !== eventName) return null;
+
+      const args = decoded.args;
+      return (
+        normalizeTokenIdValue(args?.tokenId) ||
+        normalizeTokenIdValue(args?.id) ||
+        normalizeTokenIdValue(args?.editionId) ||
+        normalizeTokenIdValue(args?.[0])
+      );
     } catch {
-      //
+      return null;
     }
+  }
+
+  for (const log of logs) {
+    if (contract && log?.address?.toLowerCase?.() !== contract.toLowerCase()) {
+      continue;
+    }
+
+    const primary = tryDecode(log, primaryAbi, primaryEvent);
+    if (primary) return primary;
+
+    const fallback = tryDecode(log, fallbackAbi, fallbackEvent);
+    if (fallback) return fallback;
   }
 
   return null;
@@ -1315,6 +1390,13 @@ export default function MintForm() {
   const [subcategory, setSubcategory] = useState("");
   const [itemType, setItemType] = useState("");
   const [itemLabel, setItemLabel] = useState("");
+
+  // ✅ Explicit Standard vs Protected mint toggle.
+  // Standard  -> CONTRACT_1155_STANDARD  + standard marketplace flow.
+  // Protected -> CONTRACT_1155_PROTECTED + protected USDC escrow marketplace.
+  // This is the source of truth for routing; offerType is constrained below.
+  const [mintKind, setMintKind] = useState<ActiveMintMode>("standard");
+
   const [offerType, setOfferType] = useState<OfferType>("collectible");
   const deliveryMode = offerTypeToDeliveryMode(offerType);
 
@@ -1364,8 +1446,8 @@ export default function MintForm() {
   const isLocalService = fulfillmentType === "LOCAL_SERVICE";
 
   const suggestedMarketType = useMemo<SuggestedMarketType>(
-    () => inferSuggestedMarketType(fulfillmentType, deliveryMode),
-    [fulfillmentType, deliveryMode]
+    () => inferSuggestedMarketType(fulfillmentType, deliveryMode, mintKind),
+    [fulfillmentType, deliveryMode, mintKind]
   );
 
   const pickedKind = useMemo<"image" | "video">(
@@ -1413,10 +1495,15 @@ export default function MintForm() {
   ]);
 
   const isDeliveryMode = deliveryMode === "delivery";
-  const activeMintMode: ActiveMintMode = "standard";
-  const activeMintContract = CONTRACT_1155_STANDARD;
-  const activeMintAbi = realife1155Abi;
-  const activeMintEnvName = "NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT";
+  const activeMintMode: ActiveMintMode = mintKind;
+  const activeMintContract =
+    mintKind === "protected" ? CONTRACT_1155_PROTECTED : CONTRACT_1155_STANDARD;
+  const activeMintAbi =
+    mintKind === "protected" ? realifeProtected1155Abi : realife1155Abi;
+  const activeMintEnvName =
+    mintKind === "protected"
+      ? "NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS"
+      : "NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT";
 
   const { data: mintFeeWeiRaw } = useReadContract({
     address: activeMintContract,
@@ -1434,7 +1521,7 @@ export default function MintForm() {
     setPreparedMedia(null);
     setPreparedPoster(null);
     setPreviewCategory("Other");
-    setSubmittedMintMode("standard");
+    setSubmittedMintMode(mintKind);
     setSubmittedMintContract(undefined);
     setSubmittedTxHash(undefined);
     mintSubmitRef.current = false;
@@ -1684,11 +1771,33 @@ export default function MintForm() {
       );
     }
 
-    const data = encodeFunctionData({
-      abi: realife1155Abi as any,
-      functionName: "createEdition" as any,
-      args: [amount, uri],
-    });
+    // Build the encoded calldata per mint kind, same branching as the
+    // wagmi writeContract path above. Protected mints carry the mint-side
+    // fulfillmentType uint8 (UNKNOWN=0, PHYSICAL_GOOD=1, ...).
+    let data: `0x${string}`;
+
+    if (mintKind === "protected") {
+      if (!fulfillmentType) {
+        throw new Error(
+          "Protected mint needs a fulfillment type. Pick Good/item, Digital service, Online session, or Local service."
+        );
+      }
+
+      const ftUint8 = fulfillmentTypeToProtectedMintUint8(fulfillmentType);
+
+      data = encodeFunctionData({
+        abi: realifeProtected1155Abi as any,
+        // Explicit overload selector — same reasoning as in handleOnchainCreate.
+        functionName: "createProtected(uint8,string,uint256)" as any,
+        args: [ftUint8, uri, amount],
+      });
+    } else {
+      data = encodeFunctionData({
+        abi: realife1155Abi as any,
+        functionName: "createEdition" as any,
+        args: [amount, uri],
+      });
+    }
 
     const tx: Record<string, string> = {
       from: activeAddress,
@@ -1800,6 +1909,14 @@ export default function MintForm() {
     const suggestedOfferType = offerTypeFromAiSuggestion(aiSuggestion);
     if (suggestedOfferType) {
       setOfferType(suggestedOfferType);
+      // Keep mintKind in sync with the AI-suggested offer type so the
+      // routing pill in the UI doesn't lie. Collectible -> standard,
+      // anything else -> protected.
+      setMintKind(suggestedOfferType === "collectible" ? "standard" : "protected");
+    } else if (aiSuggestion.suggestedMarketType === "protected") {
+      setMintKind("protected");
+    } else if (aiSuggestion.suggestedMarketType === "standard") {
+      setMintKind("standard");
     }
 
     if (aiSuggestion.category) {
@@ -1854,6 +1971,13 @@ export default function MintForm() {
       return;
     }
 
+    if (mintKind === "protected" && !fulfillmentType) {
+      setError(
+        "Pick an Offer type (Good/item, Digital service, Online session, or Local service) before preparing a Protected mint."
+      );
+      return;
+    }
+
     setStep("preparing");
 
     try {
@@ -1881,6 +2005,10 @@ export default function MintForm() {
       );
       formData.append("fulfillmentType", fulfillmentType || "");
       formData.append("suggestedMarketType", suggestedMarketType);
+      // Explicit hint so the backend doesn't have to re-infer from delivery
+      // flags. index.js already routes by suggestedMarketType, but mintKind
+      // is the more direct signal coming from the user toggle.
+      formData.append("mintKind", mintKind);
       formData.append(
         "marketplaceContract",
         suggestedMarketType === "protected" ? PROTECTED_USDC_MARKETPLACE_CONTRACT : ""
@@ -2001,16 +2129,48 @@ export default function MintForm() {
 
       const amount = BigInt(clampSupply(supply));
 
-      const hash =
-        activeWalletKind === "EMBEDDED"
-          ? await sendEmbeddedMintTransaction(amount, tokenURI)
-          : await writeContractAsync({
-              address: activeMintContract,
-              abi: realife1155Abi as any,
-              functionName: "createEdition" as any,
-              args: [amount, tokenURI],
-              value: mintFeeWei > 0n ? mintFeeWei : undefined,
-            });
+      // Build the right write call per mint kind.
+      // - Standard:  realife1155Abi.createEdition(amount, tokenURI) payable
+      // - Protected: realifeProtected1155Abi.createProtected(
+      //                fulfillmentType uint8, tokenURI string, amount uint256
+      //              ) payable
+      // The fulfillmentType uint8 here uses the MINT contract enum
+      // (UNKNOWN=0, PHYSICAL_GOOD=1, DIGITAL_SERVICE=2, ONLINE_SESSION=3,
+      // LOCAL_SERVICE=4). The marketplace listing flow has its own enum
+      // and is handled in TradingPanel1155 / QuickList1155.
+      let hash: `0x${string}` | undefined;
+
+      if (activeWalletKind === "EMBEDDED") {
+        hash = await sendEmbeddedMintTransaction(amount, tokenURI);
+      } else if (mintKind === "protected") {
+        if (!fulfillmentType) {
+          throw new Error(
+            "Protected mint needs a fulfillment type. Pick Good/item, Digital service, Online session, or Local service."
+          );
+        }
+
+        const ftUint8 = fulfillmentTypeToProtectedMintUint8(fulfillmentType);
+
+        hash = (await writeContractAsync({
+          address: activeMintContract,
+          abi: realifeProtected1155Abi as any,
+          // Disambiguate the overloaded createProtected explicitly. The mint
+          // contract exposes both createProtected(uint8,string) and the
+          // 3-arg createProtected(uint8,string,uint256). We always want the
+          // 3-arg version so supply is set on-chain at mint time.
+          functionName: "createProtected(uint8,string,uint256)" as any,
+          args: [ftUint8, tokenURI, amount],
+          value: mintFeeWei > 0n ? mintFeeWei : undefined,
+        })) as `0x${string}`;
+      } else {
+        hash = (await writeContractAsync({
+          address: activeMintContract,
+          abi: realife1155Abi as any,
+          functionName: "createEdition" as any,
+          args: [amount, tokenURI],
+          value: mintFeeWei > 0n ? mintFeeWei : undefined,
+        })) as `0x${string}`;
+      }
 
       if (hash) {
         setSubmittedTxHash(hash as `0x${string}`);
@@ -2023,7 +2183,7 @@ export default function MintForm() {
     } catch (e: any) {
       mintSubmitRef.current = false;
       setError(prettyError(e));
-      setSubmittedMintMode("standard");
+      setSubmittedMintMode(mintKind);
       setSubmittedMintContract(undefined);
       setStep("idle");
     }
@@ -2521,10 +2681,12 @@ export default function MintForm() {
           <div className="mb-4 flex items-end justify-between">
             <div>
               <div className="text-sm font-extrabold tracking-tight">
-                Offer type
+                Mint type
               </div>
               <div className="mt-1 text-[11px] text-white/55">
-                Choose what you are creating. This manual choice controls standard vs protected routing.
+                Standard NFT mints to the collectible contract. Protected NFT
+                mints to the Realife Protected 1155 contract and lists on the
+                protected USDC escrow marketplace.
               </div>
             </div>
             <Pill>
@@ -2533,32 +2695,19 @@ export default function MintForm() {
             </Pill>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {[
               {
-                key: "collectible" as const,
-                title: "Collectible / NFT",
-                text: "Art, meme, digital collectible, or experimental NFT. Usually standard marketplace.",
+                key: "standard" as const,
+                title: "Standard NFT",
+                text: "Pure collectible / art / digital NFT. Lists on the standard marketplace.",
+                tag: "Collectible flow",
               },
               {
-                key: "physical_product" as const,
-                title: "Good / item",
-                text: "Physical good, merch, food, accessory, ticket, or item with delivery/pickup.",
-              },
-              {
-                key: "digital_service" as const,
-                title: "Digital service",
-                text: "Website, design, marketing, automation, research, or other remote work.",
-              },
-              {
-                key: "online_session" as const,
-                title: "Online session",
-                text: "Consultation, coaching, lesson, training, call, or remote meeting.",
-              },
-              {
-                key: "local_service" as const,
-                title: "Local service",
-                text: "Offline service, repair, tour, beauty, fitness, photo, cleaning, or in-person work.",
+                key: "protected" as const,
+                title: "Protected NFT",
+                text: "Good or service with escrow protection. Lists on the protected USDC marketplace and locks supply during fulfillment.",
+                tag: "USDC escrow flow",
               },
             ].map((option) => (
               <button
@@ -2567,33 +2716,161 @@ export default function MintForm() {
                 onClick={() => {
                   setError("");
                   resetPreparedState();
-                  setOfferType(option.key);
+                  if (option.key === "standard") {
+                    setOfferType("collectible");
+                  } else if (offerType === "collectible") {
+                    // Protected requires a real fulfillment type. Default to
+                    // physical_product so suggestedMarketType resolves cleanly;
+                    // user can still switch in the Offer type card below.
+                    setOfferType("physical_product");
+                  }
+                  setMintKind(option.key);
                 }}
                 className={[
                   "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
-                  offerType === option.key
+                  mintKind === option.key
                     ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
                     : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
                 ].join(" ")}
               >
-                <div className="text-sm font-extrabold">{option.title}</div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-extrabold">{option.title}</div>
+                  <div
+                    className={[
+                      "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em]",
+                      mintKind === option.key
+                        ? "bg-black/15 text-black/70"
+                        : "bg-white/10 text-white/55",
+                    ].join(" ")}
+                  >
+                    {option.tag}
+                  </div>
+                </div>
                 <div
                   className={
-                    offerType === option.key
+                    mintKind === option.key
                       ? "mt-1 text-xs text-black/70"
                       : "mt-1 text-xs text-white/55"
                   }
                 >
                   {option.text}
                 </div>
+                <div
+                  className={[
+                    "mt-2 break-all font-mono text-[10px]",
+                    mintKind === option.key ? "text-black/55" : "text-white/40",
+                  ].join(" ")}
+                >
+                  {option.key === "standard"
+                    ? CONTRACT_1155_STANDARD || "not set"
+                    : CONTRACT_1155_PROTECTED || "not set"}
+                </div>
               </button>
             ))}
           </div>
-
-          <div className="mt-4 rounded-2xl border border-amber-500/15 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-50/80">
-            One public mint contract is used for everything. Goods and services become protected candidates through metadata; collectibles stay standard unless you choose a real good/service type.
-          </div>
         </Card>
+
+        {mintKind === "protected" ? (
+          <Card>
+            <div className="mb-4 flex items-end justify-between">
+              <div>
+                <div className="text-sm font-extrabold tracking-tight">
+                  Offer type
+                </div>
+                <div className="mt-1 text-[11px] text-white/55">
+                  What kind of protected good or service is this? This sets the
+                  on-chain fulfillment type for the escrow flow.
+                </div>
+              </div>
+              <Pill>
+                <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+                Required
+              </Pill>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+              {[
+                {
+                  key: "physical_product" as const,
+                  title: "Good / item",
+                  text: "Physical good, merch, food, accessory, ticket, or item with delivery/pickup.",
+                },
+                {
+                  key: "digital_service" as const,
+                  title: "Digital service",
+                  text: "Website, design, marketing, automation, research, or other remote work.",
+                },
+                {
+                  key: "online_session" as const,
+                  title: "Online session",
+                  text: "Consultation, coaching, lesson, training, call, or remote meeting.",
+                },
+                {
+                  key: "local_service" as const,
+                  title: "Local service",
+                  text: "Offline service, repair, tour, beauty, fitness, photo, cleaning, or in-person work.",
+                },
+              ].map((option) => (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => {
+                    setError("");
+                    resetPreparedState();
+                    setOfferType(option.key);
+                  }}
+                  className={[
+                    "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
+                    offerType === option.key
+                      ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                      : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
+                  ].join(" ")}
+                >
+                  <div className="text-sm font-extrabold">{option.title}</div>
+                  <div
+                    className={
+                      offerType === option.key
+                        ? "mt-1 text-xs text-black/70"
+                        : "mt-1 text-xs text-white/55"
+                    }
+                  >
+                    {option.text}
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-2xl border border-amber-500/15 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-amber-50/80">
+              Protected mints go to the new Realife Protected 1155 contract via
+              <span className="font-bold"> createProtected</span>. Listings later
+              run through the protected USDC escrow marketplace with supply
+              locks during fulfillment.
+            </div>
+          </Card>
+        ) : (
+          <Card>
+            <div className="mb-3 flex items-end justify-between">
+              <div>
+                <div className="text-sm font-extrabold tracking-tight">
+                  Standard collectible mint
+                </div>
+                <div className="mt-1 text-[11px] text-white/55">
+                  Standard NFTs are minted as plain collectibles and list on the
+                  standard marketplace. Switch to Protected NFT above if you
+                  are creating a good or service.
+                </div>
+              </div>
+              <Pill>
+                <span className="h-2 w-2 rounded-full bg-white/60" />
+                Auto
+              </Pill>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-relaxed text-white/70">
+              Offer type is locked to <span className="font-bold">Collectible / NFT</span>.
+              No fulfillment type, no delivery flow, no escrow.
+            </div>
+          </Card>
+        )}
 
         <Card>
           <div className="mb-4 flex items-end justify-between">

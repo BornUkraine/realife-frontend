@@ -1,421 +1,1281 @@
+// Quantity/inventory ABI for RealifeMarketplaceProtectedEscrow1155USDC.
+// Contract: 0x20F1128847028cdcBBcB0012Fc915737fCCd4e9D
+// Supports list amount, buy amount, pending lock, completed lock, refund return, moderators.
+
 export const realifeMarketplaceProtectedEscrow1155USDCAbi = [
   {
-    type: "function",
-    name: "allowedNft",
-    stateMutability: "view",
-    inputs: [{ name: "", type: "address" }],
-    outputs: [{ name: "", type: "bool" }],
-  },
-  {
-    type: "function",
-    name: "feeBps",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint96" }],
-  },
-  {
-    type: "function",
-    name: "treasury",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "address" }],
-  },
-  {
-    type: "function",
-    name: "usdc",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "address" }],
-  },
-  {
-    type: "function",
-    name: "paymentToken",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "address" }],
-  },
-  {
-    type: "function",
-    name: "nextListingId",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "nextPurchaseId",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-  },
-
-  {
-    type: "function",
-    name: "listings",
-    stateMutability: "view",
-    inputs: [{ name: "", type: "uint256" }],
-    outputs: [
-      { name: "seller", type: "address" },
-      { name: "nft", type: "address" },
-      { name: "tokenId", type: "uint256" },
-      { name: "pricePerUnitUsdc", type: "uint256" },
-      { name: "amountTotal", type: "uint256" },
-      { name: "amountRemaining", type: "uint256" },
-      { name: "fulfillmentType", type: "uint8" },
-      { name: "status", type: "uint8" },
-    ],
-  },
-  {
-    type: "function",
-    name: "purchases",
-    stateMutability: "view",
-    inputs: [{ name: "", type: "uint256" }],
-    outputs: [
-      { name: "listingId", type: "uint256" },
-      { name: "seller", type: "address" },
-      { name: "buyer", type: "address" },
-      { name: "nft", type: "address" },
-      { name: "tokenId", type: "uint256" },
-      { name: "amount", type: "uint256" },
-      { name: "pricePerUnitUsdc", type: "uint256" },
-      { name: "totalPriceUsdc", type: "uint256" },
-      { name: "fulfillmentType", type: "uint8" },
-      { name: "status", type: "uint8" },
-      { name: "buyerConfirmed", type: "bool" },
-      { name: "fundedAt", type: "uint64" },
-      { name: "refundRequestedAt", type: "uint64" },
-      { name: "nftReturnedAt", type: "uint64" },
-      { name: "resolvedAt", type: "uint64" },
-    ],
-  },
-
-  // actions
-  {
-    type: "function",
-    name: "list1155",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "nft", type: "address" },
-      { name: "tokenId", type: "uint256" },
-      { name: "amount", type: "uint256" },
-      { name: "pricePerUnitUsdc", type: "uint256" },
-      { name: "fulfillmentType", type: "uint8" },
-    ],
-    outputs: [{ name: "listingId", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "cancel",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "listingId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "buy",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "listingId", type: "uint256" },
-      { name: "amount", type: "uint256" },
-    ],
-    outputs: [{ name: "purchaseId", type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "buyerConfirm",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "purchaseId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "buyerConfirmAndRelease",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "purchaseId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "requestRefund",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "purchaseId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "requestRefundAndReturnNft",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "purchaseId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "returnPurchaseNft",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "purchaseId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "releasePurchase",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "purchaseId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "rejectRefundRequest",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "purchaseId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "refundPurchase",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "purchaseId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "rejectRefundAndRestoreBuyer",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "purchaseId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "setAllowedNft",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "nft", type: "address" },
-      { name: "allowed", type: "bool" },
-    ],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "setTreasury",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "t", type: "address" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "setFeeBps",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "bps", type: "uint96" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "getListing",
-    stateMutability: "view",
-    inputs: [{ name: "listingId", type: "uint256" }],
-    outputs: [
+    "type": "constructor",
+    "inputs": [
       {
-        name: "",
-        type: "tuple",
-        components: [
-          { name: "seller", type: "address" },
-          { name: "nft", type: "address" },
-          { name: "tokenId", type: "uint256" },
-          { name: "pricePerUnitUsdc", type: "uint256" },
-          { name: "amountTotal", type: "uint256" },
-          { name: "amountRemaining", type: "uint256" },
-          { name: "fulfillmentType", type: "uint8" },
-          { name: "status", type: "uint8" },
-        ],
+        "name": "_treasury",
+        "type": "address",
+        "internalType": "address"
       },
-    ],
-  },
-  {
-    type: "function",
-    name: "getPurchase",
-    stateMutability: "view",
-    inputs: [{ name: "purchaseId", type: "uint256" }],
-    outputs: [
       {
-        name: "",
-        type: "tuple",
-        components: [
-          { name: "listingId", type: "uint256" },
-          { name: "seller", type: "address" },
-          { name: "buyer", type: "address" },
-          { name: "nft", type: "address" },
-          { name: "tokenId", type: "uint256" },
-          { name: "amount", type: "uint256" },
-          { name: "pricePerUnitUsdc", type: "uint256" },
-          { name: "totalPriceUsdc", type: "uint256" },
-          { name: "fulfillmentType", type: "uint8" },
-          { name: "status", type: "uint8" },
-          { name: "buyerConfirmed", type: "bool" },
-          { name: "fundedAt", type: "uint64" },
-          { name: "refundRequestedAt", type: "uint64" },
-          { name: "nftReturnedAt", type: "uint64" },
-          { name: "resolvedAt", type: "uint64" },
-        ],
+        "name": "_feeBps",
+        "type": "uint96",
+        "internalType": "uint96"
       },
+      {
+        "name": "_usdc",
+        "type": "address",
+        "internalType": "address"
+      }
     ],
+    "stateMutability": "nonpayable"
   },
-
-  // events
   {
-    type: "event",
-    name: "AllowedNftSet",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "nft", type: "address" },
-      { indexed: false, name: "allowed", type: "bool" },
+    "type": "event",
+    "name": "AllowedNftSet",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "internalType": "bool",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "TreasurySet",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "treasury",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "FeeBpsSet",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "feeBps",
+        "type": "uint96",
+        "internalType": "uint96",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "ModeratorSet",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "moderator",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "internalType": "bool",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "Listed",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "seller",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      },
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "pricePerUnitUsdc",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "fulfillmentType",
+        "type": "uint8",
+        "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.FulfillmentType",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "Cancelled",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "seller",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      },
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "amountReturned",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "PurchaseFunded",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "seller",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "internalType": "address",
+        "indexed": false
+      },
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address",
+        "indexed": false
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "pricePerUnitUsdc",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "totalPriceUsdc",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "fulfillmentType",
+        "type": "uint8",
+        "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.FulfillmentType",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "BuyerConfirmed",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "RefundRequested",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "PurchaseNftReturned",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      },
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address",
+        "indexed": false
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "RefundRequestRejected",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "PurchaseReleased",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "seller",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "internalType": "address",
+        "indexed": false
+      },
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address",
+        "indexed": false
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "totalPriceUsdc",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "feeUsdc",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "sellerAmountUsdc",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "fulfillmentType",
+        "type": "uint8",
+        "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.FulfillmentType",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "PurchaseRefunded",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "seller",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "internalType": "address",
+        "indexed": false
+      },
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address",
+        "indexed": false
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "totalPriceUsdc",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "fulfillmentType",
+        "type": "uint8",
+        "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.FulfillmentType",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "RefundRejectedAndNftRestored",
+    "anonymous": false,
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": true
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "internalType": "address",
+        "indexed": true
+      },
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address",
+        "indexed": false
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256",
+        "indexed": false
+      }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
     ],
+    "stateMutability": "view"
   },
   {
-    type: "event",
-    name: "TreasurySet",
-    anonymous: false,
-    inputs: [{ indexed: true, name: "treasury", type: "address" }],
-  },
-  {
-    type: "event",
-    name: "FeeBpsSet",
-    anonymous: false,
-    inputs: [{ indexed: false, name: "feeBps", type: "uint96" }],
-  },
-  {
-    type: "event",
-    name: "Listed",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "listingId", type: "uint256" },
-      { indexed: true, name: "seller", type: "address" },
-      { indexed: true, name: "nft", type: "address" },
-      { indexed: false, name: "tokenId", type: "uint256" },
-      { indexed: false, name: "amount", type: "uint256" },
-      { indexed: false, name: "pricePerUnitUsdc", type: "uint256" },
-      { indexed: false, name: "fulfillmentType", type: "uint8" },
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
     ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
-    type: "event",
-    name: "Cancelled",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "listingId", type: "uint256" },
-      { indexed: true, name: "seller", type: "address" },
-      { indexed: true, name: "nft", type: "address" },
-      { indexed: false, name: "tokenId", type: "uint256" },
-      { indexed: false, name: "amountReturned", type: "uint256" },
-    ],
+    "type": "function",
+    "name": "renounceOwnership",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
-    type: "event",
-    name: "PurchaseFunded",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "purchaseId", type: "uint256" },
-      { indexed: true, name: "listingId", type: "uint256" },
-      { indexed: true, name: "seller", type: "address" },
-      { indexed: false, name: "buyer", type: "address" },
-      { indexed: false, name: "nft", type: "address" },
-      { indexed: false, name: "tokenId", type: "uint256" },
-      { indexed: false, name: "amount", type: "uint256" },
-      { indexed: false, name: "pricePerUnitUsdc", type: "uint256" },
-      { indexed: false, name: "totalPriceUsdc", type: "uint256" },
-      { indexed: false, name: "fulfillmentType", type: "uint8" },
+    "type": "function",
+    "name": "supportsInterface",
+    "inputs": [
+      {
+        "name": "interfaceId",
+        "type": "bytes4",
+        "internalType": "bytes4"
+      }
     ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
-    type: "event",
-    name: "BuyerConfirmed",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "purchaseId", type: "uint256" },
-      { indexed: true, name: "listingId", type: "uint256" },
-      { indexed: true, name: "buyer", type: "address" },
+    "type": "function",
+    "name": "usdc",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "contract IERC20"
+      }
     ],
+    "stateMutability": "view"
   },
   {
-    type: "event",
-    name: "RefundRequested",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "purchaseId", type: "uint256" },
-      { indexed: true, name: "listingId", type: "uint256" },
-      { indexed: true, name: "buyer", type: "address" },
+    "type": "function",
+    "name": "paymentToken",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
     ],
+    "stateMutability": "view"
   },
   {
-    type: "event",
-    name: "PurchaseNftReturned",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "purchaseId", type: "uint256" },
-      { indexed: true, name: "listingId", type: "uint256" },
-      { indexed: true, name: "buyer", type: "address" },
-      { indexed: false, name: "nft", type: "address" },
-      { indexed: false, name: "tokenId", type: "uint256" },
-      { indexed: false, name: "amount", type: "uint256" },
+    "type": "function",
+    "name": "nextListingId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
     ],
+    "stateMutability": "view"
   },
   {
-    type: "event",
-    name: "RefundRequestRejected",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "purchaseId", type: "uint256" },
-      { indexed: true, name: "listingId", type: "uint256" },
-      { indexed: true, name: "buyer", type: "address" },
+    "type": "function",
+    "name": "nextPurchaseId",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
     ],
+    "stateMutability": "view"
   },
   {
-    type: "event",
-    name: "PurchaseReleased",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "purchaseId", type: "uint256" },
-      { indexed: true, name: "listingId", type: "uint256" },
-      { indexed: true, name: "seller", type: "address" },
-      { indexed: false, name: "buyer", type: "address" },
-      { indexed: false, name: "nft", type: "address" },
-      { indexed: false, name: "tokenId", type: "uint256" },
-      { indexed: false, name: "amount", type: "uint256" },
-      { indexed: false, name: "totalPriceUsdc", type: "uint256" },
-      { indexed: false, name: "feeUsdc", type: "uint256" },
-      { indexed: false, name: "sellerAmountUsdc", type: "uint256" },
-      { indexed: false, name: "fulfillmentType", type: "uint8" },
+    "type": "function",
+    "name": "allowedNft",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
     ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
-    type: "event",
-    name: "PurchaseRefunded",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "purchaseId", type: "uint256" },
-      { indexed: true, name: "listingId", type: "uint256" },
-      { indexed: true, name: "seller", type: "address" },
-      { indexed: false, name: "buyer", type: "address" },
-      { indexed: false, name: "nft", type: "address" },
-      { indexed: false, name: "tokenId", type: "uint256" },
-      { indexed: false, name: "amount", type: "uint256" },
-      { indexed: false, name: "totalPriceUsdc", type: "uint256" },
-      { indexed: false, name: "fulfillmentType", type: "uint8" },
+    "type": "function",
+    "name": "moderators",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
     ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
-    type: "event",
-    name: "RefundRejectedAndNftRestored",
-    anonymous: false,
-    inputs: [
-      { indexed: true, name: "purchaseId", type: "uint256" },
-      { indexed: true, name: "listingId", type: "uint256" },
-      { indexed: true, name: "buyer", type: "address" },
-      { indexed: false, name: "nft", type: "address" },
-      { indexed: false, name: "tokenId", type: "uint256" },
-      { indexed: false, name: "amount", type: "uint256" },
+    "type": "function",
+    "name": "treasury",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
     ],
+    "stateMutability": "view"
   },
+  {
+    "type": "function",
+    "name": "feeBps",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint96",
+        "internalType": "uint96"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "isOperator",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "listings",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "seller",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "pricePerUnitUsdc",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amountTotal",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amountRemaining",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "fulfillmentType",
+        "type": "uint8",
+        "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.FulfillmentType"
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.ListingStatus"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "purchases",
+    "inputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "seller",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "buyer",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "pricePerUnitUsdc",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "totalPriceUsdc",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "fulfillmentType",
+        "type": "uint8",
+        "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.FulfillmentType"
+      },
+      {
+        "name": "status",
+        "type": "uint8",
+        "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.PurchaseStatus"
+      },
+      {
+        "name": "buyerConfirmed",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "fundedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "refundRequestedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "nftReturnedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      },
+      {
+        "name": "resolvedAt",
+        "type": "uint64",
+        "internalType": "uint64"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getListing",
+    "inputs": [
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct RealifeMarketplaceProtectedEscrow1155USDC.Listing",
+        "components": [
+          {
+            "name": "seller",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "nft",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "pricePerUnitUsdc",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amountTotal",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amountRemaining",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fulfillmentType",
+            "type": "uint8",
+            "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.FulfillmentType"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.ListingStatus"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPurchase",
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "tuple",
+        "internalType": "struct RealifeMarketplaceProtectedEscrow1155USDC.Purchase",
+        "components": [
+          {
+            "name": "listingId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "seller",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "buyer",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "nft",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "amount",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "pricePerUnitUsdc",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "totalPriceUsdc",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "fulfillmentType",
+            "type": "uint8",
+            "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.FulfillmentType"
+          },
+          {
+            "name": "status",
+            "type": "uint8",
+            "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.PurchaseStatus"
+          },
+          {
+            "name": "buyerConfirmed",
+            "type": "bool",
+            "internalType": "bool"
+          },
+          {
+            "name": "fundedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "refundRequestedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "nftReturnedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "resolvedAt",
+            "type": "uint64",
+            "internalType": "uint64"
+          }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "setModerator",
+    "inputs": [
+      {
+        "name": "moderator",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setAllowedNft",
+    "inputs": [
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "allowed",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setTreasury",
+    "inputs": [
+      {
+        "name": "t",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setFeeBps",
+    "inputs": [
+      {
+        "name": "bps",
+        "type": "uint96",
+        "internalType": "uint96"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "list1155",
+    "inputs": [
+      {
+        "name": "nft",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "tokenId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "pricePerUnitUsdc",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "fulfillmentType",
+        "type": "uint8",
+        "internalType": "enum RealifeMarketplaceProtectedEscrow1155USDC.FulfillmentType"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancel",
+    "inputs": [
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "buy",
+    "inputs": [
+      {
+        "name": "listingId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "buyerConfirm",
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "buyerConfirmAndRelease",
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "requestRefund",
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "requestRefundAndReturnNft",
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "returnPurchaseNft",
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "releasePurchase",
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "rejectRefundRequest",
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "refundPurchase",
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "rejectRefundAndRestoreBuyer",
+    "inputs": [
+      {
+        "name": "purchaseId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  }
 ] as const;
-
-// Backward-friendly alias if you prefer "Usdc" casing in imports.
-export const realifeMarketplaceProtectedEscrow1155UsdcAbi =
-  realifeMarketplaceProtectedEscrow1155USDCAbi;
