@@ -344,6 +344,14 @@ const PUBLIC_STANDARD_CONTRACT = String(
   .trim()
   .toLowerCase();
 
+const PUBLIC_PROTECTED_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS ||
+    process.env.REALIFE_PROTECTED_1155_ADDRESS ||
+    ""
+)
+  .trim()
+  .toLowerCase();
+
 function ipfsToHttp(uri?: string | null, gw: string = IPFS_GATEWAYS[0]) {
   const u = String(uri || "").trim();
   if (!u) return null;
@@ -531,6 +539,9 @@ function resolveRowMarketType(item: MarketListing): MarketType {
 
   if (CAFE_CONTRACT && contract === CAFE_CONTRACT) return "STANDARD";
   if (STORE_CONTRACT && contract === STORE_CONTRACT) return "STANDARD";
+  if (PUBLIC_PROTECTED_CONTRACT && contract === PUBLIC_PROTECTED_CONTRACT) {
+    return "PROTECTED";
+  }
 
   if (item.marketType === "PROTECTED") return "PROTECTED";
   if (item.suggestedMarketType === "PROTECTED") return "PROTECTED";
@@ -568,8 +579,8 @@ function getMarketViewConfig(view: MarketView) {
         label: "Service • Protected",
         title: "Service Protected NFT Trading",
         subtitle:
-          "Service NFTs minted through the standard public mint contract and listed through the PROTECTED USDC escrow flow. This view is for digital services, online sessions and local/offline services.",
-        contract: PUBLIC_STANDARD_CONTRACT || null,
+          "Service NFTs minted through the protected quantity ERC-1155 contract and listed through the PROTECTED USDC escrow flow. This view is for digital services, online sessions and local/offline services.",
+        contract: PUBLIC_PROTECTED_CONTRACT || null,
         marketType: "PROTECTED" as MarketType,
         fulfillmentGroup: "service" as "product" | "service" | "standard" | null,
       };
@@ -579,8 +590,8 @@ function getMarketViewConfig(view: MarketView) {
         label: "Goods • Protected",
         title: "Goods Protected NFT Trading",
         subtitle:
-          "Goods NFTs minted through the unified public mint contract and listed through the PROTECTED USDC escrow flow for physical goods, delivery, fulfillment and buyer confirmation.",
-        contract: PUBLIC_STANDARD_CONTRACT || null,
+          "Goods NFTs minted through the protected quantity ERC-1155 contract and listed through the PROTECTED USDC escrow flow for physical goods, delivery, fulfillment and buyer confirmation.",
+        contract: PUBLIC_PROTECTED_CONTRACT || null,
         marketType: "PROTECTED" as MarketType,
         fulfillmentGroup: "product" as "product" | "service" | "standard" | null,
       };
@@ -630,14 +641,14 @@ function getMarketViewNote(view: MarketView) {
       return {
         tone: "border-violet-500/20 bg-violet-500/10 text-violet-100",
         text:
-          "Service Protected shows NFTs from the standard public mint contract listed through the PROTECTED USDC escrow flow. Buyer funds are held in USDC until service completion, confirmation, release, or refund resolution.",
+          "Service Protected shows NFTs from the protected quantity ERC-1155 contract listed through the PROTECTED USDC escrow flow. Buyer funds are held in USDC until service completion, confirmation, release, or refund resolution.",
       };
 
     case "publicDelivery":
       return {
         tone: "border-amber-500/20 bg-amber-500/10 text-amber-100",
         text:
-          "Goods Protected shows NFTs from the unified public mint contract listed through the PROTECTED USDC escrow flow. Buyer funds are held in USDC while delivery, fulfillment, confirmation, release, or refund resolution happens.",
+          "Goods Protected shows NFTs from the protected quantity ERC-1155 contract listed through the PROTECTED USDC escrow flow. Buyer funds are held in USDC while delivery, fulfillment, confirmation, release, or refund resolution happens.",
       };
 
     case "publicStandard":

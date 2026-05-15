@@ -17,6 +17,7 @@ import { encodeFunctionData, parseUnits, formatUnits, toHex } from "viem";
 import { useWeb3Auth } from "@web3auth/modal/react";
 
 import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
+import { realifeProtected1155Abi } from "@/lib/realifeProtected1155Abi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
 import { realifeMarketplaceProtectedEscrow1155USDCAbi } from "@/lib/realifeMarketplaceProtectedEscrow1155USDCAbi";
 import { REALIFE_PROTECTED_PAYMENT_USDC } from "@/lib/realifeProtectedUsdc";
@@ -32,6 +33,7 @@ type FulfillmentType =
 
 type ContractView =
   | "publicStandard"
+  | "publicProtected"
   | "publicDelivery"
   | "cafe"
   | "store"
@@ -225,6 +227,14 @@ const PUBLIC_DELIVERY_CONTRACT = String(
   .trim()
   .toLowerCase();
 
+const PUBLIC_PROTECTED_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS ||
+    process.env.REALIFE_PROTECTED_1155_ADDRESS ||
+    ""
+)
+  .trim()
+  .toLowerCase();
+
 function classifyContractView(contract: string): ContractView {
   const x = toLower(contract);
 
@@ -232,6 +242,9 @@ function classifyContractView(contract: string): ContractView {
   if (STORE_CONTRACT && x === STORE_CONTRACT) return "store";
   if (PUBLIC_STANDARD_CONTRACT && x === PUBLIC_STANDARD_CONTRACT) {
     return "publicStandard";
+  }
+  if (PUBLIC_PROTECTED_CONTRACT && x === PUBLIC_PROTECTED_CONTRACT) {
+    return "publicProtected";
   }
   if (PUBLIC_DELIVERY_CONTRACT && x === PUBLIC_DELIVERY_CONTRACT) {
     return "publicDelivery";
@@ -315,6 +328,7 @@ function inferProtectedAsset(params: {
   } = params;
 
   if (contractView === "store" || contractView === "cafe") return false;
+  if (contractView === "publicProtected") return true;
   if (contractView === "publicDelivery") return true;
 
   if (isProtectedFulfillment(fulfillmentType)) return true;
@@ -334,6 +348,7 @@ function resolveAssetMarketType(params: {
     params;
 
   if (contractView === "store" || contractView === "cafe") return "STANDARD";
+  if (contractView === "publicProtected") return "PROTECTED";
   if (contractView === "publicDelivery") return "PROTECTED";
   if (assetIsProtected) return "PROTECTED";
 
@@ -535,6 +550,7 @@ export default function QuickList1155({
   const nftAddr = useMemo(() => toLower(contract), [contract]);
   const needSwitch = walletReady && effectiveChainId !== chainId;
   const contractView = useMemo(() => classifyContractView(nftAddr), [nftAddr]);
+  const isProtectedMintContract = contractView === "publicProtected";
 
   const tokenIdBI = useMemo(() => {
     try {
@@ -635,6 +651,25 @@ export default function QuickList1155({
     query: { enabled: Boolean(activeAddress && nftAddr.startsWith("0x")) },
   });
 
+  const { data: transferableRaw, refetch: refetchTransferable } = useReadContract({
+    abi: realifeProtected1155Abi,
+    address: (
+      nftAddr || "0x0000000000000000000000000000000000000000"
+    ) as `0x${string}`,
+    functionName: "transferableBalance",
+    args: [
+      (
+        (activeAddress || ZERO_ADDRESS) as `0x${string}`
+      ),
+      tokenIdBI,
+    ],
+    query: {
+      enabled: Boolean(
+        activeAddress && isProtectedMintContract && nftAddr.startsWith("0x")
+      ),
+    },
+  });
+
   const balance = useMemo(() => {
     try {
       return BigInt(balanceRaw as any);
@@ -643,7 +678,19 @@ export default function QuickList1155({
     }
   }, [balanceRaw]);
 
-  const maxAmountBI = balance > 0n ? balance : hintMax;
+  const transferableBalance = useMemo(() => {
+    try {
+      return BigInt(transferableRaw as any);
+    } catch {
+      return 0n;
+    }
+  }, [transferableRaw]);
+
+  const maxAmountBI = isProtectedMintContract
+    ? transferableBalance
+    : balance > 0n
+    ? balance
+    : hintMax;
 
   const maxAmount = useMemo(() => {
     if (maxAmountBI <= 0n) return 1;
@@ -1003,9 +1050,10 @@ export default function QuickList1155({
     setRefreshing(true);
 
     try {
-      const [balanceRes, approvedRes] = await Promise.allSettled([
+      const [balanceRes, approvedRes, transferableRes] = await Promise.allSettled([
         refetchBalance(),
         refetchApproved(),
+        isProtectedMintContract ? refetchTransferable() : Promise.resolve(null),
       ]);
 
       let remainingOwnedAmount: string | null = null;
@@ -1021,6 +1069,17 @@ export default function QuickList1155({
         }
       }
 
+      if (isProtectedMintContract && transferableRes.status === "fulfilled") {
+        try {
+          const value = (transferableRes.value as any)?.data;
+          if (value !== undefined && value !== null) {
+            remainingOwnedAmount = BigInt(value).toString();
+          }
+        } catch {
+          //
+        }
+      }
+
       void approvedRes;
       if (remainingOwnedAmount !== null) {
         pushToast("Balance updated", `Owned amount is now ${remainingOwnedAmount}.`, "default");
@@ -1029,21 +1088,44 @@ export default function QuickList1155({
     } finally {
       setRefreshing(false);
     }
-  }, [refetchApproved, refetchBalance]);
+  }, [isProtectedMintContract, refetchApproved, refetchBalance, refetchTransferable]);
 
   const schedulePostListRefreshes = useCallback(() => {
     if (typeof window === "undefined") return;
 
     for (const delay of [1600, 4200]) {
       window.setTimeout(() => {
-        void Promise.allSettled([refetchBalance(), refetchApproved()]);
+        void Promise.allSettled([
+          refetchBalance(),
+          refetchApproved(),
+          isProtectedMintContract ? refetchTransferable() : Promise.resolve(null),
+        ]);
       }, delay);
     }
-  }, [refetchApproved, refetchBalance]);
+  }, [isProtectedMintContract, refetchApproved, refetchBalance, refetchTransferable]);
 
   async function listNow() {
     if (!walletReady) return openConnectModal?.();
     if (!hasMarketplace) return;
+
+    if (maxAmountBI <= 0n) {
+      const msg =
+        inferredMarketType === "PROTECTED"
+          ? "No transferable amount available. Pending or completed protected NFTs cannot be listed."
+          : "No NFT balance available to list.";
+      setErr(msg);
+      updateTx(
+        {
+          kind: "list",
+          phase: "error",
+          label: msg,
+          errorText: msg,
+        },
+        { autoDismissMs: 4500 }
+      );
+      return;
+    }
+
     if (!priceWei) {
       setErr("Enter valid price");
       updateTx(

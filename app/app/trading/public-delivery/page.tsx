@@ -110,7 +110,7 @@ export default async function DeliveryProtectedTradingPage() {
 
                 <Pill>
                   <span className="text-white/80 font-extrabold">
-                    Unified public mint
+                    Protected quantity mint
                   </span>
                 </Pill>
 
@@ -129,7 +129,7 @@ export default async function DeliveryProtectedTradingPage() {
               </h1>
 
               <p className="mt-2 max-w-3xl text-xs leading-relaxed text-white/65 md:text-sm">
-                Physical goods NFTs minted through the unified public mint contract and listed through the PROTECTED escrow flow. Focused on goods, delivery, fulfillment, shipping coordination and buyer confirmation.
+                Physical goods NFTs minted through the protected quantity ERC-1155 contract and listed through the PROTECTED USDC escrow flow. Focused on goods, delivery, fulfillment, shipping coordination and buyer confirmation.
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">

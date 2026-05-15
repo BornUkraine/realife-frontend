@@ -24,6 +24,7 @@ import { encodeFunctionData, formatUnits, parseUnits, toHex } from "viem";
 import { useWeb3Auth } from "@web3auth/modal/react";
 
 import { erc1155CoreAbi } from "@/lib/erc1155CoreAbi";
+import { realifeProtected1155Abi } from "@/lib/realifeProtected1155Abi";
 import { marketplaceSpot1155Abi } from "@/lib/realifeMarketplaceSpot1155Abi";
 import { realifeMarketplaceProtectedEscrow1155USDCAbi } from "@/lib/realifeMarketplaceProtectedEscrow1155USDCAbi";
 import { erc20UsdcAbi } from "@/lib/erc20UsdcAbi";
@@ -39,6 +40,7 @@ type FulfillmentType =
 
 type ContractView =
   | "publicStandard"
+  | "publicProtected"
   | "publicDelivery"
   | "cafe"
   | "store"
@@ -548,6 +550,14 @@ const PUBLIC_DELIVERY_CONTRACT = String(
   .trim()
   .toLowerCase();
 
+const PUBLIC_PROTECTED_CONTRACT = String(
+  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS ||
+    process.env.REALIFE_PROTECTED_1155_ADDRESS ||
+    ""
+)
+  .trim()
+  .toLowerCase();
+
 function classifyContractView(contract: string): ContractView {
   const x = toLower(contract);
 
@@ -555,6 +565,9 @@ function classifyContractView(contract: string): ContractView {
   if (STORE_CONTRACT && x === STORE_CONTRACT) return "store";
   if (PUBLIC_STANDARD_CONTRACT && x === PUBLIC_STANDARD_CONTRACT) {
     return "publicStandard";
+  }
+  if (PUBLIC_PROTECTED_CONTRACT && x === PUBLIC_PROTECTED_CONTRACT) {
+    return "publicProtected";
   }
   if (PUBLIC_DELIVERY_CONTRACT && x === PUBLIC_DELIVERY_CONTRACT) {
     return "publicDelivery";
@@ -635,6 +648,7 @@ function inferProtectedAsset(params: {
   } = params;
 
   if (contractView === "store" || contractView === "cafe") return false;
+  if (contractView === "publicProtected") return true;
   if (contractView === "publicDelivery") return true;
 
   if (isProtectedFulfillment(fulfillmentType)) return true;
@@ -653,6 +667,7 @@ function resolveAssetMarketType(params: {
   const { contractView, assetIsProtected, preferredMarketType, marketType } = params;
 
   if (contractView === "store" || contractView === "cafe") return "STANDARD";
+  if (contractView === "publicProtected") return "PROTECTED";
   if (contractView === "publicDelivery") return "PROTECTED";
   if (assetIsProtected) return "PROTECTED";
 
@@ -675,6 +690,7 @@ function resolveRowMarketType(params: {
   const { contractView, fallbackMarketType, rowMarketType } = params;
 
   if (contractView === "store" || contractView === "cafe") return "STANDARD";
+  if (contractView === "publicProtected") return "PROTECTED";
   if (contractView === "publicDelivery") return "PROTECTED";
   return rowMarketType || fallbackMarketType;
 }
@@ -1012,6 +1028,21 @@ function MarketNotice({
     );
   }
 
+  if (contractView === "publicProtected") {
+    return (
+      <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] leading-relaxed text-violet-100">
+        <div className="mb-1 font-black">Protected Quantity NFT</div>
+        <div>
+          This NFT uses the <span className="font-black">PROTECTED marketplace</span>.
+          Only transferable quantity can be listed; pending or completed locked amounts cannot be sold.
+        </div>
+        <div className="mt-2 text-violet-100/80">
+          Buyer receives the NFT immediately, while USDC stays in escrow until completion or refund resolution.
+        </div>
+      </div>
+    );
+  }
+
   if (contractView === "publicDelivery") {
     return (
       <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 text-[12px] leading-relaxed text-violet-100">
@@ -1032,7 +1063,7 @@ function MarketNotice({
       <div className="rounded-2xl border border-fuchsia-500/20 bg-fuchsia-500/10 p-4 text-[12px] leading-relaxed text-fuchsia-100">
         <div className="mb-1 font-black">Public Standard Contract • Protected Asset</div>
         <div>
-          This NFT is stored in the unified public mint contract, but it should trade on the{" "}
+          This legacy protected asset is stored in the standard public mint contract, but it should trade on the{" "}
           <span className="font-black">PROTECTED marketplace</span>.
         </div>
         <div className="mt-2 text-fuchsia-100/80">
@@ -1139,6 +1170,7 @@ export default function TradingPanel1155({
   const me = useMemo(() => toLower(activeAddress), [activeAddress]);
   const canTradeOnThisChain = walletReady && effectiveChainId === chainId;
   const contractView = useMemo(() => classifyContractView(nftAddr), [nftAddr]);
+  const isProtectedMintContract = contractView === "publicProtected";
 
   const [loading, setLoading] = useState(!initialMarketData);
   const [refreshing, setRefreshing] = useState(false);
@@ -1367,6 +1399,21 @@ export default function TradingPanel1155({
     },
   });
 
+  const { data: transferableRaw, refetch: refetchTransferable } = useReadContract({
+    abi: realifeProtected1155Abi,
+    address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
+    functionName: "transferableBalance",
+    args: [
+      (activeAddress || ZERO_ADDRESS) as `0x${string}`,
+      tokenIdBI,
+    ],
+    query: {
+      enabled: Boolean(
+        activeAddress && isProtectedMintContract && nftAddr.startsWith("0x")
+      ),
+    },
+  });
+
   const { data: approvedRaw, refetch: refetchApproved } = useReadContract({
     abi: erc1155CoreAbi,
     address: (nftAddr || "0x0000000000000000000000000000000000000000") as `0x${string}`,
@@ -1388,6 +1435,16 @@ export default function TradingPanel1155({
       return 0n;
     }
   }, [balanceRaw]);
+
+  const transferableBalance = useMemo(() => {
+    try {
+      return BigInt(transferableRaw as any);
+    } catch {
+      return 0n;
+    }
+  }, [transferableRaw]);
+
+  const listableBalance = isProtectedMintContract ? transferableBalance : balance;
 
   const isApproved = Boolean(approvedRaw);
 
@@ -1686,7 +1743,7 @@ export default function TradingPanel1155({
   }, [selectedListing]);
 
   const maxBuy = useMemo(() => bigintToSafeInt(maxBuyBI, 1), [maxBuyBI]);
-  const maxSell = useMemo(() => bigintToSafeInt(balance, 1), [balance]);
+  const maxSell = useMemo(() => bigintToSafeInt(listableBalance, 1), [listableBalance]);
 
   useEffect(() => {
     setBuyAmount((prev) => clampInt(prev, 1, Math.max(1, maxBuy)));
@@ -1725,10 +1782,11 @@ export default function TradingPanel1155({
       await Promise.allSettled([
         refresh(opts),
         refetchBalance(),
+        isProtectedMintContract ? refetchTransferable() : Promise.resolve(null),
         refetchApproved(),
       ]);
     },
-    [refresh, refetchBalance, refetchApproved]
+    [refresh, isProtectedMintContract, refetchBalance, refetchTransferable, refetchApproved]
   );
 
   const schedulePostTxRefreshes = useCallback(
@@ -1752,7 +1810,10 @@ export default function TradingPanel1155({
           const tasks: Array<Promise<unknown>> = [];
 
           if (market) tasks.push(refresh({ silent: true }));
-          if (balance) tasks.push(refetchBalance());
+          if (balance) {
+            tasks.push(refetchBalance());
+            if (isProtectedMintContract) tasks.push(refetchTransferable());
+          }
           if (approved) tasks.push(refetchApproved());
 
           if (!tasks.length) return;
@@ -1760,7 +1821,7 @@ export default function TradingPanel1155({
         }, delay);
       }
     },
-    [refresh, refetchBalance, refetchApproved]
+    [refresh, isProtectedMintContract, refetchBalance, refetchTransferable, refetchApproved]
   );
 
   useEffect(() => {
@@ -1907,6 +1968,16 @@ export default function TradingPanel1155({
     }
     if (!hasSellMarketplace) return;
 
+    if (listableBalance <= 0n) {
+      const msg =
+        sellMarketType === "PROTECTED"
+          ? "No transferable amount available. Pending or completed protected NFTs cannot be listed."
+          : "No NFT balance available to list.";
+      setErr(msg);
+      pushToast("warning", "Nothing to list", msg);
+      return;
+    }
+
     setErr(null);
     setHint(null);
     setBusy("approve");
@@ -1986,6 +2057,16 @@ export default function TradingPanel1155({
       return openConnectModal?.();
     }
     if (!hasSellMarketplace) return;
+
+    if (listableBalance <= 0n) {
+      const msg =
+        sellMarketType === "PROTECTED"
+          ? "No transferable amount available. Pending or completed protected NFTs cannot be listed."
+          : "No NFT balance available to list.";
+      setErr(msg);
+      pushToast("warning", "Nothing to list", msg);
+      return;
+    }
 
     setErr(null);
     setHint(null);
