@@ -239,10 +239,18 @@ export default function SuccessClient({
   const qpContract = useMemo(() => (sp.get("contract") || "").trim(), [sp]);
 
   const contract = useMemo(() => {
+    // URL query param is the source of truth — MintForm always passes
+    // ?contract=... after a successful mint, both for standard and for
+    // protected NFTs. We never guess by tokenId.
     if (qpContract && qpContract.startsWith("0x")) return qpContract;
+
+    // Fallback only fires for malformed/refreshed URLs. Try the protected
+    // mint contract first so a fresh protected mint doesn't get reported as
+    // standard. Legacy delivery contract removed — backend no longer
+    // recognizes it.
     return (
+      process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS ||
       process.env.NEXT_PUBLIC_REALIFE_1155_NEW_CONTRACT ||
-      process.env.NEXT_PUBLIC_REALIFE_1155_DELIVERY_CONTRACT ||
       ""
     ).trim();
   }, [qpContract]);

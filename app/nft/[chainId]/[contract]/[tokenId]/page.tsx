@@ -70,6 +70,16 @@ const USER_DELIVERY_1155_CONTRACT = norm(
     ""
 );
 
+// ✅ New quantity/inventory protected ERC-1155 mint contract (RealifeProtected1155).
+// NFTs minted to this contract are routed through the protected USDC escrow
+// marketplace. Detail pages for these tokens must be allowed here, otherwise
+// `notFound()` rejects them.
+const USER_PROTECTED_1155_CONTRACT = norm(
+  process.env.NEXT_PUBLIC_REALIFE_PROTECTED_1155_ADDRESS ||
+    process.env.REALIFE_PROTECTED_1155_ADDRESS ||
+    ""
+);
+
 const CAFE_1155_CONTRACT = norm(
   process.env.NEXT_PUBLIC_REALIFE_CAFE_STORE_CONTRACT ||
     process.env.REALIFE_CAFE_STORE_CONTRACT ||
@@ -91,6 +101,7 @@ const PAYMENT_TOKEN_FALLBACK = norm(
 const ALLOWED_1155_CONTRACTS = [
   USER_STANDARD_1155_CONTRACT,
   USER_DELIVERY_1155_CONTRACT,
+  USER_PROTECTED_1155_CONTRACT,
   CAFE_1155_CONTRACT,
   STORE_1155_CONTRACT,
 ].filter(Boolean);
@@ -684,6 +695,12 @@ function suggestSecondaryMarketType(input: {
     return "STANDARD" as const;
   }
 
+  // ✅ NFTs minted on the protected 1155 contract are always protected market
+  // type — the contract itself is the routing signal, regardless of metadata.
+  if (c && c === USER_PROTECTED_1155_CONTRACT) {
+    return "PROTECTED" as const;
+  }
+
   if (c && c === USER_DELIVERY_1155_CONTRACT) {
     return "PROTECTED" as const;
   }
@@ -1118,6 +1135,9 @@ export default async function NftDetailsPage({
     !!USER_STANDARD_1155_CONTRACT && contract === USER_STANDARD_1155_CONTRACT;
   const isUserDelivery1155Nft =
     !!USER_DELIVERY_1155_CONTRACT && contract === USER_DELIVERY_1155_CONTRACT;
+  // ✅ Flag for tokens minted on the new RealifeProtected1155 contract.
+  const isUserProtected1155Nft =
+    !!USER_PROTECTED_1155_CONTRACT && contract === USER_PROTECTED_1155_CONTRACT;
 
   const nft = await prisma.mint.findFirst({
     where: { chainId, contract, tokenId, verified: true },
@@ -1290,7 +1310,8 @@ export default async function NftDetailsPage({
   );
 
   const shouldUseBackendMetadata =
-    !hasCachedMeta && (isUserStandard1155Nft || isUserDelivery1155Nft);
+    !hasCachedMeta &&
+    (isUserStandard1155Nft || isUserDelivery1155Nft || isUserProtected1155Nft);
 
   const liveMeta = shouldUseBackendMetadata
     ? await loadMetadataFromBackend1155(tokenId, contract)
@@ -1516,6 +1537,8 @@ export default async function NftDetailsPage({
     ? "ERC-1155 • CAFE"
     : isStoreNft
     ? "ERC-1155 • STORE"
+    : isUserProtected1155Nft
+    ? "ERC-1155 • PROTECTED CONTRACT"
     : isUserDelivery1155Nft
     ? "ERC-1155 • LEGACY DELIVERY CONTRACT"
     : isUserStandard1155Nft
@@ -1738,6 +1761,8 @@ export default async function NftDetailsPage({
                         ? "Realife Cafe Edition"
                         : isStoreNft
                         ? "Realife Store Edition"
+                        : isUserProtected1155Nft
+                        ? "Realife Protected Contract Edition"
                         : isUserDelivery1155Nft
                         ? "Realife Delivery Contract Edition"
                         : isUserStandard1155Nft
