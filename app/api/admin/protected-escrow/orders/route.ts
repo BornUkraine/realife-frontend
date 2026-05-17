@@ -368,6 +368,14 @@ function serializeOrder(row: any, mintMap: Map<string, any>, listingMap: Map<str
     deliveryStatus: row.deliveryStatus,
     serviceStatus: row.serviceStatus,
 
+    // Protected quantity NFT lock state for admin escrow visibility.
+    protectedNftLockStatus: row.protectedNftLockStatus || null,
+    protectedNftPendingAmount: serializeBigInt(row.protectedNftPendingAmount) || "0",
+    protectedNftCompletedAmount: serializeBigInt(row.protectedNftCompletedAmount) || "0",
+    protectedNftLockedAt: iso(row.protectedNftLockedAt),
+    protectedNftCompletedAt: iso(row.protectedNftCompletedAt),
+    protectedNftUnlockedAt: iso(row.protectedNftUnlockedAt),
+
     escrowFundedAt: iso(row.escrowFundedAt),
     shippedAt: iso(row.shippedAt),
     deliveredAt: iso(row.deliveredAt),
@@ -493,6 +501,12 @@ function baseSelect() {
     escrowStatus: true,
     deliveryStatus: true,
     serviceStatus: true,
+    protectedNftLockStatus: true,
+    protectedNftPendingAmount: true,
+    protectedNftCompletedAmount: true,
+    protectedNftLockedAt: true,
+    protectedNftCompletedAt: true,
+    protectedNftUnlockedAt: true,
     escrowFundedAt: true,
     shippedAt: true,
     deliveredAt: true,

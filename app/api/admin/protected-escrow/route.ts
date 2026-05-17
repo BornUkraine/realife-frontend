@@ -250,6 +250,23 @@ function serializeOrder(row: any) {
     escrowStatus: row.escrowStatus,
     deliveryStatus: row.deliveryStatus,
     serviceStatus: row.serviceStatus,
+
+    // Protected quantity NFT lock state for admin escrow visibility.
+    protectedNftLockStatus: row.protectedNftLockStatus || null,
+    protectedNftPendingAmount:
+      row.protectedNftPendingAmount != null ? String(row.protectedNftPendingAmount) : "0",
+    protectedNftCompletedAmount:
+      row.protectedNftCompletedAmount != null ? String(row.protectedNftCompletedAmount) : "0",
+    protectedNftLockedAt: row.protectedNftLockedAt
+      ? row.protectedNftLockedAt.toISOString()
+      : null,
+    protectedNftCompletedAt: row.protectedNftCompletedAt
+      ? row.protectedNftCompletedAt.toISOString()
+      : null,
+    protectedNftUnlockedAt: row.protectedNftUnlockedAt
+      ? row.protectedNftUnlockedAt.toISOString()
+      : null,
+
     shippedAt: row.shippedAt ? row.shippedAt.toISOString() : null,
     deliveredAt: row.deliveredAt ? row.deliveredAt.toISOString() : null,
     confirmedAt: row.confirmedAt ? row.confirmedAt.toISOString() : null,
@@ -321,6 +338,12 @@ function baseSelect() {
     escrowStatus: true,
     deliveryStatus: true,
     serviceStatus: true,
+    protectedNftLockStatus: true,
+    protectedNftPendingAmount: true,
+    protectedNftCompletedAmount: true,
+    protectedNftLockedAt: true,
+    protectedNftCompletedAt: true,
+    protectedNftUnlockedAt: true,
     shippedAt: true,
     deliveredAt: true,
     confirmedAt: true,

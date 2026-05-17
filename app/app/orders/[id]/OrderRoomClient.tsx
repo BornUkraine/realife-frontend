@@ -405,7 +405,7 @@ async function fetchJSON<T = any>(url: string, init?: RequestInit): Promise<T> {
 }
 
 function paymentSymbol(paymentToken?: string | null) {
-  return paymentToken ? "USDT" : "ETH";
+  return paymentToken ? "USDC" : "ETH";
 }
 
 function formatPaymentAmount(raw?: string | null, paymentToken?: string | null) {
