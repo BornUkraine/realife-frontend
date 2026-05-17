@@ -15,6 +15,11 @@ function clean(v: unknown, max = 1000) {
   return String(v || "").trim().slice(0, max);
 }
 
+function isTxHash(v?: string | null) {
+  const s = String(v || "").trim();
+  return /^0x([A-Fa-f0-9]{64})$/.test(s);
+}
+
 async function getActor() {
   const session = await getServerSession(authOptions);
   const userId = (session as any)?.user?.id || (session as any)?.userId || null;
@@ -48,6 +53,35 @@ function isOnchainEscrowOrder(row: {
   );
 }
 
+function isProtectedMarketplaceOrder(row: {
+  marketType?: string | null;
+  sourceType?: string | null;
+  marketplacePurchaseId?: bigint | null;
+}) {
+  return (
+    row.marketType === "PROTECTED" ||
+    (row.sourceType === "MARKETPLACE" && row.marketplacePurchaseId != null)
+  );
+}
+
+function nextDeliveryStatusForRefund(deliveryRequired: boolean, current: string) {
+  if (!deliveryRequired) return "NOT_REQUIRED";
+  if (["SHIPPED", "DELIVERED", "CONFIRMED", "RETURN_REQUESTED"].includes(current)) {
+    return "RETURNED";
+  }
+  if (current === "NOT_REQUIRED") return "NOT_REQUIRED";
+  return "CANCELLED";
+}
+
+function nextServiceStatusForRefund(fulfillmentType?: string | null, current?: string | null) {
+  const ft = String(fulfillmentType || "").trim().toUpperCase();
+  const isService =
+    ft === "DIGITAL_SERVICE" || ft === "ONLINE_SESSION" || ft === "LOCAL_SERVICE";
+  if (!isService) return "NOT_REQUIRED";
+  if (String(current || "") === "NOT_REQUIRED") return "NOT_REQUIRED";
+  return "CANCELLED";
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -64,7 +98,19 @@ export async function POST(
     }
 
     const body = await req.json().catch(() => null);
-    const note = clean(body?.note, 1000);
+    const escrowRefundTxHash = String(body?.escrowRefundTxHash || "").trim();
+    const note =
+      clean(body?.note, 1000) ||
+      (escrowRefundTxHash
+        ? "Buyer returned the protected NFT and requested refund on-chain."
+        : "");
+
+    if (escrowRefundTxHash && !isTxHash(escrowRefundTxHash)) {
+      return NextResponse.json(
+        { ok: false, error: "ESCROW_REFUND_TX_INVALID" },
+        { status: 400 }
+      );
+    }
 
     if (!note) {
       return NextResponse.json(
@@ -77,6 +123,10 @@ export async function POST(
       where: { id },
       select: {
         id: true,
+        chainId: true,
+        contract: true,
+        tokenId: true,
+        amount: true,
         buyerId: true,
         buyerWallet: true,
 
@@ -95,6 +145,12 @@ export async function POST(
         paymentToken: true,
         paymentSymbol: true,
         paymentDecimals: true,
+        protectedNftLockStatus: true,
+        protectedNftPendingAmount: true,
+        protectedNftCompletedAmount: true,
+        protectedNftLockedAt: true,
+        protectedNftCompletedAt: true,
+        protectedNftUnlockedAt: true,
       },
     });
 
@@ -127,21 +183,76 @@ export async function POST(
     const now = new Date();
 
     if (onchain) {
+      const protectedOrder = isProtectedMarketplaceOrder(order);
+
       const updated = await prisma.$transaction(async (tx) => {
         const next = await tx.storeOrder.update({
           where: { id: order.id },
-          data: {
-            noteBuyer: note,
-          },
+          data: escrowRefundTxHash
+            ? {
+                noteBuyer: note,
+                refundRequestedAt: now,
+                refundedAt: now,
+                nftReturnedAt: protectedOrder ? now : undefined,
+                escrowStatus: "REFUNDED",
+                escrowRefundTxHash,
+                deliveryStatus: nextDeliveryStatusForRefund(
+                  order.deliveryRequired,
+                  order.deliveryStatus
+                ) as any,
+                serviceStatus: nextServiceStatusForRefund(
+                  order.fulfillmentType,
+                  order.serviceStatus
+                ) as any,
+                protectedNftLockStatus: protectedOrder
+                  ? "RETURNED_TO_SELLER"
+                  : order.protectedNftLockStatus,
+                protectedNftPendingAmount: protectedOrder
+                  ? 0n
+                  : order.protectedNftPendingAmount,
+                protectedNftCompletedAmount: protectedOrder
+                  ? 0n
+                  : order.protectedNftCompletedAmount,
+                protectedNftUnlockedAt: protectedOrder
+                  ? order.protectedNftUnlockedAt || now
+                  : order.protectedNftUnlockedAt,
+              }
+            : {
+                noteBuyer: note,
+                refundRequestedAt: now,
+              },
           select: {
             id: true,
             escrowStatus: true,
             deliveryStatus: true,
             serviceStatus: true,
             noteBuyer: true,
+            refundRequestedAt: true,
+            refundedAt: true,
+            nftReturnedAt: true,
+            escrowRefundTxHash: true,
+            protectedNftLockStatus: true,
+            protectedNftPendingAmount: true,
+            protectedNftCompletedAmount: true,
+            protectedNftLockedAt: true,
+            protectedNftCompletedAt: true,
+            protectedNftUnlockedAt: true,
             updatedAt: true,
           },
         });
+
+        if (escrowRefundTxHash && protectedOrder && order.buyerId) {
+          await tx.$executeRaw`
+            UPDATE "Holding"
+            SET
+              "pendingLockedAmount" = GREATEST("pendingLockedAmount" - ${order.amount}, 0),
+              "updatedAt" = NOW()
+            WHERE "userId" = ${order.buyerId}
+              AND "chainId" = ${order.chainId}
+              AND "contract" = ${order.contract}
+              AND "tokenId" = ${order.tokenId}
+          `;
+        }
 
         await tx.deliveryMessage.createMany({
           data: [
@@ -158,8 +269,9 @@ export async function POST(
               senderUserId: null,
               senderWallet: null,
               senderRole: "SYSTEM",
-              body:
-                "Buyer requested refund in the room. Final refund flow for this order must be executed on-chain through the protected USDC marketplace contract. Buyer must return the NFT back to the escrow contract first.",
+              body: escrowRefundTxHash
+                ? "Buyer returned the protected NFT on-chain. Refund is synced and the pending protected NFT lock was cleared."
+                : "Buyer requested refund in the room. Final refund flow for this order must be executed on-chain through the protected USDC marketplace contract. Buyer must return the NFT back to the escrow contract first.",
               isInternal: false,
             },
           ],
@@ -170,7 +282,7 @@ export async function POST(
 
       return NextResponse.json({
         ok: true,
-        onchainActionRequired: true,
+        onchainActionRequired: !escrowRefundTxHash,
         marketType: order.marketType || null,
         marketplaceContract: order.marketplaceContract || null,
         marketplacePurchaseId:
@@ -183,6 +295,26 @@ export async function POST(
           deliveryStatus: updated.deliveryStatus,
           serviceStatus: updated.serviceStatus,
           noteBuyer: updated.noteBuyer,
+          refundRequestedAt: updated.refundRequestedAt
+            ? updated.refundRequestedAt.toISOString()
+            : null,
+          refundedAt: updated.refundedAt ? updated.refundedAt.toISOString() : null,
+          nftReturnedAt: updated.nftReturnedAt
+            ? updated.nftReturnedAt.toISOString()
+            : null,
+          escrowRefundTxHash: updated.escrowRefundTxHash || null,
+          protectedNftLockStatus: updated.protectedNftLockStatus,
+          protectedNftPendingAmount: updated.protectedNftPendingAmount.toString(),
+          protectedNftCompletedAmount: updated.protectedNftCompletedAmount.toString(),
+          protectedNftLockedAt: updated.protectedNftLockedAt
+            ? updated.protectedNftLockedAt.toISOString()
+            : null,
+          protectedNftCompletedAt: updated.protectedNftCompletedAt
+            ? updated.protectedNftCompletedAt.toISOString()
+            : null,
+          protectedNftUnlockedAt: updated.protectedNftUnlockedAt
+            ? updated.protectedNftUnlockedAt.toISOString()
+            : null,
           updatedAt: updated.updatedAt.toISOString(),
         },
       });

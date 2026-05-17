@@ -21,6 +21,14 @@ type ServiceStatus =
   | "CONFIRMED"
   | "CANCELLED";
 
+type ProtectedNftLockStatus =
+  | "NOT_REQUIRED"
+  | "PENDING_LOCKED"
+  | "COMPLETED_LOCKED"
+  | "RETURNED_TO_SELLER"
+  | "UNLOCKED"
+  | "INVALIDATED";
+
 type OrderRow = {
   id: string;
   createdAt: string;
@@ -90,6 +98,13 @@ type OrderRow = {
   refundRequestedAt?: string | null;
   nftReturnedAt?: string | null;
   refundRejectedAt?: string | null;
+
+  protectedNftLockStatus?: ProtectedNftLockStatus | null;
+  protectedNftPendingAmount?: string | null;
+  protectedNftCompletedAmount?: string | null;
+  protectedNftLockedAt?: string | null;
+  protectedNftCompletedAt?: string | null;
+  protectedNftUnlockedAt?: string | null;
 
   scheduledFor?: string | null;
   workStartedAt?: string | null;
@@ -305,6 +320,46 @@ function fulfillmentTone(v?: string | null) {
     default:
       return "border-white/10 bg-white/[0.06] text-white/80";
   }
+}
+
+
+function protectedLockTone(v?: string | null) {
+  switch (String(v || "")) {
+    case "PENDING_LOCKED":
+      return "border-amber-500/20 bg-amber-500/10 text-amber-100";
+    case "COMPLETED_LOCKED":
+      return "border-emerald-500/20 bg-emerald-500/10 text-emerald-100";
+    case "RETURNED_TO_SELLER":
+    case "UNLOCKED":
+      return "border-sky-500/20 bg-sky-500/10 text-sky-100";
+    case "INVALIDATED":
+      return "border-rose-500/20 bg-rose-500/10 text-rose-100";
+    default:
+      return "border-white/10 bg-white/[0.06] text-white/70";
+  }
+}
+
+function hasProtectedLock(x: Pick<OrderRow, "protectedNftLockStatus" | "protectedNftPendingAmount" | "protectedNftCompletedAmount" | "marketType">) {
+  return (
+    x.marketType === "PROTECTED" ||
+    (x.protectedNftLockStatus && x.protectedNftLockStatus !== "NOT_REQUIRED") ||
+    String(x.protectedNftPendingAmount || "0") !== "0" ||
+    String(x.protectedNftCompletedAmount || "0") !== "0"
+  );
+}
+
+function protectedLockLabel(x: Pick<OrderRow, "protectedNftLockStatus" | "protectedNftPendingAmount" | "protectedNftCompletedAmount" | "amount">) {
+  const status = x.protectedNftLockStatus || "NOT_REQUIRED";
+  const pending = String(x.protectedNftPendingAmount || "0");
+  const completed = String(x.protectedNftCompletedAmount || "0");
+  const amount = String(x.amount || "0");
+
+  if (status === "PENDING_LOCKED") return `NFT pending lock: ${pending !== "0" ? pending : amount}`;
+  if (status === "COMPLETED_LOCKED") return `NFT completed lock: ${completed !== "0" ? completed : amount}`;
+  if (status === "RETURNED_TO_SELLER") return "NFT returned to seller";
+  if (status === "UNLOCKED") return "NFT unlocked";
+  if (status === "INVALIDATED") return "NFT invalidated";
+  return "NFT lock not required";
 }
 
 function serviceStatusTone(v?: string | null) {
@@ -887,6 +942,17 @@ export default function OrdersClient() {
                             <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2 py-1 text-[10px] font-black text-emerald-100">
                               {x.escrowStatus}
                             </span>
+
+                            {hasProtectedLock(x) ? (
+                              <span
+                                className={cx(
+                                  "rounded-full border px-2 py-1 text-[10px] font-black",
+                                  protectedLockTone(x.protectedNftLockStatus)
+                                )}
+                              >
+                                {protectedLockLabel(x)}
+                              </span>
+                            ) : null}
 
                             {isPhysical ? (
                               <span className="rounded-full border border-sky-500/20 bg-sky-500/10 px-2 py-1 text-[10px] font-black text-sky-100">

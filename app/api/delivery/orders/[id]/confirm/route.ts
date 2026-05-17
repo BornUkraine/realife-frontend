@@ -17,6 +17,11 @@ function normAddr(v?: string | null) {
   return String(v || "").trim().toLowerCase();
 }
 
+function isTxHash(v?: string | null) {
+  const s = String(v || "").trim();
+  return /^0x([A-Fa-f0-9]{64})$/.test(s);
+}
+
 function pickViewer(session: any) {
   const id = String(session?.user?.id || session?.userId || "").trim() || null;
   const wallet = normAddr(
@@ -60,8 +65,19 @@ function isOnchainEscrowOrder(row: {
   );
 }
 
+function isProtectedMarketplaceOrder(row: {
+  marketType?: string | null;
+  sourceType?: string | null;
+  marketplacePurchaseId?: bigint | null;
+}) {
+  return (
+    row.marketType === "PROTECTED" ||
+    (row.sourceType === "MARKETPLACE" && row.marketplacePurchaseId != null)
+  );
+}
+
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -85,10 +101,24 @@ export async function POST(
       );
     }
 
+    const body = await req.json().catch(() => null);
+    const escrowReleaseTxHash = String(body?.escrowReleaseTxHash || "").trim();
+
+    if (escrowReleaseTxHash && !isTxHash(escrowReleaseTxHash)) {
+      return NextResponse.json(
+        { ok: false, error: "ESCROW_RELEASE_TX_INVALID" },
+        { status: 400 }
+      );
+    }
+
     const order = await prisma.storeOrder.findUnique({
       where: { id: orderId },
       select: {
         id: true,
+        chainId: true,
+        contract: true,
+        tokenId: true,
+        amount: true,
 
         buyerId: true,
         buyerWallet: true,
@@ -105,6 +135,13 @@ export async function POST(
         releasedAt: true,
         completedAt: true,
         buyerConfirmedAt: true,
+
+        protectedNftLockStatus: true,
+        protectedNftPendingAmount: true,
+        protectedNftCompletedAmount: true,
+        protectedNftLockedAt: true,
+        protectedNftCompletedAt: true,
+        protectedNftUnlockedAt: true,
 
         sourceType: true,
         marketType: true,
@@ -132,7 +169,7 @@ export async function POST(
 
     const onchain = isOnchainEscrowOrder(order);
 
-    if (onchain) {
+    if (onchain && !escrowReleaseTxHash) {
       return NextResponse.json(
         {
           ok: false,
@@ -237,8 +274,10 @@ export async function POST(
     }
 
     const now = new Date();
+    const protectedOrder = isProtectedMarketplaceOrder(order);
     const shouldReleaseEscrow =
-      order.escrowStatus === "PENDING" || order.escrowStatus === "FUNDED";
+      order.escrowStatus !== "RELEASED" &&
+      (onchain || order.escrowStatus === "PENDING" || order.escrowStatus === "FUNDED");
 
     const updated = await prisma.$transaction(async (tx) => {
       const next = await tx.storeOrder.update({
@@ -258,6 +297,18 @@ export async function POST(
           releasedAt: shouldReleaseEscrow
             ? order.releasedAt || now
             : order.releasedAt,
+          escrowReleaseTxHash: escrowReleaseTxHash || undefined,
+
+          protectedNftLockStatus: protectedOrder
+            ? "COMPLETED_LOCKED"
+            : order.protectedNftLockStatus,
+          protectedNftPendingAmount: protectedOrder ? 0n : order.protectedNftPendingAmount,
+          protectedNftCompletedAmount: protectedOrder
+            ? order.amount
+            : order.protectedNftCompletedAmount,
+          protectedNftCompletedAt: protectedOrder
+            ? order.protectedNftCompletedAt || now
+            : order.protectedNftCompletedAt,
         },
         select: {
           id: true,
@@ -270,8 +321,29 @@ export async function POST(
           completedAt: true,
           releasedAt: true,
           updatedAt: true,
+          escrowReleaseTxHash: true,
+          protectedNftLockStatus: true,
+          protectedNftPendingAmount: true,
+          protectedNftCompletedAmount: true,
+          protectedNftLockedAt: true,
+          protectedNftCompletedAt: true,
+          protectedNftUnlockedAt: true,
         },
       });
+
+      if (protectedOrder && order.buyerId) {
+        await tx.$executeRaw`
+          UPDATE "Holding"
+          SET
+            "pendingLockedAmount" = GREATEST("pendingLockedAmount" - ${order.amount}, 0),
+            "completedLockedAmount" = "completedLockedAmount" + ${order.amount},
+            "updatedAt" = NOW()
+          WHERE "userId" = ${order.buyerId}
+            AND "chainId" = ${order.chainId}
+            AND "contract" = ${order.contract}
+            AND "tokenId" = ${order.tokenId}
+        `;
+      }
 
       await tx.deliveryMessage.create({
         data: {
@@ -281,10 +353,14 @@ export async function POST(
           senderRole: "BUYER",
           body: isPhysical
             ? shouldReleaseEscrow
-              ? "Buyer confirmed successful delivery. Escrow was released."
+              ? onchain
+                ? "Buyer confirmed successful delivery on-chain. Escrow was released and the protected NFT quantity is completed locked."
+                : "Buyer confirmed successful delivery. Escrow was released."
               : "Buyer confirmed successful delivery."
             : shouldReleaseEscrow
-            ? "Buyer confirmed successful service completion. Escrow was released."
+            ? onchain
+              ? "Buyer confirmed successful service completion on-chain. Escrow was released and the protected NFT quantity is completed locked."
+              : "Buyer confirmed successful service completion. Escrow was released."
             : "Buyer confirmed successful service completion.",
           isInternal: false,
         },
@@ -314,6 +390,19 @@ export async function POST(
           : null,
         releasedAt: updated.releasedAt
           ? updated.releasedAt.toISOString()
+          : null,
+        escrowReleaseTxHash: updated.escrowReleaseTxHash || null,
+        protectedNftLockStatus: updated.protectedNftLockStatus,
+        protectedNftPendingAmount: updated.protectedNftPendingAmount.toString(),
+        protectedNftCompletedAmount: updated.protectedNftCompletedAmount.toString(),
+        protectedNftLockedAt: updated.protectedNftLockedAt
+          ? updated.protectedNftLockedAt.toISOString()
+          : null,
+        protectedNftCompletedAt: updated.protectedNftCompletedAt
+          ? updated.protectedNftCompletedAt.toISOString()
+          : null,
+        protectedNftUnlockedAt: updated.protectedNftUnlockedAt
+          ? updated.protectedNftUnlockedAt.toISOString()
           : null,
         updatedAt: updated.updatedAt.toISOString(),
       },

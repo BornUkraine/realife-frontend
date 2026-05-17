@@ -52,6 +52,59 @@ function isFulfillmentOrder(order: {
   );
 }
 
+function isProtectedMarketplaceOrder(row: {
+  marketType?: string | null;
+  sourceType?: string | null;
+  marketplacePurchaseId?: bigint | null;
+}) {
+  return (
+    row.marketType === "PROTECTED" ||
+    (row.sourceType === "MARKETPLACE" && row.marketplacePurchaseId != null)
+  );
+}
+
+function protectedLockSnapshot(row: {
+  amount: bigint;
+  marketType?: string | null;
+  sourceType?: string | null;
+  marketplacePurchaseId?: bigint | null;
+  escrowStatus?: string | null;
+  protectedNftLockStatus?: string | null;
+  protectedNftPendingAmount?: bigint | null;
+  protectedNftCompletedAmount?: bigint | null;
+}) {
+  const amount = row.amount || 0n;
+  const protectedOrder = isProtectedMarketplaceOrder(row);
+  let status = String(row.protectedNftLockStatus || "NOT_REQUIRED");
+
+  if (protectedOrder && status === "NOT_REQUIRED") {
+    if (row.escrowStatus === "RELEASED") status = "COMPLETED_LOCKED";
+    else if (row.escrowStatus === "REFUNDED") status = "RETURNED_TO_SELLER";
+    else if (row.escrowStatus === "CANCELLED") status = "INVALIDATED";
+    else status = "PENDING_LOCKED";
+  }
+
+  const pending =
+    row.protectedNftPendingAmount && row.protectedNftPendingAmount > 0n
+      ? row.protectedNftPendingAmount
+      : protectedOrder && status === "PENDING_LOCKED"
+      ? amount
+      : 0n;
+
+  const completed =
+    row.protectedNftCompletedAmount && row.protectedNftCompletedAmount > 0n
+      ? row.protectedNftCompletedAmount
+      : protectedOrder && status === "COMPLETED_LOCKED"
+      ? amount
+      : 0n;
+
+  return {
+    protectedNftLockStatus: status,
+    protectedNftPendingAmount: pending.toString(),
+    protectedNftCompletedAmount: completed.toString(),
+  };
+}
+
 async function getActor() {
   const session = await getServerSession(authOptions);
 
@@ -202,6 +255,13 @@ export async function GET(
         nftReturnedAt: true,
         refundRejectedAt: true,
 
+        protectedNftLockStatus: true,
+        protectedNftPendingAmount: true,
+        protectedNftCompletedAmount: true,
+        protectedNftLockedAt: true,
+        protectedNftCompletedAt: true,
+        protectedNftUnlockedAt: true,
+
         scheduledFor: true,
         workStartedAt: true,
         submittedAt: true,
@@ -288,6 +348,8 @@ export async function GET(
         })
       : null;
 
+    const protectedLock = protectedLockSnapshot(order);
+
     return NextResponse.json({
       ok: true,
       viewerRole: viewerRole || "unknown",
@@ -367,6 +429,19 @@ export async function GET(
           : null,
         refundRejectedAt: order.refundRejectedAt
           ? order.refundRejectedAt.toISOString()
+          : null,
+
+        protectedNftLockStatus: protectedLock.protectedNftLockStatus,
+        protectedNftPendingAmount: protectedLock.protectedNftPendingAmount,
+        protectedNftCompletedAmount: protectedLock.protectedNftCompletedAmount,
+        protectedNftLockedAt: order.protectedNftLockedAt
+          ? order.protectedNftLockedAt.toISOString()
+          : null,
+        protectedNftCompletedAt: order.protectedNftCompletedAt
+          ? order.protectedNftCompletedAt.toISOString()
+          : null,
+        protectedNftUnlockedAt: order.protectedNftUnlockedAt
+          ? order.protectedNftUnlockedAt.toISOString()
           : null,
 
         scheduledFor: order.scheduledFor

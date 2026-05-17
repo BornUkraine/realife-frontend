@@ -33,6 +33,14 @@ type ServiceStatus =
   | "CONFIRMED"
   | "CANCELLED";
 
+type ProtectedNftLockStatus =
+  | "NOT_REQUIRED"
+  | "PENDING_LOCKED"
+  | "COMPLETED_LOCKED"
+  | "RETURNED_TO_SELLER"
+  | "UNLOCKED"
+  | "INVALIDATED";
+
 type OrderRow = {
   id: string;
   createdAt: string;
@@ -97,6 +105,13 @@ type OrderRow = {
   refundRequestedAt?: string | null;
   nftReturnedAt?: string | null;
   refundRejectedAt?: string | null;
+
+  protectedNftLockStatus?: ProtectedNftLockStatus | null;
+  protectedNftPendingAmount?: string | null;
+  protectedNftCompletedAmount?: string | null;
+  protectedNftLockedAt?: string | null;
+  protectedNftCompletedAt?: string | null;
+  protectedNftUnlockedAt?: string | null;
 
   scheduledFor?: string | null;
   workStartedAt?: string | null;
@@ -443,6 +458,43 @@ function isServiceOrder(x: OrderRow) {
   );
 }
 
+function hasProtectedLock(x: OrderRow) {
+  return (
+    x.marketType === "PROTECTED" ||
+    (x.protectedNftLockStatus && x.protectedNftLockStatus !== "NOT_REQUIRED") ||
+    String(x.protectedNftPendingAmount || "0") !== "0" ||
+    String(x.protectedNftCompletedAmount || "0") !== "0"
+  );
+}
+
+function protectedLockTitle(x: OrderRow) {
+  const status = x.protectedNftLockStatus || "NOT_REQUIRED";
+  const pending = String(x.protectedNftPendingAmount || "0");
+  const completed = String(x.protectedNftCompletedAmount || "0");
+  const amount = String(x.amount || "0");
+
+  if (status === "PENDING_LOCKED") return `Pending locked: ${pending !== "0" ? pending : amount} NFT`;
+  if (status === "COMPLETED_LOCKED") return `Completed locked: ${completed !== "0" ? completed : amount} NFT`;
+  if (status === "RETURNED_TO_SELLER") return "NFT returned to seller";
+  if (status === "UNLOCKED") return "NFT unlocked";
+  if (status === "INVALIDATED") return "NFT invalidated";
+  return "NFT lock not required";
+}
+
+function protectedLockDescription(x: OrderRow) {
+  const status = x.protectedNftLockStatus || "NOT_REQUIRED";
+  if (status === "PENDING_LOCKED") {
+    return "Buyer has the NFT, but this quantity is pending locked until completion or refund.";
+  }
+  if (status === "COMPLETED_LOCKED") {
+    return "Order is completed. This protected NFT quantity is locked as a receipt and should not be resold.";
+  }
+  if (status === "RETURNED_TO_SELLER") {
+    return "Refund path completed. The pending NFT quantity was returned/unlocked for the seller side.";
+  }
+  return "Protected lock state is tracked for quantity-based ERC-1155 orders.";
+}
+
 export default function OrderRoomClient({ orderId }: { orderId: string }) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -563,17 +615,48 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
   }, [activeWalletKind, embeddedProvider]);
 
   useEffect(() => {
-    if (txReceipt.isSuccess && chainTxHash) {
-      const label =
-        chainActionKind === "confirm_release"
-          ? "Buyer on-chain confirm + release completed."
-          : "Buyer refund-return transaction submitted.";
-      window.alert(`${label}\n\nTx: ${chainTxHash}`);
-      setChainTxHash(undefined);
-      setChainActionKind(null);
-      void refreshRoom();
+    if (!txReceipt.isSuccess || !chainTxHash || !chainActionKind) return;
+
+    const hash = chainTxHash;
+    const action = chainActionKind;
+
+    // Clear immediately so React state updates inside sync cannot trigger duplicate DB sync.
+    setChainTxHash(undefined);
+    setChainActionKind(null);
+
+    async function syncAfterChainTx() {
+      try {
+        if (action === "confirm_release") {
+          await fetchJSON(`/api/delivery/orders/${orderId}/confirm`, {
+            method: "POST",
+            body: JSON.stringify({ escrowReleaseTxHash: hash }),
+          });
+        } else {
+          await fetchJSON(`/api/delivery/orders/${orderId}/request-refund`, {
+            method: "POST",
+            body: JSON.stringify({
+              escrowRefundTxHash: hash,
+              note:
+                refundDraft.trim() ||
+                "Buyer returned the protected NFT and requested refund on-chain.",
+            }),
+          });
+          setRefundDraft("");
+        }
+
+        const label =
+          action === "confirm_release"
+            ? "Buyer on-chain confirm + release completed and synced."
+            : "Buyer refund-return transaction completed and synced.";
+        window.alert(`${label}\n\nTx: ${hash}`);
+        await refreshRoom();
+      } catch (e: any) {
+        setErr(e?.message || "On-chain transaction succeeded, but DB sync failed. Refresh or contact support.");
+      }
     }
-  }, [txReceipt.isSuccess, chainTxHash, chainActionKind]);
+
+    void syncAfterChainTx();
+  }, [txReceipt.isSuccess, chainTxHash, chainActionKind, orderId, refundDraft]);
 
   async function sendMessage() {
     if (!draft.trim()) return;
@@ -912,7 +995,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
   const canConfirmOnchainRelease =
     viewerRole === "buyer" &&
     onchainEscrow &&
-    order.escrowStatus === "FUNDED" &&
+    (order.escrowStatus === "PENDING" || order.escrowStatus === "FUNDED") &&
     ((isPhysical &&
       (order.deliveryStatus === "SHIPPED" || order.deliveryStatus === "DELIVERED")) ||
       (isService &&
@@ -924,7 +1007,6 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
     order.escrowStatus !== "RELEASED" &&
     order.escrowStatus !== "REFUNDED" &&
     order.escrowStatus !== "CANCELLED" &&
-    order.escrowStatus !== "DISPUTED" &&
     Boolean(order.marketplaceContract) &&
     Boolean(order.marketplacePurchaseId);
 
@@ -1067,6 +1149,31 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
                         {shortAddr(order.marketplaceContract)}
                       </span>
                     ) : null}
+                  </div>
+                </div>
+              ) : null}
+
+              {hasProtectedLock(order) ? (
+                <div className="mt-4 rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4">
+                  <div className="text-[11px] font-black uppercase tracking-wider text-amber-100/85">
+                    Protected NFT quantity lock
+                  </div>
+                  <div className="mt-2 text-[14px] font-black text-white/90">
+                    {protectedLockTitle(order)}
+                  </div>
+                  <div className="mt-1 text-[12px] leading-relaxed text-white/65">
+                    {protectedLockDescription(order)}
+                  </div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-white/58 md:grid-cols-3">
+                    <span className="rounded-xl border border-white/10 bg-black/15 px-3 py-2">
+                      Pending: {order.protectedNftPendingAmount || "0"}
+                    </span>
+                    <span className="rounded-xl border border-white/10 bg-black/15 px-3 py-2">
+                      Completed: {order.protectedNftCompletedAmount || "0"}
+                    </span>
+                    <span className="rounded-xl border border-white/10 bg-black/15 px-3 py-2">
+                      Status: {order.protectedNftLockStatus || "NOT_REQUIRED"}
+                    </span>
                   </div>
                 </div>
               ) : null}

@@ -116,6 +116,17 @@ function isOnchainEscrowOrder(order: {
   );
 }
 
+function isProtectedMarketplaceOrder(order: {
+  marketType?: string | null;
+  sourceType?: string | null;
+  marketplacePurchaseId?: bigint | null;
+}) {
+  return (
+    order.marketType === "PROTECTED" ||
+    (order.sourceType === "MARKETPLACE" && order.marketplacePurchaseId != null)
+  );
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -146,6 +157,11 @@ export async function POST(
       where: { id },
       select: {
         id: true,
+        chainId: true,
+        contract: true,
+        tokenId: true,
+        amount: true,
+        buyerId: true,
         deliveryRequired: true,
         deliveryStatus: true,
         fulfillmentType: true,
@@ -158,6 +174,12 @@ export async function POST(
         paymentToken: true,
         paymentSymbol: true,
         paymentDecimals: true,
+        protectedNftLockStatus: true,
+        protectedNftPendingAmount: true,
+        protectedNftCompletedAmount: true,
+        protectedNftLockedAt: true,
+        protectedNftCompletedAt: true,
+        protectedNftUnlockedAt: true,
       },
     });
 
@@ -208,6 +230,7 @@ export async function POST(
     }
 
     const now = new Date();
+    const protectedOrder = isProtectedMarketplaceOrder(order);
     const nextEscrowStatus =
       order.escrowStatus === "NOT_REQUIRED" ? "NOT_REQUIRED" : "REFUNDED";
 
@@ -226,6 +249,15 @@ export async function POST(
             order.fulfillmentType,
             order.serviceStatus,
           ) as any,
+          nftReturnedAt: protectedOrder ? now : undefined,
+          protectedNftLockStatus: protectedOrder
+            ? "RETURNED_TO_SELLER"
+            : order.protectedNftLockStatus,
+          protectedNftPendingAmount: protectedOrder ? 0n : order.protectedNftPendingAmount,
+          protectedNftCompletedAmount: protectedOrder ? 0n : order.protectedNftCompletedAmount,
+          protectedNftUnlockedAt: protectedOrder
+            ? order.protectedNftUnlockedAt || now
+            : order.protectedNftUnlockedAt,
           ...(note ? { adminNote: note } : {}),
         },
         select: {
@@ -235,8 +267,28 @@ export async function POST(
           serviceStatus: true,
           refundedAt: true,
           escrowRefundTxHash: true,
+          nftReturnedAt: true,
+          protectedNftLockStatus: true,
+          protectedNftPendingAmount: true,
+          protectedNftCompletedAmount: true,
+          protectedNftLockedAt: true,
+          protectedNftCompletedAt: true,
+          protectedNftUnlockedAt: true,
         },
       });
+
+      if (protectedOrder && order.buyerId) {
+        await tx.$executeRaw`
+          UPDATE "Holding"
+          SET
+            "pendingLockedAmount" = GREATEST("pendingLockedAmount" - ${order.amount}, 0),
+            "updatedAt" = NOW()
+          WHERE "userId" = ${order.buyerId}
+            AND "chainId" = ${order.chainId}
+            AND "contract" = ${order.contract}
+            AND "tokenId" = ${order.tokenId}
+        `;
+      }
 
       await tx.deliveryMessage.create({
         data: {
@@ -257,9 +309,28 @@ export async function POST(
     return NextResponse.json({
       ok: true,
       order: {
-        ...updated,
+        id: updated.id,
+        escrowStatus: updated.escrowStatus,
+        deliveryStatus: updated.deliveryStatus,
+        serviceStatus: updated.serviceStatus,
+        escrowRefundTxHash: updated.escrowRefundTxHash || null,
         refundedAt: updated.refundedAt
           ? updated.refundedAt.toISOString()
+          : null,
+        nftReturnedAt: updated.nftReturnedAt
+          ? updated.nftReturnedAt.toISOString()
+          : null,
+        protectedNftLockStatus: updated.protectedNftLockStatus,
+        protectedNftPendingAmount: updated.protectedNftPendingAmount.toString(),
+        protectedNftCompletedAmount: updated.protectedNftCompletedAmount.toString(),
+        protectedNftLockedAt: updated.protectedNftLockedAt
+          ? updated.protectedNftLockedAt.toISOString()
+          : null,
+        protectedNftCompletedAt: updated.protectedNftCompletedAt
+          ? updated.protectedNftCompletedAt.toISOString()
+          : null,
+        protectedNftUnlockedAt: updated.protectedNftUnlockedAt
+          ? updated.protectedNftUnlockedAt.toISOString()
           : null,
       },
     });
