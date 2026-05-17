@@ -89,6 +89,14 @@ function clearEmbeddedAuthClientCache() {
   }
 }
 
+
+function hardReloadAfterAuthReset() {
+  if (typeof window === "undefined") return;
+  window.setTimeout(() => {
+    window.location.replace(window.location.pathname + window.location.search + window.location.hash);
+  }, 80);
+}
+
 async function waitForEmbeddedProvider(
   firstProvider: Eip1193Provider | null,
   getCurrentProvider: () => Eip1193Provider | null,
@@ -208,6 +216,10 @@ function Web2EmbeddedLoginInner({ compact = false }: { compact?: boolean }) {
     setBusy(true);
 
     try {
+      // Reset stale in-memory Web3Auth provider before a fresh Google attempt.
+      // This fixes the common mobile/Safari case where logout works only after closing the browser.
+      providerRef.current = null;
+
       const p = (await connectTo(WALLET_CONNECTORS.AUTH, {
         authConnection: AUTH_CONNECTION.GOOGLE,
       })) as Eip1193Provider | null;
@@ -223,21 +235,26 @@ function Web2EmbeddedLoginInner({ compact = false }: { compact?: boolean }) {
       await verifyEmbeddedWallet(activeProvider);
       setOpen(false);
     } catch (e: any) {
+      await disconnect({ cleanup: true }).catch(() => {});
+      providerRef.current = null;
+      clearEmbeddedAuthClientCache();
       setErr(e?.message || "Google embedded wallet login failed.");
     } finally {
       setBusy(false);
     }
-  }, [busy, connectLoading, connectTo, verifyEmbeddedWallet]);
+  }, [busy, connectLoading, connectTo, disconnect, verifyEmbeddedWallet]);
 
   const onLogout = useCallback(async () => {
     setErr("");
     setBusy(true);
     try {
       await disconnect({ cleanup: true }).catch(() => {});
+      providerRef.current = null;
       clearEmbeddedAuthClientCache();
       await signOut({ redirect: false });
       await update?.().catch(() => {});
       setOpen(false);
+      hardReloadAfterAuthReset();
     } finally {
       setBusy(false);
     }

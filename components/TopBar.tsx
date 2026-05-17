@@ -448,6 +448,14 @@ function clearEmbeddedAuthClientCache() {
   }
 }
 
+
+function hardReloadAfterAuthReset() {
+  if (typeof window === "undefined") return;
+  window.setTimeout(() => {
+    window.location.replace(window.location.pathname + window.location.search + window.location.hash);
+  }, 80);
+}
+
 function Web2EmbeddedAccountMenu({
   compact = false,
   walletAddress,
@@ -492,6 +500,7 @@ function Web2EmbeddedAccountMenu({
       clearEmbeddedAuthClientCache();
       await signOut({ redirect: false });
       setOpen(false);
+      hardReloadAfterAuthReset();
     } finally {
       setDisconnecting(false);
     }
