@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { decodeFunctionResult, encodeFunctionData, formatUnits, toHex } from "viem";
 import {
   useAccount,
@@ -292,6 +292,31 @@ async function ensureEmbeddedChain(provider: Eip1193Provider | null, chainId: nu
 }
 
 
+/**
+ * Normalizes the many shapes a tx-receipt `status` can take and answers
+ * "did this transaction succeed?".
+ *
+ * - EIP-1193 embedded providers (Web3Auth) return the raw RPC value:
+ *     "0x1" (success) / "0x0" (reverted), occasionally the number 1 / 0.
+ * - wagmi / viem normalize it to the string "success" / "reverted".
+ *
+ * Returns true ONLY for an explicit success marker. An unknown/missing
+ * status is treated as NOT successful — we never sync the DB on a tx we
+ * cannot confirm actually succeeded.
+ */
+function isReceiptSuccess(receipt: any): boolean {
+  if (!receipt || typeof receipt !== "object") return false;
+
+  const raw = (receipt as any).status;
+
+  if (raw === "success") return true; // viem / wagmi
+  if (raw === "0x1" || raw === "0X1") return true; // EIP-1193 hex
+  if (raw === 1 || raw === 1n) return true; // numeric
+  if (raw === true) return true; // some providers
+
+  return false;
+}
+
 async function waitForEmbeddedTxReceipt(
   provider: Eip1193Provider,
   hash: `0x${string}`,
@@ -307,11 +332,22 @@ async function waitForEmbeddedTxReceipt(
       })
       .catch(() => null);
 
-    if (receipt && typeof receipt === "object") return receipt;
+    if (receipt && typeof receipt === "object") {
+      // The receipt exists — the tx is mined. Now check it didn't revert.
+      // A mined-but-reverted tx still produces a receipt, so returning it
+      // blindly would let the caller sync the DB as if payment succeeded
+      // even though it failed on-chain.
+      if (!isReceiptSuccess(receipt)) {
+        throw new Error(
+          "Transaction was mined but reverted on-chain. No funds were moved by this transaction. Please try again."
+        );
+      }
+      return receipt;
+    }
     await new Promise((resolve) => setTimeout(resolve, 2_500));
   }
 
-  throw new Error("Approval transaction was submitted, but receipt was not confirmed yet. Please wait and try again.");
+  throw new Error("Transaction was submitted, but receipt was not confirmed yet. Please wait and try again.");
 }
 
 function cx(...a: Array<string | false | null | undefined>) {
@@ -526,6 +562,23 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
   const [chainTxHash, setChainTxHash] = useState<`0x${string}` | undefined>(undefined);
   const [chainActionKind, setChainActionKind] = useState<"confirm_release" | "refund_return" | null>(null);
 
+  // onchainBusy is a *render* flag (unlike busyRef which is a ref and does
+  // not re-render). It is true for the entire duration of an on-chain
+  // confirm/refund action — including the embedded-wallet provider wait,
+  // which wagmi's txReceipt.isLoading does NOT cover. Buttons disable on
+  // this so the user can't double-submit a release/refund.
+  const [onchainBusy, setOnchainBusy] = useState(false);
+
+  // ── Polling refs ──────────────────────────────────────────────────────────
+  // pollingRef     : the setInterval handle
+  // busyRef        : true while the viewer is mid-action (sending a message,
+  //                  acting, confirming, or an on-chain tx is in flight) — we
+  //                  skip the silent refresh in that window so we never clobber
+  //                  in-progress local state or race a just-submitted write.
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const busyRef = useRef(false);
+  const lastMarkReadAtRef = useRef(0);
+
   const sessionUser = (session as any)?.user || null;
   const sessionWalletKind = String(sessionUser?.walletKind || "").toUpperCase();
   const externalWalletAddress = normalizeEvmAddress(address);
@@ -545,6 +598,23 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
     },
   });
 
+  async function markRoomRead(role: ViewerRole, force = false) {
+    if (role !== "buyer" && role !== "seller") return;
+
+    const now = Date.now();
+    if (!force && now - lastMarkReadAtRef.current < 8_000) return;
+    lastMarkReadAtRef.current = now;
+
+    try {
+      await fetchJSON(`/api/delivery/orders/${orderId}/mark-read`, {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+    } catch {
+      // Non-critical: unread indicators can retry on the next room refresh.
+    }
+  }
+
   async function loadInitial() {
     setLoading(true);
     setErr(null);
@@ -563,6 +633,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
           ? new Date(orderRes.order.scheduledFor).toISOString().slice(0, 16)
           : ""
       );
+      void markRoomRead(orderRes.viewerRole, true);
     } catch (e: any) {
       setErr(e?.message || "Failed to load order room");
     } finally {
@@ -585,13 +656,83 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
           ? new Date(orderRes.order.scheduledFor).toISOString().slice(0, 16)
           : ""
       );
+      void markRoomRead(orderRes.viewerRole, true);
     } catch (e: any) {
       setErr(e?.message || "Failed to refresh room");
     }
   }
 
+  // Reflect any in-progress local action into busyRef so the background
+  // poller knows to back off and not overwrite state mid-action.
+  useEffect(() => {
+    busyRef.current =
+      sending ||
+      acting ||
+      confirming ||
+      onchainBusy ||
+      Boolean(chainTxHash) ||
+      Boolean(chainActionKind);
+  }, [sending, acting, confirming, onchainBusy, chainTxHash, chainActionKind]);
+
+  async function silentRefreshRoom() {
+    // Background refresh: no spinner, no error banner, never touches the
+    // message draft or any form input. Pulls fresh order + messages so the
+    // other party's messages and status changes appear without a manual
+    // page reload.
+    if (busyRef.current) return;
+
+    try {
+      const [orderRes, messagesRes] = await Promise.all([
+        fetchJSON<OrderResponse>(`/api/delivery/orders/${orderId}`),
+        fetchJSON<MessagesResponse>(`/api/delivery/orders/${orderId}/messages`),
+      ]);
+
+      // Re-check busy after the await — the viewer may have started an action
+      // while the requests were in flight.
+      if (busyRef.current) return;
+
+      setOrder(orderRes.order);
+      setViewerRole(orderRes.viewerRole);
+      setMessages(Array.isArray(messagesRes.items) ? messagesRes.items : []);
+      setServiceSchedule((prev) => {
+        // Don't stomp a schedule the seller is actively editing.
+        if (prev) return prev;
+        return orderRes.order.scheduledFor
+          ? new Date(orderRes.order.scheduledFor).toISOString().slice(0, 16)
+          : "";
+      });
+      void markRoomRead(orderRes.viewerRole);
+    } catch {
+      // Silently ignore polling errors — the next tick will retry, and the
+      // manual actions still surface their own errors.
+    }
+  }
+
   useEffect(() => {
     void loadInitial();
+  }, [orderId]);
+
+  // ── Polling every 10s ─────────────────────────────────────────────────────
+  // The order room is a live conversation between buyer and seller (plus
+  // support), so it polls faster than the 30s orders-list poll. Pauses when
+  // the tab is hidden and does an immediate catch-up refresh when it becomes
+  // visible again.
+  useEffect(() => {
+    pollingRef.current = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      void silentRefreshRoom();
+    }, 10_000);
+
+    function handleVisibility() {
+      if (document.visibilityState === "visible") void silentRefreshRoom();
+    }
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId]);
 
   useEffect(() => {
@@ -615,7 +756,42 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
   }, [activeWalletKind, embeddedProvider]);
 
   useEffect(() => {
-    if (!txReceipt.isSuccess || !chainTxHash || !chainActionKind) return;
+    // External-wallet on-chain action resolution.
+    // wagmi exposes three terminal states for the watched hash:
+    //   - isSuccess  → receipt with status "success"
+    //   - isError    → tx reverted OR receipt fetch failed
+    //   - (loading)  → still pending
+    // We must handle isError too: otherwise a reverted external tx leaves
+    // onchainBusy stuck true forever and the buttons never re-enable.
+    if (!chainTxHash || !chainActionKind) return;
+
+    // Reverted / failed external tx.
+    if (txReceipt.isError) {
+      setChainTxHash(undefined);
+      setChainActionKind(null);
+      busyRef.current = false;
+      setOnchainBusy(false);
+      setErr(
+        "On-chain transaction failed or reverted. No funds were moved. Please try again."
+      );
+      return;
+    }
+
+    if (!txReceipt.isSuccess) return;
+
+    // Defense in depth: wagmi sets isSuccess only on status "success", but
+    // double-check the receipt status if present before we sync the DB.
+    const receiptStatus = (txReceipt.data as any)?.status;
+    if (receiptStatus && !isReceiptSuccess(txReceipt.data)) {
+      setChainTxHash(undefined);
+      setChainActionKind(null);
+      busyRef.current = false;
+      setOnchainBusy(false);
+      setErr(
+        "On-chain transaction reverted. No funds were moved. Please try again."
+      );
+      return;
+    }
 
     const hash = chainTxHash;
     const action = chainActionKind;
@@ -649,14 +825,26 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
             ? "Buyer on-chain confirm + release completed and synced."
             : "Buyer refund-return transaction completed and synced.";
         window.alert(`${label}\n\nTx: ${hash}`);
+        busyRef.current = false;
+        setOnchainBusy(false);
         await refreshRoom();
       } catch (e: any) {
+        busyRef.current = false;
+        setOnchainBusy(false);
         setErr(e?.message || "On-chain transaction succeeded, but DB sync failed. Refresh or contact support.");
       }
     }
 
     void syncAfterChainTx();
-  }, [txReceipt.isSuccess, chainTxHash, chainActionKind, orderId, refundDraft]);
+  }, [
+    txReceipt.isSuccess,
+    txReceipt.isError,
+    txReceipt.data,
+    chainTxHash,
+    chainActionKind,
+    orderId,
+    refundDraft,
+  ]);
 
   async function sendMessage() {
     if (!draft.trim()) return;
@@ -828,6 +1016,18 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
   async function runBuyerOnchainAction(
     action: "confirm_release" | "refund_return"
   ) {
+    // Block re-entry: if an on-chain action or its DB sync is already in
+    // flight, ignore the click. Prevents a double buyerConfirmAndRelease /
+    // double refund submission from an impatient second tap.
+    if (busyRef.current || chainTxHash || chainActionKind) return;
+
+    // Mark busy immediately (before any await) so the background poller
+    // backs off for the entire submit window, not just after we have a hash.
+    busyRef.current = true;
+    // Render flag so confirm/refund buttons disable instantly, including
+    // during the embedded-provider wait that wagmi doesn't track.
+    setOnchainBusy(true);
+
     try {
       if (!order) throw new Error("Order not loaded.");
       if (viewerRole !== "buyer") throw new Error("Only buyer can use this action.");
@@ -910,6 +1110,56 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
         const txHash = normalizeTxHash(rawHash);
         if (!txHash) throw new Error("Embedded wallet did not return transaction hash.");
         hash = txHash;
+
+        // IMPORTANT: wagmi's useWaitForTransactionReceipt watches via the
+        // wagmi public client, which does not reliably see an embedded
+        // (Web3Auth) wallet's transaction on Base Sepolia. If we relied on
+        // it here, the on-chain payment/release would succeed but the DB
+        // sync would never fire — the order would look stuck even though
+        // funds moved. So for embedded wallets we wait on the provider
+        // ourselves and sync the backend directly, then refresh.
+        try {
+          await waitForEmbeddedTxReceipt(embeddedProvider!, hash);
+
+          if (action === "confirm_release") {
+            await fetchJSON(`/api/delivery/orders/${orderId}/confirm`, {
+              method: "POST",
+              body: JSON.stringify({ escrowReleaseTxHash: hash }),
+            });
+          } else {
+            await fetchJSON(`/api/delivery/orders/${orderId}/request-refund`, {
+              method: "POST",
+              body: JSON.stringify({
+                escrowRefundTxHash: hash,
+                note:
+                  refundDraft.trim() ||
+                  "Buyer returned the protected NFT and requested refund on-chain.",
+              }),
+            });
+            setRefundDraft("");
+          }
+
+          const label =
+            action === "confirm_release"
+              ? "Buyer on-chain confirm + release completed and synced."
+              : "Buyer refund-return transaction completed and synced.";
+          window.alert(`${label}\n\nTx: ${hash}`);
+
+          busyRef.current = false;
+          setOnchainBusy(false);
+          await refreshRoom();
+        } catch (syncErr: any) {
+          busyRef.current = false;
+          setOnchainBusy(false);
+          setErr(
+            syncErr?.message ||
+              "On-chain transaction was submitted, but confirmation/sync failed. Please refresh in a moment or contact support."
+          );
+        }
+
+        // Embedded path handled its own wait+sync above — don't fall through
+        // to the wagmi receipt watcher.
+        return;
       } else {
         if (currentChainId !== order.chainId) {
           await switchChainAsync?.({ chainId: order.chainId });
@@ -946,9 +1196,18 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
         } as any);
       }
 
+      // External-wallet path: wagmi useWaitForTransactionReceipt picks this
+      // up and the existing effect runs the DB sync. busyRef + onchainBusy
+      // stay true until that sync clears chainTxHash/chainActionKind.
       setChainActionKind(action);
       setChainTxHash(hash);
     } catch (e: any) {
+      // Any failure before we handed off to the receipt watcher: fully
+      // reset so buttons re-enable and the UI doesn't hang.
+      busyRef.current = false;
+      setOnchainBusy(false);
+      setChainTxHash(undefined);
+      setChainActionKind(null);
       setErr(e?.shortMessage || e?.message || "Wallet action failed");
     }
   }
@@ -1196,7 +1455,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
         orderId={orderId}
         viewerRole={viewerRole}
         order={order}
-        onUseSuggestedMessage={(message) =>
+        onUseSuggestedMessage={(message: string) =>
           setDraft((prev) => (prev.trim() ? `${prev.trim()}\n\n${message}` : message))
         }
       />
@@ -1408,7 +1667,7 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
             </div>
           ) : null}
 
-          {txReceipt.isLoading ? (
+          {txReceipt.isLoading || onchainBusy ? (
             <div className="mt-4 rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 text-[12px] text-sky-100">
               Waiting for on-chain transaction receipt...
               {chainTxHash ? ` ${shortHash(chainTxHash)}` : ""}
@@ -1446,14 +1705,14 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
               </div>
               <button
                 onClick={() => runBuyerOnchainAction("confirm_release")}
-                disabled={txReceipt.isLoading}
+                disabled={onchainBusy || txReceipt.isLoading}
                 className={cx(
                   "mt-3 inline-flex items-center justify-center rounded-2xl px-5 py-3 font-extrabold text-black transition",
                   "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] ring-1 ring-black/15 shadow-[0_18px_60px_rgba(212,175,55,0.20)]",
-                  txReceipt.isLoading ? "cursor-not-allowed opacity-60" : "hover:brightness-110"
+                  onchainBusy || txReceipt.isLoading ? "cursor-not-allowed opacity-60" : "hover:brightness-110"
                 )}
               >
-                {txReceipt.isLoading && chainActionKind === "confirm_release"
+                {(onchainBusy || txReceipt.isLoading) && chainActionKind === "confirm_release"
                   ? "Waiting for chain..."
                   : isPhysical
                   ? "Confirm delivery on-chain"
@@ -1492,15 +1751,15 @@ export default function OrderRoomClient({ orderId }: { orderId: string }) {
                   <div className="flex max-w-[420px] flex-col gap-2">
                     <button
                       onClick={() => runBuyerOnchainAction("refund_return")}
-                      disabled={txReceipt.isLoading}
+                      disabled={onchainBusy || txReceipt.isLoading}
                       className={cx(
                         "inline-flex items-center justify-center rounded-2xl border px-5 py-3 text-[12px] font-extrabold transition",
-                        txReceipt.isLoading
+                        onchainBusy || txReceipt.isLoading
                           ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/40"
                           : "border-sky-500/20 bg-sky-500/10 text-sky-100 hover:bg-sky-500/15"
                       )}
                     >
-                      {txReceipt.isLoading && chainActionKind === "refund_return"
+                      {(onchainBusy || txReceipt.isLoading) && chainActionKind === "refund_return"
                         ? "Waiting for chain..."
                         : "Return NFT"}
                     </button>

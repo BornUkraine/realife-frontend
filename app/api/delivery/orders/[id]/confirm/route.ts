@@ -1,11 +1,37 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createPublicClient, encodeFunctionData, http } from "viem";
+import { baseSepolia } from "viem/chains";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+
+const CHAIN_ID = Number(process.env.CHAIN_ID || process.env.NEXT_PUBLIC_CHAIN_ID || "84532");
+
+const RPC_URL =
+  process.env.RPC_URL ||
+  process.env.BASE_SEPOLIA_RPC ||
+  process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC ||
+  "https://sepolia.base.org";
+
+const publicClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(RPC_URL),
+});
+
+const PROTECTED_ESCROW_BUYER_ABI = [
+  {
+    type: "function",
+    name: "buyerConfirmAndRelease",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "purchaseId", type: "uint256" }],
+    outputs: [],
+  },
+] as const;
 
 const SERVICE_FULFILLMENTS = [
   "DIGITAL_SERVICE",
@@ -74,6 +100,61 @@ function isProtectedMarketplaceOrder(row: {
     row.marketType === "PROTECTED" ||
     (row.sourceType === "MARKETPLACE" && row.marketplacePurchaseId != null)
   );
+}
+
+type BuyerConfirmTxOrder = {
+  chainId: number;
+  buyerWallet: string;
+  marketplaceContract?: string | null;
+  marketplacePurchaseId?: bigint | null;
+};
+
+async function verifyBuyerConfirmReleaseTx(args: {
+  txHash: `0x${string}`;
+  order: BuyerConfirmTxOrder;
+}) {
+  const { txHash, order } = args;
+
+  if (order.chainId !== CHAIN_ID) {
+    return { ok: false, error: "UNSUPPORTED_CHAIN" };
+  }
+
+  if (!order.marketplaceContract || order.marketplacePurchaseId == null) {
+    return { ok: false, error: "MARKETPLACE_TX_CONTEXT_MISSING" };
+  }
+
+  const [receipt, tx] = await Promise.all([
+    publicClient.getTransactionReceipt({ hash: txHash }).catch(() => null),
+    publicClient.getTransaction({ hash: txHash }).catch(() => null),
+  ]);
+
+  if (!receipt || receipt.status !== "success") {
+    return { ok: false, error: "TX_NOT_SUCCESS" };
+  }
+
+  if (!tx) {
+    return { ok: false, error: "TX_NOT_FOUND" };
+  }
+
+  if (normAddr(tx.from) !== normAddr(order.buyerWallet)) {
+    return { ok: false, error: "TX_FROM_NOT_BUYER" };
+  }
+
+  if (normAddr(tx.to) !== normAddr(order.marketplaceContract)) {
+    return { ok: false, error: "TX_TO_NOT_MARKETPLACE" };
+  }
+
+  const expectedInput = encodeFunctionData({
+    abi: PROTECTED_ESCROW_BUYER_ABI,
+    functionName: "buyerConfirmAndRelease",
+    args: [order.marketplacePurchaseId],
+  }).toLowerCase();
+
+  if (String(tx.input || "").toLowerCase() !== expectedInput) {
+    return { ok: false, error: "TX_INPUT_MISMATCH" };
+  }
+
+  return { ok: true, error: null };
 }
 
 export async function POST(
@@ -186,6 +267,20 @@ export async function POST(
         },
         { status: 409 }
       );
+    }
+
+    if (onchain && escrowReleaseTxHash) {
+      const verified = await verifyBuyerConfirmReleaseTx({
+        txHash: escrowReleaseTxHash as `0x${string}`,
+        order,
+      });
+
+      if (!verified.ok) {
+        return NextResponse.json(
+          { ok: false, error: verified.error || "ESCROW_RELEASE_TX_NOT_VERIFIED" },
+          { status: 400 }
+        );
+      }
     }
 
     const isPhysical = order.deliveryRequired;
