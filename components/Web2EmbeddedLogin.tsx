@@ -42,6 +42,53 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T) {
+  let timer: number | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((resolve) => {
+        timer = window.setTimeout(() => resolve(fallback), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) window.clearTimeout(timer);
+  }
+}
+
+function clearEmbeddedAuthClientCache() {
+  if (typeof window === "undefined") return;
+
+  const shouldRemove = (key: string) => {
+    const k = key.toLowerCase();
+    return (
+      k.includes("web3auth") ||
+      k.includes("openlogin") ||
+      k.includes("torus") ||
+      k.includes("w3a")
+    );
+  };
+
+  try {
+    for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
+      const key = window.localStorage.key(i);
+      if (key && shouldRemove(key)) window.localStorage.removeItem(key);
+    }
+  } catch {
+    // ignore browser storage errors
+  }
+
+  try {
+    for (let i = window.sessionStorage.length - 1; i >= 0; i -= 1) {
+      const key = window.sessionStorage.key(i);
+      if (key && shouldRemove(key)) window.sessionStorage.removeItem(key);
+    }
+  } catch {
+    // ignore browser storage errors
+  }
+}
+
 async function waitForEmbeddedProvider(
   firstProvider: Eip1193Provider | null,
   getCurrentProvider: () => Eip1193Provider | null,
@@ -78,7 +125,7 @@ function providerLabel(v?: string | null) {
 }
 
 function Web2EmbeddedLoginInner({ compact = false }: { compact?: boolean }) {
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
 
   const { provider } = useWeb3Auth();
   const { connectTo, loading: connectLoading, error: connectError } = useWeb3AuthConnect();
@@ -127,7 +174,10 @@ function Web2EmbeddedLoginInner({ compact = false }: { compact?: boolean }) {
         params: [nonceJson.message, address],
       });
 
-      const freshInfo = (await getUserInfo().catch(() => null)) || userInfo || null;
+      const freshInfo =
+        (await withTimeout(getUserInfo().catch(() => null), 1500, null)) ||
+        userInfo ||
+        null;
       const info: any = freshInfo || {};
 
       const res = await signIn("wallet", {
@@ -144,9 +194,11 @@ function Web2EmbeddedLoginInner({ compact = false }: { compact?: boolean }) {
       });
 
       if (res?.error) throw new Error(res.error);
+
+      await update?.().catch(() => {});
       return address;
     },
-    [getUserInfo, userInfo]
+    [getUserInfo, update, userInfo]
   );
 
   const onGoogle = useCallback(async () => {
@@ -160,7 +212,7 @@ function Web2EmbeddedLoginInner({ compact = false }: { compact?: boolean }) {
         authConnection: AUTH_CONNECTION.GOOGLE,
       })) as Eip1193Provider | null;
 
-      const activeProvider = await waitForEmbeddedProvider(p, () => providerRef.current);
+      const activeProvider = await waitForEmbeddedProvider(p, () => providerRef.current, 3500);
 
       if (!activeProvider) {
         throw new Error(
@@ -181,13 +233,15 @@ function Web2EmbeddedLoginInner({ compact = false }: { compact?: boolean }) {
     setErr("");
     setBusy(true);
     try {
-      await disconnect({ cleanup: false }).catch(() => {});
+      await disconnect({ cleanup: true }).catch(() => {});
+      clearEmbeddedAuthClientCache();
       await signOut({ redirect: false });
+      await update?.().catch(() => {});
       setOpen(false);
     } finally {
       setBusy(false);
     }
-  }, [disconnect]);
+  }, [disconnect, update]);
 
   if (isEmbeddedSession) {
     return (

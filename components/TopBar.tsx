@@ -12,6 +12,7 @@ import {
   type ComponentType,
 } from "react";
 import { useAccount, useBalance, useChainId, useSwitchChain } from "wagmi";
+import { useWeb3AuthDisconnect } from "@web3auth/modal/react";
 import { baseSepolia } from "wagmi/chains";
 import { formatUnits } from "viem";
 import { cn } from "@/lib/utils";
@@ -415,6 +416,38 @@ function sameEvmAddress(a?: string | null, b?: string | null) {
   return Boolean(x && y && x === y);
 }
 
+function clearEmbeddedAuthClientCache() {
+  if (typeof window === "undefined") return;
+
+  const shouldRemove = (key: string) => {
+    const k = key.toLowerCase();
+    return (
+      k.includes("web3auth") ||
+      k.includes("openlogin") ||
+      k.includes("torus") ||
+      k.includes("w3a")
+    );
+  };
+
+  try {
+    for (let i = window.localStorage.length - 1; i >= 0; i -= 1) {
+      const key = window.localStorage.key(i);
+      if (key && shouldRemove(key)) window.localStorage.removeItem(key);
+    }
+  } catch {
+    // ignore browser storage errors
+  }
+
+  try {
+    for (let i = window.sessionStorage.length - 1; i >= 0; i -= 1) {
+      const key = window.sessionStorage.key(i);
+      if (key && shouldRemove(key)) window.sessionStorage.removeItem(key);
+    }
+  } catch {
+    // ignore browser storage errors
+  }
+}
+
 function Web2EmbeddedAccountMenu({
   compact = false,
   walletAddress,
@@ -429,6 +462,7 @@ function Web2EmbeddedAccountMenu({
   const [open, setOpen] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const { disconnect } = useWeb3AuthDisconnect();
 
   useEffect(() => {
     if (!open) return;
@@ -454,12 +488,14 @@ function Web2EmbeddedAccountMenu({
   const handleDisconnect = useCallback(async () => {
     setDisconnecting(true);
     try {
+      await disconnect({ cleanup: true }).catch(() => {});
+      clearEmbeddedAuthClientCache();
       await signOut({ redirect: false });
       setOpen(false);
     } finally {
       setDisconnecting(false);
     }
-  }, []);
+  }, [disconnect]);
 
   const displayName = String(userName || userEmail || "Google Wallet").trim();
   const avatarText = initialsFrom(userName, userEmail);
@@ -678,13 +714,24 @@ export default function TopBar() {
   const embeddedWalletAddress = normalizeEvmAddress(sessionUser?.walletAddress);
   const externalWalletAddress = normalizeEvmAddress(address);
 
-  // Wait until both auth systems finish their first restore pass.
-  // Without this, NextAuth can render the embedded wallet before wagmi restores MetaMask/RainbowKit.
+  const [restoreTimeoutReached, setRestoreTimeoutReached] = useState(false);
+
+  useEffect(() => {
+    if (!mounted) return;
+
+    const id = window.setTimeout(() => setRestoreTimeoutReached(true), 2500);
+    return () => window.clearTimeout(id);
+  }, [mounted]);
+
+  const walletRestoreDone =
+    walletStatus !== "connecting" && walletStatus !== "reconnecting";
+
+  // Wait for the first auth restore pass, but never leave TopBar stuck forever.
+  // Some mobile browsers can keep wagmi in reconnecting state for too long after logout.
   const authReady =
     mounted &&
     sessionStatus !== "loading" &&
-    walletStatus !== "connecting" &&
-    walletStatus !== "reconnecting";
+    (walletRestoreDone || restoreTimeoutReached);
 
   const isEmbeddedSessionKind =
     sessionWalletKind === "EMBEDDED" || sessionWalletKind === "WEB2";
