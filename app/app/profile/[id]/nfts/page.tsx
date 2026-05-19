@@ -457,7 +457,7 @@ function buildNftHref(
   tokenId: string,
   fromHref?: string | null
 ) {
-  const base = `/nft/${chainId}/${contract}/${encodeURIComponent(
+  const base = `/app/nft/${chainId}/${contract}/${encodeURIComponent(
     String(tokenId)
   )}`;
   if (!fromHref) return base;

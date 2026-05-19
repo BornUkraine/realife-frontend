@@ -419,7 +419,7 @@ function OwnerNftPreviewCard({ nft }: { nft: PublicNftPreview }) {
   const img = resolveMediaUrl(nft.image);
   const href =
     nft.chainId && nft.contract
-      ? `/nft/${encodeURIComponent(String(nft.chainId))}/${encodeURIComponent(nft.contract)}/${encodeURIComponent(nft.tokenId)}`
+      ? `/app/nft/${encodeURIComponent(String(nft.chainId))}/${encodeURIComponent(nft.contract)}/${encodeURIComponent(nft.tokenId)}`
       : `/app/trading/${encodeURIComponent(nft.mintId)}`;
 
   return (

@@ -204,7 +204,7 @@ function NftPreviewCard({ nft }: { nft: PublicNftPreview }) {
   const img = resolveMediaUrl(nft.image);
   return (
     <Link
-      href={`/nft/${encodeURIComponent(String(nft.chainId))}/${encodeURIComponent(nft.contract)}/${encodeURIComponent(nft.tokenId)}`}
+      href={`/app/nft/${encodeURIComponent(String(nft.chainId))}/${encodeURIComponent(nft.contract)}/${encodeURIComponent(nft.tokenId)}`}
       className="group overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.045] transition hover:-translate-y-0.5 hover:bg-white/[0.07]"
     >
       <div className="aspect-square bg-white/[0.04]">

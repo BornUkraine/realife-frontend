@@ -405,7 +405,7 @@ function ListingCard({ row }: { row: ListingRow }) {
 
   return (
     <Link
-      href={`/nft/${row.chainId}/${row.contract}/${row.tokenId}`}
+      href={`/app/nft/${row.chainId}/${row.contract}/${row.tokenId}`}
       className={cx(
         "group relative overflow-hidden rounded-[22px] border border-white/9 bg-white/[0.035] p-4",
         "transition-all duration-200 hover:-translate-y-[2px] hover:border-white/14 hover:bg-white/[0.06]"
@@ -482,7 +482,7 @@ function TradeCard({ row, direction }: { row: TradeRow; direction: "from" | "to"
 
   return (
     <Link
-      href={`/nft/${row.chainId}/${row.contract}/${row.tokenId}`}
+      href={`/app/nft/${row.chainId}/${row.contract}/${row.tokenId}`}
       className={cx(
         "group relative overflow-hidden rounded-[22px] border border-white/9 bg-white/[0.035] p-4",
         "transition-all duration-200 hover:-translate-y-[2px] hover:border-white/14 hover:bg-white/[0.06]"
