@@ -3013,97 +3013,6 @@ export default function MintForm() {
                   : "Connect wallet / Google to create"}
               </div>
 
-              <div className="mt-4 rounded-3xl border border-amber-300/15 bg-amber-300/[0.045] p-3 shadow-[0_16px_60px_rgba(0,0,0,0.22)]">
-                <div className="mb-3 flex items-end justify-between gap-3">
-                  <div>
-                    <div className="text-sm font-extrabold tracking-tight">
-                      Mint type
-                    </div>
-                    <div className="mt-1 text-[11px] text-white/55">
-                      Choose Standard for collectibles, or Protected for goods / services with USDC escrow.
-                    </div>
-                  </div>
-                  <Pill>
-                    <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
-                    Required
-                  </Pill>
-                </div>
-
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {[
-                    {
-                      key: "standard" as const,
-                      title: "Standard NFT",
-                      text: "Collectible / art / digital NFT. Lists on the standard marketplace.",
-                      tag: "Collectible",
-                    },
-                    {
-                      key: "protected" as const,
-                      title: "Protected NFT",
-                      text: "Good or service with escrow protection. Lists on protected USDC marketplace.",
-                      tag: "USDC escrow",
-                    },
-                  ].map((option) => (
-                    <button
-                      key={option.key}
-                      type="button"
-                      onClick={() => {
-                        setError("");
-                        resetPreparedState();
-                        if (option.key === "standard") {
-                          setOfferType("collectible");
-                        } else if (offerType === "collectible") {
-                          // Protected requires a real fulfillment type. Default to
-                          // physical_product so suggestedMarketType resolves cleanly;
-                          // user can still switch in the Offer type card below.
-                          setOfferType("physical_product");
-                        }
-                        setMintKind(option.key);
-                      }}
-                      className={[
-                        "rounded-2xl border px-3 py-3 text-left transition shadow-[0_12px_44px_rgba(0,0,0,0.24)]",
-                        mintKind === option.key
-                          ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
-                          : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
-                      ].join(" ")}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="text-sm font-extrabold">{option.title}</div>
-                        <div
-                          className={[
-                            "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em]",
-                            mintKind === option.key
-                              ? "bg-black/15 text-black/70"
-                              : "bg-white/10 text-white/55",
-                          ].join(" ")}
-                        >
-                          {option.tag}
-                        </div>
-                      </div>
-                      <div
-                        className={
-                          mintKind === option.key
-                            ? "mt-1 text-[11px] leading-relaxed text-black/70"
-                            : "mt-1 text-[11px] leading-relaxed text-white/55"
-                        }
-                      >
-                        {option.text}
-                      </div>
-                      <div
-                        className={[
-                          "mt-2 break-all font-mono text-[9px]",
-                          mintKind === option.key ? "text-black/55" : "text-white/40",
-                        ].join(" ")}
-                      >
-                        {option.key === "standard"
-                          ? CONTRACT_1155_STANDARD || "not set"
-                          : CONTRACT_1155_PROTECTED || "not set"}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
               <div className="mt-2 text-xs text-white/65">
                 Balance: <span className="font-semibold text-white">{balanceLabel}</span>
               </div>
@@ -3176,6 +3085,99 @@ export default function MintForm() {
               Missing <b>{activeMintEnvName}</b> in Railway env
             </div>
           )}
+        </Card>
+
+        <Card>
+          <div className="mb-4 flex items-end justify-between">
+            <div>
+              <div className="text-sm font-extrabold tracking-tight">
+                Mint type
+              </div>
+              <div className="mt-1 text-[11px] text-white/55">
+                Standard NFT mints to the collectible contract. Protected NFT
+                mints to the Realife Protected 1155 contract and lists on the
+                protected USDC escrow marketplace.
+              </div>
+            </div>
+            <Pill>
+              <span className="h-2 w-2 rounded-full bg-[#d4af37]" />
+              Required
+            </Pill>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {[
+              {
+                key: "standard" as const,
+                title: "Standard NFT",
+                text: "Pure collectible / art / digital NFT. Lists on the standard marketplace.",
+                tag: "Collectible flow",
+              },
+              {
+                key: "protected" as const,
+                title: "Protected NFT",
+                text: "Good or service with escrow protection. Lists on the protected USDC marketplace and locks supply during fulfillment.",
+                tag: "USDC escrow flow",
+              },
+            ].map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                onClick={() => {
+                  setError("");
+                  resetPreparedState();
+                  if (option.key === "standard") {
+                    setOfferType("collectible");
+                  } else if (offerType === "collectible") {
+                    // Protected requires a real fulfillment type. Default to
+                    // physical_product so suggestedMarketType resolves cleanly;
+                    // user can still switch in the Offer type card below.
+                    setOfferType("physical_product");
+                  }
+                  setMintKind(option.key);
+                }}
+                className={[
+                  "rounded-2xl border px-4 py-4 text-left transition shadow-[0_14px_50px_rgba(0,0,0,0.26)]",
+                  mintKind === option.key
+                    ? "bg-[linear-gradient(135deg,#f7e7a7_0%,#d4af37_45%,#b8870a_100%)] text-black border-black/10 ring-1 ring-black/10"
+                    : "border-white/10 bg-white/[0.06] text-white hover:bg-white/10",
+                ].join(" ")}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-extrabold">{option.title}</div>
+                  <div
+                    className={[
+                      "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.14em]",
+                      mintKind === option.key
+                        ? "bg-black/15 text-black/70"
+                        : "bg-white/10 text-white/55",
+                    ].join(" ")}
+                  >
+                    {option.tag}
+                  </div>
+                </div>
+                <div
+                  className={
+                    mintKind === option.key
+                      ? "mt-1 text-xs text-black/70"
+                      : "mt-1 text-xs text-white/55"
+                  }
+                >
+                  {option.text}
+                </div>
+                <div
+                  className={[
+                    "mt-2 break-all font-mono text-[10px]",
+                    mintKind === option.key ? "text-black/55" : "text-white/40",
+                  ].join(" ")}
+                >
+                  {option.key === "standard"
+                    ? CONTRACT_1155_STANDARD || "not set"
+                    : CONTRACT_1155_PROTECTED || "not set"}
+                </div>
+              </button>
+            ))}
+          </div>
         </Card>
 
         <Card>
