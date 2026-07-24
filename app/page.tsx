@@ -277,28 +277,28 @@ function VideoCard({
 
 const SHORT_FAQS = [
   {
-    q: "What is Realife?",
-    a: "Realife is a stablecoin escrow marketplace for real-world goods and services. Buyers can pay through protected commerce flows, while sellers deliver products, services, or work before funds are released.",
+    q: "What makes Realife AI-native?",
+    a: "Realife connects four AI systems across one commerce lifecycle: multimodal listing creation, persistent visual enrichment, natural-language marketplace discovery, and AI-guided order, delivery, and service fulfillment.",
   },
   {
-    q: "Is Realife only an NFT marketplace?",
-    a: "No. Realife uses NFTs as receipts and tokenized transaction rights connected to real products, services, orders, delivery, and outcomes — not only as speculative collectibles.",
+    q: "What does the AI do during listing creation?",
+    a: "A seller uploads a photo or video, and multimodal AI suggests structured listing data such as title, category, brand, description, fulfillment type, marketplace type, reasoning, and search tags.",
   },
   {
-    q: "Why does Realife use NFT receipts?",
-    a: "An NFT receipt can represent what was purchased, who owns the transaction right, what needs to be fulfilled, and what evidence or order state is connected to the deal.",
+    q: "How does AI improve marketplace discovery?",
+    a: "Realife enriches listings with a persistent semantic index and lets buyers describe what they need naturally. AI converts buyer intent into structured marketplace filters and relevant results.",
   },
   {
-    q: "How does escrow protect buyers and sellers?",
-    a: "Buyer funds can stay in escrow until delivery or service completion is confirmed. Sellers get a clearer payment path, and buyers are not forced to trust direct transfers blindly.",
+    q: "How does AI help after a purchase?",
+    a: "The AI order assistant explains transaction status, next steps, delivery or service checklists, possible risks, and suggested messages while protected escrow logic remains deterministic and user-controlled.",
   },
   {
-    q: "What happens if there is a dispute?",
-    a: "The funds stay in escrow while Realife reviews order state, delivery proof, service evidence, deadlines, messages, and buyer/seller confirmation before release, refund, or another resolution path.",
+    q: "Why does Realife also use blockchain and escrow?",
+    a: "AI makes commerce easier to understand and navigate. NFT-linked transaction rights, stablecoin-ready payments, and escrow add verifiable ownership, protected settlement, and clearer fulfillment rules.",
   },
   {
-    q: "Is Realife live on mainnet?",
-    a: "Realife is currently a live MVP on Base Sepolia testnet. Mainnet stablecoin commerce requires further security hardening, legal/compliance review, and production escrow readiness.",
+    q: "Can I test Realife now?",
+    a: "Yes. Realife is a live MVP on Base Sepolia testnet, so reviewers can test AI-assisted minting, marketplace discovery, and protected commerce flows without using real funds.",
   },
 ] as const;
 
@@ -306,8 +306,8 @@ const FOOTER_GROUPS = [
   {
     title: "Product",
     links: [
-      { label: "Marketplace", href: "/app/trading" },
-      { label: "Create NFT listing", href: "/app/create" },
+      { label: "AI Marketplace", href: "/app/trading" },
+      { label: "Create with AI", href: "/app/create" },
       { label: "Real Marketing", href: REAL_MARKETING_HREF },
       { label: "FAQ", href: "/faq" },
     ],
@@ -338,8 +338,8 @@ function ShortFaqSection() {
           <div className="lg:col-span-4 min-w-0">
             <SectionHeading
               label="FAQ"
-              title="Questions buyers, sellers, and investors ask first"
-              text="A short trust layer before users enter the app. The full FAQ explains escrow, NFT receipts, services, delivery, fees, testnet status, and dispute flows."
+              title="Questions about the AI commerce system"
+              text="A direct explanation of what each AI system does, how the protected commerce layer works, and how reviewers can test the live Base Sepolia MVP."
             />
             <div className="mt-6 flex flex-wrap gap-3">
               <GoldButton href="/faq">Read full FAQ</GoldButton>
@@ -371,11 +371,11 @@ function SiteFooter({ year }: { year: number }) {
           <div className="lg:col-span-4 min-w-0">
             <div className="text-2xl font-black tracking-tight">REALIFE</div>
             <p className="mt-3 max-w-sm text-sm leading-relaxed text-white/55">
-              The trust layer for stablecoin commerce: tokenized real-world goods,
-              services, NFT receipts, protected orders, and escrow-backed settlement.
+              Open AI infrastructure for real-world commerce: multimodal listing creation,
+              semantic discovery, guided fulfillment, and escrow-backed settlement.
             </p>
             <div className="mt-5 flex flex-wrap gap-2">
-              {["Base Sepolia MVP", "Escrow", "NFT receipts", "USDC-ready"].map((x) => (
+              {["AI-native", "Open code", "Base Sepolia MVP", "Escrow"].map((x) => (
                 <Pill key={x} className="bg-black/35">
                   {x}
                 </Pill>
@@ -449,35 +449,35 @@ export default function HomePage() {
             <div className="lg:col-span-7 min-w-0 flex flex-col">
               <Pill>
                 <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                Tokenized real-world commerce
+                Open AI infrastructure for real-world commerce
               </Pill>
 
               <h1 className="mt-5 text-3xl font-black leading-[1.05] tracking-[-0.025em] break-words sm:text-4xl md:text-5xl lg:text-[3.4rem] xl:text-[3.8rem]">
-                Stablecoin Escrow Marketplace for{" "}
+                AI-Native Commerce for{" "}
                 <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
-                  Tokenized Real-World Goods & Services
+                  Real-World Goods & Services
                 </span>
               </h1>
 
-              <p className="mt-5 max-w-2xl text-sm leading-relaxed text-white/65 md:text-base">
-                Realife lets users buy and sell real-world goods, services, and delivery
-                through stablecoin-ready payments, NFT-linked transaction rights, and escrow
-                protection until fulfillment is completed.
+              <p className="mt-5 max-w-2xl text-sm leading-relaxed text-white/70 md:text-base">
+                Realife connects four AI systems across the full commerce lifecycle:
+                multimodal listing creation, persistent visual enrichment, natural-language
+                marketplace discovery, and AI-guided order, delivery, and service fulfillment.
               </p>
 
               <p className="mt-3 max-w-2xl text-xs leading-relaxed text-white/50 md:text-sm">
-                NFTs on Realife are not only collectibles. They can represent transaction
-                rights connected to real products, services, delivery, fulfillment, and
-                protected settlement.
+                AI makes real-world commerce understandable. NFT-linked transaction rights,
+                stablecoin-ready payments, and escrow protect ownership, settlement, and
+                fulfillment while users stay in control.
               </p>
 
               <div className="mt-5 flex flex-wrap gap-2">
                 {[
-                  "Stablecoin payments",
-                  "Tokenized goods & services",
-                  "NFT-linked rights",
-                  "Service escrow",
-                  "Delivery escrow",
+                  "AI-generated listings",
+                  "Multimodal enrichment",
+                  "Natural-language discovery",
+                  "AI-guided fulfillment",
+                  "Escrow protection",
                   "Live on Base Sepolia",
                 ].map((x) => (
                   <Pill key={x}>{x}</Pill>
@@ -485,15 +485,15 @@ export default function HomePage() {
               </div>
 
               <div className="mt-8 flex flex-wrap gap-4">
-                <GoldButton href="/app/create">Create NFT listing</GoldButton>
-                <GhostButton href="/app/trading">Open marketplace</GhostButton>
+                <GoldButton href="/app/create">Create with AI</GoldButton>
+                <GhostButton href="/app/trading">Explore AI marketplace</GhostButton>
               </div>
 
               <GlassCard className="mt-8 lg:mt-auto">
                 <div className="grid gap-4 p-5 md:grid-cols-12 md:items-center">
                   <div className="md:col-span-4">
                     <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
-                      Start with wallet
+                      Test the live AI flow
                     </div>
                     <div className="mt-3">
                       <ConnectWallet />
@@ -503,9 +503,9 @@ export default function HomePage() {
                   <div className="md:col-span-8">
                     <div className="grid gap-3 sm:grid-cols-3">
                       {[
-                        ["Category", "Stablecoin escrow marketplace"],
-                        ["NFT role", "Transaction rights and proof"],
-                        ["Trust layer", "Escrow for services and delivery"],
+                        ["Create", "AI understands photos and videos"],
+                        ["Discover", "AI translates intent into marketplace filters"],
+                        ["Complete", "AI guides delivery and service next steps"],
                       ].map(([t, d]) => (
                         <div
                           key={t}
@@ -524,19 +524,19 @@ export default function HomePage() {
             <div className="lg:col-span-5 min-w-0 flex flex-col">
               <div className="grid gap-4 flex-1">
                 <VideoCard
-                  label="Main video"
-                  badge="Hero"
-                  title="Realife in motion"
-                  text="A premium introduction to stablecoin-powered real-world commerce, NFT-linked transaction rights, and escrow-backed trust for products, services, and delivery."
+                  label="AI commerce demo"
+                  badge="Live MVP"
+                  title="One AI pipeline from image to fulfillment"
+                  text="Upload visual content, generate structured marketplace data, enrich the listing for semantic discovery, search in natural language, and receive AI guidance during protected fulfillment."
                   src="/videos/realife-main-hero.mp4"
                   aspect="aspect-[4/3]"
                 />
 
                 <VideoCard
-                  label="Second video"
-                  badge="People / Vision"
-                  title="Real-world value"
-                  text="A supporting visual layer focused on people, work, products, service providers, and the human side of tokenized commerce."
+                  label="Human value layer"
+                  badge="AI + People"
+                  title="Technology built around real work"
+                  text="Realife applies AI to products, services, creators, local sellers, buyers, delivery, and the human decisions that make real-world commerce possible."
                   src="/videos/realife-vision.mp4"
                   aspect="aspect-[16/10]"
                 />
@@ -548,29 +548,29 @@ export default function HomePage() {
         <Reveal className="mt-24">
           <section>
             <SectionHeading
-              label="What Realife means"
-              title="The stablecoin escrow layer for tokenized real-world commerce"
-              text="Realife connects stablecoin-ready payments, NFT-linked transaction rights, marketplace activity, and escrow-protected fulfillment for products, services, and delivery."
+              label="The Realife AI stack"
+              title="Four connected AI systems across one commerce lifecycle"
+              text="Realife is not a marketplace with an AI button. Its AI systems work together from the first visual input through discovery, transaction, delivery, and service completion."
               center
             />
 
             <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {[
                 [
-                  "Stablecoin commerce",
-                  "Crypto users can spend digital money on real-world products, services, and fulfillment without relying only on speculative markets.",
+                  "01 · AI Minting Assistant",
+                  "Multimodal AI understands a product or service photo or video and suggests title, category, brand, description, fulfillment type, marketplace type, reasoning, and search tags.",
                 ],
                 [
-                  "NFT-linked rights",
-                  "NFTs can represent access, ownership proof, purchase claims, service rights, and tradable transaction records.",
+                  "02 · AI Visual Enrichment",
+                  "After minting, AI creates a persistent visual and semantic index so each listing becomes machine-understandable and discoverable beyond manually entered keywords.",
                 ],
                 [
-                  "Real services",
-                  "Digital, online, and local services can move through protected order flows with clearer completion logic.",
+                  "03 · AI Trading Search",
+                  "Buyers describe what they need naturally. AI converts their intent into structured filters for category, market type, fulfillment, location, price, and sorting.",
                 ],
                 [
-                  "Escrow protection",
-                  "Payments can be held until delivery or service completion is confirmed, reducing trust gaps between buyers and sellers.",
+                  "04 · AI Fulfillment Assistant",
+                  "During an active order, AI explains status, next steps, delivery or service checklists, possible risks, and suggested communication without controlling funds.",
                 ],
               ].map(([t, d]) => (
                 <GlassCard key={t}>
@@ -593,16 +593,16 @@ export default function HomePage() {
                     <div>
                       <div className="text-sm text-white/40">Flow video</div>
                       <div className="text-2xl font-black tracking-tight">
-                        How Realife works
+                        How the AI commerce pipeline works
                       </div>
                     </div>
                     <Pill className="bg-black/35">Flow</Pill>
                   </div>
 
                   <p className="mb-5 text-sm leading-relaxed text-white/60">
-                    This section explains the operating logic of the platform —
-                    from real-world value to NFT-linked transaction rights,
-                    marketplace activity, and escrow-backed completion or delivery.
+                    Realife turns visual content into structured commerce, keeps that meaning
+                    in a semantic index, understands buyer intent, and guides fulfillment while
+                    deterministic blockchain and escrow rules protect the transaction.
                   </p>
 
                   <div className="overflow-hidden rounded-[28px] border border-white/10 bg-black/30">
@@ -619,32 +619,32 @@ export default function HomePage() {
 
                 <div className="lg:col-span-5 min-w-0">
                   <SectionHeading
-                    label="How Realife works"
-                    title="Create, tokenize, trade, and complete"
-                    text="From real-world products or services to NFT-linked transaction rights, stablecoin-ready payments, and escrow-backed settlement."
+                    label="End-to-end AI commerce"
+                    title="Understand, enrich, discover, and fulfill"
+                    text="One connected path from a seller's photo or video to a protected real-world transaction."
                   />
 
                   <div className="mt-6 grid gap-3">
                     {[
                       [
                         "01",
-                        "Create",
-                        "Create a real product, service, delivery offer, branded item, or local work listing.",
+                        "Understand",
+                        "Multimodal AI analyzes a product or service image or video and creates structured listing suggestions.",
                       ],
                       [
                         "02",
-                        "Tokenize",
-                        "Mint an NFT-linked transaction right with metadata, media, ownership proof, and marketplace utility.",
+                        "Enrich",
+                        "AI builds a persistent semantic index that improves machine understanding and marketplace discovery.",
                       ],
                       [
                         "03",
-                        "Trade",
-                        "List, buy, sell, or transfer real-world value through the Realife marketplace.",
+                        "Discover",
+                        "Natural-language buyer intent becomes structured marketplace filters and relevant results.",
                       ],
                       [
                         "04",
-                        "Settle",
-                        "Use escrow flows for service completion, buyer confirmation, refund paths, or physical delivery.",
+                        "Fulfill",
+                        "AI guides next steps, delivery or service checklists, risks, and communication while escrow protects settlement.",
                       ],
                     ].map(([n, t, d]) => (
                       <div
@@ -671,8 +671,8 @@ export default function HomePage() {
           <section>
             <SectionHeading
               label="Inside the ecosystem"
-              title="More than a marketplace"
-              text="Realife expands beyond NFT minting into tokenized real-world commerce, stablecoin payments, branded storefronts, service flows, delivery logic, product stories, and practical utility."
+              title="An AI commerce system with a verifiable trust layer"
+              text="Realife combines AI-generated listings, semantic marketplace intelligence, natural-language discovery, and guided fulfillment with stablecoin payments, tokenized rights, branded commerce, and protected settlement."
             />
 
             <div className="mt-10 grid gap-6 lg:grid-cols-3">
@@ -838,17 +838,17 @@ export default function HomePage() {
                 <div className="lg:col-span-8 min-w-0">
                   <SectionHeading
                     label="Start"
-                    title="Bring tokenized real-world commerce on-chain"
-                    text="Create NFT-linked listings for products, services, and branded experiences with AI assistance, marketplace utility, stablecoin-ready payments, and escrow-backed flows."
+                    title="Experience the full AI commerce lifecycle"
+                    text="Upload a photo or video, let AI build the listing and semantic index, search naturally, and use AI guidance through protected delivery or service fulfillment."
                   />
                 </div>
                 <div className="lg:col-span-4 min-w-0">
                   <div className="flex flex-col gap-3">
                     <GoldButton href="/app/create" className="w-full">
-                      Create NFT listing
+                      Create with AI
                     </GoldButton>
                     <GhostButton href="/app/trading" className="w-full">
-                      Open marketplace
+                      Explore AI marketplace
                     </GhostButton>
                     <GhostButton href={REAL_MARKETING_HREF} className="w-full">
                       Explore Real Marketing
