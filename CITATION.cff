@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use Realife in research or an open AI implementation, please cite it."
+title: "Realife: an open AI commerce pipeline"
+type: software
+authors:
+  - family-names: Donin
+    given-names: Eugene
+repository-code: "https://github.com/BornUkraine/realife-frontend"
+url: "https://realife.live"
+license: Apache-2.0
+version: 0.1.0

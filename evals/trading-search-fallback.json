@@ -1,0 +1,74 @@
+[
+  {
+    "id": "physical-delivery-en",
+    "query": "physical product with delivery",
+    "expected": {
+      "marketType": "PROTECTED",
+      "fulfillmentType": "PHYSICAL_GOOD"
+    }
+  },
+  {
+    "id": "local-fitness-kyiv-en",
+    "query": "fitness trainer in Kyiv",
+    "expected": {
+      "marketType": "PROTECTED",
+      "fulfillmentType": "LOCAL_SERVICE",
+      "category": "Health & Wellness",
+      "serviceCity": "Kyiv"
+    }
+  },
+  {
+    "id": "online-consultation-en",
+    "query": "online consultation",
+    "expected": {
+      "marketType": "PROTECTED",
+      "fulfillmentType": "ONLINE_SESSION"
+    }
+  },
+  {
+    "id": "digital-design-en",
+    "query": "website design service",
+    "expected": {
+      "marketType": "PROTECTED",
+      "fulfillmentType": "DIGITAL_SERVICE"
+    }
+  },
+  {
+    "id": "food-location-en",
+    "query": "pineapples from Andalusia Spain",
+    "expected": {
+      "marketType": "PROTECTED",
+      "fulfillmentType": "PHYSICAL_GOOD",
+      "category": "Food & Beverage",
+      "serviceCountry": "Spain",
+      "serviceArea": "Andalusia"
+    }
+  },
+  {
+    "id": "cheap-delivery-en",
+    "query": "cheap product with delivery",
+    "expected": {
+      "marketType": "PROTECTED",
+      "fulfillmentType": "PHYSICAL_GOOD",
+      "sort": "priceAsc"
+    }
+  },
+  {
+    "id": "expensive-delivery-ru",
+    "query": "дорогой товар с доставкой",
+    "expected": {
+      "marketType": "PROTECTED",
+      "fulfillmentType": "PHYSICAL_GOOD",
+      "sort": "priceDesc"
+    }
+  },
+  {
+    "id": "new-online-service-ru",
+    "query": "свежие услуги онлайн",
+    "expected": {
+      "marketType": "PROTECTED",
+      "fulfillmentType": "ONLINE_SESSION",
+      "sort": "new"
+    }
+  }
+]

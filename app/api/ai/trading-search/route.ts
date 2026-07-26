@@ -121,7 +121,7 @@ function normalizeCategory(v: unknown) {
   return found || s;
 }
 
-function normalizeFilters(raw: any): TradingSearchFilters {
+export function normalizeFilters(raw: any): TradingSearchFilters {
   return {
     q: clean(raw?.q, 120),
     marketType: normalizeMarketType(raw?.marketType),
@@ -141,7 +141,7 @@ function normalizeFilters(raw: any): TradingSearchFilters {
   };
 }
 
-function fallbackFilters(query: string): TradingSearchFilters {
+export function fallbackFilters(query: string): TradingSearchFilters {
   const q = query.toLowerCase();
   const filters: TradingSearchFilters = {
     q: clean(query, 80),
@@ -181,6 +181,7 @@ function fallbackFilters(query: string): TradingSearchFilters {
 
   if (
     q.includes("online") ||
+    q.includes("онлайн") ||
     q.includes("session") ||
     q.includes("consultation") ||
     q.includes("консульта") ||
