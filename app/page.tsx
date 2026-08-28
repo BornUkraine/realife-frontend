@@ -169,7 +169,7 @@ function GlassCard({
         className
       )}
     >
-      <div className="relative z-10">{children}</div>
+      <div className="relative z-10 h-full">{children}</div>
     </div>
   );
 }
@@ -247,27 +247,129 @@ function VideoCard({
   className?: string;
 }) {
   return (
-    <GlassCard className={cx("rounded-[32px] before:rounded-[32px]", className)}>
-      <div className="p-5 md:p-6">
+    <GlassCard className={cx("h-full rounded-[32px] before:rounded-[32px]", className)}>
+      <div className="flex h-full min-w-0 flex-col p-5 md:p-6">
         <div className="flex items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <div className="text-sm text-white/40">{label}</div>
             <div className="mt-1 text-2xl font-black tracking-tight">{title}</div>
           </div>
-          <Pill className="bg-black/35">{badge}</Pill>
+          <Pill className="shrink-0 bg-black/35">{badge}</Pill>
         </div>
 
         {text && <p className="mt-4 text-sm leading-relaxed text-white/60">{text}</p>}
 
-        <div className="mt-5 overflow-hidden rounded-[24px] border border-white/10 bg-black/30">
+        <div className="mt-5 overflow-hidden rounded-[24px] border border-white/10 bg-black/55 xl:mt-auto xl:h-[260px]">
           <video
             src={src}
             autoPlay
             loop
             muted
             playsInline
-            className={cx(aspect, "w-full object-cover object-center")}
+            className={cx(
+              aspect,
+              "w-full object-cover object-center xl:h-full xl:aspect-auto xl:object-contain"
+            )}
           />
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+const LIVE_FLOW_STEPS = [
+  ["01", "Create", "AI understands photos and video"],
+  ["02", "Discover", "AI translates buyer intent"],
+  ["03", "Complete", "AI guides delivery or service"],
+] as const;
+
+function LiveFlowCard() {
+  return (
+    <GlassCard className="h-full rounded-[32px] before:rounded-[32px]">
+      <div className="flex h-full min-h-[360px] flex-col p-5 md:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/55">
+              Test the live AI flow
+            </div>
+            <div className="mt-2 text-2xl font-black tracking-tight">
+              Start the full commerce lifecycle
+            </div>
+          </div>
+          <Pill className="shrink-0 bg-black/35">Live MVP</Pill>
+        </div>
+
+        <p className="mt-3 text-sm leading-relaxed text-white/55">
+          Connect once, then create an offer, discover the right match, and complete
+          protected delivery or service fulfillment.
+        </p>
+
+        <div className="mt-6 flex [&>*]:w-full [&_button]:w-full">
+          <ConnectWallet />
+        </div>
+
+        <div className="relative mt-6 grid flex-1 gap-3 sm:grid-cols-3">
+          <div className="pointer-events-none absolute left-[12%] right-[12%] top-[50%] hidden h-px bg-[linear-gradient(90deg,transparent,rgba(212,175,55,0.8),transparent)] sm:block" />
+          {LIVE_FLOW_STEPS.map(([number, title, description]) => (
+            <div
+              key={title}
+              className="relative z-10 min-w-0 rounded-2xl border border-white/10 bg-[#100e0c]/95 p-4 shadow-[0_14px_40px_rgba(0,0,0,0.24)]"
+            >
+              <div className="text-sm font-black text-[#d4af37]">{number}</div>
+              <div className="mt-3 text-sm font-bold tracking-tight text-white">{title}</div>
+              <div className="mt-1 text-xs leading-relaxed text-white/55">{description}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
+const LIFECYCLE_STEPS = [
+  "Goods or Service",
+  "AI Mint",
+  "AI Trading",
+  "AI Delivery",
+  "USDC Payout",
+] as const;
+
+function LifecycleBanner() {
+  return (
+    <GlassCard className="mt-8 w-full min-w-0 max-w-full overflow-hidden rounded-[32px] before:rounded-[32px]">
+      <div className="p-3 sm:p-4">
+        <div className="relative aspect-[5/2] min-h-[140px] w-full overflow-hidden rounded-[24px] bg-black/55 sm:aspect-[22/5] sm:min-h-0">
+          <Image
+            src="/brand/realife-ai-commerce-lifecycle-usdc.png"
+            alt="Realife lifecycle from goods or services through AI Mint, AI Trading and AI Delivery to a USDC payout"
+            fill
+            priority
+            className="object-contain object-center sm:object-cover"
+            sizes="(max-width: 1024px) 100vw, 1280px"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.08),transparent_14%,transparent_86%,rgba(0,0,0,0.08))]" />
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
+          {LIFECYCLE_STEPS.map((step, index) => (
+            <div
+              key={step}
+              className={cx(
+                "flex min-w-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-center text-[11px] font-semibold text-white/70",
+                index === LIFECYCLE_STEPS.length - 1 && "col-span-2 sm:col-span-1"
+              )}
+            >
+              <span
+                className={cx(
+                  "h-1.5 w-1.5 shrink-0 rounded-full",
+                  index === LIFECYCLE_STEPS.length - 1
+                    ? "bg-[#2775ca] shadow-[0_0_0_4px_rgba(39,117,202,0.14)]"
+                    : "bg-[#d4af37] shadow-[0_0_0_4px_rgba(212,175,55,0.1)]"
+                )}
+              />
+              <span>{step}</span>
+            </div>
+          ))}
         </div>
       </div>
     </GlassCard>
@@ -445,84 +547,61 @@ export default function HomePage() {
 
       <div className="relative z-30 mx-auto max-w-7xl px-4 py-6 sm:px-6 md:py-8 lg:py-10">
         <Reveal>
-          <section className="grid items-stretch gap-6 md:gap-10 lg:grid-cols-12">
-            <div className="lg:col-span-7 min-w-0 flex flex-col">
-              <Pill>
-                <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
-                Open AI infrastructure for real-world commerce
-              </Pill>
+          <section>
+            <div className="grid items-stretch gap-6 md:gap-10 xl:grid-cols-12">
+              <div className="min-w-0 xl:col-span-7">
+                <Pill>
+                  <span className="h-2 w-2 rounded-full bg-[#d4af37] shadow-[0_0_0_6px_rgba(212,175,55,0.12)]" />
+                  Open AI infrastructure for real-world commerce
+                </Pill>
 
-              <h1 className="mt-5 text-3xl font-black leading-[1.05] tracking-[-0.025em] break-words sm:text-4xl md:text-5xl lg:text-[3.4rem] xl:text-[3.8rem]">
-                AI-Native Commerce for{" "}
-                <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
-                  Real-World Goods & Services
-                </span>
-              </h1>
+                <h1 className="mt-5 break-words text-3xl font-black leading-[1.05] tracking-[-0.025em] sm:text-4xl md:text-5xl lg:text-[3.4rem] xl:text-[3.8rem]">
+                  AI-Native Commerce for{" "}
+                  <span className="bg-[linear-gradient(135deg,#f7e7a7,#d4af37,#b8870a)] bg-clip-text text-transparent">
+                    Real-World Goods & Services
+                  </span>
+                </h1>
 
-              <p className="mt-5 max-w-2xl text-sm leading-relaxed text-white/70 md:text-base">
-                Realife connects four AI systems across the full commerce lifecycle:
-                multimodal listing creation, persistent visual enrichment, natural-language
-                marketplace discovery, and AI-guided order, delivery, and service fulfillment.
-              </p>
+                <p className="mt-5 max-w-2xl text-sm leading-relaxed text-white/70 md:text-base">
+                  Realife connects four AI systems across the full commerce lifecycle:
+                  multimodal listing creation, persistent visual enrichment, natural-language
+                  marketplace discovery, and AI-guided order, delivery, and service fulfillment.
+                </p>
 
-              <p className="mt-3 max-w-2xl text-xs leading-relaxed text-white/50 md:text-sm">
-                AI makes real-world commerce understandable. NFT-linked transaction rights,
-                stablecoin-ready payments, and escrow protect ownership, settlement, and
-                fulfillment while users stay in control.
-              </p>
+                <p className="mt-3 max-w-2xl text-xs leading-relaxed text-white/50 md:text-sm">
+                  AI makes real-world commerce understandable. NFT-linked transaction rights,
+                  stablecoin-ready payments, and escrow protect ownership, settlement, and
+                  fulfillment while users stay in control.
+                </p>
 
-              <div className="mt-5 flex flex-wrap gap-2">
-                {[
-                  "AI-generated listings",
-                  "Multimodal enrichment",
-                  "Natural-language discovery",
-                  "AI-guided fulfillment",
-                  "Escrow protection",
-                  "Live on Base Sepolia",
-                ].map((x) => (
-                  <Pill key={x}>{x}</Pill>
-                ))}
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-4">
-                <GoldButton href="/app/create">Create with AI</GoldButton>
-                <GhostButton href="/app/trading">Explore AI marketplace</GhostButton>
-              </div>
-
-              <GlassCard className="mt-8 lg:mt-auto">
-                <div className="grid gap-4 p-5 md:grid-cols-12 md:items-center">
-                  <div className="md:col-span-4">
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
-                      Test the live AI flow
-                    </div>
-                    <div className="mt-3">
-                      <ConnectWallet />
-                    </div>
-                  </div>
-
-                  <div className="md:col-span-8">
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      {[
-                        ["Create", "AI understands photos and videos"],
-                        ["Discover", "AI translates intent into marketplace filters"],
-                        ["Complete", "AI guides delivery and service next steps"],
-                      ].map(([t, d]) => (
-                        <div
-                          key={t}
-                          className="rounded-2xl border border-white/10 bg-white/[0.04] p-4"
-                        >
-                          <div className="text-sm font-bold tracking-tight">{t}</div>
-                          <div className="mt-1 text-xs leading-relaxed text-white/60">{d}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {[
+                    "AI-generated listings",
+                    "Multimodal enrichment",
+                    "Natural-language discovery",
+                    "AI-guided fulfillment",
+                    "Escrow protection",
+                    "Live on Base Sepolia",
+                  ].map((x) => (
+                    <Pill key={x}>{x}</Pill>
+                  ))}
                 </div>
-              </GlassCard>
+
+                <div className="mt-8 flex flex-wrap gap-4">
+                  <GoldButton href="/app/create">Create with AI</GoldButton>
+                  <GhostButton href="/app/trading">Explore AI marketplace</GhostButton>
+                </div>
+              </div>
+
+              <div className="min-w-0 xl:col-span-5">
+                <LiveFlowCard />
+              </div>
             </div>
 
-            <div className="lg:col-span-5 min-w-0 flex flex-col">
-              <div className="grid gap-4 flex-1">
+            <LifecycleBanner />
+
+            <div className="mt-8 grid items-stretch gap-6 md:gap-10 xl:grid-cols-12">
+              <div className="min-w-0 xl:col-span-7">
                 <VideoCard
                   label="AI commerce demo"
                   badge="Live MVP"
@@ -531,7 +610,9 @@ export default function HomePage() {
                   src="/videos/realife-main-hero.mp4"
                   aspect="aspect-[4/3]"
                 />
+              </div>
 
+              <div className="min-w-0 xl:col-span-5">
                 <VideoCard
                   label="Human value layer"
                   badge="AI + People"
