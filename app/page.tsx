@@ -235,7 +235,6 @@ function VideoCard({
   title,
   text,
   src,
-  aspect = "aspect-[4/3]",
   className = "",
 }: {
   label: string;
@@ -243,7 +242,6 @@ function VideoCard({
   title: string;
   text?: string;
   src: string;
-  aspect?: string;
   className?: string;
 }) {
   return (
@@ -259,17 +257,14 @@ function VideoCard({
 
         {text && <p className="mt-4 text-sm leading-relaxed text-white/60">{text}</p>}
 
-        <div className="mt-5 overflow-hidden rounded-[24px] border border-white/10 bg-black/55 xl:mt-auto xl:h-[260px]">
+        <div className="mt-5 aspect-[16/10] overflow-hidden rounded-[24px] border border-white/10 bg-black/55 xl:mt-auto xl:h-[260px] xl:aspect-auto">
           <video
             src={src}
             autoPlay
             loop
             muted
             playsInline
-            className={cx(
-              aspect,
-              "w-full object-cover object-center xl:h-full xl:aspect-auto xl:object-contain"
-            )}
+            className="h-full w-full object-contain object-center"
           />
         </div>
       </div>
@@ -278,9 +273,27 @@ function VideoCard({
 }
 
 const LIVE_FLOW_STEPS = [
-  ["01", "Create", "AI understands photos and video"],
-  ["02", "Discover", "AI translates buyer intent"],
-  ["03", "Complete", "AI guides delivery or service"],
+  {
+    number: "01",
+    title: "AI Mint",
+    description:
+      "Photo or video becomes a structured offer with category, fulfillment, and search tags.",
+    outcome: "Media → listing",
+  },
+  {
+    number: "02",
+    title: "AI Trading",
+    description:
+      "Natural-language buyer intent becomes safe filters and semantic marketplace matches.",
+    outcome: "Intent → match",
+  },
+  {
+    number: "03",
+    title: "AI Delivery",
+    description:
+      "Order state becomes next steps, risk checks, and fulfillment guidance before payout.",
+    outcome: "Fulfillment → USDC",
+  },
 ] as const;
 
 function LiveFlowCard() {
@@ -299,27 +312,69 @@ function LiveFlowCard() {
           <Pill className="shrink-0 bg-black/35">Live MVP</Pill>
         </div>
 
-        <p className="mt-3 text-sm leading-relaxed text-white/55">
-          Connect once, then create an offer, discover the right match, and complete
-          protected delivery or service fulfillment.
+        <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/55">
+          One wallet-controlled path from visual media to a protected real-world order
+          and stablecoin settlement.
         </p>
 
-        <div className="mt-6 flex [&>*]:w-full [&_button]:w-full">
-          <ConnectWallet />
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/25 p-2.5">
+          <div className="min-w-0 px-1">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+              Protected test flow
+            </div>
+            <div className="mt-0.5 text-xs font-semibold text-white/75">
+              AI guides. Your wallet approves.
+            </div>
+          </div>
+          <div className="shrink-0">
+            <ConnectWallet />
+          </div>
         </div>
 
-        <div className="relative mt-6 grid flex-1 gap-3 sm:grid-cols-3">
-          <div className="pointer-events-none absolute left-[12%] right-[12%] top-[50%] hidden h-px bg-[linear-gradient(90deg,transparent,rgba(212,175,55,0.8),transparent)] sm:block" />
-          {LIVE_FLOW_STEPS.map(([number, title, description]) => (
+        <div className="relative mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="pointer-events-none absolute left-[12%] right-[12%] top-[27px] hidden h-px bg-[linear-gradient(90deg,transparent,rgba(212,175,55,0.7),transparent)] sm:block" />
+          {LIVE_FLOW_STEPS.map((step, index) => (
             <div
-              key={title}
-              className="relative z-10 min-w-0 rounded-2xl border border-white/10 bg-[#100e0c]/95 p-4 shadow-[0_14px_40px_rgba(0,0,0,0.24)]"
+              key={step.title}
+              className="relative z-10 flex min-h-[176px] min-w-0 flex-col rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(16,14,12,0.97),rgba(8,7,6,0.9))] p-4 shadow-[0_14px_40px_rgba(0,0,0,0.24)]"
             >
-              <div className="text-sm font-black text-[#d4af37]">{number}</div>
-              <div className="mt-3 text-sm font-bold tracking-tight text-white">{title}</div>
-              <div className="mt-1 text-xs leading-relaxed text-white/55">{description}</div>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-black text-[#d4af37]">{step.number}</div>
+                <span
+                  className={cx(
+                    "h-2 w-2 rounded-full shadow-[0_0_0_5px_rgba(212,175,55,0.08)]",
+                    index === LIVE_FLOW_STEPS.length - 1 ? "bg-[#2775ca]" : "bg-[#d4af37]"
+                  )}
+                />
+              </div>
+              <div className="mt-3 text-sm font-bold tracking-tight text-white">
+                {step.title}
+              </div>
+              <div className="mt-1.5 text-[11px] leading-relaxed text-white/55">
+                {step.description}
+              </div>
+              <div
+                className={cx(
+                  "mt-auto pt-4 text-[10px] font-bold uppercase tracking-[0.1em]",
+                  index === LIVE_FLOW_STEPS.length - 1 ? "text-[#6da8e8]" : "text-[#d4af37]/80"
+                )}
+              >
+                {step.outcome}
+              </div>
             </div>
           ))}
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#d4af37]/15 bg-[#d4af37]/[0.06] px-4 py-3">
+          <div className="flex items-center gap-2 text-xs font-semibold text-white/75">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full border border-[#d4af37]/30 bg-[#d4af37]/10 text-[10px] text-[#d4af37]">
+              ✓
+            </span>
+            AI proposes. You approve.
+          </div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/40">
+            Escrow controls value
+          </div>
         </div>
       </div>
     </GlassCard>
@@ -600,26 +655,24 @@ export default function HomePage() {
 
             <LifecycleBanner />
 
-            <div className="mt-8 grid items-stretch gap-6 md:gap-10 xl:grid-cols-12">
-              <div className="min-w-0 xl:col-span-7">
+            <div className="mt-8 grid items-stretch gap-6 md:gap-10 xl:grid-cols-2">
+              <div className="min-w-0">
                 <VideoCard
                   label="AI commerce demo"
                   badge="Live MVP"
                   title="One AI pipeline from image to fulfillment"
                   text="Upload visual content, generate structured marketplace data, enrich the listing for semantic discovery, search in natural language, and receive AI guidance during protected fulfillment."
                   src="/videos/realife-main-hero.mp4"
-                  aspect="aspect-[4/3]"
                 />
               </div>
 
-              <div className="min-w-0 xl:col-span-5">
+              <div className="min-w-0">
                 <VideoCard
                   label="Human value layer"
                   badge="AI + People"
                   title="Technology built around real work"
                   text="Realife applies AI to products, services, creators, local sellers, buyers, delivery, and the human decisions that make real-world commerce possible."
                   src="/videos/realife-vision.mp4"
-                  aspect="aspect-[16/10]"
                 />
               </div>
             </div>
